@@ -65,6 +65,18 @@ flowchart LR
 | `agent.md` | —          | `agent.md` | `agent.agent.md`       |
 | `SKILL.md` | —          | `SKILL.md` | `SKILL.md`             |
 
+## Rule tiers
+
+Rules have three intent levels, not just on/off:
+
+| Tier | Behavior | Examples |
+| ---- | -------- | -------- |
+| **Universal** | Always included, shown as `(required)` in the wizard, cannot be deselected | `pre-commit-checks`, `docs-parity`, `never-read-env` |
+| **Team default** | Pre-checked for a given team profile, deselectable | `type-safety` (frontend/backend), `docker-best-practices` (devops) |
+| **Team optional** | Off by default, opt-in | `terraform-conventions`, `no-console-log` |
+
+Universal rules are marked `universal: true` in `src/init/presets.ts`. The init wizard merges their IDs into the final selection regardless of what the checkbox returns.
+
 ## Config resolution
 
 ```mermaid

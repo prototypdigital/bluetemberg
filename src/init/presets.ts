@@ -72,6 +72,14 @@ export const RULE_PRESETS: PresetItem[] = [
     universal: true,
   },
   {
+    id: 'docs-parity',
+    name: 'Docs parity',
+    description: 'Update docs in the same commit as every user-facing change',
+    default: true,
+    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    universal: true,
+  },
+  {
     id: 'design-system-reuse',
     name: 'Design system reuse',
     description: 'Reuse shared UI components and tokens before creating new ones',

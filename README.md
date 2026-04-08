@@ -27,13 +27,14 @@ npx @prototypdigital/bluetemberg init
 
 The interactive wizard will ask you to pick:
 
+- **Team profile** — frontend, backend, full-stack, DevOps, or custom (sets smart defaults for everything below)
 - Target platforms (Cursor / Claude / Copilot)
-- Starter rules (coding standards, no-console-log, etc.)
-- Specialist agents (frontend, test, docs, a11y, infra)
-- Skills (patterns, docs-upkeep, workspace-hygiene)
+- Starter rules — universal guardrails are always included; profile-specific rules are pre-checked based on your team type
+- Specialist agents (frontend, test, docs, a11y, infra, security, devops)
+- Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
 - MCP server configs (interactive prompts, context7, figma, github)
 
-It scaffolds `llm/` as the vendor-neutral source of truth and generates platform-specific files.
+It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-specific files, and patches `.prettierignore` to protect your prose files from the formatter.
 
 ## What it creates
 
@@ -54,6 +55,22 @@ your-project/
 ├── .github/agents/             # Generated — do not edit
 └── .github/skills/             # Generated — do not edit
 ```
+
+## Universal guardrails
+
+Seven rules are always included regardless of team profile and cannot be deselected in the wizard. They represent the baseline every project needs:
+
+| Rule                    | What it enforces                                        |
+| ----------------------- | ------------------------------------------------------- |
+| `coding-standards`      | Function complexity, readability, naming                |
+| `early-returns`         | Guard clauses over nested conditionals                  |
+| `git-move`              | `git mv` for tracked files to preserve history          |
+| `never-read-env`        | No direct `.env` reads in code                          |
+| `post-edit-diagnostics` | Run diagnostics and formatter after every edit          |
+| `pre-commit-checks`     | Formatter, linter, and build pass before every commit   |
+| `docs-parity`           | Doc updates ship in the same commit as behavior changes |
+
+All other rules are opt-in and filtered by your chosen team profile.
 
 ## Sync
 
