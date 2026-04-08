@@ -1,6 +1,6 @@
 # Commands
 
-## `blueprint init [directory]`
+## `bluetemberg init [directory]`
 
 Interactive wizard that scaffolds AI tooling into a project.
 
@@ -12,7 +12,7 @@ Interactive wizard that scaffolds AI tooling into a project.
 
 1. Asks you to pick platforms, rules, agents, skills, and MCP servers
 2. Creates `llm/` directory with selected starter content
-3. Generates `blueprint.config.json`
+3. Generates `bluetemberg.config.json`
 4. Creates `AGENTS.md` and `CLAUDE.md` (if Claude selected)
 5. Sets up MCP config files (if selected)
 6. Adds `sync:llm-config` scripts to `package.json`
@@ -21,11 +21,11 @@ Interactive wizard that scaffolds AI tooling into a project.
 **Example:**
 
 ```bash
-npx @prototypdigital/blueprint init
-npx @prototypdigital/blueprint init ./my-project
+npx @prototypdigital/bluetemberg init
+npx @prototypdigital/bluetemberg init ./my-project
 ```
 
-## `blueprint sync [directory]`
+## `bluetemberg sync [directory]`
 
 Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 
@@ -40,9 +40,9 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 **Example:**
 
 ```bash
-npx blueprint sync
-npx blueprint sync --check
-npx blueprint sync ./my-project
+npx bluetemberg sync
+npx bluetemberg sync --check
+npx bluetemberg sync ./my-project
 ```
 
 **When to run:**
@@ -54,7 +54,7 @@ npx blueprint sync ./my-project
 
 After running `init`, these scripts are added to your `package.json`:
 
-| Script                  | Command                      |
-| ----------------------- | ---------------------------- |
-| `sync:llm-config`       | `npx blueprint sync`         |
-| `sync:llm-config:check` | `npx blueprint sync --check` |
+| Script                  | Command                        |
+| ----------------------- | ------------------------------ |
+| `sync:llm-config`       | `npx bluetemberg sync`         |
+| `sync:llm-config:check` | `npx bluetemberg sync --check` |

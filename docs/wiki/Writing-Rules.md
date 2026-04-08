@@ -62,4 +62,4 @@ The sync engine converts `scope` into platform-specific frontmatter:
 - Keep rules concise and actionable — the AI reads them on every interaction
 - Use examples (code blocks) to clarify expected behavior
 - One rule per file — easier to enable/disable individually
-- After creating or editing rules, run `npx blueprint sync`
+- After creating or editing rules, run `npx bluetemberg sync`

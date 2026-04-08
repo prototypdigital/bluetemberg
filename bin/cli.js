@@ -9,7 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
 
 program
-  .name('blueprint')
+  .name('bluetemberg')
   .description('Scaffold and sync vendor-neutral AI tooling config')
   .version(pkg.version);
 

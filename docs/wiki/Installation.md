@@ -1,6 +1,6 @@
 # Installation
 
-Blueprint is published to the GitHub Packages npm registry under `@prototypdigital/blueprint`.
+Bluetemberg is published to the GitHub Packages npm registry under `@prototypdigital/bluetemberg`.
 
 ## Prerequisites
 
@@ -26,22 +26,22 @@ For CI environments, use the built-in `GITHUB_TOKEN` secret.
 ### Option A: Run directly with npx
 
 ```bash
-npx @prototypdigital/blueprint init
+npx @prototypdigital/bluetemberg init
 ```
 
 ### Option B: Install as a dev dependency
 
 ```bash
-npm install -D @prototypdigital/blueprint
+npm install -D @prototypdigital/bluetemberg
 # or
-pnpm add -D @prototypdigital/blueprint
+pnpm add -D @prototypdigital/bluetemberg
 ```
 
 Then use via package scripts:
 
 ```bash
-npx blueprint init
-npx blueprint sync
+npx bluetemberg init
+npx bluetemberg sync
 ```
 
 ## CI authentication

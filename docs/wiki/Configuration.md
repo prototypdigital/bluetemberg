@@ -1,6 +1,6 @@
 # Configuration
 
-Blueprint stores project settings in `blueprint.config.json` at the repository root. This file is created by `blueprint init` and read by `blueprint sync`.
+Bluetemberg stores project settings in `bluetemberg.config.json` at the repository root. This file is created by `bluetemberg init` and read by `bluetemberg sync`.
 
 ## Schema
 
@@ -72,4 +72,4 @@ Skills are synced as `<skill-name>/SKILL.md` within the target directory.
 
 ## Default behavior
 
-If `blueprint.config.json` does not exist, `blueprint sync` uses defaults: all three platforms, `llm` as source directory, and standard target paths.
+If `bluetemberg.config.json` does not exist, `bluetemberg sync` uses defaults: all three platforms, `llm` as source directory, and standard target paths.

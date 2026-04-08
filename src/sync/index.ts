@@ -13,7 +13,7 @@ import type {
 } from '../types.js';
 
 export function loadConfig(root: string): BlueprintConfig {
-  const configPath = join(root, 'blueprint.config.json');
+  const configPath = join(root, 'bluetemberg.config.json');
 
   if (existsSync(configPath)) {
     return JSON.parse(readFileSync(configPath, 'utf8')) as BlueprintConfig;
@@ -70,7 +70,7 @@ export function sync(root: string, options: SyncOptions = {}): SyncResults {
 
   if (checkMode) {
     if (results.outOfSync > 0) {
-      log(`\n${results.outOfSync} file(s) out of sync. Run: npx blueprint sync`);
+      log(`\n${results.outOfSync} file(s) out of sync. Run: npx bluetemberg sync`);
     } else {
       log('\nAll files in sync.');
     }

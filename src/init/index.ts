@@ -7,12 +7,12 @@ import { sync } from '../sync/index.js';
 export async function init(targetPath?: string): Promise<void> {
   const targetDir = resolve(targetPath || '.');
 
-  console.log(`\n  Blueprint — AI tooling scaffolder\n`);
+  console.log(`\n  Bluetemberg — AI tooling scaffolder\n`);
   console.log(`  Target: ${targetDir}\n`);
 
-  const configExists = existsSync(resolve(targetDir, 'blueprint.config.json'));
+  const configExists = existsSync(resolve(targetDir, 'bluetemberg.config.json'));
   if (configExists) {
-    console.log('  ⚠ blueprint.config.json already exists in this directory.');
+    console.log('  ⚠ bluetemberg.config.json already exists in this directory.');
     console.log('  Running init will overwrite existing config and llm/ files.\n');
   }
 

@@ -1,10 +1,10 @@
-# Blueprint
+# Bluetemberg
 
-[![CI](https://github.com/prototypdigital/blueprint/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/blueprint/actions/workflows/ci.yml)
+[![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
 
 Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, and **GitHub Copilot**.
 
-> **Internal package** — published to [GitHub Packages](https://github.com/orgs/prototypdigital/packages) under `@prototypdigital/blueprint`.
+> **Internal package** — published to [GitHub Packages](https://github.com/orgs/prototypdigital/packages) under `@prototypdigital/bluetemberg`.
 
 ## Install
 
@@ -22,7 +22,7 @@ Set `GITHUB_TOKEN` to a personal access token with `read:packages` scope.
 ### 2. Run
 
 ```bash
-npx @prototypdigital/blueprint init
+npx @prototypdigital/bluetemberg init
 ```
 
 The interactive wizard will ask you to pick:
@@ -39,7 +39,7 @@ It scaffolds `llm/` as the vendor-neutral source of truth and generates platform
 
 ```
 your-project/
-├── blueprint.config.json       # Platforms, targets, source dir
+├── bluetemberg.config.json     # Platforms, targets, source dir
 ├── AGENTS.md                   # Project context for AI tools
 ├── CLAUDE.md                   # Claude-specific pointer (if Claude selected)
 ├── llm/
@@ -60,13 +60,13 @@ your-project/
 After editing anything in `llm/`, regenerate platform files:
 
 ```bash
-npx blueprint sync
+npx bluetemberg sync
 ```
 
 Check mode for CI (exits 1 if out of sync):
 
 ```bash
-npx blueprint sync --check
+npx bluetemberg sync --check
 ```
 
 ## How sync works
@@ -88,26 +88,26 @@ Agents and skills are copied verbatim (only the filename extension changes).
 
 ## Documentation
 
-See the [Wiki](https://github.com/prototypdigital/blueprint/wiki) for full documentation:
+See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full documentation:
 
-- [Installation](https://github.com/prototypdigital/blueprint/wiki/Installation)
-- [Commands](https://github.com/prototypdigital/blueprint/wiki/Commands)
-- [Configuration](https://github.com/prototypdigital/blueprint/wiki/Configuration)
-- [Writing Rules](https://github.com/prototypdigital/blueprint/wiki/Writing-Rules)
-- [Writing Agents](https://github.com/prototypdigital/blueprint/wiki/Writing-Agents)
-- [Writing Skills](https://github.com/prototypdigital/blueprint/wiki/Writing-Skills)
-- [Architecture](https://github.com/prototypdigital/blueprint/wiki/Architecture)
-- [Consumer Setup](https://github.com/prototypdigital/blueprint/wiki/Consumer-Setup)
-- [Contributing](https://github.com/prototypdigital/blueprint/wiki/Contributing)
+- [Installation](https://github.com/prototypdigital/bluetemberg/wiki/Installation)
+- [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands)
+- [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)
+- [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules)
+- [Writing Agents](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Agents)
+- [Writing Skills](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills)
+- [Architecture](https://github.com/prototypdigital/bluetemberg/wiki/Architecture)
+- [Consumer Setup](https://github.com/prototypdigital/bluetemberg/wiki/Consumer-Setup)
+- [Contributing](https://github.com/prototypdigital/bluetemberg/wiki/Contributing)
 
 ## Development
 
 ```bash
-git clone https://github.com/prototypdigital/blueprint.git
-cd blueprint
+git clone https://github.com/prototypdigital/bluetemberg.git
+cd bluetemberg
 npm install
 npm run build
 npm test
 ```
 
-See [Contributing](https://github.com/prototypdigital/blueprint/wiki/Contributing) for commit conventions and release process.
+See [Contributing](https://github.com/prototypdigital/bluetemberg/wiki/Contributing) for commit conventions and release process.

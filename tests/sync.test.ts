@@ -6,7 +6,7 @@ import { sync, loadConfig } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 function createTmpDir(): string {
-  const dir = join(tmpdir(), `blueprint-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(tmpdir(), `bluetemberg-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -198,9 +198,9 @@ describe('loadConfig', () => {
     expect(config.source).toBe('llm');
   });
 
-  it('reads blueprint.config.json when present', () => {
+  it('reads bluetemberg.config.json when present', () => {
     const custom = { platforms: ['cursor'], source: 'ai', targets: {} };
-    writeFileSync(join(root, 'blueprint.config.json'), JSON.stringify(custom));
+    writeFileSync(join(root, 'bluetemberg.config.json'), JSON.stringify(custom));
 
     const config = loadConfig(root);
     expect(config.platforms).toEqual(['cursor']);

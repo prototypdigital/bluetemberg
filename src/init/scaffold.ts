@@ -72,7 +72,7 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     targets,
   };
 
-  safeWrite(join(targetDir, 'blueprint.config.json'), JSON.stringify(config, null, 2) + '\n', created);
+  safeWrite(join(targetDir, 'bluetemberg.config.json'), JSON.stringify(config, null, 2) + '\n', created);
 }
 
 function scaffoldRules(targetDir: string, answers: InitAnswers, created: string[]): void {
@@ -256,7 +256,7 @@ function updatePackageScripts(targetDir: string): void {
 
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
   pkg.scripts = pkg.scripts || {};
-  pkg.scripts['sync:llm-config'] = 'npx blueprint sync';
-  pkg.scripts['sync:llm-config:check'] = 'npx blueprint sync --check';
+  pkg.scripts['sync:llm-config'] = 'npx bluetemberg sync';
+  pkg.scripts['sync:llm-config:check'] = 'npx bluetemberg sync --check';
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 }

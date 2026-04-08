@@ -1,6 +1,6 @@
 # Consumer Setup
 
-How to set up a downstream project to use Blueprint.
+How to set up a downstream project to use Bluetemberg.
 
 ## 1. Authenticate with GitHub Packages
 
@@ -28,7 +28,7 @@ Set `GITHUB_TOKEN` to a personal access token with `read:packages` scope.
 ## 2. Initialize
 
 ```bash
-npx @prototypdigital/blueprint init
+npx @prototypdigital/bluetemberg init
 ```
 
 Follow the interactive prompts to select platforms, rules, agents, and skills.
@@ -39,7 +39,7 @@ Add to your GitHub Actions workflow to catch drift:
 
 ```yaml
 - name: Check AI config sync
-  run: npx blueprint sync --check
+  run: npx bluetemberg sync --check
 ```
 
 ## 4. Ongoing workflow
@@ -54,26 +54,26 @@ npm run sync:llm-config
 npm run sync:llm-config:check
 ```
 
-## Updating Blueprint
+## Updating Bluetemberg
 
 To get the latest starter templates and sync engine:
 
 ```bash
-npm update @prototypdigital/blueprint
+npm update @prototypdigital/bluetemberg
 ```
 
 Then re-run sync to pick up any engine changes:
 
 ```bash
-npx blueprint sync
+npx bluetemberg sync
 ```
 
 ## Migrating from manual setup
 
 If your project already has AI config files (`.cursor/rules/`, `.claude/rules/`, etc.) that were created manually:
 
-1. Run `npx @prototypdigital/blueprint init` in your project
+1. Run `npx @prototypdigital/bluetemberg init` in your project
 2. Move your existing rule content into `llm/rules/` with the correct frontmatter format
-3. Run `npx blueprint sync` to regenerate platform files
+3. Run `npx bluetemberg sync` to regenerate platform files
 4. Verify the output matches your previous setup
 5. Delete any manually-created platform files that are now generated

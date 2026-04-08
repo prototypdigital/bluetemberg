@@ -3,16 +3,16 @@ name: AI Config Sync Check
 on:
   pull_request:
     paths:
-      - "llm/**"
-      - ".cursor/rules/**"
-      - ".claude/rules/**"
-      - ".claude/agents/**"
-      - ".claude/skills/**"
-      - ".github/instructions/**"
-      - ".github/agents/**"
-      - ".github/skills/**"
-      - "AGENTS.md"
-      - "blueprint.config.json"
+      - 'llm/**'
+      - '.cursor/rules/**'
+      - '.claude/rules/**'
+      - '.claude/agents/**'
+      - '.claude/skills/**'
+      - '.github/instructions/**'
+      - '.github/agents/**'
+      - '.github/skills/**'
+      - 'AGENTS.md'
+      - 'bluetemberg.config.json'
 
 jobs:
   sync-check:
@@ -21,5 +21,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-      - run: npx @prototypdigital/blueprint sync --check
+          node-version: '20'
+      - run: npx @prototypdigital/bluetemberg sync --check

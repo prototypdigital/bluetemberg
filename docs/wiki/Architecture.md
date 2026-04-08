@@ -2,10 +2,10 @@
 
 ## Overview
 
-Blueprint has two main components: the **init wizard** and the **sync engine**.
+Bluetemberg has two main components: the **init wizard** and the **sync engine**.
 
 ```
-blueprint init                    blueprint sync
+bluetemberg init                  bluetemberg sync
      │                                 │
      ▼                                 ▼
 ┌──────────┐                    ┌──────────────┐
@@ -66,7 +66,7 @@ The core of the sync engine. Rules get platform-specific frontmatter; agents and
 
 ## Config resolution
 
-1. Look for `blueprint.config.json` in the project root
+1. Look for `bluetemberg.config.json` in the project root
 2. If found, use its `platforms`, `source`, and `targets`
 3. If not found, use defaults (all platforms, `llm/` source, standard paths)
 
@@ -76,4 +76,4 @@ The core of the sync engine. Rules get platform-specific frontmatter; agents and
 
 ## Check mode
 
-`blueprint sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. No files are written.
+`bluetemberg sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. No files are written.

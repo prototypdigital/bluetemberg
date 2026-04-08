@@ -3,8 +3,8 @@
 ## Development setup
 
 ```bash
-git clone https://github.com/prototypdigital/blueprint.git
-cd blueprint
+git clone https://github.com/prototypdigital/bluetemberg.git
+cd bluetemberg
 npm install
 npm run build
 npm test
