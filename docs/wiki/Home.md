@@ -18,3 +18,4 @@ Bluetemberg is an internal CLI tool that sets up and maintains AI assistant conf
 - [Consumer Setup](Consumer-Setup) — set up a downstream project
 - [Contributing](Contributing) — dev setup and release process
 
+
