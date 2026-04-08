@@ -61,6 +61,7 @@ export interface PresetItem {
   description: string;
   default: boolean;
   tags?: TeamProfile[];
+  universal?: boolean;
 }
 
 export interface PlatformChoice {

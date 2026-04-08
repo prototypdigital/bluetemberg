@@ -15,6 +15,7 @@ export const RULE_PRESETS: PresetItem[] = [
     description: 'Function complexity, readability, naming conventions',
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    universal: true,
   },
   {
     id: 'early-returns',
@@ -22,6 +23,7 @@ export const RULE_PRESETS: PresetItem[] = [
     description: 'Guard clauses over nested conditionals',
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    universal: true,
   },
   {
     id: 'type-safety',
@@ -43,6 +45,7 @@ export const RULE_PRESETS: PresetItem[] = [
     description: 'Use git mv for tracked files to preserve history',
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    universal: true,
   },
   {
     id: 'never-read-env',
@@ -50,13 +53,23 @@ export const RULE_PRESETS: PresetItem[] = [
     description: 'Never read .env files directly in code',
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    universal: true,
   },
   {
     id: 'post-edit-diagnostics',
     name: 'Post-edit diagnostics',
-    description: 'Run diagnostics after editing code files',
+    description: 'Run diagnostics and formatter after editing code files',
     default: true,
     tags: ['frontend', 'backend', 'fullstack'],
+    universal: true,
+  },
+  {
+    id: 'pre-commit-checks',
+    name: 'Pre-commit checks',
+    description: 'Run formatter, linter, and build before every commit',
+    default: true,
+    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    universal: true,
   },
   {
     id: 'design-system-reuse',

@@ -29,6 +29,7 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   }
 
   updatePackageScripts(targetDir, created);
+  patchPrettierIgnore(targetDir, created);
 
   return created;
 }
@@ -274,4 +275,23 @@ function updatePackageScripts(targetDir: string, created: string[]): void {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`  Warning: could not update package.json scripts: ${message}`);
   }
+}
+
+const PRETTIERIGNORE_ENTRIES = ['llm/', 'docs/wiki/'];
+
+function patchPrettierIgnore(targetDir: string, created: string[]): void {
+  const filePath = join(targetDir, '.prettierignore');
+  let content = '';
+
+  if (existsSync(filePath)) {
+    content = readFileSync(filePath, 'utf8');
+  }
+
+  const lines = content.split('\n');
+  const missing = PRETTIERIGNORE_ENTRIES.filter((entry) => !lines.includes(entry));
+  if (missing.length === 0) return;
+
+  const suffix = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
+  writeFileSync(filePath, content + suffix + missing.join('\n') + '\n');
+  created.push(filePath);
 }
