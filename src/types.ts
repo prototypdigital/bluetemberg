@@ -1,6 +1,6 @@
-export type Platform = "cursor" | "claude" | "copilot";
+export type Platform = 'cursor' | 'claude' | 'copilot';
 
-export type PackageManager = "pnpm" | "npm" | "yarn";
+export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
 export interface TargetConfig {
   dir: string;

@@ -1,8 +1,8 @@
-import { readFileSync, existsSync } from "node:fs";
-import { join, relative } from "node:path";
-import matter from "gray-matter";
-import { transformFrontmatter, DEFAULT_TARGETS } from "./transform.js";
-import { ensureDir, writeOrCheck, listFiles, listDirs } from "../utils/fs.js";
+import { readFileSync, existsSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import matter from 'gray-matter';
+import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
+import { ensureDir, writeOrCheck, listFiles, listDirs } from '../utils/fs.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -10,26 +10,23 @@ import type {
   SyncResults,
   TargetConfig,
   SkillTargetConfig,
-} from "../types.js";
+} from '../types.js';
 
 export function loadConfig(root: string): BlueprintConfig {
-  const configPath = join(root, "blueprint.config.json");
+  const configPath = join(root, 'blueprint.config.json');
 
   if (existsSync(configPath)) {
-    return JSON.parse(readFileSync(configPath, "utf8")) as BlueprintConfig;
+    return JSON.parse(readFileSync(configPath, 'utf8')) as BlueprintConfig;
   }
 
   return {
-    platforms: ["cursor", "claude", "copilot"],
-    source: "llm",
+    platforms: ['cursor', 'claude', 'copilot'],
+    source: 'llm',
     targets: DEFAULT_TARGETS,
   };
 }
 
-function filterTargets<T>(
-  targets: Partial<Record<Platform, T>>,
-  platforms: Platform[],
-): [Platform, T][] {
+function filterTargets<T>(targets: Partial<Record<Platform, T>>, platforms: Platform[]): [Platform, T][] {
   return Object.entries(targets)
     .filter(([platform]) => platforms.includes(platform as Platform))
     .map(([platform, config]) => [platform as Platform, config as T]);
@@ -48,13 +45,13 @@ interface SyncContext {
 export function sync(root: string, options: SyncOptions = {}): SyncResults {
   const checkMode = options.check || false;
   const config = options.config || loadConfig(root);
-  const platforms = config.platforms || ["cursor", "claude", "copilot"];
-  const sourceBase = join(root, config.source || "llm");
+  const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
+  const sourceBase = join(root, config.source || 'llm');
 
   const results: SyncResults = { synced: 0, outOfSync: 0, errors: [] };
   const log = options.silent ? () => {} : console.log;
 
-  log(checkMode ? "Checking sync status...\n" : "Syncing AI config...\n");
+  log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
   const ctx: SyncContext = {
     root,
@@ -73,11 +70,9 @@ export function sync(root: string, options: SyncOptions = {}): SyncResults {
 
   if (checkMode) {
     if (results.outOfSync > 0) {
-      log(
-        `\n${results.outOfSync} file(s) out of sync. Run: npx blueprint sync`,
-      );
+      log(`\n${results.outOfSync} file(s) out of sync. Run: npx blueprint sync`);
     } else {
-      log("\nAll files in sync.");
+      log('\nAll files in sync.');
     }
   } else {
     log(`\nDone. ${results.synced} file(s) written.`);
@@ -87,8 +82,8 @@ export function sync(root: string, options: SyncOptions = {}): SyncResults {
 }
 
 function syncRules(ctx: SyncContext): void {
-  const sourceDir = join(ctx.sourceBase, "rules");
-  const files = listFiles(sourceDir, (f) => f.endsWith(".md"));
+  const sourceDir = join(ctx.sourceBase, 'rules');
+  const files = listFiles(sourceDir, (f) => f.endsWith('.md'));
   if (files.length === 0) return;
 
   ctx.log(`Rules: ${files.length} source files`);
@@ -117,17 +112,13 @@ function syncRules(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode)
-      ctx.log(`  -> ${targetConfig.dir}/ (${files.length} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${files.length} files)`);
   }
 }
 
 function syncAgents(ctx: SyncContext): void {
-  const sourceDir = join(ctx.sourceBase, "agents");
-  const files = listFiles(
-    sourceDir,
-    (f) => f.endsWith(".md") && f !== "README.md",
-  );
+  const sourceDir = join(ctx.sourceBase, 'agents');
+  const files = listFiles(sourceDir, (f) => f.endsWith('.md') && f !== 'README.md');
   if (files.length === 0) return;
 
   ctx.log(`Agents: ${files.length} source files`);
@@ -141,7 +132,7 @@ function syncAgents(ctx: SyncContext): void {
     ensureDir(outDir);
 
     for (const file of files) {
-      const content = readFileSync(join(sourceDir, file), "utf8");
+      const content = readFileSync(join(sourceDir, file), 'utf8');
       const outName = file.replace(/\.md$/, targetConfig.ext);
       const outPath = join(outDir, outName);
 
@@ -154,13 +145,12 @@ function syncAgents(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode)
-      ctx.log(`  -> ${targetConfig.dir}/ (${files.length} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${files.length} files)`);
   }
 }
 
 function syncSkills(ctx: SyncContext): void {
-  const sourceDir = join(ctx.sourceBase, "skills");
+  const sourceDir = join(ctx.sourceBase, 'skills');
   const dirs = listDirs(sourceDir);
   if (dirs.length === 0) return;
 
@@ -172,14 +162,14 @@ function syncSkills(ctx: SyncContext): void {
 
   for (const [, targetConfig] of skillTargets) {
     for (const dirName of dirs) {
-      const srcSkill = join(sourceDir, dirName, "SKILL.md");
+      const srcSkill = join(sourceDir, dirName, 'SKILL.md');
       if (!existsSync(srcSkill)) continue;
 
       const outDir = join(ctx.root, targetConfig.dir, dirName);
       ensureDir(outDir);
 
-      const content = readFileSync(srcSkill, "utf8");
-      const outPath = join(outDir, "SKILL.md");
+      const content = readFileSync(srcSkill, 'utf8');
+      const outPath = join(outDir, 'SKILL.md');
 
       const isDiff = writeOrCheck(outPath, content, ctx.checkMode);
       if (ctx.checkMode && isDiff) {
@@ -190,18 +180,17 @@ function syncSkills(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode)
-      ctx.log(`  -> ${targetConfig.dir}/ (${dirs.length} skills)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${dirs.length} skills)`);
   }
 }
 
 function syncCopilotInstructions(ctx: SyncContext): void {
-  const agentsMd = join(ctx.root, "AGENTS.md");
+  const agentsMd = join(ctx.root, 'AGENTS.md');
   if (!existsSync(agentsMd)) return;
 
-  const target = join(ctx.root, ".github", "copilot-instructions.md");
-  ensureDir(join(ctx.root, ".github"));
-  const content = readFileSync(agentsMd, "utf8");
+  const target = join(ctx.root, '.github', 'copilot-instructions.md');
+  ensureDir(join(ctx.root, '.github'));
+  const content = readFileSync(agentsMd, 'utf8');
 
   const isDiff = writeOrCheck(target, content, ctx.checkMode);
   if (ctx.checkMode && isDiff) {
@@ -209,6 +198,6 @@ function syncCopilotInstructions(ctx: SyncContext): void {
     ctx.results.outOfSync++;
   } else if (!ctx.checkMode) {
     ctx.results.synced++;
-    ctx.log("Copilot instructions: synced from AGENTS.md");
+    ctx.log('Copilot instructions: synced from AGENTS.md');
   }
 }

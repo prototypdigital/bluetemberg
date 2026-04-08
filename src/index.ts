@@ -1,6 +1,6 @@
-export { sync, loadConfig } from "./sync/index.js";
-export { init } from "./init/index.js";
-export { transformFrontmatter, DEFAULT_TARGETS } from "./sync/transform.js";
+export { sync, loadConfig } from './sync/index.js';
+export { init } from './init/index.js';
+export { transformFrontmatter, DEFAULT_TARGETS } from './sync/transform.js';
 export type {
   Platform,
   BlueprintConfig,
@@ -9,4 +9,4 @@ export type {
   SyncResults,
   RuleFrontmatter,
   PresetItem,
-} from "./types.js";
+} from './types.js';

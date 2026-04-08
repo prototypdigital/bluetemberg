@@ -1,9 +1,4 @@
-import type {
-  Platform,
-  RuleFrontmatter,
-  TargetConfig,
-  SkillTargetConfig,
-} from "../types.js";
+import type { Platform, RuleFrontmatter, TargetConfig, SkillTargetConfig } from '../types.js';
 
 interface CursorFrontmatter {
   description: string;
@@ -21,33 +16,27 @@ interface CopilotFrontmatter {
   applyTo: string;
 }
 
-export type TransformedFrontmatter =
-  | CursorFrontmatter
-  | ClaudeFrontmatter
-  | CopilotFrontmatter;
+export type TransformedFrontmatter = CursorFrontmatter | ClaudeFrontmatter | CopilotFrontmatter;
 
-export function transformFrontmatter(
-  data: RuleFrontmatter,
-  platform: Platform,
-): TransformedFrontmatter {
-  const description = data.description || "";
-  const scope = data.scope || "**";
+export function transformFrontmatter(data: RuleFrontmatter, platform: Platform): TransformedFrontmatter {
+  const description = data.description || '';
+  const scope = data.scope || '**';
 
   switch (platform) {
-    case "cursor": {
-      if (scope === "**") {
+    case 'cursor': {
+      if (scope === '**') {
         return { description, alwaysApply: true };
       }
       return { description, globs: Array.isArray(scope) ? scope : [scope] };
     }
 
-    case "claude":
+    case 'claude':
       return { description, paths: Array.isArray(scope) ? scope : [scope] };
 
-    case "copilot":
+    case 'copilot':
       return {
         description,
-        applyTo: Array.isArray(scope) ? scope.join(",") : scope,
+        applyTo: Array.isArray(scope) ? scope.join(',') : scope,
       };
 
     default:
@@ -61,16 +50,16 @@ export const DEFAULT_TARGETS: {
   skills: Partial<Record<Platform, SkillTargetConfig>>;
 } = {
   rules: {
-    cursor: { dir: ".cursor/rules", ext: ".mdc" },
-    claude: { dir: ".claude/rules", ext: ".md" },
-    copilot: { dir: ".github/instructions", ext: ".instructions.md" },
+    cursor: { dir: '.cursor/rules', ext: '.mdc' },
+    claude: { dir: '.claude/rules', ext: '.md' },
+    copilot: { dir: '.github/instructions', ext: '.instructions.md' },
   },
   agents: {
-    claude: { dir: ".claude/agents", ext: ".md" },
-    copilot: { dir: ".github/agents", ext: ".agent.md" },
+    claude: { dir: '.claude/agents', ext: '.md' },
+    copilot: { dir: '.github/agents', ext: '.agent.md' },
   },
   skills: {
-    claude: { dir: ".claude/skills" },
-    copilot: { dir: ".github/skills" },
+    claude: { dir: '.claude/skills' },
+    copilot: { dir: '.github/skills' },
   },
 };
