@@ -1,0 +1,49 @@
+{
+  "name": "@prototypdigital/blueprint",
+  "version": "0.1.0",
+  "description": "Scaffold vendor-neutral AI tooling (rules, agents, skills) with cross-platform sync for Cursor, Claude, and GitHub Copilot.",
+  "type": "module",
+  "bin": {
+    "blueprint": "./bin/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./sync": "./dist/sync/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "cursor",
+    "claude",
+    "copilot",
+    "scaffolding",
+    "cli"
+  ],
+  "author": "Prototyp Digital",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@inquirer/prompts": "^7.0.0",
+    "commander": "^13.0.0",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "templates/"
+  ]
+}
