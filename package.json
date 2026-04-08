@@ -1,6 +1,6 @@
 {
   "name": "@prototypdigital/blueprint",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Scaffold vendor-neutral AI tooling (rules, agents, skills) with cross-platform sync for Cursor, Claude, and GitHub Copilot.",
   "type": "module",
   "bin": {
