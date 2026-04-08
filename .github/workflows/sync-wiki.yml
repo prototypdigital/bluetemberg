@@ -16,15 +16,26 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Checkout wiki
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ github.repository }}.wiki
-          path: wiki
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Sync docs to wiki
+      - name: Initialize and sync wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          WIKI_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git"
+
+          # Try to clone existing wiki; initialize it if it doesn't exist yet
+          if git clone "$WIKI_URL" wiki 2>/dev/null; then
+            echo "Cloned existing wiki."
+          else
+            echo "Wiki not initialized — creating it."
+            mkdir wiki
+            cd wiki
+            git init
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git remote add origin "$WIKI_URL"
+            cd ..
+          fi
+
           cp docs/wiki/*.md wiki/
           cd wiki
           git config user.name "github-actions[bot]"
@@ -34,5 +45,5 @@ jobs:
             echo "No wiki changes to push."
           else
             git commit -m "docs: sync wiki from main [skip ci]"
-            git push
+            git push origin HEAD:master --force
           fi
