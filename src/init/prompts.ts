@@ -57,14 +57,17 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
   });
 
   const rulePresets = resolveDefaults(RULE_PRESETS, teamProfile);
-  const rules = await checkbox<string>({
+  const universalRuleIds = rulePresets.filter((r) => r.universal).map((r) => r.id);
+  const selectedRules = await checkbox<string>({
     message: 'Starter rules:',
     choices: rulePresets.map((r) => ({
       value: r.id,
       name: `${r.name} — ${r.description}`,
-      checked: r.default,
+      checked: r.universal || r.default,
+      disabled: r.universal ? '(required)' : false,
     })),
   });
+  const rules = [...new Set([...universalRuleIds, ...selectedRules])];
 
   const includeAgents = await confirm({
     message: 'Include agent orchestration?',
