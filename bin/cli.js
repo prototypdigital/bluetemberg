@@ -26,14 +26,16 @@ program
   .command('sync')
   .description('Sync llm/ sources to platform-specific directories')
   .argument('[directory]', 'Project root directory', '.')
-  .option('--check', 'Dry-run: exit 1 if files are out of sync')
+  .option('--check, --dry-run', 'Exit 1 if files are out of sync (no writes)')
+  .option('--silent', 'Suppress all output')
   .action(async (directory, options) => {
     const { sync, loadConfig } = await import('../dist/sync/index.js');
     const root = resolve(directory);
     const config = loadConfig(root);
-    const results = sync(root, { check: options.check, config });
+    const check = options.check || options.dryRun || false;
+    const results = sync(root, { check, config, silent: options.silent });
 
-    if (options.check && results.outOfSync > 0) {
+    if (check && results.outOfSync > 0) {
       process.exit(1);
     }
   });

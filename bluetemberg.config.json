@@ -1,0 +1,19 @@
+{
+  "platforms": ["cursor", "claude", "copilot"],
+  "source": "llm",
+  "targets": {
+    "rules": {
+      "cursor": { "dir": ".cursor/rules", "ext": ".mdc" },
+      "claude": { "dir": ".claude/rules", "ext": ".md" },
+      "copilot": { "dir": ".github/instructions", "ext": ".instructions.md" }
+    },
+    "agents": {
+      "claude": { "dir": ".claude/agents", "ext": ".md" },
+      "copilot": { "dir": ".github/agents", "ext": ".agent.md" }
+    },
+    "skills": {
+      "claude": { "dir": ".claude/skills" },
+      "copilot": { "dir": ".github/skills" }
+    }
+  }
+}

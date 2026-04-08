@@ -21,12 +21,6 @@ Use this skill when code or workflow changes affect documented behavior.
 4. The agent SHOULD mention doc changes in commit messages or handoff summaries.
 5. The agent SHOULD check that code examples in docs still compile and run.
 
-## Examples
-
-- When renaming an API endpoint, update the README, API docs, and any client-side references.
-- When adding a new CLI flag, update the `--help` text and the Commands wiki page.
-- When changing config schema, update the Configuration docs and example files.
-
 ## When NOT to use
 
 - Internal refactors that don't change external behavior or API surface

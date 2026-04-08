@@ -1,4 +1,4 @@
-# Bluetemberg
+# Bluetemberg :light_blue_heart:
 
 [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
 

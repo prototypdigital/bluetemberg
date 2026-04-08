@@ -21,12 +21,6 @@ Use this skill when implementing or reviewing feature structure, state placement
 4. The agent SHOULD link to relevant documentation rather than restating full policy.
 5. The agent SHOULD suggest doc updates when pattern guidance is missing or ambiguous.
 
-## Examples
-
-- Before creating a new service class, search for existing service patterns and match their structure.
-- Before adding state management, check how sibling features manage state and follow the same approach.
-- When a function exceeds 30 lines, extract helpers following the naming conventions already in the codebase.
-
 ## When NOT to use
 
 - Trivial changes (typo fixes, comment updates, single-line edits)

@@ -22,4 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npx @prototypdigital/bluetemberg sync --check
+          registry-url: 'https://npm.pkg.github.com'
+      - run: npx -y @prototypdigital/bluetemberg sync --check
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

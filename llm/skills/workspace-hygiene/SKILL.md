@@ -21,12 +21,6 @@ Use this skill to maintain clean workspace state during editing sessions and bef
 4. The agent SHOULD keep commits focused and atomic — one logical change per commit.
 5. The agent SHOULD clean up temporary files, debug logging, and commented-out code before committing.
 
-## Examples
-
-- After a refactor touching 10 files, run `git diff --stat` to confirm only expected files changed.
-- Before committing, run the linter and fix any new warnings introduced by the changes.
-- Remove any `console.log` or `debugger` statements added during development.
-
 ## When NOT to use
 
 - Exploratory prototyping where polish is premature

@@ -28,7 +28,7 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
     scaffoldMcp(targetDir, answers, created);
   }
 
-  updatePackageScripts(targetDir);
+  updatePackageScripts(targetDir, created);
 
   return created;
 }
@@ -81,7 +81,10 @@ function scaffoldRules(targetDir: string, answers: InitAnswers, created: string[
 
   for (const ruleId of answers.rules) {
     const src = join(TEMPLATES_DIR, 'rules', `${ruleId}.md`);
-    if (!existsSync(src)) continue;
+    if (!existsSync(src)) {
+      console.warn(`  Warning: rule template "${ruleId}" not found, skipping`);
+      continue;
+    }
 
     const dest = join(destDir, `${ruleId}.md`);
     copyFileSync(src, dest);
@@ -95,7 +98,10 @@ function scaffoldAgents(targetDir: string, answers: InitAnswers, created: string
 
   for (const agentId of answers.agents) {
     const src = join(TEMPLATES_DIR, 'agents', `${agentId}.md`);
-    if (!existsSync(src)) continue;
+    if (!existsSync(src)) {
+      console.warn(`  Warning: agent template "${agentId}" not found, skipping`);
+      continue;
+    }
 
     const dest = join(destDir, `${agentId}.md`);
     copyFileSync(src, dest);
@@ -106,7 +112,10 @@ function scaffoldAgents(targetDir: string, answers: InitAnswers, created: string
 function scaffoldSkills(targetDir: string, answers: InitAnswers, created: string[]): void {
   for (const skillId of answers.skills) {
     const src = join(TEMPLATES_DIR, 'skills', skillId, 'SKILL.md');
-    if (!existsSync(src)) continue;
+    if (!existsSync(src)) {
+      console.warn(`  Warning: skill template "${skillId}" not found, skipping`);
+      continue;
+    }
 
     const destDir = join(targetDir, 'llm', 'skills', skillId);
     ensureDir(destDir);
@@ -250,13 +259,19 @@ function scaffoldMcp(targetDir: string, answers: InitAnswers, created: string[])
   }
 }
 
-function updatePackageScripts(targetDir: string): void {
+function updatePackageScripts(targetDir: string, created: string[]): void {
   const pkgPath = join(targetDir, 'package.json');
   if (!existsSync(pkgPath)) return;
 
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-  pkg.scripts = pkg.scripts || {};
-  pkg.scripts['sync:llm-config'] = 'npx bluetemberg sync';
-  pkg.scripts['sync:llm-config:check'] = 'npx bluetemberg sync --check';
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    pkg.scripts = pkg.scripts || {};
+    pkg.scripts['sync:llm-config'] = 'npx bluetemberg sync';
+    pkg.scripts['sync:llm-config:check'] = 'npx bluetemberg sync --check';
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+    created.push(pkgPath);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`  Warning: could not update package.json scripts: ${message}`);
+  }
 }

@@ -7,10 +7,29 @@ import {
   MCP_SERVER_PRESETS,
   PLATFORM_CHOICES,
   PACKAGE_MANAGERS,
+  TEAM_PROFILES,
 } from './presets.js';
-import type { InitAnswers, Platform, PackageManager } from '../types.js';
+import type { InitAnswers, Platform, PackageManager, TeamProfile, PresetItem } from '../types.js';
+
+function resolveDefaults(presets: PresetItem[], profile: TeamProfile): PresetItem[] {
+  if (profile === 'custom') return presets;
+
+  return presets.map((p) => ({
+    ...p,
+    default: p.tags?.includes(profile) ?? p.default,
+  }));
+}
 
 export async function runPrompts(targetDir: string): Promise<InitAnswers> {
+  const teamProfile = await select<TeamProfile>({
+    message: 'Team profile:',
+    choices: TEAM_PROFILES.map((t) => ({
+      value: t.id,
+      name: `${t.name} — ${t.description}`,
+    })),
+    default: 'fullstack',
+  });
+
   const projectName = await input({
     message: 'Project name:',
     default: basename(targetDir),
@@ -37,9 +56,10 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     required: true,
   });
 
+  const rulePresets = resolveDefaults(RULE_PRESETS, teamProfile);
   const rules = await checkbox<string>({
     message: 'Starter rules:',
-    choices: RULE_PRESETS.map((r) => ({
+    choices: rulePresets.map((r) => ({
       value: r.id,
       name: `${r.name} — ${r.description}`,
       checked: r.default,
@@ -53,9 +73,10 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let agents: string[] = [];
   if (includeAgents) {
+    const agentPresets = resolveDefaults(AGENT_PRESETS, teamProfile);
     agents = await checkbox<string>({
       message: 'Specialist agents:',
-      choices: AGENT_PRESETS.map((a) => ({
+      choices: agentPresets.map((a) => ({
         value: a.id,
         name: `${a.name} — ${a.description}`,
         checked: a.default,
@@ -70,9 +91,10 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let skills: string[] = [];
   if (includeSkills) {
+    const skillPresets = resolveDefaults(SKILL_PRESETS, teamProfile);
     skills = await checkbox<string>({
       message: 'Starter skills:',
-      choices: SKILL_PRESETS.map((s) => ({
+      choices: skillPresets.map((s) => ({
         value: s.id,
         name: `${s.name} — ${s.description}`,
         checked: s.default,
@@ -98,6 +120,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
   }
 
   return {
+    teamProfile,
     projectName,
     projectDescription,
     packageManager,

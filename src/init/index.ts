@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { resolve, relative } from 'node:path';
 import { existsSync } from 'node:fs';
 import { runPrompts } from './prompts.js';
 import { scaffold } from './scaffold.js';
@@ -23,8 +23,7 @@ export async function init(targetPath?: string): Promise<void> {
 
   console.log(`Created ${created.length} files:\n`);
   for (const f of created) {
-    const rel = f.replace(targetDir + '/', '');
-    console.log(`  ${rel}`);
+    console.log(`  ${relative(targetDir, f)}`);
   }
 
   console.log('\nRunning initial sync...\n');

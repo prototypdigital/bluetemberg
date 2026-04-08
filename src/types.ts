@@ -2,6 +2,8 @@ export type Platform = 'cursor' | 'claude' | 'copilot';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
+export type TeamProfile = 'frontend' | 'backend' | 'fullstack' | 'devops' | 'custom';
+
 export interface TargetConfig {
   dir: string;
   ext: string;
@@ -22,6 +24,7 @@ export interface BlueprintConfig {
 }
 
 export interface InitAnswers {
+  teamProfile: TeamProfile;
   projectName: string;
   projectDescription: string;
   packageManager: PackageManager;
@@ -57,6 +60,7 @@ export interface PresetItem {
   name: string;
   description: string;
   default: boolean;
+  tags?: TeamProfile[];
 }
 
 export interface PlatformChoice {
@@ -67,4 +71,10 @@ export interface PlatformChoice {
 export interface PackageManagerChoice {
   id: PackageManager;
   name: string;
+}
+
+export interface TeamProfileChoice {
+  id: TeamProfile;
+  name: string;
+  description: string;
 }

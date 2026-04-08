@@ -179,6 +179,61 @@ describe('sync', () => {
     const copilotInstructions = readFileSync(join(root, '.github', 'copilot-instructions.md'), 'utf8');
     expect(copilotInstructions).toBe('# My Project\n\nProject docs.\n');
   });
+
+  it('handles empty rules directory gracefully', () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {
+        rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } },
+      },
+    };
+
+    const results = sync(root, { config, silent: true });
+    expect(results.synced).toBe(0);
+    expect(results.outOfSync).toBe(0);
+    expect(results.errors).toEqual([]);
+  });
+
+  it('skips skill directories without SKILL.md', () => {
+    mkdirSync(join(root, 'llm', 'skills', 'valid-skill'), { recursive: true });
+    mkdirSync(join(root, 'llm', 'skills', 'empty-dir'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'skills', 'valid-skill', 'SKILL.md'),
+      '---\nname: valid\n---\n\n# Valid\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {
+        skills: { claude: { dir: '.claude/skills' } },
+      },
+    };
+
+    const results = sync(root, { config, silent: true });
+    expect(results.synced).toBe(1);
+    expect(existsSync(join(root, '.claude', 'skills', 'valid-skill', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'skills', 'empty-dir', 'SKILL.md'))).toBe(false);
+  });
+
+  it('handles missing source directories gracefully', () => {
+    const config: BlueprintConfig = {
+      platforms: ['cursor', 'claude', 'copilot'],
+      source: 'llm',
+      targets: {
+        rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } },
+        agents: { claude: { dir: '.claude/agents', ext: '.md' } },
+        skills: { claude: { dir: '.claude/skills' } },
+      },
+    };
+
+    const results = sync(root, { config, silent: true });
+    expect(results.synced).toBe(0);
+    expect(results.errors).toEqual([]);
+  });
 });
 
 describe('loadConfig', () => {
@@ -205,5 +260,35 @@ describe('loadConfig', () => {
     const config = loadConfig(root);
     expect(config.platforms).toEqual(['cursor']);
     expect(config.source).toBe('ai');
+  });
+
+  it('throws on malformed JSON', () => {
+    writeFileSync(join(root, 'bluetemberg.config.json'), '{ invalid json !!!');
+
+    expect(() => loadConfig(root)).toThrow('Failed to parse');
+  });
+
+  it('throws on missing platforms array', () => {
+    writeFileSync(join(root, 'bluetemberg.config.json'), JSON.stringify({ source: 'llm', targets: {} }));
+
+    expect(() => loadConfig(root)).toThrow('"platforms" must be a non-empty array');
+  });
+
+  it('throws on empty platforms array', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: [], source: 'llm', targets: {} }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('"platforms" must be a non-empty array');
+  });
+
+  it('throws on unknown platform', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['cursor', 'vscode'], source: 'llm', targets: {} }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('unknown platform(s): vscode');
   });
 });

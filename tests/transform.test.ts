@@ -56,6 +56,26 @@ describe('transformFrontmatter', () => {
       const result = transformFrontmatter({ description: 'Test', scope: ['a/**', 'b/**'] }, 'copilot');
       expect(result).toHaveProperty('applyTo', 'a/**,b/**');
     });
+
+    it('defaults scope to ** when omitted', () => {
+      const result = transformFrontmatter({ description: 'Test' }, 'copilot');
+      expect(result).toEqual({ description: 'Test', applyTo: '**' });
+    });
+  });
+
+  describe('cursor — array scope edge case', () => {
+    it('uses globs (not alwaysApply) when scope is ["**"] as array', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: ['**'] }, 'cursor');
+      expect(result).toHaveProperty('globs', ['**']);
+      expect(result).not.toHaveProperty('alwaysApply');
+    });
+  });
+
+  describe('claude — omitted scope', () => {
+    it('defaults scope to ** when omitted', () => {
+      const result = transformFrontmatter({ description: 'Test' }, 'claude');
+      expect(result).toEqual({ description: 'Test', paths: ['**'] });
+    });
   });
 
   it('defaults description to empty string', () => {

@@ -27,6 +27,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
+    "sync:llm-config": "node bin/cli.js sync",
+    "sync:llm-config:check": "node bin/cli.js sync --check",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
