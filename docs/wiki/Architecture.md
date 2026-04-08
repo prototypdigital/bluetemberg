@@ -4,32 +4,24 @@
 
 Bluetemberg has two main components: the **init wizard** and the **sync engine**.
 
-```
-bluetemberg init                  bluetemberg sync
-     │                                 │
-     ▼                                 ▼
-┌──────────┐                    ┌──────────────┐
-│  Prompts  │                    │ Load config  │
-│ (inquirer)│                    │  from root   │
-└────┬─────┘                    └──────┬───────┘
-     │                                 │
-     ▼                                 ▼
-┌──────────┐                    ┌──────────────┐
-│ Scaffold  │───creates───▶     │  Read llm/   │
-│  files   │                    │   sources    │
-└────┬─────┘                    └──────┬───────┘
-     │                                 │
-     ▼                                 ▼
-┌──────────┐                    ┌──────────────┐
-│ Run sync  │                    │  Transform   │
-│  engine  │                    │ frontmatter  │
-└──────────┘                    └──────┬───────┘
-                                       │
-                                       ▼
-                                ┌──────────────┐
-                                │ Write target │
-                                │    files     │
-                                └──────────────┘
+```mermaid
+flowchart TD
+    subgraph init ["bluetemberg init"]
+        A[Prompts\ninquirer] --> B[Scaffold files\nllm/ + config + docs]
+        B --> C[Run sync engine]
+    end
+
+    subgraph sync ["bluetemberg sync"]
+        D[Load config\nbluetemebr.config.json] --> E[Read llm/ sources\nrules · agents · skills]
+        E --> F{Type?}
+        F -->|rules| G[Transform\nfrontmatter]
+        F -->|agents| H[Copy verbatim]
+        F -->|skills| H
+        G --> I[Write target files]
+        H --> I
+    end
+
+    C --> D
 ```
 
 ## Source directory structure
@@ -50,6 +42,15 @@ llm/
 
 The core of the sync engine. Rules get platform-specific frontmatter; agents and skills are copied as-is.
 
+```mermaid
+flowchart LR
+    src["llm/rules/rule.md\n---\ndescription: ...\nscope: '**'\n---"]
+
+    src --> cursor[".cursor/rules/rule.mdc\n---\ndescription: ...\nalwaysApply: true\n---"]
+    src --> claude[".claude/rules/rule.md\n---\ndescription: ...\npaths: ['**']\n---"]
+    src --> copilot[".github/instructions/rule.instructions.md\n---\ndescription: ...\napplyTo: '**'\n---"]
+```
+
 | Source field      | Cursor output       | Claude output       | Copilot output      |
 | ----------------- | ------------------- | ------------------- | ------------------- |
 | `description`     | `description`       | `description`       | `description`       |
@@ -66,9 +67,14 @@ The core of the sync engine. Rules get platform-specific frontmatter; agents and
 
 ## Config resolution
 
-1. Look for `bluetemberg.config.json` in the project root
-2. If found, use its `platforms`, `source`, and `targets`
-3. If not found, use defaults (all platforms, `llm/` source, standard paths)
+```mermaid
+flowchart TD
+    A[bluetemberg sync] --> B{bluetemberg.config.json\nexists?}
+    B -->|yes| C[Use platforms + source\n+ targets from file]
+    B -->|no| D[Use defaults\nall platforms · llm/ · standard paths]
+    C --> E[Run sync]
+    D --> E
+```
 
 ## Special sync: AGENTS.md
 
