@@ -8,7 +8,8 @@ Bluetemberg has two main components: the **init wizard** and the **sync engine**
 flowchart TD
     subgraph init ["bluetemberg init"]
         A[Prompts\ninquirer] --> B[Scaffold files\nllm/ + config + docs]
-        B --> C[Run sync engine]
+        B --> B2[Patch .prettierignore\nprotect llm/ from formatters]
+        B2 --> C[Run sync engine]
     end
 
     subgraph sync ["bluetemberg sync"]
@@ -75,7 +76,7 @@ Rules have three intent levels, not just on/off:
 | **Team default** | Pre-checked for a given team profile, deselectable | `type-safety` (frontend/backend), `docker-best-practices` (devops) |
 | **Team optional** | Off by default, opt-in | `terraform-conventions`, `no-console-log` |
 
-Universal rules are marked `universal: true` in `src/init/presets.ts`. The init wizard merges their IDs into the final selection regardless of what the checkbox returns.
+Universal rules are marked `universal: true` in `src/init/presets.ts`. The init wizard merges their IDs into the final selection regardless of what the checkbox returns. See [Profiles](Profiles) for the full matrix of what each team profile includes.
 
 ## Config resolution
 

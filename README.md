@@ -110,6 +110,7 @@ See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full doc
 - [Installation](https://github.com/prototypdigital/bluetemberg/wiki/Installation)
 - [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands)
 - [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)
+- [Profiles](https://github.com/prototypdigital/bluetemberg/wiki/Profiles)
 - [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules)
 - [Writing Agents](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Agents)
 - [Writing Skills](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills)

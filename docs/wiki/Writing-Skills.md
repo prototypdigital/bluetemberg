@@ -1,6 +1,19 @@
 # Writing Skills
 
-Skills live in `llm/skills/<skill-name>/SKILL.md`.
+Skills live in `llm/skills/<skill-name>/SKILL.md`. Each skill is a directory containing a single `SKILL.md` file.
+
+## Rules vs Skills
+
+Rules and skills serve different purposes:
+
+| | Rules | Skills |
+| --- | ----- | ------ |
+| **When active** | Always-on, passive context | On-demand, invoked explicitly |
+| **What they do** | Set constraints and standards | Define multi-step workflows |
+| **How they're read** | Every interaction | Only when triggered |
+| **Example** | "Run the formatter before committing" | "Audit this PR for security issues" |
+
+Use a **rule** when the behavior should happen automatically on every interaction. Use a **skill** when the behavior requires judgment, multiple steps, or is only relevant in specific situations.
 
 ## Format
 
@@ -19,23 +32,19 @@ Use this skill when [trigger context].
 - `trigger-keyword-1`
 - `trigger-keyword-2`
 
-## Inputs
-
-- `inputName` (type, required/optional): description
-
-## Outputs
-
-- `outputName` (type): description
-
 ## Required behavior
 
 1. The agent MUST [required action].
 2. The agent SHOULD [recommended action].
 3. The agent MAY [optional action].
 
-## References
+## Examples
 
-- path/to/related/doc.md
+- Example scenario and expected behavior
+
+## When NOT to use
+
+- Situations where this skill should be skipped
 ```
 
 ## Frontmatter fields
@@ -63,14 +72,22 @@ Skills are copied **verbatim** to target platforms. The directory structure is p
 
 ## Available starter skills
 
-| Skill               | Description                                     |
-| ------------------- | ----------------------------------------------- |
-| `patterns`          | Apply reusable architecture and coding patterns |
-| `docs-upkeep`       | Keep docs aligned with implementation changes   |
-| `workspace-hygiene` | Clean workspace state during edits              |
+| Skill | Tags | Description |
+| ----- | ---- | ----------- |
+| `patterns` | frontend, backend, fullstack | Apply reusable architecture and coding patterns |
+| `docs-upkeep` | all | Keep docs aligned with implementation changes |
+| `workspace-hygiene` | all | On-demand workspace audit — review change scope, clean temp artifacts |
+| `code-review` | frontend, backend, fullstack | Structured review checklist for PRs |
+| `api-design` | backend, fullstack | RESTful conventions, pagination, versioning |
+| `security-audit` | backend, fullstack, devops | Dependency audit, secrets scan, OWASP patterns |
+| `ci-cd-best-practices` | devops | Pipeline optimization, caching strategies |
+| `migration-safety` | backend, fullstack | Database migration review, rollback plans |
 
-## Tips
+## Writing a good skill
 
-- Use RFC 2119 keywords (MUST, SHOULD, MAY) for behavior requirements
-- Keep skills focused on a single workflow
-- Link to canonical documentation rather than restating full policies
+- **Define clear triggers.** The AI needs to know when to activate the skill, and so does the human invoking it.
+- **Use RFC 2119 keywords** (MUST, SHOULD, MAY) for behavior requirements.
+- **Include a "When NOT to use" section.** Prevents over-application in situations where the skill adds noise.
+- **Keep skills focused on a single workflow.** If a skill covers both security auditing and code review, split it.
+- **Link to canonical documentation** rather than restating full policies.
+- After creating or editing skills, run `npx bluetemberg sync`.

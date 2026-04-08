@@ -11,11 +11,12 @@ Bluetemberg is an internal CLI tool that sets up and maintains AI assistant conf
 - [Installation](Installation) — set up GitHub Packages auth and install
 - [Commands](Commands) — CLI reference for `init` and `sync`
 - [Configuration](Configuration) — `bluetemberg.config.json` schema
+- [Profiles](Profiles) — team profiles and what each one includes
 - [Writing Rules](Writing-Rules) — how to write vendor-neutral rules
 - [Writing Agents](Writing-Agents) — agent definition format
 - [Writing Skills](Writing-Skills) — SKILL.md format
 - [Architecture](Architecture) — how the sync engine works
 - [Consumer Setup](Consumer-Setup) — set up a downstream project
-- [Contributing](Contributing) — dev setup and release process
+- [Contributing](Contributing) — dev setup, adding templates, and release process
 
 

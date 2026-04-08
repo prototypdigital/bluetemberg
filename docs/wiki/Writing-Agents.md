@@ -57,10 +57,22 @@ Cursor does not support custom agent definitions, so agents are not synced there
 
 ## Available starter agents
 
-| Agent                       | Description                                  |
-| --------------------------- | -------------------------------------------- |
-| `frontend-specialist`       | UI implementation, design-system, i18n, a11y |
-| `test-specialist`           | Test creation, refactoring, stabilization    |
-| `docs-maintainer`           | Documentation sync with code changes         |
-| `a11y-specialist`           | WCAG 2.2 A/AA audit and remediation          |
-| `infrastructure-specialist` | Build, CI, container, deployment config      |
+| Agent | Tags | Description |
+| ----- | ---- | ----------- |
+| `frontend-specialist` | frontend, fullstack | UI implementation, design-system, i18n, a11y |
+| `backend-specialist` | backend, fullstack | API design, database patterns, error handling, auth |
+| `test-specialist` | frontend, backend, fullstack | Test creation, refactoring, stabilization |
+| `docs-maintainer` | all | Documentation synchronization with code changes |
+| `code-reviewer` | frontend, backend, fullstack | PR review — patterns, naming, complexity, tests |
+| `a11y-specialist` | frontend, fullstack | WCAG 2.2 A/AA audit and remediation |
+| `security-specialist` | backend, fullstack, devops | Vulnerability audit, dependency scanning, secrets management |
+| `infrastructure-specialist` | devops | Build, CI, container, deployment config |
+| `devops-specialist` | devops | CI/CD pipelines, container optimization, IaC review |
+
+## Writing a good agent
+
+- **Define the role clearly.** The first sentence should tell the AI exactly what hat it's wearing.
+- **List tools explicitly.** `tools: ['read', 'search']` prevents an agent from making edits when it shouldn't.
+- **Set constraints.** Boundaries prevent the agent from wandering outside its domain.
+- **Use RFC 2119 keywords** (MUST, SHOULD, MAY) for behavior requirements — they map well to how LLMs interpret instructions.
+- **Keep it focused.** One agent per domain. If an agent needs to do both security and testing, split it.

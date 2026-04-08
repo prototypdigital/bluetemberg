@@ -82,11 +82,187 @@ Releases are fully automated via [Release Please](https://github.com/googleapis/
 
 No manual version bumping or tagging is needed.
 
-## Adding starter templates
+---
 
-To add a new starter rule, agent, or skill:
+## Adding a rule template
 
-1. Add the template file to the appropriate `templates/` subdirectory
-2. Add a preset entry in `src/init/presets.ts`
-3. Run `npm test` to verify nothing breaks
-4. Open a PR with `feat: add <name> starter template`
+Rules are always-on, passive context. See [Writing Rules](Writing-Rules) for format details.
+
+### 1. Create the template file
+
+Add a Markdown file to `templates/rules/`:
+
+```markdown
+---
+description: One-line description of what this rule enforces.
+scope: '**'
+---
+
+# Rule title
+
+Concise, actionable content the AI sees on every interaction.
+```
+
+### 2. Add a preset entry
+
+In `src/init/presets.ts`, add an entry to the `RULE_PRESETS` array:
+
+```ts
+{
+  id: 'my-new-rule',            // must match the filename (minus .md)
+  name: 'My new rule',          // displayed in the wizard
+  description: 'What it does',  // shown next to the name
+  default: false,               // true = pre-checked for tagged profiles
+  tags: ['backend', 'fullstack'],  // which profiles pre-check this rule
+},
+```
+
+### 3. Update the docs
+
+Add the rule to the table in [Writing Rules](Writing-Rules) and to any affected profile tables in [Profiles](Profiles). The `docs-parity` universal rule requires this — PRs that add templates without updating docs are not considered complete.
+
+### 4. Test and open a PR
+
+```bash
+npm run build && npm test
+```
+
+Try it locally in a throwaway directory:
+
+```bash
+mkdir /tmp/test-project && cd /tmp/test-project
+npm init -y
+node /path/to/bluetemberg/bin/cli.js init
+```
+
+Open a PR with title: `feat: add <name> rule template`
+
+## Adding an agent template
+
+Agents are specialist AI personas. See [Writing Agents](Writing-Agents) for format details.
+
+### 1. Create the template file
+
+Add a Markdown file to `templates/agents/`:
+
+```markdown
+---
+name: my-agent
+description: One-line description.
+tools: ['read', 'search', 'edit']
+---
+
+# My Agent
+
+You are a [role] specialist. Your job is to [responsibility].
+
+## Responsibilities
+
+- ...
+
+## Constraints
+
+- ...
+```
+
+### 2. Add a preset entry
+
+In `src/init/presets.ts`, add to `AGENT_PRESETS`:
+
+```ts
+{
+  id: 'my-agent',
+  name: 'My agent',
+  description: 'What it does',
+  default: false,
+  tags: ['backend', 'fullstack'],
+},
+```
+
+### 3. Update docs and open a PR
+
+Add the agent to tables in [Writing Agents](Writing-Agents) and [Profiles](Profiles). PR title: `feat: add <name> agent template`
+
+## Adding a skill template
+
+Skills are on-demand, multi-step workflows. See [Writing Skills](Writing-Skills) for format details and when to use a skill vs a rule.
+
+### 1. Create the template directory
+
+```
+templates/skills/my-skill/SKILL.md
+```
+
+### 2. Add a preset entry
+
+In `src/init/presets.ts`, add to `SKILL_PRESETS`:
+
+```ts
+{
+  id: 'my-skill',
+  name: 'My skill',
+  description: 'What it does',
+  default: false,
+  tags: ['backend', 'fullstack'],
+},
+```
+
+### 3. Update docs and open a PR
+
+Add the skill to tables in [Writing Skills](Writing-Skills) and [Profiles](Profiles). PR title: `feat: add <name> skill template`
+
+## Adding a team profile
+
+Profiles set smart defaults for the init wizard. Adding a new one is a code change.
+
+### 1. Add the profile ID to the type union
+
+In `src/types.ts`:
+
+```ts
+export type TeamProfile = 'frontend' | 'backend' | 'fullstack' | 'devops' | 'my-profile' | 'custom';
+```
+
+### 2. Add the profile entry
+
+In `src/init/presets.ts`, add to `TEAM_PROFILES`:
+
+```ts
+{ id: 'my-profile', name: 'My Profile', description: 'Short description of the team type' },
+```
+
+### 3. Tag existing presets
+
+Add `'my-profile'` to the `tags` array of every rule, agent, and skill that should be pre-checked for this profile.
+
+### 4. Update docs
+
+Add a new section to [Profiles](Profiles) with the rules/agents/skills matrix. Add the profile to the description in the [Commands](Commands) page.
+
+### 5. Open a PR
+
+PR title: `feat: add <name> team profile`
+
+## How tags and universal work
+
+Every preset has a `tags` array listing which profiles consider it a default:
+
+```ts
+tags: ['frontend', 'backend', 'fullstack']
+```
+
+When a user picks a profile, every preset tagged for that profile gets pre-checked in the wizard. The `custom` profile skips tag-based defaults — nothing is pre-checked.
+
+The `universal` flag overrides everything:
+
+```ts
+universal: true   // always selected, shown as "(required)", cannot be deselected
+```
+
+Universal presets are included regardless of profile, even `custom`. Use this sparingly — only for hard requirements that every project needs. Currently 7 rules are universal. No agents or skills are universal.
+
+## The docs-parity rule
+
+Bluetemberg enforces a `docs-parity` universal rule: documentation must ship in the same commit as every user-facing change. This applies to the tool itself.
+
+When your PR changes behavior — a new template, a new flag, a config schema change — update the relevant wiki pages in `docs/wiki/` as part of the same commit. CI won't catch a missing doc update, but code reviewers will, and the rule exists to remind you.
