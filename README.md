@@ -107,6 +107,7 @@ Agents and skills are copied verbatim (only the filename extension changes).
 
 See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full documentation:
 
+- [Why Bluetemberg](https://github.com/prototypdigital/bluetemberg/wiki/Why)
 - [Installation](https://github.com/prototypdigital/bluetemberg/wiki/Installation)
 - [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands)
 - [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)
