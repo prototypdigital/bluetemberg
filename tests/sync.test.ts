@@ -472,6 +472,26 @@ describe('sync', () => {
     expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(false);
   });
 
+  it('does not prune in check mode even when prune option is true', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'keep.md'), '---\ndescription: K\nscope: "**"\n---\n\n# K\n');
+    writeFileSync(join(root, 'llm', 'rules', 'drop.md'), '---\ndescription: D\nscope: "**"\n---\n\n# D\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: { rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } } },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'rules', 'drop.md'));
+    await sync(root, { config, silent: true, check: true, prune: true });
+
+    expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(true);
+  });
+
   it('does not prune when sync recorded errors', async () => {
     mkdirSync(join(root, 'llm'), { recursive: true });
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });

@@ -14,6 +14,9 @@ export interface SyncSink {
 
 /**
  * Writes or diffs a single generated file. Centralizes counting for synced / outOfSync.
+ *
+ * `outPath` should be absolute or rooted under {@link SyncSink.root} (e.g. `join(sink.root, '.cursor', 'x.md')`).
+ * A bare relative path resolves against `process.cwd()`, which breaks `--check` and prune tracking.
  */
 export function commitPlannedWrite(sink: SyncSink, outPath: string, content: string): void {
   sink.expectedOutputPaths?.add(resolve(outPath));

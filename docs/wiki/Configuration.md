@@ -75,6 +75,14 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 
 **Caveats:** `--prune` runs only after a write pass with **no recorded errors**. It does not delete files your **adapters** create unless those adapters record outputs via `commitPlannedWrite` and pass through `expectedOutputPaths` from the adapter context (see [Adapters](Adapters)). Hand-edited copies under managed dirs may be removed if they are not regenerated. **Do not** point `targets.*.*.dir` at a directory that contains unrelated files you care about.
 
+**Before you `--prune`:**
+
+- Commit or stash so you can revert if something unexpected is removed.
+- Confirm each `targets.*.*.dir` is **only** for Bluetemberg-generated files (not a shared docs or src tree).
+- If you use **adapters**, ensure they register outputs with `commitPlannedWrite` and the sink’s `expectedOutputPaths` when pruning (see [Adapters](Adapters)).
+
+**Disabled platforms:** Prune only scans outputs for **platforms listed in `platforms`**. Removing a platform from config does **not** delete its old generated files (for example a leftover `.claude/mcp.json` after you drop `"claude"`). Delete those paths manually or temporarily re-enable the platform and run a normal write + `--prune` if the files still match the built-in layout.
+
 #### Rules targets
 
 | Platform | Default dir            | Default ext        |

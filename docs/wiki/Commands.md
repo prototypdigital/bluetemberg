@@ -47,6 +47,8 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | `--silent` | Suppress all output (useful in scripts and CI) |
 | `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
 
+Before first use of `--prune`, read the short pre-flight list and platform notes under **Stale generated files** in [Configuration](Configuration).
+
 **Example:**
 
 ```bash
