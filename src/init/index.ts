@@ -27,7 +27,7 @@ export async function init(targetPath?: string): Promise<void> {
   }
 
   console.log('\nRunning initial sync...\n');
-  sync(targetDir);
+  await sync(targetDir);
 
   const pm = answers.packageManager === 'npm' ? 'npm run' : answers.packageManager;
   console.log('\n  Done! Next steps:\n');

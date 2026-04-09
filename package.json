@@ -8,7 +8,9 @@
   },
   "exports": {
     ".": "./dist/index.js",
-    "./sync": "./dist/sync/index.js"
+    "./sync": "./dist/sync/index.js",
+    "./sync/pipeline": "./dist/sync/pipeline.js",
+    "./sync/adapter-contract": "./dist/sync/adapter-contract.js"
   },
   "repository": {
     "type": "git",

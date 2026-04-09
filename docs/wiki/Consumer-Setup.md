@@ -42,7 +42,7 @@ Add to your GitHub Actions workflow to catch drift:
   run: npx bluetemberg sync --check
 ```
 
-This step exits with code 1 if any platform-specific file (`.cursor/rules/`, `.claude/rules/`, `.github/instructions/`, etc.) is out of sync with the source in `llm/`. It prevents the common pattern where someone edits a rule in `llm/` and forgets to run sync before pushing. Without this check, the AI tools on different platforms silently diverge.
+This step exits with code 1 if any platform-specific file (`.cursor/rules/`, `.claude/rules/`, `.github/instructions/`, `.cursor/mcp.json`, `.github/prompts/`, etc.) is out of sync with the source in `llm/` (and with optional `adapters` output, if you use them). It prevents the common pattern where someone edits a rule in `llm/` and forgets to run sync before pushing. Without this check, the AI tools on different platforms silently diverge.
 
 ## 4. Ongoing workflow
 

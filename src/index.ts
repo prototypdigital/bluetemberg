@@ -10,3 +10,4 @@ export type {
   RuleFrontmatter,
   PresetItem,
 } from './types.js';
+export type { AdapterContext, AdapterRecordError, AdapterRunFn } from './sync/adapter-contract.js';

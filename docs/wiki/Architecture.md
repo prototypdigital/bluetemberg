@@ -13,13 +13,21 @@ flowchart TD
     end
 
     subgraph sync ["bluetemberg sync"]
-        D[Load config\nbluetemebr.config.json] --> E[Read llm/ sources\nrules · agents · skills]
+        D[Load config\nbluetemberg.config.json] --> E[Read llm/ sources\nrules · agents · skills · mcp · hooks · commands · prompts]
+        D --> L[Optional adapters\nimport from config]
         E --> F{Type?}
         F -->|rules| G[Transform\nfrontmatter]
         F -->|agents| H[Copy verbatim]
         F -->|skills| H
+        F -->|commands| H
+        F -->|prompts| H
+        F -->|mcp.json| J[Resolve presets\nper platform]
+        F -->|hooks.json| K[Validate\nCursor shape]
         G --> I[Write target files]
         H --> I
+        J --> I
+        K --> I
+        L --> I
     end
 
     C --> D
@@ -34,10 +42,16 @@ llm/
 │   └── no-console-log.md
 ├── agents/             # Verbatim markdown (no transform)
 │   └── frontend-specialist.md
-└── skills/             # Directory per skill, each with SKILL.md
-    └── patterns/
-        └── SKILL.md
+├── skills/             # Directory per skill, each with SKILL.md
+│   └── patterns/
+│       └── SKILL.md
+├── mcp.json            # Optional: MCP server ids → .claude/mcp.json & .github/mcp.json
+├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
+├── commands/           # Optional: Claude slash commands → .claude/commands/*.md
+└── prompts/            # Optional: Copilot prompts → .github/prompts/*.prompt.md
 ```
+
+For the adapter philosophy and roadmap, see [Adapters](Adapters).
 
 ## Frontmatter transform
 

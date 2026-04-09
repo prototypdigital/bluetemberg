@@ -33,8 +33,17 @@ src/
 ├── utils/
 │   └── fs.ts             # File system helpers
 ├── sync/
-│   ├── index.ts          # Sync engine (read, transform, write)
-│   └── transform.ts      # Frontmatter transform logic
+│   ├── index.ts           # Sync engine orchestration (async; optional adapters)
+│   ├── transform.ts       # Rule frontmatter transform
+│   ├── pipeline.ts        # commitPlannedWrite / check-mode counting
+│   ├── mcp.ts             # llm/mcp.json → Claude / Copilot / Cursor
+│   ├── hooks.ts           # llm/hooks.json → Cursor
+│   ├── commands.ts        # llm/commands → Claude
+│   ├── prompts.ts         # llm/prompts → Copilot *.prompt.md
+│   ├── adapters-runner.ts # Optional config.adapters dynamic import
+│   └── adapter-contract.ts# AdapterContext types
+├── mcp/
+│   └── registry.ts        # Built-in MCP server presets
 └── init/
     ├── index.ts           # Init wizard orchestrator
     ├── prompts.ts         # Inquirer prompt definitions

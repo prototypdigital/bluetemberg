@@ -1,8 +1,14 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
-import { ensureDir, writeOrCheck, listFiles, listDirs } from '../utils/fs.js';
+import { ensureDir, listFiles, listDirs } from '../utils/fs.js';
+import { commitPlannedWrite } from './pipeline.js';
+import { syncMcp } from './mcp.js';
+import { syncHooks } from './hooks.js';
+import { syncCommands } from './commands.js';
+import { syncCopilotPrompts } from './prompts.js';
+import { runOptionalAdapters } from './adapters-runner.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -32,6 +38,12 @@ function validateConfig(config: unknown, configPath: string): BlueprintConfig {
 
   if (cfg.source !== undefined && typeof cfg.source !== 'string') {
     throw new Error(`Invalid config in ${configPath}: "source" must be a string`);
+  }
+
+  if (cfg.adapters !== undefined) {
+    if (!Array.isArray(cfg.adapters) || cfg.adapters.some((a: unknown) => typeof a !== 'string')) {
+      throw new Error(`Invalid config in ${configPath}: "adapters" must be an array of strings`);
+    }
   }
 
   return config as BlueprintConfig;
@@ -75,24 +87,12 @@ interface SyncContext {
   log: (...args: unknown[]) => void;
 }
 
-function recordResult(ctx: SyncContext, outPath: string, isDiff: boolean): void {
-  if (ctx.checkMode && isDiff) {
-    ctx.log(`  OUT OF SYNC: ${relative(ctx.root, outPath)}`);
-    ctx.results.outOfSync++;
-    return;
-  }
-
-  if (!ctx.checkMode) {
-    ctx.results.synced++;
-  }
-}
-
 function recordError(ctx: SyncContext, message: string): void {
   ctx.results.errors.push(message);
   ctx.log(`  ERROR: ${message}`);
 }
 
-export function sync(root: string, options: SyncOptions = {}): SyncResults {
+export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
   const checkMode = options.check || false;
   const config = options.config || loadConfig(root);
   const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
@@ -117,6 +117,23 @@ export function sync(root: string, options: SyncOptions = {}): SyncResults {
   syncAgents(ctx);
   syncSkills(ctx);
   syncCopilotInstructions(ctx);
+  syncMcp(ctx, (msg) => recordError(ctx, msg));
+  syncHooks(ctx, (msg) => recordError(ctx, msg));
+  syncCommands(ctx, (msg) => recordError(ctx, msg));
+  syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
+
+  await runOptionalAdapters(
+    {
+      root: ctx.root,
+      sourceBase: ctx.sourceBase,
+      platforms: ctx.platforms,
+      checkMode: ctx.checkMode,
+      results: ctx.results,
+      log: ctx.log,
+      config: ctx.config,
+    },
+    (msg) => recordError(ctx, msg),
+  );
 
   if (checkMode) {
     if (results.outOfSync > 0) {
@@ -158,8 +175,7 @@ function syncRules(ctx: SyncContext): void {
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
-        const isDiff = writeOrCheck(outPath, output, ctx.checkMode);
-        recordResult(ctx, outPath, isDiff);
+        commitPlannedWrite(ctx, outPath, output);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordError(ctx, `rules/${file} -> ${platform}: ${message}`);
@@ -191,8 +207,7 @@ function syncAgents(ctx: SyncContext): void {
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
-        const isDiff = writeOrCheck(outPath, content, ctx.checkMode);
-        recordResult(ctx, outPath, isDiff);
+        commitPlannedWrite(ctx, outPath, content);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordError(ctx, `agents/${file} -> ${targetConfig.dir}: ${message}`);
@@ -228,8 +243,7 @@ function syncSkills(ctx: SyncContext): void {
         const content = readFileSync(srcSkill, 'utf8');
         const outPath = join(outDir, 'SKILL.md');
 
-        const isDiff = writeOrCheck(outPath, content, ctx.checkMode);
-        recordResult(ctx, outPath, isDiff);
+        commitPlannedWrite(ctx, outPath, content);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordError(ctx, `skills/${dirName} -> ${targetConfig.dir}: ${message}`);
@@ -249,8 +263,7 @@ function syncCopilotInstructions(ctx: SyncContext): void {
     ensureDir(join(ctx.root, '.github'));
     const content = readFileSync(agentsMd, 'utf8');
 
-    const isDiff = writeOrCheck(target, content, ctx.checkMode);
-    recordResult(ctx, target, isDiff);
+    commitPlannedWrite(ctx, target, content);
 
     if (!ctx.checkMode) {
       ctx.log('Copilot instructions: synced from AGENTS.md');

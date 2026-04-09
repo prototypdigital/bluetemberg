@@ -32,7 +32,9 @@ The interactive wizard will ask you to pick:
 - Starter rules — universal guardrails are always included; profile-specific rules are pre-checked based on your team type
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
-- MCP server configs (interactive prompts, context7, figma, github)
+- MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)
+
+You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/commands/*.md`** (Claude slash commands), **`llm/prompts/*.md`** (Copilot `*.prompt.md`), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (*Writing Hooks*, *Writing Commands*, *Writing Prompts*, *Adapters*).
 
 It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-specific files, and patches `.prettierignore` to protect your prose files from the formatter.
 
@@ -46,7 +48,11 @@ your-project/
 ├── llm/
 │   ├── rules/                  # Vendor-neutral rules
 │   ├── agents/                 # Specialist agent definitions
-│   └── skills/                 # On-demand skill workflows
+│   ├── skills/                 # On-demand skill workflows
+│   ├── mcp.json                # Optional — MCP preset ids (if you add it)
+│   ├── hooks.json              # Optional — Cursor hooks (if you add it)
+│   ├── commands/               # Optional — Claude slash commands (if you add it)
+│   └── prompts/                # Optional — Copilot prompt sources (if you add it)
 ├── .cursor/rules/              # Generated — do not edit
 ├── .claude/rules/              # Generated — do not edit
 ├── .claude/agents/             # Generated — do not edit
@@ -93,6 +99,8 @@ npx bluetemberg sync --check
 | `llm/rules/*.md`        | `.cursor/rules/*.mdc` | `.claude/rules/*.md`        | `.github/instructions/*.instructions.md` |
 | `llm/agents/*.md`       | —                     | `.claude/agents/*.md`       | `.github/agents/*.agent.md`              |
 | `llm/skills/*/SKILL.md` | —                     | `.claude/skills/*/SKILL.md` | `.github/skills/*/SKILL.md`              |
+| `llm/mcp.json`          | `.cursor/mcp.json`    | `.claude/mcp.json`          | `.github/mcp.json`                       |
+| `llm/prompts/*.md`      | —                     | —                           | `.github/prompts/*.prompt.md`            |
 | `AGENTS.md`             | —                     | —                           | `.github/copilot-instructions.md`        |
 
 Rules get platform-specific frontmatter transforms:
@@ -102,6 +110,8 @@ Rules get platform-specific frontmatter transforms:
 - **Copilot**: `applyTo: scope`
 
 Agents and skills are copied verbatim (only the filename extension changes).
+
+**Programmatic API:** `import { sync } from '@prototypdigital/bluetemberg'` — `sync()` is **async** (it may load optional `adapters` from config). Use `await sync(root, options)`.
 
 ## Documentation
 
@@ -115,6 +125,10 @@ See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full doc
 - [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules)
 - [Writing Agents](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Agents)
 - [Writing Skills](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills)
+- [Writing Hooks](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Hooks)
+- [Writing Commands](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Commands)
+- [Writing Prompts](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Prompts)
+- [Adapters](https://github.com/prototypdigital/bluetemberg/wiki/Adapters)
 - [Architecture](https://github.com/prototypdigital/bluetemberg/wiki/Architecture)
 - [Consumer Setup](https://github.com/prototypdigital/bluetemberg/wiki/Consumer-Setup)
 - [Contributing](https://github.com/prototypdigital/bluetemberg/wiki/Contributing)
