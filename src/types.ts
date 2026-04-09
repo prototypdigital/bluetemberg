@@ -21,6 +21,11 @@ export interface BlueprintConfig {
     agents?: Partial<Record<Platform, TargetConfig>>;
     skills?: Partial<Record<Platform, SkillTargetConfig>>;
   };
+  /**
+   * Optional ESM module specifiers (npm package names or `file:` URLs) loaded after built-in sync steps.
+   * Each module must `export default` as a function or `{ run(ctx, recordError) }` — see wiki *Adapters*.
+   */
+  adapters?: string[];
 }
 
 export interface InitAnswers {

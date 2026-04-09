@@ -33,8 +33,17 @@ src/
 ├── utils/
 │   └── fs.ts             # File system helpers
 ├── sync/
-│   ├── index.ts          # Sync engine (read, transform, write)
-│   └── transform.ts      # Frontmatter transform logic
+│   ├── index.ts           # Sync engine orchestration (async; optional adapters)
+│   ├── transform.ts       # Rule frontmatter transform
+│   ├── pipeline.ts        # commitPlannedWrite / check-mode counting
+│   ├── mcp.ts             # llm/mcp.json → Claude / Copilot / Cursor
+│   ├── hooks.ts           # llm/hooks.json → Cursor
+│   ├── commands.ts        # llm/commands → Claude
+│   ├── prompts.ts         # llm/prompts → Copilot *.prompt.md
+│   ├── adapters-runner.ts # Optional config.adapters dynamic import
+│   └── adapter-contract.ts# AdapterContext types
+├── mcp/
+│   └── registry.ts        # Built-in MCP server presets
 └── init/
     ├── index.ts           # Init wizard orchestrator
     ├── prompts.ts         # Inquirer prompt definitions
@@ -81,6 +90,13 @@ Releases are fully automated via [Release Please](https://github.com/googleapis/
 5. The publish workflow triggers and pushes to GitHub Packages
 
 No manual version bumping or tagging is needed.
+
+### Changelog and breaking changes
+
+- **Do not add a `## [Unreleased]` section** (or other manual top-of-file draft entries) to `CHANGELOG.md`. [Release Please](https://github.com/googleapis/release-please) updates `CHANGELOG.md` on the release PR from your **conventional commits**; a hand-maintained block duplicates or fights that flow.
+- **Breaking changes** belong in commit metadata: use a `feat!:` / `fix!:` / `chore!:` title, and/or a `BREAKING CHANGE:` paragraph in the commit **body**, per [Conventional Commits](https://www.conventionalcommits.org/). Release Please turns those into the correct version bump and changelog section.
+- Use the **PR description** for extra context (migration notes, links); consumers still read the generated changelog after release.
+- **Do not edit** `CHANGELOG.md` on feature PRs to “pre-document” the next version—let the release PR carry the authoritative diff.
 
 ---
 

@@ -33,7 +33,7 @@ program
     const root = resolve(directory);
     const config = loadConfig(root);
     const check = options.check || options.dryRun || false;
-    const results = sync(root, { check, config, silent: options.silent });
+    const results = await sync(root, { check, config, silent: options.silent });
 
     if (check && results.outOfSync > 0) {
       process.exit(1);

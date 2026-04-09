@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { sync, loadConfig } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
@@ -22,7 +23,7 @@ describe('sync', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it('syncs rules to all platforms', () => {
+  it('syncs rules to all platforms', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(
       join(root, 'llm', 'rules', 'test-rule.md'),
@@ -41,7 +42,7 @@ describe('sync', () => {
       },
     };
 
-    const results = sync(root, { config, silent: true });
+    const results = await sync(root, { config, silent: true });
 
     expect(results.synced).toBe(3);
     expect(existsSync(join(root, '.cursor', 'rules', 'test-rule.mdc'))).toBe(true);
@@ -61,7 +62,7 @@ describe('sync', () => {
     expect(copilotContent).toContain("applyTo: '**'");
   });
 
-  it('syncs scoped rules correctly', () => {
+  it('syncs scoped rules correctly', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(
       join(root, 'llm', 'rules', 'scoped.md'),
@@ -76,7 +77,7 @@ describe('sync', () => {
       },
     };
 
-    sync(root, { config, silent: true });
+    await sync(root, { config, silent: true });
 
     const content = readFileSync(join(root, '.cursor', 'rules', 'scoped.mdc'), 'utf8');
     expect(content).toContain('globs:');
@@ -84,7 +85,7 @@ describe('sync', () => {
     expect(content).not.toContain('alwaysApply');
   });
 
-  it('syncs agents verbatim', () => {
+  it('syncs agents verbatim', async () => {
     mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
     const agentContent = '---\nname: test-agent\ndescription: Test\n---\n\n# Test Agent\n';
     writeFileSync(join(root, 'llm', 'agents', 'test-agent.md'), agentContent);
@@ -100,13 +101,13 @@ describe('sync', () => {
       },
     };
 
-    sync(root, { config, silent: true });
+    await sync(root, { config, silent: true });
 
     expect(readFileSync(join(root, '.claude', 'agents', 'test-agent.md'), 'utf8')).toBe(agentContent);
     expect(readFileSync(join(root, '.github', 'agents', 'test-agent.agent.md'), 'utf8')).toBe(agentContent);
   });
 
-  it('syncs skills verbatim', () => {
+  it('syncs skills verbatim', async () => {
     mkdirSync(join(root, 'llm', 'skills', 'test-skill'), { recursive: true });
     const skillContent = '---\nname: test-skill\n---\n\n# Test\n';
     writeFileSync(join(root, 'llm', 'skills', 'test-skill', 'SKILL.md'), skillContent);
@@ -119,14 +120,14 @@ describe('sync', () => {
       },
     };
 
-    sync(root, { config, silent: true });
+    await sync(root, { config, silent: true });
 
     expect(readFileSync(join(root, '.claude', 'skills', 'test-skill', 'SKILL.md'), 'utf8')).toBe(
       skillContent,
     );
   });
 
-  it('check mode reports out-of-sync files', () => {
+  it('check mode reports out-of-sync files', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(
       join(root, 'llm', 'rules', 'check-test.md'),
@@ -141,11 +142,11 @@ describe('sync', () => {
       },
     };
 
-    const results = sync(root, { check: true, config, silent: true });
+    const results = await sync(root, { check: true, config, silent: true });
     expect(results.outOfSync).toBe(1);
   });
 
-  it('check mode reports in-sync after full sync', () => {
+  it('check mode reports in-sync after full sync', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(
       join(root, 'llm', 'rules', 'synced.md'),
@@ -160,12 +161,12 @@ describe('sync', () => {
       },
     };
 
-    sync(root, { config, silent: true });
-    const results = sync(root, { check: true, config, silent: true });
+    await sync(root, { config, silent: true });
+    const results = await sync(root, { check: true, config, silent: true });
     expect(results.outOfSync).toBe(0);
   });
 
-  it('syncs AGENTS.md to copilot instructions', () => {
+  it('syncs AGENTS.md to copilot instructions', async () => {
     writeFileSync(join(root, 'AGENTS.md'), '# My Project\n\nProject docs.\n');
 
     const config: BlueprintConfig = {
@@ -174,13 +175,13 @@ describe('sync', () => {
       targets: {},
     };
 
-    sync(root, { config, silent: true });
+    await sync(root, { config, silent: true });
 
     const copilotInstructions = readFileSync(join(root, '.github', 'copilot-instructions.md'), 'utf8');
     expect(copilotInstructions).toBe('# My Project\n\nProject docs.\n');
   });
 
-  it('handles empty rules directory gracefully', () => {
+  it('handles empty rules directory gracefully', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
 
     const config: BlueprintConfig = {
@@ -191,13 +192,13 @@ describe('sync', () => {
       },
     };
 
-    const results = sync(root, { config, silent: true });
+    const results = await sync(root, { config, silent: true });
     expect(results.synced).toBe(0);
     expect(results.outOfSync).toBe(0);
     expect(results.errors).toEqual([]);
   });
 
-  it('skips skill directories without SKILL.md', () => {
+  it('skips skill directories without SKILL.md', async () => {
     mkdirSync(join(root, 'llm', 'skills', 'valid-skill'), { recursive: true });
     mkdirSync(join(root, 'llm', 'skills', 'empty-dir'), { recursive: true });
     writeFileSync(
@@ -213,13 +214,243 @@ describe('sync', () => {
       },
     };
 
-    const results = sync(root, { config, silent: true });
+    const results = await sync(root, { config, silent: true });
     expect(results.synced).toBe(1);
     expect(existsSync(join(root, '.claude', 'skills', 'valid-skill', 'SKILL.md'))).toBe(true);
     expect(existsSync(join(root, '.claude', 'skills', 'empty-dir', 'SKILL.md'))).toBe(false);
   });
 
-  it('handles missing source directories gracefully', () => {
+  it('syncs MCP from llm/mcp.json to Claude, Copilot, and Cursor shapes', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'mcp.json'),
+      JSON.stringify({ servers: ['interactive'] }, null, 2) + '\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['claude', 'copilot', 'cursor'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+
+    const claudeRaw = readFileSync(join(root, '.claude', 'mcp.json'), 'utf8');
+    const claude = JSON.parse(claudeRaw) as { mcpServers: Record<string, { type: string }> };
+    expect(claude.mcpServers.interactive?.type).toBe('stdio');
+
+    const ghRaw = readFileSync(join(root, '.github', 'mcp.json'), 'utf8');
+    const gh = JSON.parse(ghRaw) as { servers: Record<string, { type: string }> };
+    expect(gh.servers.interactive?.type).toBe('stdio');
+
+    const cursorRaw = readFileSync(join(root, '.cursor', 'mcp.json'), 'utf8');
+    const cursor = JSON.parse(cursorRaw) as { mcpServers: Record<string, { type: string }> };
+    expect(cursor.mcpServers.interactive?.type).toBe('stdio');
+  });
+
+  it('records error for unknown MCP server id in llm/mcp.json', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['not-a-real-server'] }));
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    const results = await sync(root, { config, silent: true });
+    expect(results.errors.some((e) => e.includes('unknown server id'))).toBe(true);
+  });
+
+  it('syncs MCP manifest mixing preset ids and inline server objects', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'mcp.json'),
+      JSON.stringify(
+        {
+          servers: [
+            'interactive',
+            {
+              id: 'custom-tool',
+              type: 'stdio',
+              command: 'node',
+              args: ['./mcp-server.mjs'],
+            },
+          ],
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+
+    const claude = JSON.parse(readFileSync(join(root, '.claude', 'mcp.json'), 'utf8')) as {
+      mcpServers: Record<string, { type: string; command?: string; args?: string[] }>;
+    };
+    expect(claude.mcpServers.interactive?.type).toBe('stdio');
+    expect(claude.mcpServers['custom-tool']?.type).toBe('stdio');
+    expect(claude.mcpServers['custom-tool']?.command).toBe('node');
+    expect(claude.mcpServers['custom-tool']?.args).toEqual(['./mcp-server.mjs']);
+  });
+
+  it('syncs llm/hooks.json to .cursor/hooks.json when cursor is enabled', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    const hooksDoc = {
+      version: 1,
+      hooks: { beforeSubmitPrompt: [{ command: 'npm run lint' }] },
+    };
+    writeFileSync(join(root, 'llm', 'hooks.json'), JSON.stringify(hooksDoc, null, 2));
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+
+    const out = JSON.parse(readFileSync(join(root, '.cursor', 'hooks.json'), 'utf8')) as typeof hooksDoc;
+    expect(out.version).toBe(1);
+    expect(out.hooks.beforeSubmitPrompt).toEqual([{ command: 'npm run lint' }]);
+  });
+
+  it('skips hooks sync when cursor is not enabled', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'hooks.json'), JSON.stringify({ version: 1, hooks: {} }));
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.cursor', 'hooks.json'))).toBe(false);
+  });
+
+  it('records error for invalid llm/hooks.json', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'hooks.json'), JSON.stringify({ hooks: { bad: 'not-array' } }));
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {},
+    };
+
+    const results = await sync(root, { config, silent: true });
+    expect(results.errors.some((e) => e.includes('hooks.json'))).toBe(true);
+  });
+
+  it('syncs llm/commands to .claude/commands verbatim', async () => {
+    mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
+    const body = '---\ndescription: Test cmd\n---\n\nDo something with $ARGUMENTS\n';
+    writeFileSync(join(root, 'llm', 'commands', 'my-cmd.md'), body);
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(readFileSync(join(root, '.claude', 'commands', 'my-cmd.md'), 'utf8')).toBe(body);
+  });
+
+  it('skips commands sync when claude is not enabled', async () => {
+    mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'commands', 'x.md'), '# X\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.claude', 'commands', 'x.md'))).toBe(false);
+  });
+
+  it('syncs llm/prompts to .github/prompts as .prompt.md when copilot is enabled', async () => {
+    mkdirSync(join(root, 'llm', 'prompts'), { recursive: true });
+    const body = '---\ndescription: Review PR\n---\n\n# Review\n';
+    writeFileSync(join(root, 'llm', 'prompts', 'review.md'), body);
+
+    const config: BlueprintConfig = {
+      platforms: ['copilot'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(readFileSync(join(root, '.github', 'prompts', 'review.prompt.md'), 'utf8')).toBe(body);
+  });
+
+  it('passes through llm/prompts/*.prompt.md filenames to .github/prompts', async () => {
+    mkdirSync(join(root, 'llm', 'prompts'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'prompts', 'fix.prompt.md'), '# Fix\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['copilot'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(readFileSync(join(root, '.github', 'prompts', 'fix.prompt.md'), 'utf8')).toBe('# Fix\n');
+  });
+
+  it('skips prompts sync when copilot is not enabled', async () => {
+    mkdirSync(join(root, 'llm', 'prompts'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'prompts', 'a.md'), '# A\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.github', 'prompts', 'a.prompt.md'))).toBe(false);
+  });
+
+  it('loads and runs optional adapters from config', async () => {
+    const adapterHref = pathToFileURL(
+      join(dirname(fileURLToPath(import.meta.url)), 'fixtures/touch-adapter.mjs'),
+    ).href;
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {},
+      adapters: [adapterHref],
+    };
+
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+
+    await sync(root, { config, silent: true });
+    expect(readFileSync(join(root, 'adapter-touched'), 'utf8')).toBe('ok\n');
+  });
+
+  it('records error when adapter module cannot be loaded', async () => {
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {},
+      adapters: ['@bluetemberg/nonexistent-adapter-package-xyz'],
+    };
+
+    const results = await sync(root, { config, silent: true });
+    expect(results.errors.some((e) => e.includes('adapter'))).toBe(true);
+  });
+
+  it('handles missing source directories gracefully', async () => {
     const config: BlueprintConfig = {
       platforms: ['cursor', 'claude', 'copilot'],
       source: 'llm',
@@ -230,7 +461,7 @@ describe('sync', () => {
       },
     };
 
-    const results = sync(root, { config, silent: true });
+    const results = await sync(root, { config, silent: true });
     expect(results.synced).toBe(0);
     expect(results.errors).toEqual([]);
   });
@@ -290,5 +521,14 @@ describe('loadConfig', () => {
     );
 
     expect(() => loadConfig(root)).toThrow('unknown platform(s): vscode');
+  });
+
+  it('throws on invalid adapters field', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['cursor'], source: 'llm', targets: {}, adapters: [1] }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('"adapters" must be an array of strings');
   });
 });

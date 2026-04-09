@@ -212,52 +212,14 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
   }
 }
 
-interface McpServerConfig {
-  command?: string;
-  args?: string[];
-  type: string;
-  url?: string;
-}
-
-const MCP_SERVER_REGISTRY: Record<string, McpServerConfig> = {
-  interactive: {
-    command: 'npx',
-    args: ['-y', '@rawwee/interactive-mcp', '-t', '1200', '--disable-tools', 'message_complete_notification'],
-    type: 'stdio',
-  },
-  context7: {
-    command: 'npx',
-    args: ['-y', '@upstash/context7-mcp'],
-    type: 'stdio',
-  },
-  figma: {
-    type: 'http',
-    url: 'https://mcp.figma.com/mcp',
-  },
-  github: {
-    type: 'http',
-    url: 'https://api.githubcopilot.com/mcp/',
-  },
-};
-
 function scaffoldMcp(targetDir: string, answers: InitAnswers, created: string[]): void {
   const servers = answers.mcpServers;
   if (servers.length === 0) return;
 
-  const serverConfigs: Record<string, McpServerConfig> = {};
-  for (const id of servers) {
-    if (MCP_SERVER_REGISTRY[id]) serverConfigs[id] = MCP_SERVER_REGISTRY[id];
-  }
-
-  if (answers.platforms.includes('claude')) {
-    const config = { mcpServers: serverConfigs };
-    safeWrite(join(targetDir, '.claude', 'mcp.json'), JSON.stringify(config, null, 2) + '\n', created);
-  }
-
-  if (answers.platforms.includes('copilot')) {
-    const config = { servers: serverConfigs };
-    safeWrite(join(targetDir, '.github', 'mcp.json'), JSON.stringify(config, null, 2) + '\n', created);
-  }
+  const llmDir = join(targetDir, 'llm');
+  ensureDir(llmDir);
+  const manifest = { servers };
+  safeWrite(join(llmDir, 'mcp.json'), JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
 function updatePackageScripts(targetDir: string, created: string[]): void {
