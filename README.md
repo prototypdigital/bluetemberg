@@ -92,6 +92,16 @@ Check mode for CI (exits 1 if out of sync):
 npx bluetemberg sync --check
 ```
 
+**Exit codes:** the CLI exits **1** if sync records **any** error (invalid `llm/hooks.json`, unknown MCP id, adapter failure, etc.), not only when `--check` finds drift. Use the exit code in CI, especially with `--silent`.
+
+Optional **stale output cleanup** after you remove or rename sources under `llm/`:
+
+```bash
+npx bluetemberg sync --prune
+```
+
+`--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
+
 ## How sync works
 
 | Source                  | Cursor                | Claude                      | Copilot                                  |
@@ -111,7 +121,7 @@ Rules get platform-specific frontmatter transforms:
 
 Agents and skills are copied verbatim (only the filename extension changes).
 
-**Programmatic API:** `import { sync, loadConfig } from '@prototypdigital/bluetemberg'`. `sync()` returns a **Promise** (it may load optional `adapters`). Always **await** it, e.g. `const results = await sync(root, { config: loadConfig(root) });`. Release notes for each version live in [CHANGELOG.md](CHANGELOG.md) (updated by Release Please). Breaking changes should use conventional commits—see [Contributing — Changelog and breaking changes](https://github.com/prototypdigital/bluetemberg/wiki/Contributing#changelog-and-breaking-changes).
+**Programmatic API:** `import { sync, loadConfig, shouldExitWithFailure } from '@prototypdigital/bluetemberg'`. `sync()` returns a **Promise** (it may load optional `adapters`). Always **await** it, e.g. `const results = await sync(root, { config: loadConfig(root), prune: true });`. Use `shouldExitWithFailure(results, checkMode)` to mirror CLI exit semantics. Release notes for each version live in [CHANGELOG.md](CHANGELOG.md) (updated by Release Please). Breaking changes should use conventional commits—see [Contributing — Changelog and breaking changes](https://github.com/prototypdigital/bluetemberg/wiki/Contributing#changelog-and-breaking-changes).
 
 ## Documentation
 

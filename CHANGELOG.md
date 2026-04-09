@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Breaking changes
+
+- **CLI:** `bluetemberg sync` exits with code **1** when sync records any error (e.g. invalid optional manifests, unknown MCP preset ids, adapter failures), not only when `--check` detects drift. Pipelines that assumed a zero exit despite logged errors must treat the exit code as the source of truth (especially with `--silent`).
+
+### Features
+
+- **`sync --prune`:** optional removal of stale generated files under managed output directories after a successful write pass (no-op with `--check`).
+- **Config:** `targets` in `bluetemberg.config.json` is validated at load time (platform keys, non-empty `dir`, and `ext` for rules/agents).
+- **`--check`:** compares files with newline normalization (CRLF vs LF) to reduce false positives on Windows.
+
+### Documentation
+
+- Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
+
 ## [0.1.3](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.1.2...bluetemberg-v0.1.3) (2026-04-08)
 
 ### Features

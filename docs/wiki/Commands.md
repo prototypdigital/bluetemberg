@@ -45,6 +45,7 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | `--check` | Dry-run mode; exits with code 1 if any generated files are out of sync |
 | `--dry-run` | Alias for `--check` |
 | `--silent` | Suppress all output (useful in scripts and CI) |
+| `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
 
 **Example:**
 
@@ -52,8 +53,18 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 npx bluetemberg sync
 npx bluetemberg sync --check
 npx bluetemberg sync --dry-run --silent
+npx bluetemberg sync --prune
 npx bluetemberg sync ./my-project
 ```
+
+## Exit codes
+
+| Code | When |
+| ---- | ---- |
+| 0 | Sync finished with no recorded errors, and (if `--check`) all generated files match the expected content |
+| 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, etc.), **or** `--check` found one or more files out of sync |
+
+Use `--silent` in CI only together with checking `$?` (or equivalent): failures are signaled by the exit code, not only by log lines.
 
 **When to run:**
 

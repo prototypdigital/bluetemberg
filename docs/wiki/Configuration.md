@@ -51,6 +51,30 @@ Optional array of **strings** passed to `import()`: npm package names (must be i
 
 Maps each content type (rules, agents, skills) to platform-specific output directories and file extensions.
 
+Invalid `targets` shapes (wrong types, unknown platform keys, empty `dir` / missing `ext` for rules and agents) cause **`bluetemberg sync` to fail at config load** with a clear error. Omit a section entirely if you do not use that content type.
+
+#### Line endings and `--check`
+
+On Windows, Git may checkout files with CRLF. Check mode compares normalized line endings (CRLF vs LF is ignored) so CI is less likely to report false drift. You can still enforce LF for generated paths in `.gitattributes`, for example:
+
+```
+.cursor/rules/** text eol=lf
+.claude/** text eol=lf
+.github/instructions/** text eol=lf
+.github/agents/** text eol=lf
+.github/skills/** text eol=lf
+.github/prompts/** text eol=lf
+.github/copilot-instructions.md text eol=lf
+```
+
+Adjust the list to match the platforms and directories you use.
+
+#### Stale generated files (`sync --prune`)
+
+Sync normally **only writes**; it does not delete old outputs when you remove or rename a source file under `llm/`. Run **`bluetemberg sync --prune`** after editing sources to remove generated files that are no longer part of the current plan (under the same managed directories the built-in sync writes to).
+
+**Caveats:** `--prune` runs only after a write pass with **no recorded errors**. It does not delete files your **adapters** create unless those adapters record outputs via `commitPlannedWrite` and pass through `expectedOutputPaths` from the adapter context (see [Adapters](Adapters)). Hand-edited copies under managed dirs may be removed if they are not regenerated. **Do not** point `targets.*.*.dir` at a directory that contains unrelated files you care about.
+
 #### Rules targets
 
 | Platform | Default dir            | Default ext        |

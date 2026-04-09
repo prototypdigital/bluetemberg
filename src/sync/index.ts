@@ -3,7 +3,8 @@ import { join } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
 import { ensureDir, listFiles, listDirs } from '../utils/fs.js';
-import { commitPlannedWrite } from './pipeline.js';
+import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import { pruneStaleOutputs } from './prune.js';
 import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
@@ -19,6 +20,56 @@ import type {
 } from '../types.js';
 
 const VALID_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot'];
+
+function validateTargets(targets: unknown, configPath: string): void {
+  if (targets === undefined) {
+    return;
+  }
+  if (!targets || typeof targets !== 'object' || Array.isArray(targets)) {
+    throw new Error(`Invalid config in ${configPath}: "targets" must be an object`);
+  }
+
+  const t = targets as Record<string, unknown>;
+  const sections: { key: 'rules' | 'agents' | 'skills'; needsExt: boolean }[] = [
+    { key: 'rules', needsExt: true },
+    { key: 'agents', needsExt: true },
+    { key: 'skills', needsExt: false },
+  ];
+
+  for (const { key, needsExt } of sections) {
+    const section = t[key];
+    if (section === undefined) {
+      continue;
+    }
+    if (!section || typeof section !== 'object' || Array.isArray(section)) {
+      throw new Error(`Invalid config in ${configPath}: "targets.${key}" must be an object`);
+    }
+
+    for (const [platformKey, value] of Object.entries(section as Record<string, unknown>)) {
+      if (!VALID_PLATFORMS.includes(platformKey as Platform)) {
+        throw new Error(
+          `Invalid config in ${configPath}: unknown platform in targets.${key}: ${platformKey}`,
+        );
+      }
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new Error(`Invalid config in ${configPath}: targets.${key}.${platformKey} must be an object`);
+      }
+      const v = value as Record<string, unknown>;
+      if (typeof v.dir !== 'string' || v.dir.trim().length === 0) {
+        throw new Error(
+          `Invalid config in ${configPath}: targets.${key}.${platformKey}.dir must be a non-empty string`,
+        );
+      }
+      if (needsExt) {
+        if (typeof v.ext !== 'string' || v.ext.trim().length === 0) {
+          throw new Error(
+            `Invalid config in ${configPath}: targets.${key}.${platformKey}.ext must be a non-empty string`,
+          );
+        }
+      }
+    }
+  }
+}
 
 function validateConfig(config: unknown, configPath: string): BlueprintConfig {
   if (!config || typeof config !== 'object') {
@@ -46,7 +97,23 @@ function validateConfig(config: unknown, configPath: string): BlueprintConfig {
     }
   }
 
+  validateTargets(cfg.targets, configPath);
+
   return config as BlueprintConfig;
+}
+
+/**
+ * Whether the CLI (or a script) should exit with a non-zero code after {@link sync}.
+ * True when any error was recorded, or in check mode when outputs are out of sync.
+ */
+export function shouldExitWithFailure(results: SyncResults, checkMode: boolean): boolean {
+  if (results.errors.length > 0) {
+    return true;
+  }
+  if (checkMode && results.outOfSync > 0) {
+    return true;
+  }
+  return false;
 }
 
 export function loadConfig(root: string): BlueprintConfig {
@@ -77,14 +144,10 @@ function filterTargets<T>(targets: Partial<Record<Platform, T>>, platforms: Plat
     .map(([platform, config]) => [platform as Platform, config as T]);
 }
 
-interface SyncContext {
-  root: string;
+interface SyncContext extends SyncSink {
   sourceBase: string;
   config: BlueprintConfig;
   platforms: Platform[];
-  checkMode: boolean;
-  results: SyncResults;
-  log: (...args: unknown[]) => void;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
@@ -99,7 +162,7 @@ function recordError(ctx: SyncContext, message: string): void {
  * `await`, upgrade to `await sync(...)` so you receive {@link SyncResults} instead of a Promise.
  *
  * @param root - Project root (directory containing `bluetemberg.config.json` and `llm/`).
- * @param options - Optional `check`, `config`, `silent`.
+ * @param options - Optional `check`, `config`, `silent`, `prune`.
  * @returns Promise resolving to write/check counts and any recorded errors.
  *
  * @example
@@ -117,6 +180,8 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
 
   const results: SyncResults = { synced: 0, outOfSync: 0, errors: [] };
   const log = options.silent ? () => {} : console.log;
+  const prune = Boolean(options.prune) && !checkMode;
+  const expectedOutputPaths = prune ? new Set<string>() : undefined;
 
   log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
@@ -128,6 +193,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     checkMode,
     results,
     log,
+    expectedOutputPaths,
   };
 
   syncRules(ctx);
@@ -148,9 +214,20 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
       results: ctx.results,
       log: ctx.log,
       config: ctx.config,
+      expectedOutputPaths: ctx.expectedOutputPaths,
     },
     (msg) => recordError(ctx, msg),
   );
+
+  if (prune && expectedOutputPaths && results.errors.length === 0) {
+    pruneStaleOutputs({
+      root,
+      config,
+      platforms,
+      expectedPaths: expectedOutputPaths,
+      log,
+    });
+  }
 
   if (checkMode) {
     if (results.outOfSync > 0) {

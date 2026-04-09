@@ -47,6 +47,11 @@ export interface SyncOptions {
   check?: boolean;
   config?: BlueprintConfig;
   silent?: boolean;
+  /**
+   * After a successful write pass, delete previously generated files under managed output dirs
+   * that are not part of the current plan. Ignored in check mode. See wiki *Commands*.
+   */
+  prune?: boolean;
 }
 
 export interface SyncResults {
