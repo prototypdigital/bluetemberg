@@ -21,7 +21,7 @@ flowchart TD
         F -->|skills| H
         F -->|commands| H
         F -->|prompts| H
-        F -->|mcp.json| J[Resolve presets\nper platform]
+        F -->|mcp.json| J[Resolve MCP entries\nper platform]
         F -->|hooks.json| K[Validate\nCursor shape]
         G --> I[Write target files]
         H --> I
@@ -45,13 +45,13 @@ llm/
 ├── skills/             # Directory per skill, each with SKILL.md
 │   └── patterns/
 │       └── SKILL.md
-├── mcp.json            # Optional: MCP server ids → .claude/mcp.json & .github/mcp.json
+├── mcp.json            # Optional: preset ids and/or inline servers → per-platform mcp.json
 ├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
 ├── commands/           # Optional: Claude slash commands → .claude/commands/*.md
 └── prompts/            # Optional: Copilot prompts → .github/prompts/*.prompt.md
 ```
 
-For the adapter philosophy and roadmap, see [Adapters](Adapters).
+For optional sync extensions, MCP/hooks details, and roadmap, see [Adapters](Adapters).
 
 ## Frontmatter transform
 

@@ -262,6 +262,44 @@ describe('sync', () => {
     expect(results.errors.some((e) => e.includes('unknown server id'))).toBe(true);
   });
 
+  it('syncs MCP manifest mixing preset ids and inline server objects', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'mcp.json'),
+      JSON.stringify(
+        {
+          servers: [
+            'interactive',
+            {
+              id: 'custom-tool',
+              type: 'stdio',
+              command: 'node',
+              args: ['./mcp-server.mjs'],
+            },
+          ],
+        },
+        null,
+        2,
+      ) + '\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+
+    const claude = JSON.parse(readFileSync(join(root, '.claude', 'mcp.json'), 'utf8')) as {
+      mcpServers: Record<string, { type: string; command?: string; args?: string[] }>;
+    };
+    expect(claude.mcpServers.interactive?.type).toBe('stdio');
+    expect(claude.mcpServers['custom-tool']?.type).toBe('stdio');
+    expect(claude.mcpServers['custom-tool']?.command).toBe('node');
+    expect(claude.mcpServers['custom-tool']?.args).toEqual(['./mcp-server.mjs']);
+  });
+
   it('syncs llm/hooks.json to .cursor/hooks.json when cursor is enabled', async () => {
     mkdirSync(join(root, 'llm'), { recursive: true });
     const hooksDoc = {

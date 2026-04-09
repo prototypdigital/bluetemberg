@@ -1,6 +1,10 @@
 # Adapters and sync extensions
 
-Bluetemberg’s sync engine follows a **ports-and-adapters** style: vendor-neutral sources under `llm/` are the canonical input; small **adapters** emit provider-native files. Rules stay on the **transform + copy** path (frontmatter mapping). Heavier structural differences (MCP JSON shape, Cursor hooks JSON, Claude command files, Copilot prompt names) use **dedicated sync steps** that validate, normalize, and write through a single pipeline (`commitPlannedWrite`).
+Bluetemberg’s sync engine runs a **pipeline of steps**: vendor-neutral sources under `llm/` are read first; built-in steps validate, normalize, and write provider-specific files through one write helper (`commitPlannedWrite`). Rules use the **transform + copy** path (frontmatter mapping). Steps that need different shapes (MCP JSON, Cursor hooks, Claude commands, Copilot prompt filenames) are separate pipeline stages. You can extend the end of the run with optional **`adapters`** in `bluetemberg.config.json` (ESM modules loaded via `import()`), similar in spirit to small plug-in hooks.
+
+## Trust and security (`adapters`)
+
+Each entry in `adapters` is a module specifier executed with Node’s `import()`. That runs **third-party or local code** during sync. Only add packages or `file:` paths you trust, keep them pinned, and treat changes to `bluetemberg.config.json` like any other sensitive config in code review and CI.
 
 ## What is implemented today
 

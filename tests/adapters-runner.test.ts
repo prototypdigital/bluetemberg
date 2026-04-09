@@ -16,5 +16,7 @@ describe('resolveAdapterRun', () => {
     expect(resolveAdapterRun(null)).toBeNull();
     expect(resolveAdapterRun({})).toBeNull();
     expect(resolveAdapterRun({ run: 'nope' })).toBeNull();
+    expect(resolveAdapterRun(42)).toBeNull();
+    expect(resolveAdapterRun([])).toBeNull();
   });
 });

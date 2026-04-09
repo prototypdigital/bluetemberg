@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Platform } from '../types.js';
-import { BUILTIN_MCP_SERVERS, resolveMcpServerIds } from '../mcp/registry.js';
+import { BUILTIN_MCP_SERVERS, parseLlmMcpServerList } from '../mcp/registry.js';
 import { ensureDir } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
 import { commitPlannedWrite } from './pipeline.js';
@@ -9,17 +9,6 @@ import { commitPlannedWrite } from './pipeline.js';
 export interface McpSyncContext extends SyncSink {
   sourceBase: string;
   platforms: readonly Platform[];
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((x) => typeof x === 'string');
-}
-
-function parseLlmMcpManifest(raw: unknown): string[] | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const servers = (raw as { servers?: unknown }).servers;
-  if (!isStringArray(servers)) return null;
-  return servers;
 }
 
 export function syncMcp(ctx: McpSyncContext, recordError: (message: string) => void): void {
@@ -35,15 +24,22 @@ export function syncMcp(ctx: McpSyncContext, recordError: (message: string) => v
     return;
   }
 
-  const serverIds = parseLlmMcpManifest(raw);
-  if (serverIds === null) {
-    recordError('mcp.json: expected an object with "servers" array of string ids');
+  if (!raw || typeof raw !== 'object') {
+    recordError('mcp.json: expected an object');
     return;
   }
 
-  const { configs, unknownIds } = resolveMcpServerIds(serverIds, BUILTIN_MCP_SERVERS);
-  for (const id of unknownIds) {
-    recordError(`mcp.json: unknown server id "${id}" (not in built-in registry)`);
+  const servers = (raw as Record<string, unknown>).servers;
+  if (!Array.isArray(servers)) {
+    recordError(
+      'mcp.json: expected an object with "servers" array of preset id strings and/or inline server objects',
+    );
+    return;
+  }
+
+  const { configs, errors } = parseLlmMcpServerList(servers, BUILTIN_MCP_SERVERS);
+  for (const err of errors) {
+    recordError(`mcp.json: ${err}`);
   }
 
   const claudeOut = join(ctx.root, '.claude', 'mcp.json');
@@ -74,7 +70,7 @@ export function syncMcp(ctx: McpSyncContext, recordError: (message: string) => v
   }
 
   if (wrote > 0 && !ctx.checkMode) {
-    ctx.log(`MCP: ${serverIds.length} server(s) from llm/mcp.json`);
+    ctx.log(`MCP: ${servers.length} manifest entr${servers.length === 1 ? 'y' : 'ies'} from llm/mcp.json`);
     if (ctx.platforms.includes('claude')) ctx.log(`  -> .claude/mcp.json`);
     if (ctx.platforms.includes('copilot')) ctx.log(`  -> .github/mcp.json`);
     if (ctx.platforms.includes('cursor')) ctx.log(`  -> .cursor/mcp.json`);

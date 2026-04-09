@@ -91,6 +91,13 @@ Releases are fully automated via [Release Please](https://github.com/googleapis/
 
 No manual version bumping or tagging is needed.
 
+### Changelog and breaking changes
+
+- **Do not add a `## [Unreleased]` section** (or other manual top-of-file draft entries) to `CHANGELOG.md`. [Release Please](https://github.com/googleapis/release-please) updates `CHANGELOG.md` on the release PR from your **conventional commits**; a hand-maintained block duplicates or fights that flow.
+- **Breaking changes** belong in commit metadata: use a `feat!:` / `fix!:` / `chore!:` title, and/or a `BREAKING CHANGE:` paragraph in the commit **body**, per [Conventional Commits](https://www.conventionalcommits.org/). Release Please turns those into the correct version bump and changelog section.
+- Use the **PR description** for extra context (migration notes, links); consumers still read the generated changelog after release.
+- **Do not edit** `CHANGELOG.md` on feature PRs to “pre-document” the next version—let the release PR carry the authoritative diff.
+
 ---
 
 ## Adding a rule template

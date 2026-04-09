@@ -49,7 +49,7 @@ your-project/
 │   ├── rules/                  # Vendor-neutral rules
 │   ├── agents/                 # Specialist agent definitions
 │   ├── skills/                 # On-demand skill workflows
-│   ├── mcp.json                # Optional — MCP preset ids (if you add it)
+│   ├── mcp.json                # Optional — MCP presets and/or inline servers (if you add it)
 │   ├── hooks.json              # Optional — Cursor hooks (if you add it)
 │   ├── commands/               # Optional — Claude slash commands (if you add it)
 │   └── prompts/                # Optional — Copilot prompt sources (if you add it)
@@ -111,7 +111,7 @@ Rules get platform-specific frontmatter transforms:
 
 Agents and skills are copied verbatim (only the filename extension changes).
 
-**Programmatic API:** `import { sync } from '@prototypdigital/bluetemberg'` — `sync()` is **async** (it may load optional `adapters` from config). Use `await sync(root, options)`.
+**Programmatic API:** `import { sync, loadConfig } from '@prototypdigital/bluetemberg'`. `sync()` returns a **Promise** (it may load optional `adapters`). Always **await** it, e.g. `const results = await sync(root, { config: loadConfig(root) });`. Release notes for each version live in [CHANGELOG.md](CHANGELOG.md) (updated by Release Please). Breaking changes should use conventional commits—see [Contributing — Changelog and breaking changes](https://github.com/prototypdigital/bluetemberg/wiki/Contributing#changelog-and-breaking-changes).
 
 ## Documentation
 

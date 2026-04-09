@@ -1,16 +1,26 @@
 import type { AdapterContext, AdapterRecordError, AdapterRunFn } from './adapter-contract.js';
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Narrows a runtime `function` to {@link AdapterRunFn}. TypeScript cannot prove the parameter
+ * types or arity for values loaded via `import()`; the contract is documented on
+ * {@link AdapterContext} and enforced by tests, not at runtime.
+ */
+function toAdapterRunFn(fn: unknown): AdapterRunFn | null {
+  if (typeof fn !== 'function') return null;
+  return fn as AdapterRunFn;
+}
+
 export function resolveAdapterRun(exported: unknown): AdapterRunFn | null {
-  if (typeof exported === 'function') {
-    return exported as AdapterRunFn;
-  }
-  if (exported !== null && typeof exported === 'object') {
-    const run = (exported as { run?: unknown }).run;
-    if (typeof run === 'function') {
-      return run as AdapterRunFn;
-    }
-  }
-  return null;
+  const direct = toAdapterRunFn(exported);
+  if (direct) return direct;
+
+  if (!isPlainObject(exported)) return null;
+
+  return toAdapterRunFn(exported.run);
 }
 
 export async function runOptionalAdapters(

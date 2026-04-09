@@ -45,7 +45,7 @@ The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skil
 
 ### `adapters`
 
-Optional array of **strings** passed to `import()`: npm package names (must be installed in the consumer project), `file:` URLs, or absolute `file://` URLs. Loaded **after** all built-in steps. See [Adapters](Adapters) for the module contract.
+Optional array of **strings** passed to `import()`: npm package names (must be installed in the consumer project), `file:` URLs, or absolute `file://` URLs. Loaded **after** all built-in steps. Specifiers execute code at sync time — use only **trusted** modules; see [Adapters](Adapters) for the module contract and security notes.
 
 ### `targets`
 
@@ -87,15 +87,28 @@ When this file exists, sync regenerates platform-specific MCP config:
 | copilot  | `.github/mcp.json`  | `{ "servers": { ... } }`            |
 | cursor   | `.cursor/mcp.json`  | `{ "mcpServers": { ... } }`         |
 
-The manifest is vendor-neutral:
+The manifest is vendor-neutral. The `servers` array may contain:
+
+1. **Strings** — preset ids built into Bluetemberg (the same ids offered during `bluetemberg init`, e.g. `interactive`, `context7`, `figma`, `github`). Unknown ids are reported as sync errors; any successfully resolved entries are still emitted.
+2. **Objects** — inline server definitions that **do not** need a preset. Each object must include `id` (string, used as the key in the output map) and `type` (string). Optional fields: `command`, `args` (array of strings), `url` — same shape as the built-in preset entries.
 
 ```json
 {
-  "servers": ["interactive", "context7"]
+  "servers": [
+    "interactive",
+    {
+      "id": "my-cli",
+      "type": "stdio",
+      "command": "node",
+      "args": ["./tools/mcp.mjs"]
+    }
+  ]
 }
 ```
 
-Each id must match a **built-in preset** shipped with Bluetemberg (the same ids offered during `bluetemberg init`). Unknown ids are reported as sync errors; known ids are still emitted. After changing `mcp.json`, run `bluetemberg sync` (or your `sync:llm-config` script).
+Built-in presets are **convenience defaults**; vendors may change URLs or package names. Prefer **inline** objects when you need a fixed command, URL, or version without waiting for a Bluetemberg release.
+
+After changing `mcp.json`, run `bluetemberg sync` (or your `sync:llm-config` script).
 
 ## Cursor hooks (`llm/hooks.json`)
 

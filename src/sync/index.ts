@@ -92,6 +92,23 @@ function recordError(ctx: SyncContext, message: string): void {
   ctx.log(`  ERROR: ${message}`);
 }
 
+/**
+ * Sync vendor-neutral `llm/` sources into platform-specific outputs under the project root.
+ *
+ * **Migration:** This function is asynchronous. If you previously called `sync(...)` without
+ * `await`, upgrade to `await sync(...)` so you receive {@link SyncResults} instead of a Promise.
+ *
+ * @param root - Project root (directory containing `bluetemberg.config.json` and `llm/`).
+ * @param options - Optional `check`, `config`, `silent`.
+ * @returns Promise resolving to write/check counts and any recorded errors.
+ *
+ * @example
+ * ```ts
+ * import { sync, loadConfig } from '@prototypdigital/bluetemberg';
+ *
+ * const results = await sync(process.cwd(), { config: loadConfig(process.cwd()) });
+ * ```
+ */
 export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
   const checkMode = options.check || false;
   const config = options.config || loadConfig(root);
