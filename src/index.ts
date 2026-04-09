@@ -1,4 +1,4 @@
-export { sync, loadConfig } from './sync/index.js';
+export { sync, loadConfig, shouldExitWithFailure } from './sync/index.js';
 export { init } from './init/index.js';
 export { transformFrontmatter, DEFAULT_TARGETS } from './sync/transform.js';
 export type {

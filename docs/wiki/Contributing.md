@@ -24,6 +24,10 @@ npm test
 | `npm run format:check` | Prettier check                |
 | `npm run typecheck`    | TypeScript type check         |
 
+## Sync CLI and CI (downstream consumers)
+
+When documenting or integrating `bluetemberg sync`: the process **exit code** is the source of truth for success or failure. If a script uses **`--silent`**, it must still check the exit status (e.g. `$?` in shell); suppressed logs do not mean the run succeeded. See [Commands — Exit codes](Commands#exit-codes).
+
 ## Project structure
 
 ```

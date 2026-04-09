@@ -12,6 +12,11 @@ export interface AdapterContext {
   results: SyncResults;
   log: (...args: unknown[]) => void;
   config: BlueprintConfig;
+  /**
+   * When `sync(..., { prune: true })` runs, pass this on the sink to `commitPlannedWrite` (from
+   * `@prototypdigital/bluetemberg/sync/pipeline`) so adapter outputs are tracked and not removed by prune.
+   */
+  expectedOutputPaths?: Set<string>;
 }
 
 export type AdapterRecordError = (message: string) => void;

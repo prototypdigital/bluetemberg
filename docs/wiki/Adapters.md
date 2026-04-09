@@ -4,7 +4,19 @@ Bluetemberg’s sync engine runs a **pipeline of steps**: vendor-neutral sources
 
 ## Trust and security (`adapters`)
 
-Each entry in `adapters` is a module specifier executed with Node’s `import()`. That runs **third-party or local code** during sync. Only add packages or `file:` paths you trust, keep them pinned, and treat changes to `bluetemberg.config.json` like any other sensitive config in code review and CI.
+Each entry in `adapters` is a module specifier executed with Node’s `import()`. That is **arbitrary code execution** in the same Node process as `bluetemberg sync`, with the same filesystem access as the user running the command.
+
+**Threat model (short):**
+
+- Treat every specifier like a **dependency you execute**: malicious or compromised modules can read secrets, overwrite files, or run subprocesses.
+- **Code review** changes to `adapters` and to `bluetemberg.config.json` the same way you would review `package.json` or CI workflow edits.
+- **Pin versions** in the consumer project (committed lockfile); avoid relying on floating `latest` for adapter packages.
+- Prefer **`file:`** adapters checked into the repo over opaque remote packages when possible.
+- In CI, **sync exits with a non-zero code** if any adapter fails to load or if sync records other errors—do not rely on log output alone when using `--silent`.
+
+There is **no** built-in allowlist or sandbox today; optional future guardrails (e.g. only `file:` URLs under the repo root) would be a separate design.
+
+**`sync --prune`:** Built-in prune only removes files that were tracked in the current sync pass via `commitPlannedWrite`. Adapters that write with `writeFileSync` or omit `expectedOutputPaths` on the sink may leave orphans, or may see those files **not** protected from prune if they do not use the shared write helper—see [Configuration](Configuration).
 
 ## What is implemented today
 
@@ -29,6 +41,8 @@ Nothing runs your hooks or MCP at sync time: the CLI only writes files. `sync --
 - an object with a **`run`** method of that shape.
 
 Use the **`AdapterContext`** type from `@prototypdigital/bluetemberg` (or `@prototypdigital/bluetemberg/sync/adapter-contract`). For drift-safe writes inside an adapter, import **`commitPlannedWrite`** from `@prototypdigital/bluetemberg/sync/pipeline` so `--check` stays accurate.
+
+**Output paths:** Always pass an **absolute** path, or build one with `join(ctx.root, 'relative', 'path')`. Do **not** pass a bare relative path: `commitPlannedWrite` resolves paths for pruning and drift checks, and a relative path is resolved against the process working directory, not the project root—so `--check` and `sync --prune` can mis-track adapter outputs.
 
 The programmatic **`sync()`** API is **async** (it `await`s adapter modules).
 

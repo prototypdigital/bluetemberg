@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
-import { sync, loadConfig } from '../src/sync/index.js';
+import { sync, loadConfig, shouldExitWithFailure } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 function createTmpDir(): string {
@@ -450,6 +450,64 @@ describe('sync', () => {
     expect(results.errors.some((e) => e.includes('adapter'))).toBe(true);
   });
 
+  it('prune removes stale rule outputs when enabled', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'keep.md'), '---\ndescription: K\nscope: "**"\n---\n\n# K\n');
+    writeFileSync(join(root, 'llm', 'rules', 'drop.md'), '---\ndescription: D\nscope: "**"\n---\n\n# D\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: { rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } } },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.cursor', 'rules', 'keep.mdc'))).toBe(true);
+    expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'rules', 'drop.md'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.cursor', 'rules', 'keep.mdc'))).toBe(true);
+    expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(false);
+  });
+
+  it('does not prune in check mode even when prune option is true', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'keep.md'), '---\ndescription: K\nscope: "**"\n---\n\n# K\n');
+    writeFileSync(join(root, 'llm', 'rules', 'drop.md'), '---\ndescription: D\nscope: "**"\n---\n\n# D\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: { rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } } },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'rules', 'drop.md'));
+    await sync(root, { config, silent: true, check: true, prune: true });
+
+    expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(true);
+  });
+
+  it('does not prune when sync recorded errors', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+    writeFileSync(join(root, 'llm', 'hooks.json'), JSON.stringify({ hooks: { bad: 'x' } }));
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: { rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } } },
+    };
+
+    await sync(root, { config, silent: true, prune: true });
+    expect(existsSync(join(root, '.cursor', 'rules', 'r.mdc'))).toBe(true);
+  });
+
   it('handles missing source directories gracefully', async () => {
     const config: BlueprintConfig = {
       platforms: ['cursor', 'claude', 'copilot'],
@@ -530,5 +588,62 @@ describe('loadConfig', () => {
     );
 
     expect(() => loadConfig(root)).toThrow('"adapters" must be an array of strings');
+  });
+
+  it('throws when targets.rules entry omits ext', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['cursor'],
+        source: 'llm',
+        targets: { rules: { cursor: { dir: '.cursor/rules' } } },
+      }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('targets.rules.cursor.ext');
+  });
+
+  it('throws when targets uses unknown platform key', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['cursor'],
+        source: 'llm',
+        targets: { rules: { vscode: { dir: '.vscode', ext: '.md' } } },
+      }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('unknown platform in targets.rules');
+  });
+
+  it('throws when targets is not an object', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['cursor'], source: 'llm', targets: [] }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('"targets" must be an object');
+  });
+});
+
+describe('shouldExitWithFailure', () => {
+  it('is true when errors are present', () => {
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 0, errors: ['e'] }, false)).toBe(true);
+  });
+
+  it('is false when no errors and not check drift', () => {
+    expect(shouldExitWithFailure({ synced: 1, outOfSync: 0, errors: [] }, false)).toBe(false);
+  });
+
+  it('is true in check mode when out of sync', () => {
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 2, errors: [] }, true)).toBe(true);
+  });
+
+  it('is false when out of sync but not check mode', () => {
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 2, errors: [] }, false)).toBe(false);
+  });
+
+  it('is true when both errors and drift in check mode', () => {
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 1, errors: ['x'] }, true)).toBe(true);
   });
 });

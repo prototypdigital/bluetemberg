@@ -28,14 +28,23 @@ program
   .argument('[directory]', 'Project root directory', '.')
   .option('--check, --dry-run', 'Exit 1 if files are out of sync (no writes)')
   .option('--silent', 'Suppress all output')
+  .option(
+    '--prune',
+    'After sync, remove stale generated files under managed output dirs (no-op with --check)',
+  )
   .action(async (directory, options) => {
-    const { sync, loadConfig } = await import('../dist/sync/index.js');
+    const { sync, loadConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
     const root = resolve(directory);
     const config = loadConfig(root);
     const check = options.check || options.dryRun || false;
-    const results = await sync(root, { check, config, silent: options.silent });
+    const results = await sync(root, {
+      check,
+      config,
+      silent: options.silent,
+      prune: options.prune || false,
+    });
 
-    if (check && results.outOfSync > 0) {
+    if (shouldExitWithFailure(results, check)) {
       process.exit(1);
     }
   });

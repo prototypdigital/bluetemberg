@@ -5,10 +5,17 @@ export function ensureDir(dirPath: string): void {
   mkdirSync(dirPath, { recursive: true });
 }
 
+function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
 export function writeOrCheck(filePath: string, content: string, checkMode = false): boolean {
   if (checkMode) {
     const existing = existsSync(filePath) ? readFileSync(filePath, 'utf8') : null;
-    return existing !== content;
+    if (existing === null) {
+      return true;
+    }
+    return normalizeNewlines(existing) !== normalizeNewlines(content);
   }
 
   ensureDir(dirname(filePath));
