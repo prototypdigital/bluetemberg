@@ -27,7 +27,9 @@ export function syncCopilotPrompts(ctx: PromptsSyncContext, recordError: (messag
   const files = listFiles(sourceDir, (f) => f.endsWith('.md'));
   if (files.length === 0) return;
 
-  const toSync = files.map((f) => ({ file: f, outName: toPromptFileName(f) })).filter((x): x is { file: string; outName: string } => x.outName !== null);
+  const toSync = files
+    .map((f) => ({ file: f, outName: toPromptFileName(f) }))
+    .filter((x): x is { file: string; outName: string } => x.outName !== null);
 
   if (toSync.length === 0) return;
 

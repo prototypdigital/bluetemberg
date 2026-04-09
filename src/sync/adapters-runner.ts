@@ -30,9 +30,7 @@ export async function runOptionalAdapters(
       const mod = await import(specifier);
       const run = resolveAdapterRun(mod.default ?? mod);
       if (!run) {
-        recordError(
-          `adapter "${specifier}": expected default function or default object with run() method`,
-        );
+        recordError(`adapter "${specifier}": expected default function or default object with run() method`);
         continue;
       }
       await run(ctx, recordError);

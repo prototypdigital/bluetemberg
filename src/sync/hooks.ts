@@ -19,7 +19,9 @@ function isCommandHookEntry(value: unknown): value is { command: string } {
 /**
  * Validates Cursor-style hooks.json: { version?: number, hooks: { [event]: { command }[] } }
  */
-export function parseHooksManifest(raw: unknown): { version: number; hooks: Record<string, { command: string }[]> } | null {
+export function parseHooksManifest(
+  raw: unknown,
+): { version: number; hooks: Record<string, { command: string }[]> } | null {
   if (raw === null || typeof raw !== 'object') return null;
 
   const obj = raw as Record<string, unknown>;

@@ -222,7 +222,10 @@ describe('sync', () => {
 
   it('syncs MCP from llm/mcp.json to Claude, Copilot, and Cursor shapes', async () => {
     mkdirSync(join(root, 'llm'), { recursive: true });
-    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }, null, 2) + '\n');
+    writeFileSync(
+      join(root, 'llm', 'mcp.json'),
+      JSON.stringify({ servers: ['interactive'] }, null, 2) + '\n',
+    );
 
     const config: BlueprintConfig = {
       platforms: ['claude', 'copilot', 'cursor'],
@@ -381,7 +384,9 @@ describe('sync', () => {
   });
 
   it('loads and runs optional adapters from config', async () => {
-    const adapterHref = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), 'fixtures/touch-adapter.mjs')).href;
+    const adapterHref = pathToFileURL(
+      join(dirname(fileURLToPath(import.meta.url)), 'fixtures/touch-adapter.mjs'),
+    ).href;
     const config: BlueprintConfig = {
       platforms: ['cursor'],
       source: 'llm',
