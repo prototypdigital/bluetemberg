@@ -55,10 +55,12 @@ export const DEFAULT_TARGETS: {
     copilot: { dir: '.github/instructions', ext: '.instructions.md' },
   },
   agents: {
+    cursor: { dir: '.cursor/agents', ext: '.md' },
     claude: { dir: '.claude/agents', ext: '.md' },
     copilot: { dir: '.github/agents', ext: '.agent.md' },
   },
   skills: {
+    cursor: { dir: '.cursor/skills' },
     claude: { dir: '.claude/skills' },
     copilot: { dir: '.github/skills' },
   },

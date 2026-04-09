@@ -15,10 +15,12 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
       "copilot": { "dir": ".github/instructions", "ext": ".instructions.md" }
     },
     "agents": {
+      "cursor": { "dir": ".cursor/agents", "ext": ".md" },
       "claude": { "dir": ".claude/agents", "ext": ".md" },
       "copilot": { "dir": ".github/agents", "ext": ".agent.md" }
     },
     "skills": {
+      "cursor": { "dir": ".cursor/skills" },
       "claude": { "dir": ".claude/skills" },
       "copilot": { "dir": ".github/skills" }
     }
@@ -59,6 +61,8 @@ On Windows, Git may checkout files with CRLF. Check mode compares normalized lin
 
 ```
 .cursor/rules/** text eol=lf
+.cursor/agents/** text eol=lf
+.cursor/skills/** text eol=lf
 .claude/** text eol=lf
 .github/instructions/** text eol=lf
 .github/agents/** text eol=lf
@@ -95,15 +99,15 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 
 | Platform | Default dir      | Default ext |
 | -------- | ---------------- | ----------- |
+| cursor   | `.cursor/agents` | `.md`       |
 | claude   | `.claude/agents` | `.md`       |
 | copilot  | `.github/agents` | `.agent.md` |
-
-Cursor does not support custom agent definitions.
 
 #### Skill targets
 
 | Platform | Default dir      |
 | -------- | ---------------- |
+| cursor   | `.cursor/skills` |
 | claude   | `.claude/skills` |
 | copilot  | `.github/skills` |
 

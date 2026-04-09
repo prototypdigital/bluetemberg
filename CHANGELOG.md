@@ -8,6 +8,8 @@
 
 ### Features
 
+- **Sync:** default targets now include **Cursor** for `llm/agents` (`.cursor/agents/*.md`) and `llm/skills` (`.cursor/skills/*/SKILL.md`), matching Cursor subagents and Agent Skills layouts. Repos with explicit `targets.agents` / `targets.skills` must add `cursor` entries (or drop those sections) to emit there.
+- **This repo:** `.cursor/agents/` and `.cursor/skills/` are added to `.gitignore` (generated from `llm/`), consistent with `.cursor/rules/`.
 - **`sync --prune`:** optional removal of stale generated files under managed output directories after a successful write pass (no-op with `--check`).
 - **Config:** `targets` in `bluetemberg.config.json` is validated at load time (platform keys, non-empty `dir`, and `ext` for rules/agents).
 - **`--check`:** compares files with newline normalization (CRLF vs LF) to reduce false positives on Windows.
