@@ -46,6 +46,7 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | `--dry-run` | Alias for `--check` |
 | `--silent` | Suppress all output (useful in scripts and CI) |
 | `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
+| `--verbose` | Emit debug output: resolved source directories (including `extends` entries), per-file origin when multiple sources are active, and any non-fatal warnings |
 
 Before first use of `--prune`, read the short pre-flight list and platform notes under **Stale generated files** in [Configuration](Configuration).
 
@@ -65,6 +66,8 @@ npx bluetemberg sync ./my-project
 | ---- | ---- |
 | 0 | Sync finished with no recorded errors, and (if `--check`) all generated files match the expected content |
 | 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, etc.), **or** `--check` found one or more files out of sync |
+
+**Warnings vs errors:** Some issues are non-fatal and appear as warnings — for example, an `extends` entry that references a path or package that does not exist. Warnings are logged and included in the programmatic `SyncResults.warnings` array but do **not** cause exit code 1. Use `--verbose` to see all warnings even when there are no errors.
 
 Use `--silent` in CI only together with checking `$?` (or equivalent): failures are signaled by the exit code, not only by log lines.
 

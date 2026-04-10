@@ -154,11 +154,21 @@ interface SyncContext extends SyncSink {
   sourceDirs: string[];
   config: BlueprintConfig;
   platforms: Platform[];
+  verbose: boolean;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
   ctx.results.errors.push(message);
   ctx.log(`  ERROR: ${message}`);
+}
+
+function recordWarning(ctx: SyncContext, message: string): void {
+  ctx.results.warnings.push(message);
+  ctx.log(`  WARN: ${message}`);
+}
+
+function verboseLog(ctx: SyncContext, message: string): void {
+  if (ctx.verbose) ctx.log(message);
 }
 
 /**
@@ -180,14 +190,15 @@ function recordError(ctx: SyncContext, message: string): void {
  */
 export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
   const checkMode = options.check || false;
+  const verbose = Boolean(options.verbose) && !options.silent;
   const config = options.config || loadConfig(root);
   const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
   const sourceBase = join(root, config.source || 'llm');
-  const extendedDirs = resolveExtendedSourceDirs(config.extends, root);
+  const { dirs: extendedDirs, warnings: extendsWarnings } = resolveExtendedSourceDirs(config.extends, root);
   // Priority: local sourceBase first, then each extends entry in order.
   const sourceDirs = [sourceBase, ...extendedDirs];
 
-  const results: SyncResults = { synced: 0, outOfSync: 0, errors: [] };
+  const results: SyncResults = { synced: 0, outOfSync: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
   const prune = Boolean(options.prune) && !checkMode;
   const expectedOutputPaths = prune ? new Set<string>() : undefined;
@@ -200,11 +211,24 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     sourceDirs,
     config,
     platforms,
+    verbose,
     checkMode,
     results,
     log,
     expectedOutputPaths,
   };
+
+  // Surface extends resolution warnings before sync output.
+  for (const w of extendsWarnings) recordWarning(ctx, w);
+
+  if (verbose) {
+    log(`Source dirs (priority order):`);
+    log(`  [0] ${sourceBase} (local)`);
+    for (let i = 0; i < extendedDirs.length; i++) {
+      log(`  [${i + 1}] ${extendedDirs[i]} (extends[${i}])`);
+    }
+    log('');
+  }
 
   syncRules(ctx);
   syncAgents(ctx);
@@ -250,6 +274,11 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     log(`\nDone. ${results.synced} file(s) written.`);
   }
 
+  if (results.warnings.length > 0) {
+    log(`\n${results.warnings.length} warning(s):`);
+    for (const w of results.warnings) log(`  WARN: ${w}`);
+  }
+
   if (results.errors.length > 0) {
     log(`\n${results.errors.length} error(s) occurred during sync.`);
   }
@@ -257,11 +286,27 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   return results;
 }
 
+/** Returns a short label for a resolved source dir path, relative to root. */
+function sourceLabel(ctx: SyncContext, sourceDir: string): string {
+  const idx = ctx.sourceDirs.findIndex((d) => sourceDir.startsWith(d));
+  if (idx === 0) return 'local';
+  if (idx > 0) return `extends[${idx - 1}]`;
+  return sourceDir;
+}
+
 function syncRules(ctx: SyncContext): void {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
   if (merged.size === 0) return;
 
   ctx.log(`Rules: ${merged.size} source files`);
+
+  const hasExtended = ctx.sourceDirs.length > 1;
+  if (hasExtended) {
+    for (const [file, sourceDir] of merged) {
+      verboseLog(ctx, `    ${file} [${sourceLabel(ctx, sourceDir)}]`);
+    }
+  }
+
   const ruleTargets = filterTargets<TargetConfig>(
     ctx.config.targets?.rules || DEFAULT_TARGETS.rules,
     ctx.platforms,
@@ -295,6 +340,14 @@ function syncAgents(ctx: SyncContext): void {
   if (merged.size === 0) return;
 
   ctx.log(`Agents: ${merged.size} source files`);
+
+  const hasExtended = ctx.sourceDirs.length > 1;
+  if (hasExtended) {
+    for (const [file, sourceDir] of merged) {
+      verboseLog(ctx, `    ${file} [${sourceLabel(ctx, sourceDir)}]`);
+    }
+  }
+
   const agentTargets = filterTargets<TargetConfig>(
     ctx.config.targets?.agents || DEFAULT_TARGETS.agents,
     ctx.platforms,
@@ -333,6 +386,13 @@ function syncSkills(ctx: SyncContext): void {
   );
 
   ctx.log(`Skills: ${merged.size} source directories`);
+
+  const hasExtended = ctx.sourceDirs.length > 1;
+  if (hasExtended) {
+    for (const [dirName, sourceParent] of merged) {
+      verboseLog(ctx, `    ${dirName}/ [${sourceLabel(ctx, sourceParent)}]`);
+    }
+  }
 
   for (const [, targetConfig] of skillTargets) {
     for (const [dirName, sourceParent] of merged) {

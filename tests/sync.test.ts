@@ -1006,23 +1006,23 @@ describe('loadConfig', () => {
 
 describe('shouldExitWithFailure', () => {
   it('is true when errors are present', () => {
-    expect(shouldExitWithFailure({ synced: 0, outOfSync: 0, errors: ['e'] }, false)).toBe(true);
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 0, errors: ['e'], warnings: [] }, false)).toBe(true);
   });
 
   it('is false when no errors and not check drift', () => {
-    expect(shouldExitWithFailure({ synced: 1, outOfSync: 0, errors: [] }, false)).toBe(false);
+    expect(shouldExitWithFailure({ synced: 1, outOfSync: 0, errors: [], warnings: [] }, false)).toBe(false);
   });
 
   it('is true in check mode when out of sync', () => {
-    expect(shouldExitWithFailure({ synced: 0, outOfSync: 2, errors: [] }, true)).toBe(true);
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 2, errors: [], warnings: [] }, true)).toBe(true);
   });
 
   it('is false when out of sync but not check mode', () => {
-    expect(shouldExitWithFailure({ synced: 0, outOfSync: 2, errors: [] }, false)).toBe(false);
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 2, errors: [], warnings: [] }, false)).toBe(false);
   });
 
   it('is true when both errors and drift in check mode', () => {
-    expect(shouldExitWithFailure({ synced: 0, outOfSync: 1, errors: ['x'] }, true)).toBe(true);
+    expect(shouldExitWithFailure({ synced: 0, outOfSync: 1, errors: ['x'], warnings: [] }, true)).toBe(true);
   });
 });
 
@@ -1134,5 +1134,60 @@ describe('extends: source merging', () => {
         })(),
       ),
     ).toThrow('"extends" must be a string or array of strings');
+  });
+
+  it('emits a warning (not an error) when an extends entry cannot be resolved', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['./nonexistent-source'],
+      targets: {},
+    };
+
+    const results = await sync(root, { config, silent: true });
+    expect(results.errors).toHaveLength(0);
+    expect(results.warnings).toHaveLength(1);
+    expect(results.warnings[0]).toContain('./nonexistent-source');
+    expect(results.warnings[0]).toContain('could not be resolved');
+  });
+
+  it('warnings do not cause shouldExitWithFailure to return true', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['./nonexistent'],
+      targets: {},
+    };
+
+    const results = await sync(root, { config, silent: true });
+    expect(shouldExitWithFailure(results, false)).toBe(false);
+  });
+
+  it('verbose mode does not suppress normal output or cause errors', async () => {
+    const shared = join(root, 'shared');
+    mkdirSync(join(shared, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(shared, 'llm', 'rules', 'shared-rule.md'),
+      '---\ndescription: Shared\nscope: "**"\n---\n\n# Shared\n',
+    );
+
+    const pkg = join(root, 'pkg');
+    mkdirSync(join(pkg, 'llm'), { recursive: true });
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['../shared'],
+      targets: { rules: { claude: { dir: '.claude/rules', ext: '.md' } } },
+    };
+
+    const results = await sync(pkg, { config, silent: true, verbose: true });
+    expect(results.errors).toHaveLength(0);
+    expect(results.warnings).toHaveLength(0);
+    expect(results.synced).toBe(1);
   });
 });

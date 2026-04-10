@@ -2,6 +2,11 @@ import { existsSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { listFiles, listDirs } from '../utils/fs.js';
 
+export interface ResolvedExtends {
+  dirs: string[];
+  warnings: string[];
+}
+
 /**
  * Resolves `extends` entries from `bluetemberg.config.json` into absolute source directory paths.
  *
@@ -12,22 +17,30 @@ import { listFiles, listDirs } from '../utils/fs.js';
  *
  * Each returned path points to a directory with the same layout as the local `source` dir
  * (i.e. may contain `rules/`, `agents/`, `skills/` subdirectories).
+ *
+ * Unresolvable entries produce a warning instead of silently being skipped.
  */
 export function resolveExtendedSourceDirs(
   extendsField: string | string[] | undefined,
   root: string,
-): string[] {
-  if (!extendsField) return [];
+): ResolvedExtends {
+  if (!extendsField) return { dirs: [], warnings: [] };
 
   const entries = Array.isArray(extendsField) ? extendsField : [extendsField];
 
-  const resolved: string[] = [];
+  const dirs: string[] = [];
+  const warnings: string[] = [];
+
   for (const entry of entries) {
     const dir = resolveEntry(entry, root);
-    if (dir !== null) resolved.push(dir);
+    if (dir !== null) {
+      dirs.push(dir);
+    } else {
+      warnings.push(`extends entry "${entry}" could not be resolved — path or package not found`);
+    }
   }
 
-  return resolved;
+  return { dirs, warnings };
 }
 
 function resolveEntry(entry: string, root: string): string | null {
