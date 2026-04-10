@@ -31,7 +31,19 @@ Set `GITHUB_TOKEN` to a personal access token with `read:packages` scope.
 npx @prototypdigital/bluetemberg init
 ```
 
-Follow the interactive prompts to select platforms, rules, agents, and skills.
+Follow the interactive prompts to select platforms, rules, agents, and skills. Available platforms: **Cursor**, **Claude Code**, **GitHub Copilot**, **Gemini CLI**.
+
+**Monorepo or shared rule packs?** Skip `init` on child packages — instead create a `bluetemberg.config.json` manually with an `extends` field pointing to the shared source:
+
+```json
+{
+  "platforms": ["cursor", "claude"],
+  "source": "llm",
+  "extends": ["../../"]
+}
+```
+
+See [Configuration](Configuration) for the full `extends` reference.
 
 ## 3. Add sync check to CI
 
@@ -46,7 +58,7 @@ This step exits with code 1 if any platform-specific file (`.cursor/rules/`, `.c
 
 ## 4. Ongoing workflow
 
-After editing any file in `llm/`:
+After editing any file in `llm/`, or after changing `platforms`, `extends`, or `adapters` in `bluetemberg.config.json`:
 
 ```bash
 # Regenerate platform files
