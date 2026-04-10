@@ -96,6 +96,30 @@ describe('scaffold', () => {
       expect(config.targets.rules?.claude).toBeUndefined();
       expect(config.targets.rules?.copilot).toBeUndefined();
     });
+
+    it('does not include adapters field in a fresh config', () => {
+      scaffold(root, baseAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.adapters).toBeUndefined();
+    });
+
+    it('preserves existing adapters when config already exists', () => {
+      writeFileSync(
+        join(root, 'bluetemberg.config.json'),
+        JSON.stringify({
+          platforms: ['cursor'],
+          source: 'llm',
+          targets: {},
+          adapters: ['my-custom-adapter'],
+        }),
+      );
+
+      scaffold(root, baseAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.adapters).toEqual(['my-custom-adapter']);
+    });
   });
 
   describe('rules', () => {
@@ -145,6 +169,12 @@ describe('scaffold', () => {
       scaffold(root, { ...baseAnswers, includeSkills: true, skills: ['patterns'] });
 
       expect(existsSync(join(root, 'llm', 'skills', 'patterns', 'SKILL.md'))).toBe(true);
+    });
+
+    it('creates llm/skills/ directory even when skills list is empty', () => {
+      scaffold(root, { ...baseAnswers, includeSkills: true, skills: [] });
+
+      expect(existsSync(join(root, 'llm', 'skills'))).toBe(true);
     });
 
     it('does not create llm/skills/ when includeSkills is false', () => {
