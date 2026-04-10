@@ -4,7 +4,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { sync, loadConfig, shouldExitWithFailure } from '../src/sync/index.js';
-import { DEFAULT_TARGETS } from '../src/sync/transform.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 function createTmpDir(): string {
@@ -150,6 +149,28 @@ describe('sync', () => {
     expect(results.synced).toBe(2);
     expect(readFileSync(join(root, '.cursor', 'agents', 'sub.md'), 'utf8')).toBe(agentContent);
     expect(readFileSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(skillContent);
+  });
+
+  it('does not write cursor agent/skill files when cursor is not in platforms', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'sub.md'), '---\nname: sub\ndescription: S\n---\n\n# S\n');
+
+    mkdirSync(join(root, 'llm', 'skills', 'my-skill'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'skills', 'my-skill', 'SKILL.md'), '---\nname: my-skill\n---\n\n# S\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {
+        agents: { claude: { dir: '.claude/agents', ext: '.md' } },
+        skills: { claude: { dir: '.claude/skills' } },
+      },
+    };
+
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, '.cursor', 'agents', 'sub.md'))).toBe(false);
+    expect(existsSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'))).toBe(false);
   });
 
   it('check mode reports out-of-sync files', async () => {
@@ -589,8 +610,8 @@ describe('loadConfig', () => {
     const config = loadConfig(root);
     expect(config.platforms).toEqual(['cursor', 'claude', 'copilot']);
     expect(config.source).toBe('llm');
-    expect(config.targets.agents?.cursor).toEqual(DEFAULT_TARGETS.agents.cursor);
-    expect(config.targets.skills?.cursor).toEqual(DEFAULT_TARGETS.skills.cursor);
+    expect(config.targets.agents?.cursor).toEqual({ dir: '.cursor/agents', ext: '.md' });
+    expect(config.targets.skills?.cursor).toEqual({ dir: '.cursor/skills' });
   });
 
   it('reads bluetemberg.config.json when present', () => {

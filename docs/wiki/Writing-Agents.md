@@ -50,6 +50,8 @@ Unlike rules, agents are copied **verbatim** — no frontmatter transformation. 
 
 On Cursor, these files are **project subagents** (see Cursor documentation for subagents). Optional `tools:` in frontmatter is aimed at Claude Code; Cursor may ignore unknown keys.
 
+> **Note:** Unlike rules, agents have no platform-specific frontmatter transform. There is intentionally one canonical source file per agent. If a future platform requires a different frontmatter shape, add a dedicated transform step in `src/sync/index.ts` rather than splitting the source file.
+
 ## Naming convention
 
 - Use **kebab-case**: `frontend-specialist.md`, `test-specialist.md`

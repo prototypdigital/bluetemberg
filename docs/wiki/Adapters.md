@@ -23,7 +23,7 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 | Source | Output | When it runs |
 | ------ | ------ | ------------ |
 | `llm/rules/` | Cursor / Claude / Copilot rule files | Always (per `targets` + `platforms`) |
-| `llm/agents/`, `llm/skills/` | Cursor / Claude / Copilot paths | When configured |
+| `llm/agents/`, `llm/skills/` | Cursor / Claude / Copilot paths | When source files exist (per `targets` + `platforms`) |
 | `AGENTS.md` | `.github/copilot-instructions.md` | When file exists |
 | `llm/mcp.json` | `.claude/mcp.json`, `.github/mcp.json`, `.cursor/mcp.json` | When file exists and each platform is enabled |
 | `llm/hooks.json` | `.cursor/hooks.json` | When file exists and **cursor** is in `platforms` |
