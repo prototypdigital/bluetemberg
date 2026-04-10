@@ -103,18 +103,16 @@ program
   .command('list')
   .description('List installed rule packs')
   .option('--silent', 'Suppress all output')
-  .action((options) => {
-    const importRegistry = import('../dist/registry/index.js');
-    importRegistry.then(({ list }) => {
-      try {
-        list(process.cwd(), { silent: options.silent });
-      } catch (err) {
-        if (!options.silent) {
-          console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-        }
-        process.exit(1);
+  .action(async (options) => {
+    const { list } = await import('../dist/registry/index.js');
+    try {
+      list(process.cwd(), { silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       }
-    });
+      process.exit(1);
+    }
   });
 
 program
@@ -141,7 +139,7 @@ program
   .command('search')
   .description('Search the npm registry for bluetemberg rule packs')
   .argument('<query>', 'Search query')
-  .option('--limit <n>', 'Max results (default: 20)', parseInt)
+  .option('--limit <n>', 'Max results (default: 20)', (s) => parseInt(s, 10))
   .option('--silent', 'Suppress all output')
   .action(async (query, options) => {
     const { search } = await import('../dist/registry/index.js');

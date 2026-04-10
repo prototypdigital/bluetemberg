@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { Readable } from 'node:stream';
+import { Readable, Transform } from 'node:stream';
+import type { TransformCallback } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { NpmPackageMetadata, NpmSearchResult } from '../types.js';
 
@@ -87,17 +88,15 @@ export async function downloadTarball(url: string, destPath: string): Promise<st
   const nodeStream = Readable.fromWeb(res.body as WebReadableStream);
   const fileStream = createWriteStream(destPath);
 
-  // Pipe through hash calculation and file write simultaneously.
-  const chunks: Buffer[] = [];
-  for await (const chunk of nodeStream) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    hash.update(buf);
-    chunks.push(buf);
-  }
+  // Hash each chunk as it passes through, then write directly to disk.
+  const hashTransform = new Transform({
+    transform(chunk: Buffer, _enc: BufferEncoding, cb: TransformCallback) {
+      hash.update(chunk);
+      cb(null, chunk);
+    },
+  });
 
-  // Write all chunks to file.
-  const fullStream = Readable.from(chunks);
-  await pipeline(fullStream, fileStream);
+  await pipeline(nodeStream, hashTransform, fileStream);
 
   return `sha512-${hash.digest('base64')}`;
 }

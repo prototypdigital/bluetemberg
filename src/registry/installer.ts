@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, isAbsolute } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
@@ -56,6 +56,32 @@ export function resolveVersion(metadata: NpmPackageMetadata, range: string): str
 }
 
 /**
+ * Validate tarball contents before extraction to prevent path traversal attacks.
+ *
+ * Lists the archive and checks that every entry, after stripping the top-level
+ * `package/` prefix (`--strip-components=1`), resolves within the target directory.
+ *
+ * @throws If any entry would escape the extraction directory.
+ */
+function validateTarContents(tmpFile: string, packageName: string): void {
+  const listing = execFileSync('tar', ['tzf', tmpFile], { stdio: 'pipe', encoding: 'utf8' });
+
+  for (const entry of listing.split('\n').filter(Boolean)) {
+    // Strip the first path component (the `package/` prefix from npm tarballs).
+    const slashIdx = entry.indexOf('/');
+    const stripped = slashIdx === -1 ? '' : entry.slice(slashIdx + 1);
+    if (!stripped) continue; // The top-level directory entry itself — harmless.
+
+    // Reject absolute paths and `..` traversal segments.
+    if (isAbsolute(stripped) || stripped.split('/').some((seg) => seg === '..')) {
+      throw new Error(
+        `Malicious tarball for "${packageName}": entry "${entry}" would extract outside the cache directory`,
+      );
+    }
+  }
+}
+
+/**
  * Download and extract a specific pack version into the local cache.
  *
  * Steps:
@@ -81,13 +107,19 @@ export async function installPackVersion(
   const tarballUrl = versionMeta.dist.tarball;
   const expectedIntegrity = versionMeta.dist.integrity;
 
+  if (!expectedIntegrity) {
+    throw new Error(
+      `Package "${metadata.name}@${version}" has no integrity hash in registry metadata. Refusing to install.`,
+    );
+  }
+
   // Skip if already cached (unless force).
   if (!options.force && existsSync(dest)) {
     // Validate integrity if we have a marker file.
     const markerPath = join(dest, '.bluetemberg-integrity');
     if (existsSync(markerPath)) {
       const cachedIntegrity = readFileSync(markerPath, 'utf8').trim();
-      if (expectedIntegrity && cachedIntegrity === expectedIntegrity) {
+      if (cachedIntegrity === expectedIntegrity) {
         return {
           version,
           resolved: tarballUrl,
@@ -111,19 +143,29 @@ export async function installPackVersion(
   try {
     integrity = await downloadTarball(tarballUrl, tmpFile);
 
-    // Verify integrity if registry provided one.
-    if (expectedIntegrity && !verifyIntegrity(expectedIntegrity, integrity)) {
+    if (!verifyIntegrity(expectedIntegrity, integrity)) {
       throw new Error(
         `Integrity mismatch for "${metadata.name}@${version}": expected ${expectedIntegrity}, got ${integrity}`,
       );
     }
 
+    // Validate tarball contents before extraction to prevent path traversal.
+    validateTarContents(tmpFile, metadata.name);
+
     // Extract tarball — npm tarballs have a `package/` prefix.
     execFileSync('tar', ['xzf', tmpFile, '-C', dest, '--strip-components=1'], {
       stdio: 'pipe',
     });
+  } catch (err) {
+    // Clean up partial extraction directory on any failure.
+    try {
+      rmSync(dest, { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup.
+    }
+    throw err;
   } finally {
-    // Clean up temp file.
+    // Always clean up temp file.
     try {
       rmSync(tmpFile, { force: true });
     } catch {

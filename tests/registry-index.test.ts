@@ -32,13 +32,13 @@ describe('resolvePackSourceDirs', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it('returns empty array when no manifest exists', () => {
-    expect(resolvePackSourceDirs(root)).toEqual([]);
+  it('returns empty dirs and no warnings when no manifest exists', () => {
+    expect(resolvePackSourceDirs(root)).toEqual({ dirs: [], warnings: [] });
   });
 
-  it('returns empty array when manifest has no packages', () => {
+  it('returns empty dirs and no warnings when manifest has no packages', () => {
     writeManifest(root, { packages: {} });
-    expect(resolvePackSourceDirs(root)).toEqual([]);
+    expect(resolvePackSourceDirs(root)).toEqual({ dirs: [], warnings: [] });
   });
 
   it('returns source dirs for locked and cached packages', () => {
@@ -55,12 +55,13 @@ describe('resolvePackSourceDirs', () => {
     mkdirSync(join(packDir, 'llm', 'rules'), { recursive: true });
     writeFileSync(join(packDir, 'llm', 'rules', 'a.md'), '# rule a');
 
-    const dirs = resolvePackSourceDirs(root);
+    const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toHaveLength(1);
     expect(dirs[0]).toBe(join(packDir, 'llm'));
+    expect(warnings).toEqual([]);
   });
 
-  it('skips packages that are locked but not cached', () => {
+  it('skips packages that are locked but not cached and emits a warning', () => {
     writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
     writeLockfile(root, {
       lockfileVersion: 1,
@@ -70,16 +71,22 @@ describe('resolvePackSourceDirs', () => {
     });
 
     // Do not create cache dir.
-    const dirs = resolvePackSourceDirs(root);
+    const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('pack-a@1.2.0');
+    expect(warnings[0]).toContain('bluetemberg install');
   });
 
-  it('skips packages without a lock entry', () => {
+  it('skips packages without a lock entry and emits a warning', () => {
     writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
     writeLockfile(root, { lockfileVersion: 1, packages: {} });
 
-    const dirs = resolvePackSourceDirs(root);
+    const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('pack-a');
+    expect(warnings[0]).toContain('bluetemberg install');
   });
 
   it('returns dirs for multiple packages in manifest order', () => {
@@ -99,8 +106,9 @@ describe('resolvePackSourceDirs', () => {
     mkdirSync(dirA, { recursive: true });
     mkdirSync(dirB, { recursive: true });
 
-    const dirs = resolvePackSourceDirs(root);
+    const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toEqual([dirA, dirB]);
+    expect(warnings).toEqual([]);
   });
 
   it('resolves pack without llm/ to pack root', () => {
@@ -116,8 +124,24 @@ describe('resolvePackSourceDirs', () => {
     mkdirSync(join(packDir, 'rules'), { recursive: true });
     writeFileSync(join(packDir, 'rules', 'a.md'), '# rule');
 
-    const dirs = resolvePackSourceDirs(root);
+    const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toEqual([packDir]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('warns about stale lockfile entries not present in manifest', () => {
+    writeManifest(root, { packages: {} });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: {
+        'stale-pack': { version: '1.0.0', resolved: 'x', integrity: 'y' },
+      },
+    });
+
+    const { dirs, warnings } = resolvePackSourceDirs(root);
+    expect(dirs).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('stale-pack');
   });
 });
 

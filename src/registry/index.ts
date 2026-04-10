@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fetchPackageMetadata, searchPackages } from './client.js';
-import { readManifest, writeManifest, readLockfile, writeLockfile, hasPackages } from './manifest.js';
+import { readManifest, writeManifest, readLockfile, writeLockfile } from './manifest.js';
 import {
   resolveVersion,
   installPackVersion,
@@ -274,24 +274,50 @@ export async function search(query: string, options: RegistrySearchOptions = {})
  * Resolve all installed pack source directories for use during sync.
  *
  * Returns directories in manifest order (lower priority than local source and
- * `extends` entries — caller handles priority ordering).
+ * `extends` entries — caller handles priority ordering) along with any warnings
+ * about packs that are declared but missing from the lockfile or cache.
  */
-export function resolvePackSourceDirs(root: string, source = 'llm'): string[] {
-  if (!hasPackages(root, source)) return [];
-
-  const lock = readLockfile(root, source);
+export function resolvePackSourceDirs(
+  root: string,
+  source = 'llm',
+): { dirs: string[]; warnings: string[] } {
   const manifest = readManifest(root, source);
+  const lock = readLockfile(root, source);
+
+  const manifestNames = Object.keys(manifest.packages);
+  const lockNames = Object.keys(lock.packages);
+  if (manifestNames.length === 0 && lockNames.length === 0) return { dirs: [], warnings: [] };
   const dirs: string[] = [];
+  const warnings: string[] = [];
 
   for (const name of Object.keys(manifest.packages)) {
     const lockEntry = lock.packages[name];
-    if (!lockEntry) continue;
+    if (!lockEntry) {
+      warnings.push(`Pack "${name}" is in the manifest but has no lockfile entry. Run "bluetemberg install".`);
+      continue;
+    }
 
     const dir = resolvePackSourceDir(root, name, lockEntry.version);
-    if (dir) dirs.push(dir);
+    if (!dir) {
+      warnings.push(
+        `Pack "${name}@${lockEntry.version}" is locked but not cached. Run "bluetemberg install".`,
+      );
+      continue;
+    }
+
+    dirs.push(dir);
   }
 
-  return dirs;
+  // Warn about stale lockfile entries that are no longer in the manifest.
+  for (const name of Object.keys(lock.packages)) {
+    if (!(name in manifest.packages)) {
+      warnings.push(
+        `Pack "${name}" is in the lockfile but not in the manifest. Run "bluetemberg install" to clean up.`,
+      );
+    }
+  }
+
+  return { dirs, warnings };
 }
 
 // ---------------------------------------------------------------------------

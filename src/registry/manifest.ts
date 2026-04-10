@@ -35,8 +35,21 @@ function validateManifest(raw: unknown, path: string): PackageManifest {
 
   const obj = raw as Record<string, unknown>;
 
-  if (obj.registry !== undefined && typeof obj.registry !== 'string') {
-    throw new Error(`Invalid manifest at ${path}: "registry" must be a string`);
+  if (obj.registry !== undefined) {
+    if (typeof obj.registry !== 'string') {
+      throw new Error(`Invalid manifest at ${path}: "registry" must be a string`);
+    }
+    try {
+      const parsed = new URL(obj.registry);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error(`Invalid manifest at ${path}: "registry" must use http: or https: protocol`);
+      }
+    } catch (err) {
+      if (err instanceof TypeError) {
+        throw new Error(`Invalid manifest at ${path}: "registry" is not a valid URL: ${obj.registry}`);
+      }
+      throw err;
+    }
   }
 
   if (!obj.packages || typeof obj.packages !== 'object' || Array.isArray(obj.packages)) {

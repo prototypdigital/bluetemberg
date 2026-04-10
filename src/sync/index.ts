@@ -196,7 +196,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
   const sourceBase = join(root, config.source || 'llm');
   const { dirs: extendedDirs, warnings: extendsWarnings } = resolveExtendedSourceDirs(config.extends, root);
-  const packDirs = resolvePackSourceDirs(root, config.source || 'llm');
+  const { dirs: packDirs, warnings: packWarnings } = resolvePackSourceDirs(root, config.source || 'llm');
   // Priority: local sourceBase first, then extends entries, then registry packs.
   const sourceDirs = [sourceBase, ...extendedDirs, ...packDirs];
 
@@ -220,8 +220,9 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     expectedOutputPaths,
   };
 
-  // Surface extends resolution warnings before sync output.
+  // Surface extends and pack resolution warnings before sync output.
   for (const w of extendsWarnings) recordWarning(ctx, w);
+  for (const w of packWarnings) recordWarning(ctx, w);
 
   if (verbose) {
     log(`Source dirs (priority order):`);
