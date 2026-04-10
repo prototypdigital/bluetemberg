@@ -40,6 +40,19 @@ function safeWrite(filePath: string, content: string, created: string[]): void {
   created.push(filePath);
 }
 
+function readExistingAdapters(configPath: string): string[] | undefined {
+  if (!existsSync(configPath)) return undefined;
+  try {
+    const existing = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+    if (Array.isArray(existing.adapters) && existing.adapters.every((a) => typeof a === 'string')) {
+      return existing.adapters as string[];
+    }
+  } catch {
+    // ignore — corrupt file will be overwritten
+  }
+  return undefined;
+}
+
 function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string[]): void {
   const targets: BlueprintConfig['targets'] = {};
 
@@ -67,13 +80,17 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     }
   }
 
+  const configPath = join(targetDir, 'bluetemberg.config.json');
+  const existingAdapters = readExistingAdapters(configPath);
+
   const config: BlueprintConfig = {
     platforms: answers.platforms,
     source: 'llm',
     targets,
+    ...(existingAdapters !== undefined ? { adapters: existingAdapters } : {}),
   };
 
-  safeWrite(join(targetDir, 'bluetemberg.config.json'), JSON.stringify(config, null, 2) + '\n', created);
+  safeWrite(configPath, JSON.stringify(config, null, 2) + '\n', created);
 }
 
 function scaffoldRules(targetDir: string, answers: InitAnswers, created: string[]): void {
@@ -111,6 +128,8 @@ function scaffoldAgents(targetDir: string, answers: InitAnswers, created: string
 }
 
 function scaffoldSkills(targetDir: string, answers: InitAnswers, created: string[]): void {
+  ensureDir(join(targetDir, 'llm', 'skills'));
+
   for (const skillId of answers.skills) {
     const src = join(TEMPLATES_DIR, 'skills', skillId, 'SKILL.md');
     if (!existsSync(src)) {

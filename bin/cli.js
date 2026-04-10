@@ -35,7 +35,17 @@ program
   .action(async (directory, options) => {
     const { sync, loadConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
     const root = resolve(directory);
-    const config = loadConfig(root);
+
+    let config;
+    try {
+      config = loadConfig(root);
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+
     const check = options.check || options.dryRun || false;
     const results = await sync(root, {
       check,
