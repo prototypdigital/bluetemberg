@@ -32,6 +32,7 @@ program
     '--prune',
     'After sync, remove stale generated files under managed output dirs (no-op with --check)',
   )
+  .option('--verbose', 'Emit debug output: resolved source dirs, per-file origins, warnings')
   .action(async (directory, options) => {
     const { sync, loadConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
     const root = resolve(directory);
@@ -52,6 +53,7 @@ program
       config,
       silent: options.silent,
       prune: options.prune || false,
+      verbose: options.verbose || false,
     });
 
     if (shouldExitWithFailure(results, check)) {

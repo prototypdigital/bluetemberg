@@ -62,12 +62,20 @@ export interface SyncOptions {
    * that are not part of the current plan. Ignored in check mode. See wiki *Commands*.
    */
   prune?: boolean;
+  /**
+   * Emit additional debug output: resolved source directories, per-file origin when multiple
+   * sources are active, and any non-fatal warnings (e.g. unresolved `extends` entries).
+   */
+  verbose?: boolean;
 }
 
 export interface SyncResults {
   synced: number;
   outOfSync: number;
+  /** Fatal issues that caused sync to partially fail. Causes exit code 1. */
   errors: string[];
+  /** Non-fatal notices — logged but do not affect exit code. */
+  warnings: string[];
 }
 
 export interface RuleFrontmatter {

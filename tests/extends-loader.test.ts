@@ -25,12 +25,12 @@ describe('resolveExtendedSourceDirs', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it('returns empty array when extends is undefined', () => {
-    expect(resolveExtendedSourceDirs(undefined, root)).toEqual([]);
+  it('returns empty dirs and warnings when extends is undefined', () => {
+    expect(resolveExtendedSourceDirs(undefined, root)).toEqual({ dirs: [], warnings: [] });
   });
 
-  it('returns empty array when extends is empty array', () => {
-    expect(resolveExtendedSourceDirs([], root)).toEqual([]);
+  it('returns empty dirs and warnings when extends is empty array', () => {
+    expect(resolveExtendedSourceDirs([], root)).toEqual({ dirs: [], warnings: [] });
   });
 
   it('resolves relative path that has a llm/ subdirectory', () => {
@@ -40,16 +40,18 @@ describe('resolveExtendedSourceDirs', () => {
     const pkg = join(root, 'packages', 'frontend');
     mkdirSync(pkg, { recursive: true });
 
-    const result = resolveExtendedSourceDirs(['../../shared'], pkg);
-    expect(result).toEqual([join(shared, 'llm')]);
+    const { dirs, warnings } = resolveExtendedSourceDirs(['../../shared'], pkg);
+    expect(dirs).toEqual([join(shared, 'llm')]);
+    expect(warnings).toEqual([]);
   });
 
   it('falls back to the path itself when no llm/ subdirectory exists', () => {
     const shared = join(root, 'shared-rules');
     mkdirSync(shared, { recursive: true });
 
-    const result = resolveExtendedSourceDirs([shared], root);
-    expect(result).toEqual([shared]);
+    const { dirs, warnings } = resolveExtendedSourceDirs([shared], root);
+    expect(dirs).toEqual([shared]);
+    expect(warnings).toEqual([]);
   });
 
   it('accepts a plain string (not array)', () => {
@@ -59,42 +61,49 @@ describe('resolveExtendedSourceDirs', () => {
     const pkg = join(root, 'pkg');
     mkdirSync(pkg, { recursive: true });
 
-    const result = resolveExtendedSourceDirs('../shared', pkg);
-    expect(result).toEqual([join(shared, 'llm')]);
+    const { dirs } = resolveExtendedSourceDirs('../shared', pkg);
+    expect(dirs).toEqual([join(shared, 'llm')]);
   });
 
-  it('skips entries whose path does not exist', () => {
-    const result = resolveExtendedSourceDirs(['./nonexistent'], root);
-    expect(result).toEqual([]);
+  it('produces a warning for entries whose path does not exist', () => {
+    const { dirs, warnings } = resolveExtendedSourceDirs(['./nonexistent'], root);
+    expect(dirs).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('./nonexistent');
+    expect(warnings[0]).toContain('could not be resolved');
   });
 
   it('resolves npm package from node_modules with llm/ dir', () => {
     const pkgLlm = join(root, 'node_modules', '@company', 'ai-rules', 'llm');
     mkdirSync(pkgLlm, { recursive: true });
 
-    const result = resolveExtendedSourceDirs(['@company/ai-rules'], root);
-    expect(result).toEqual([pkgLlm]);
+    const { dirs } = resolveExtendedSourceDirs(['@company/ai-rules'], root);
+    expect(dirs).toEqual([pkgLlm]);
   });
 
   it('resolves npm package from node_modules without llm/ dir', () => {
     const pkgBase = join(root, 'node_modules', 'my-rules');
     mkdirSync(pkgBase, { recursive: true });
 
-    const result = resolveExtendedSourceDirs(['my-rules'], root);
-    expect(result).toEqual([pkgBase]);
+    const { dirs } = resolveExtendedSourceDirs(['my-rules'], root);
+    expect(dirs).toEqual([pkgBase]);
   });
 
-  it('skips npm packages not found in node_modules', () => {
-    const result = resolveExtendedSourceDirs(['nonexistent-package'], root);
-    expect(result).toEqual([]);
+  it('produces a warning for npm packages not found in node_modules', () => {
+    const { dirs, warnings } = resolveExtendedSourceDirs(['nonexistent-package'], root);
+    expect(dirs).toEqual([]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('nonexistent-package');
   });
 
-  it('resolves multiple entries, skipping missing ones', () => {
+  it('resolves valid entries and emits warnings for missing ones', () => {
     const shared1 = join(root, 'shared1');
     mkdirSync(join(shared1, 'llm'), { recursive: true });
 
-    const result = resolveExtendedSourceDirs(['./shared1', './missing'], root);
-    expect(result).toEqual([join(shared1, 'llm')]);
+    const { dirs, warnings } = resolveExtendedSourceDirs(['./shared1', './missing'], root);
+    expect(dirs).toEqual([join(shared1, 'llm')]);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('./missing');
   });
 });
 
