@@ -15,7 +15,7 @@ Interactive wizard that scaffolds AI tooling into a project.
 3. Asks you to pick platforms, rules, agents, skills, and MCP servers
 4. Creates `llm/` directory with selected starter content
 5. Generates `bluetemberg.config.json`
-6. Creates `AGENTS.md` and `CLAUDE.md` (if Claude selected)
+6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude selected), and `GEMINI.md` (if Gemini selected, via the initial sync)
 7. Writes `llm/mcp.json` with chosen MCP preset ids (if MCP selected); the initial sync step generates `.claude/mcp.json`, `.github/mcp.json`, and/or `.cursor/mcp.json` from that manifest (per selected platforms)
 8. Adds `sync:llm-config` scripts to `package.json`
 9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
@@ -70,7 +70,8 @@ Use `--silent` in CI only together with checking `$?` (or equivalent): failures 
 
 **When to run:**
 
-- After creating or editing any file in `llm/rules/`, `llm/agents/`, `llm/skills/`, `llm/mcp.json`, `llm/hooks.json`, `llm/commands/`, or `llm/prompts/`, or after changing the optional `adapters` list in `bluetemberg.config.json`
+- After creating or editing any file in `llm/rules/`, `llm/agents/`, `llm/skills/`, `llm/mcp.json`, `llm/hooks.json`, `llm/commands/`, or `llm/prompts/`
+- After changing `platforms`, `extends`, or `adapters` in `bluetemberg.config.json`
 - In CI to verify generated files haven't drifted (use `--check`)
 
 ## Package scripts
