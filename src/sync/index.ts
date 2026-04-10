@@ -20,7 +20,7 @@ import type {
   SkillTargetConfig,
 } from '../types.js';
 
-const VALID_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot'];
+const VALID_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot', 'gemini'];
 
 function validateTargets(targets: unknown, configPath: string): void {
   if (targets === undefined) {
@@ -195,6 +195,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   syncAgents(ctx);
   syncSkills(ctx);
   syncCopilotInstructions(ctx);
+  syncGeminiInstructions(ctx);
   syncMcp(ctx, (msg) => recordError(ctx, msg));
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
@@ -344,6 +345,8 @@ function syncSkills(ctx: SyncContext): void {
 }
 
 function syncCopilotInstructions(ctx: SyncContext): void {
+  if (!ctx.platforms.includes('copilot')) return;
+
   const agentsMd = join(ctx.root, 'AGENTS.md');
   if (!existsSync(agentsMd)) return;
 
@@ -360,5 +363,26 @@ function syncCopilotInstructions(ctx: SyncContext): void {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     recordError(ctx, `AGENTS.md -> copilot-instructions: ${message}`);
+  }
+}
+
+function syncGeminiInstructions(ctx: SyncContext): void {
+  if (!ctx.platforms.includes('gemini')) return;
+
+  const agentsMd = join(ctx.root, 'AGENTS.md');
+  if (!existsSync(agentsMd)) return;
+
+  try {
+    const target = join(ctx.root, 'GEMINI.md');
+    const content = readFileSync(agentsMd, 'utf8');
+
+    commitPlannedWrite(ctx, target, content);
+
+    if (!ctx.checkMode) {
+      ctx.log('Gemini instructions: synced from AGENTS.md');
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordError(ctx, `AGENTS.md -> GEMINI.md: ${message}`);
   }
 }

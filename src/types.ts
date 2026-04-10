@@ -1,4 +1,4 @@
-export type Platform = 'cursor' | 'claude' | 'copilot';
+export type Platform = 'cursor' | 'claude' | 'copilot' | 'gemini';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
