@@ -44,11 +44,13 @@ Array of tool capabilities the agent should have access to. Common values: `read
 
 Unlike rules, agents are copied **verbatim** — no frontmatter transformation. Only the file extension changes:
 
-| Source                              | Claude                                  | Copilot                                       |
-| ----------------------------------- | --------------------------------------- | --------------------------------------------- |
-| `llm/agents/frontend-specialist.md` | `.claude/agents/frontend-specialist.md` | `.github/agents/frontend-specialist.agent.md` |
+| Source                              | Cursor                                  | Claude                                  | Copilot                                       |
+| ----------------------------------- | --------------------------------------- | --------------------------------------- | --------------------------------------------- |
+| `llm/agents/frontend-specialist.md` | `.cursor/agents/frontend-specialist.md` | `.claude/agents/frontend-specialist.md` | `.github/agents/frontend-specialist.agent.md` |
 
-Cursor does not support custom agent definitions, so agents are not synced there.
+On Cursor, these files are **project subagents** (see Cursor documentation for subagents). Optional `tools:` in frontmatter is aimed at Claude Code; Cursor may ignore unknown keys.
+
+> **Note:** Unlike rules, agents have no platform-specific frontmatter transform. There is intentionally one canonical source file per agent. If a future platform requires a different frontmatter shape, add a dedicated transform step in `src/sync/index.ts` rather than splitting the source file.
 
 ## Naming convention
 

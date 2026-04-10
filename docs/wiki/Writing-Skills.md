@@ -61,9 +61,9 @@ One-line description of the skill's purpose.
 
 Skills are copied **verbatim** to target platforms. The directory structure is preserved:
 
-| Source                         | Claude                             | Copilot                            |
-| ------------------------------ | ---------------------------------- | ---------------------------------- |
-| `llm/skills/patterns/SKILL.md` | `.claude/skills/patterns/SKILL.md` | `.github/skills/patterns/SKILL.md` |
+| Source                         | Cursor                             | Claude                             | Copilot                            |
+| ------------------------------ | ---------------------------------- | ---------------------------------- | ---------------------------------- |
+| `llm/skills/patterns/SKILL.md` | `.cursor/skills/patterns/SKILL.md` | `.claude/skills/patterns/SKILL.md` | `.github/skills/patterns/SKILL.md` |
 
 ## Naming convention
 

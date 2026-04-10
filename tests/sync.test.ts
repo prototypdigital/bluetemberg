@@ -127,6 +127,52 @@ describe('sync', () => {
     );
   });
 
+  it('syncs agents and skills to cursor with default-shaped targets', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    const agentContent = '---\nname: sub\ndescription: Subagent\n---\n\n# Body\n';
+    writeFileSync(join(root, 'llm', 'agents', 'sub.md'), agentContent);
+
+    mkdirSync(join(root, 'llm', 'skills', 'my-skill'), { recursive: true });
+    const skillContent = '---\nname: my-skill\n---\n\n# Skill\n';
+    writeFileSync(join(root, 'llm', 'skills', 'my-skill', 'SKILL.md'), skillContent);
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {
+        agents: { cursor: { dir: '.cursor/agents', ext: '.md' } },
+        skills: { cursor: { dir: '.cursor/skills' } },
+      },
+    };
+
+    const results = await sync(root, { config, silent: true });
+    expect(results.synced).toBe(2);
+    expect(readFileSync(join(root, '.cursor', 'agents', 'sub.md'), 'utf8')).toBe(agentContent);
+    expect(readFileSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(skillContent);
+  });
+
+  it('does not write cursor agent/skill files when cursor is not in platforms', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'sub.md'), '---\nname: sub\ndescription: S\n---\n\n# S\n');
+
+    mkdirSync(join(root, 'llm', 'skills', 'my-skill'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'skills', 'my-skill', 'SKILL.md'), '---\nname: my-skill\n---\n\n# S\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {
+        agents: { claude: { dir: '.claude/agents', ext: '.md' } },
+        skills: { claude: { dir: '.claude/skills' } },
+      },
+    };
+
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, '.cursor', 'agents', 'sub.md'))).toBe(false);
+    expect(existsSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'))).toBe(false);
+  });
+
   it('check mode reports out-of-sync files', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(
@@ -472,6 +518,30 @@ describe('sync', () => {
     expect(existsSync(join(root, '.cursor', 'rules', 'drop.mdc'))).toBe(false);
   });
 
+  it('prune removes stale cursor agent outputs when enabled', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'keep.md'), '---\nname: keep\ndescription: K\n---\n\n# K\n');
+    writeFileSync(join(root, 'llm', 'agents', 'drop.md'), '---\nname: drop\ndescription: D\n---\n\n# D\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {
+        agents: { cursor: { dir: '.cursor/agents', ext: '.md' } },
+      },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.cursor', 'agents', 'keep.md'))).toBe(true);
+    expect(existsSync(join(root, '.cursor', 'agents', 'drop.md'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'agents', 'drop.md'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.cursor', 'agents', 'keep.md'))).toBe(true);
+    expect(existsSync(join(root, '.cursor', 'agents', 'drop.md'))).toBe(false);
+  });
+
   it('does not prune in check mode even when prune option is true', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(join(root, 'llm', 'rules', 'keep.md'), '---\ndescription: K\nscope: "**"\n---\n\n# K\n');
@@ -540,6 +610,8 @@ describe('loadConfig', () => {
     const config = loadConfig(root);
     expect(config.platforms).toEqual(['cursor', 'claude', 'copilot']);
     expect(config.source).toBe('llm');
+    expect(config.targets.agents?.cursor).toEqual({ dir: '.cursor/agents', ext: '.md' });
+    expect(config.targets.skills?.cursor).toEqual({ dir: '.cursor/skills' });
   });
 
   it('reads bluetemberg.config.json when present', () => {

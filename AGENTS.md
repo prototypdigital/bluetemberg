@@ -23,7 +23,7 @@ Source of truth for all AI tool configuration lives in `llm/`:
 - `llm/agents/` — specialist agent definitions
 - `llm/skills/` — on-demand skill workflows
 
-Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/`, `.claude/rules/`, `.github/instructions/`. These generated files should not be edited directly.
+Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/`, `.cursor/agents/`, `.cursor/skills/`, `.claude/`, `.github/instructions/`, `.github/agents/`, `.github/skills/`, and related paths. These generated files should not be edited directly.
 
 ## Project structure
 
@@ -60,6 +60,6 @@ Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/
 
 ### Never
 
-- Edit generated files (`.cursor/rules/`, `.claude/`, `.github/instructions/`)
+- Edit generated files (`.cursor/rules/`, `.cursor/agents/`, `.cursor/skills/`, `.claude/`, `.github/instructions/`, `.github/agents/`, `.github/skills/`)
 - Commit `.env` or secrets
 - Use `console.log` for user-facing output outside of `init/index.ts` and `sync/index.ts`

@@ -77,8 +77,8 @@ flowchart LR
 | Source     | Cursor     | Claude     | Copilot                |
 | ---------- | ---------- | ---------- | ---------------------- |
 | `rule.md`  | `rule.mdc` | `rule.md`  | `rule.instructions.md` |
-| `agent.md` | —          | `agent.md` | `agent.agent.md`       |
-| `SKILL.md` | —          | `SKILL.md` | `SKILL.md`             |
+| `agent.md` | `agent.md` | `agent.md` | `agent.agent.md`       |
+| `SKILL.md` | `SKILL.md` | `SKILL.md` | `SKILL.md`             |
 
 ## Rule tiers
 
