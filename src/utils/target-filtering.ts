@@ -5,6 +5,8 @@ export function filterTargets<T>(
   platforms: Platform[],
 ): [Platform, T][] {
   return Object.entries(targets)
-    .filter(([platform]) => platforms.includes(platform as Platform))
-    .map(([platform, config]) => [platform as Platform, config as T]);
+    .filter(
+      (entry): entry is [string, T] => entry[1] !== undefined && platforms.includes(entry[0] as Platform),
+    )
+    .map(([platform, config]) => [platform as Platform, config]);
 }
