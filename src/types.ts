@@ -22,6 +22,16 @@ export interface BlueprintConfig {
     skills?: Partial<Record<Platform, SkillTargetConfig>>;
   };
   /**
+   * Additional source directories to merge with the local `source` directory.
+   * Supports relative paths (e.g. `"../../"` for monorepo root) and npm package names
+   * (e.g. `"@company/ai-rules"`). The local `source` directory always takes highest priority;
+   * earlier entries in the array take priority over later ones.
+   *
+   * For relative paths, Bluetemberg looks for a `llm/` subdirectory at that path, then falls
+   * back to the path itself. For npm packages, it looks inside `node_modules/{name}/llm/`.
+   */
+  extends?: string | string[];
+  /**
    * Optional ESM module specifiers (npm package names or `file:` URLs) loaded after built-in sync steps.
    * Each module must `export default` as a function or `{ run(ctx, recordError) }` — see wiki *Adapters*.
    */

@@ -1025,3 +1025,114 @@ describe('shouldExitWithFailure', () => {
     expect(shouldExitWithFailure({ synced: 0, outOfSync: 1, errors: ['x'] }, true)).toBe(true);
   });
 });
+
+describe('extends: source merging', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('syncs rules from an extended source directory', async () => {
+    const shared = join(root, 'shared');
+    mkdirSync(join(shared, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(shared, 'llm', 'rules', 'shared-rule.md'),
+      '---\ndescription: Shared\nscope: "**"\n---\n\n# Shared Rule\n',
+    );
+
+    const pkg = join(root, 'pkg');
+    mkdirSync(join(pkg, 'llm'), { recursive: true }); // local source exists but no rules
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['../shared'],
+      targets: { rules: { claude: { dir: '.claude/rules', ext: '.md' } } },
+    };
+
+    const results = await sync(pkg, { config, silent: true });
+
+    expect(results.errors).toHaveLength(0);
+    expect(existsSync(join(pkg, '.claude', 'rules', 'shared-rule.md'))).toBe(true);
+  });
+
+  it('local rules take priority over extended rules with the same filename', async () => {
+    const shared = join(root, 'shared');
+    mkdirSync(join(shared, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(shared, 'llm', 'rules', 'same-rule.md'),
+      '---\ndescription: Extended\nscope: "**"\n---\n\n# Extended version\n',
+    );
+
+    const pkg = join(root, 'pkg');
+    mkdirSync(join(pkg, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(pkg, 'llm', 'rules', 'same-rule.md'),
+      '---\ndescription: Local\nscope: "**"\n---\n\n# Local version\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['../shared'],
+      targets: { rules: { claude: { dir: '.claude/rules', ext: '.md' } } },
+    };
+
+    await sync(pkg, { config, silent: true });
+
+    const content = readFileSync(join(pkg, '.claude', 'rules', 'same-rule.md'), 'utf8');
+    expect(content).toContain('Local version');
+    expect(content).not.toContain('Extended version');
+  });
+
+  it('merges local and extended rules — both appear in output', async () => {
+    const shared = join(root, 'shared');
+    mkdirSync(join(shared, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(shared, 'llm', 'rules', 'base-rule.md'),
+      '---\ndescription: Base\nscope: "**"\n---\n\n# Base\n',
+    );
+
+    const pkg = join(root, 'pkg');
+    mkdirSync(join(pkg, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(pkg, 'llm', 'rules', 'local-rule.md'),
+      '---\ndescription: Local\nscope: "**"\n---\n\n# Local\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['../shared'],
+      targets: { rules: { claude: { dir: '.claude/rules', ext: '.md' } } },
+    };
+
+    const results = await sync(pkg, { config, silent: true });
+
+    expect(results.synced).toBe(2);
+    expect(existsSync(join(pkg, '.claude', 'rules', 'local-rule.md'))).toBe(true);
+    expect(existsSync(join(pkg, '.claude', 'rules', 'base-rule.md'))).toBe(true);
+  });
+
+  it('rejects invalid extends value in config validation', () => {
+    expect(() =>
+      loadConfig(
+        (() => {
+          // Write a temp config with invalid extends
+          const tmpRoot = join(root, 'invalid-extends');
+          mkdirSync(tmpRoot, { recursive: true });
+          writeFileSync(
+            join(tmpRoot, 'bluetemberg.config.json'),
+            JSON.stringify({ platforms: ['claude'], source: 'llm', extends: 42 }),
+          );
+          return tmpRoot;
+        })(),
+      ),
+    ).toThrow('"extends" must be a string or array of strings');
+  });
+});

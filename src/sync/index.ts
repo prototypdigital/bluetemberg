@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
-import { ensureDir, listFiles, listDirs } from '../utils/fs.js';
+import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { pruneStaleOutputs } from './prune.js';
 import { syncMcp } from './mcp.js';
@@ -11,6 +11,7 @@ import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { filterTargets } from '../utils/target-filtering.js';
+import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -92,6 +93,14 @@ function validateConfig(config: unknown, configPath: string): BlueprintConfig {
     throw new Error(`Invalid config in ${configPath}: "source" must be a string`);
   }
 
+  if (cfg.extends !== undefined) {
+    const ext = cfg.extends;
+    const isStringArray = Array.isArray(ext) && ext.every((e: unknown) => typeof e === 'string');
+    if (typeof ext !== 'string' && !isStringArray) {
+      throw new Error(`Invalid config in ${configPath}: "extends" must be a string or array of strings`);
+    }
+  }
+
   if (cfg.adapters !== undefined) {
     if (!Array.isArray(cfg.adapters) || cfg.adapters.some((a: unknown) => typeof a !== 'string')) {
       throw new Error(`Invalid config in ${configPath}: "adapters" must be an array of strings`);
@@ -141,6 +150,8 @@ export function loadConfig(root: string): BlueprintConfig {
 
 interface SyncContext extends SyncSink {
   sourceBase: string;
+  /** All source dirs in priority order: local first, then each `extends` entry. */
+  sourceDirs: string[];
   config: BlueprintConfig;
   platforms: Platform[];
 }
@@ -172,6 +183,9 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const config = options.config || loadConfig(root);
   const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
   const sourceBase = join(root, config.source || 'llm');
+  const extendedDirs = resolveExtendedSourceDirs(config.extends, root);
+  // Priority: local sourceBase first, then each extends entry in order.
+  const sourceDirs = [sourceBase, ...extendedDirs];
 
   const results: SyncResults = { synced: 0, outOfSync: 0, errors: [] };
   const log = options.silent ? () => {} : console.log;
@@ -183,6 +197,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const ctx: SyncContext = {
     root,
     sourceBase,
+    sourceDirs,
     config,
     platforms,
     checkMode,
@@ -243,11 +258,10 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
 }
 
 function syncRules(ctx: SyncContext): void {
-  const sourceDir = join(ctx.sourceBase, 'rules');
-  const files = listFiles(sourceDir, (f) => f.endsWith('.md'));
-  if (files.length === 0) return;
+  const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
+  if (merged.size === 0) return;
 
-  ctx.log(`Rules: ${files.length} source files`);
+  ctx.log(`Rules: ${merged.size} source files`);
   const ruleTargets = filterTargets<TargetConfig>(
     ctx.config.targets?.rules || DEFAULT_TARGETS.rules,
     ctx.platforms,
@@ -257,7 +271,7 @@ function syncRules(ctx: SyncContext): void {
     const outDir = join(ctx.root, targetConfig.dir);
     ensureDir(outDir);
 
-    for (const file of files) {
+    for (const [file, sourceDir] of merged) {
       try {
         const source = matter.read(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
@@ -272,16 +286,15 @@ function syncRules(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${files.length} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} files)`);
   }
 }
 
 function syncAgents(ctx: SyncContext): void {
-  const sourceDir = join(ctx.sourceBase, 'agents');
-  const files = listFiles(sourceDir, (f) => f.endsWith('.md') && f !== 'README.md');
-  if (files.length === 0) return;
+  const merged = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
+  if (merged.size === 0) return;
 
-  ctx.log(`Agents: ${files.length} source files`);
+  ctx.log(`Agents: ${merged.size} source files`);
   const agentTargets = filterTargets<TargetConfig>(
     ctx.config.targets?.agents || DEFAULT_TARGETS.agents,
     ctx.platforms,
@@ -291,7 +304,7 @@ function syncAgents(ctx: SyncContext): void {
     const outDir = join(ctx.root, targetConfig.dir);
     ensureDir(outDir);
 
-    for (const file of files) {
+    for (const [file, sourceDir] of merged) {
       try {
         const content = readFileSync(join(sourceDir, file), 'utf8');
         const outName = file.replace(/\.md$/, targetConfig.ext);
@@ -304,29 +317,27 @@ function syncAgents(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${files.length} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} files)`);
   }
 }
 
 function syncSkills(ctx: SyncContext): void {
-  const sourceDir = join(ctx.sourceBase, 'skills');
-  const dirs = listDirs(sourceDir);
-  if (dirs.length === 0) return;
+  const merged = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
+    existsSync(join(dirPath, 'SKILL.md')),
+  );
+  if (merged.size === 0) return;
 
   const skillTargets = filterTargets<SkillTargetConfig>(
     ctx.config.targets?.skills || DEFAULT_TARGETS.skills,
     ctx.platforms,
   );
 
-  const validDirs = dirs.filter((d) => existsSync(join(sourceDir, d, 'SKILL.md')));
-  if (validDirs.length === 0) return;
-
-  ctx.log(`Skills: ${validDirs.length} source directories`);
+  ctx.log(`Skills: ${merged.size} source directories`);
 
   for (const [, targetConfig] of skillTargets) {
-    for (const dirName of validDirs) {
+    for (const [dirName, sourceParent] of merged) {
       try {
-        const srcSkill = join(sourceDir, dirName, 'SKILL.md');
+        const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
         ensureDir(outDir);
 
@@ -340,7 +351,7 @@ function syncSkills(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${validDirs.length} skills)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} skills)`);
   }
 }
 
