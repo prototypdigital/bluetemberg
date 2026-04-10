@@ -2,12 +2,7 @@ import { existsSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
 import { DEFAULT_TARGETS } from './transform.js';
-
-function filterTargets<T>(targets: Partial<Record<Platform, T>>, platforms: Platform[]): [Platform, T][] {
-  return Object.entries(targets)
-    .filter(([platform]) => platforms.includes(platform as Platform))
-    .map(([platform, config]) => [platform as Platform, config as T]);
-}
+import { filterTargets } from '../utils/target-filtering.js';
 
 function pruneRulesAndAgents(
   root: string,

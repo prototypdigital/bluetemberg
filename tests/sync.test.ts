@@ -578,6 +578,152 @@ describe('sync', () => {
     expect(existsSync(join(root, '.cursor', 'rules', 'r.mdc'))).toBe(true);
   });
 
+  it('prune removes stale skill outputs when enabled', async () => {
+    mkdirSync(join(root, 'llm', 'skills', 'keep-skill'), { recursive: true });
+    mkdirSync(join(root, 'llm', 'skills', 'drop-skill'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'skills', 'keep-skill', 'SKILL.md'), '---\nname: keep\n---\n\n# Keep\n');
+    writeFileSync(join(root, 'llm', 'skills', 'drop-skill', 'SKILL.md'), '---\nname: drop\n---\n\n# Drop\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: { skills: { claude: { dir: '.claude/skills' } } },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.claude', 'skills', 'keep-skill', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'skills', 'drop-skill', 'SKILL.md'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'skills', 'drop-skill'), { recursive: true });
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.claude', 'skills', 'keep-skill', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'skills', 'drop-skill', 'SKILL.md'))).toBe(false);
+  });
+
+  it('prune removes stale commands from .claude/commands when enabled', async () => {
+    mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'commands', 'keep.md'), '# Keep\n');
+    writeFileSync(join(root, 'llm', 'commands', 'drop.md'), '# Drop\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.claude', 'commands', 'keep.md'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'commands', 'drop.md'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'commands', 'drop.md'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.claude', 'commands', 'keep.md'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'commands', 'drop.md'))).toBe(false);
+  });
+
+  it('prune removes stale prompts from .github/prompts when enabled', async () => {
+    mkdirSync(join(root, 'llm', 'prompts'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'prompts', 'keep.md'), '# Keep\n');
+    writeFileSync(join(root, 'llm', 'prompts', 'drop.md'), '# Drop\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['copilot'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.github', 'prompts', 'keep.prompt.md'))).toBe(true);
+    expect(existsSync(join(root, '.github', 'prompts', 'drop.prompt.md'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'prompts', 'drop.md'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.github', 'prompts', 'keep.prompt.md'))).toBe(true);
+    expect(existsSync(join(root, '.github', 'prompts', 'drop.prompt.md'))).toBe(false);
+  });
+
+  it('prune removes stale copilot-instructions.md singleton when AGENTS.md is removed', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['copilot'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.github', 'copilot-instructions.md'))).toBe(true);
+
+    rmSync(join(root, 'AGENTS.md'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.github', 'copilot-instructions.md'))).toBe(false);
+  });
+
+  it('prune removes stale mcp.json singletons when llm/mcp.json is removed', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
+
+    const config: BlueprintConfig = {
+      platforms: ['claude', 'copilot', 'cursor'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.claude', 'mcp.json'))).toBe(true);
+    expect(existsSync(join(root, '.github', 'mcp.json'))).toBe(true);
+    expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'mcp.json'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.claude', 'mcp.json'))).toBe(false);
+    expect(existsSync(join(root, '.github', 'mcp.json'))).toBe(false);
+    expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(false);
+  });
+
+  it('prune removes stale hooks.json when llm/hooks.json is removed', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'hooks.json'),
+      JSON.stringify({ version: 1, hooks: { beforeSubmitPrompt: [{ command: 'npm run lint' }] } }),
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.cursor', 'hooks.json'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'hooks.json'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, '.cursor', 'hooks.json'))).toBe(false);
+  });
+
+  it('prune handles missing output directories gracefully', async () => {
+    const config: BlueprintConfig = {
+      platforms: ['cursor', 'claude', 'copilot'],
+      source: 'llm',
+      targets: {
+        rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } },
+        agents: { claude: { dir: '.claude/agents', ext: '.md' } },
+        skills: { claude: { dir: '.claude/skills' } },
+      },
+    };
+
+    const results = await sync(root, { config, silent: true, prune: true });
+    expect(results.errors).toEqual([]);
+    expect(results.synced).toBe(0);
+  });
+
   it('handles missing source directories gracefully', async () => {
     const config: BlueprintConfig = {
       platforms: ['cursor', 'claude', 'copilot'],
@@ -695,6 +841,73 @@ describe('loadConfig', () => {
     );
 
     expect(() => loadConfig(root)).toThrow('"targets" must be an object');
+  });
+
+  it('throws when source is not a string', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['cursor'], source: 42, targets: {} }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('"source" must be a string');
+  });
+
+  it('throws when targets.rules.cursor.dir is empty string', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['cursor'],
+        source: 'llm',
+        targets: { rules: { cursor: { dir: '', ext: '.mdc' } } },
+      }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('targets.rules.cursor.dir must be a non-empty string');
+  });
+
+  it('throws when a targets section entry is not an object', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['cursor'],
+        source: 'llm',
+        targets: { rules: { cursor: 'invalid' } },
+      }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('targets.rules.cursor must be an object');
+  });
+
+  it('throws when targets.agents entry omits ext', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['claude'],
+        source: 'llm',
+        targets: { agents: { claude: { dir: '.claude/agents' } } },
+      }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('targets.agents.claude.ext');
+  });
+
+  it('accepts targets.skills without ext (SkillTargetConfig has no ext)', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['claude'],
+        source: 'llm',
+        targets: { skills: { claude: { dir: '.claude/skills' } } },
+      }),
+    );
+
+    expect(() => loadConfig(root)).not.toThrow();
+  });
+
+  it('throws on non-object root config', () => {
+    writeFileSync(join(root, 'bluetemberg.config.json'), '"just-a-string"');
+
+    expect(() => loadConfig(root)).toThrow('expected an object');
   });
 });
 

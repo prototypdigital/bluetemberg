@@ -10,6 +10,7 @@ import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { runOptionalAdapters } from './adapters-runner.js';
+import { filterTargets } from '../utils/target-filtering.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -136,12 +137,6 @@ export function loadConfig(root: string): BlueprintConfig {
   }
 
   return validateConfig(raw, configPath);
-}
-
-function filterTargets<T>(targets: Partial<Record<Platform, T>>, platforms: Platform[]): [Platform, T][] {
-  return Object.entries(targets)
-    .filter(([platform]) => platforms.includes(platform as Platform))
-    .map(([platform, config]) => [platform as Platform, config as T]);
 }
 
 interface SyncContext extends SyncSink {
