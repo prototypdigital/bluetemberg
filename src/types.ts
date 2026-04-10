@@ -107,3 +107,107 @@ export interface TeamProfileChoice {
   name: string;
   description: string;
 }
+
+// ---------------------------------------------------------------------------
+// Registry — community rule packs
+// ---------------------------------------------------------------------------
+
+/** Manifest file (`llm/rule-packages.json`) — committed to version control. */
+export interface PackageManifest {
+  /** Optional custom registry URL. Defaults to `https://registry.npmjs.org`. */
+  registry?: string;
+  /** Map of package name → semver range (e.g. `"^1.2.0"`). */
+  packages: Record<string, string>;
+}
+
+/** Single entry in the lockfile. */
+export interface PackageLockEntry {
+  /** Exact resolved version (e.g. `"1.2.3"`). */
+  version: string;
+  /** Full tarball URL used to download this version. */
+  resolved: string;
+  /** Subresource integrity hash (`sha512-…`). */
+  integrity: string;
+}
+
+/** Lockfile (`llm/rule-packages-lock.json`) — committed to version control. */
+export interface PackageLock {
+  lockfileVersion: 1;
+  packages: Record<string, PackageLockEntry>;
+}
+
+/** Metadata returned from the npm registry for a single package. */
+export interface NpmPackageMetadata {
+  name: string;
+  description?: string;
+  'dist-tags': Record<string, string>;
+  versions: Record<string, NpmVersionMetadata>;
+}
+
+/** Metadata for a specific version from the npm registry. */
+export interface NpmVersionMetadata {
+  name: string;
+  version: string;
+  description?: string;
+  keywords?: string[];
+  dist: {
+    tarball: string;
+    integrity?: string;
+    shasum: string;
+  };
+}
+
+/** npm search result item. */
+export interface NpmSearchResult {
+  name: string;
+  version: string;
+  description?: string;
+  keywords?: string[];
+}
+
+/** Describes a locally installed rule pack. */
+export interface InstalledPackage {
+  name: string;
+  /** Semver range from the manifest. */
+  range: string;
+  /** Exact installed version from the lockfile. */
+  version: string;
+  /** Absolute path to the extracted pack content. */
+  path: string;
+}
+
+/** Options for `registry.add()`. */
+export interface RegistryAddOptions {
+  /** Semver range (default: `"latest"`). */
+  version?: string;
+  /** Suppress output. */
+  silent?: boolean;
+}
+
+/** Options for `registry.install()`. */
+export interface RegistryInstallOptions {
+  /** Suppress output. */
+  silent?: boolean;
+  /** Force re-download even if cached. */
+  force?: boolean;
+}
+
+/** Options for `registry.search()`. */
+export interface RegistrySearchOptions {
+  /** Max results to return (default: 20). */
+  limit?: number;
+  /** Suppress output. */
+  silent?: boolean;
+}
+
+/** Options for `registry.remove()`. */
+export interface RegistryRemoveOptions {
+  /** Suppress output. */
+  silent?: boolean;
+}
+
+/** Options for `registry.list()`. */
+export interface RegistryListOptions {
+  /** Suppress output. */
+  silent?: boolean;
+}

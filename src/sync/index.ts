@@ -12,6 +12,7 @@ import { syncCopilotPrompts } from './prompts.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
+import { resolvePackSourceDirs } from '../registry/index.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -195,8 +196,9 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
   const sourceBase = join(root, config.source || 'llm');
   const { dirs: extendedDirs, warnings: extendsWarnings } = resolveExtendedSourceDirs(config.extends, root);
-  // Priority: local sourceBase first, then each extends entry in order.
-  const sourceDirs = [sourceBase, ...extendedDirs];
+  const packDirs = resolvePackSourceDirs(root, config.source || 'llm');
+  // Priority: local sourceBase first, then extends entries, then registry packs.
+  const sourceDirs = [sourceBase, ...extendedDirs, ...packDirs];
 
   const results: SyncResults = { synced: 0, outOfSync: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
@@ -226,6 +228,10 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     log(`  [0] ${sourceBase} (local)`);
     for (let i = 0; i < extendedDirs.length; i++) {
       log(`  [${i + 1}] ${extendedDirs[i]} (extends[${i}])`);
+    }
+    const offset = 1 + extendedDirs.length;
+    for (let i = 0; i < packDirs.length; i++) {
+      log(`  [${offset + i}] ${packDirs[i]} (pack)`);
     }
     log('');
   }

@@ -61,4 +61,101 @@ program
     }
   });
 
+program
+  .command('add')
+  .description('Add a rule pack from the npm registry')
+  .argument('<package>', 'Package name with optional @version (e.g. my-rules@^1.0.0)')
+  .option('--version <range>', 'Semver range (overrides @version in package spec)')
+  .option('--silent', 'Suppress all output')
+  .action(async (packageSpec, options) => {
+    const { add } = await import('../dist/registry/index.js');
+    try {
+      await add(process.cwd(), packageSpec, {
+        version: options.version,
+        silent: options.silent,
+      });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('remove')
+  .description('Remove a rule pack from the project')
+  .argument('<package>', 'Package name to remove')
+  .option('--silent', 'Suppress all output')
+  .action(async (packageName, options) => {
+    const { remove } = await import('../dist/registry/index.js');
+    try {
+      await remove(process.cwd(), packageName, { silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('list')
+  .description('List installed rule packs')
+  .option('--silent', 'Suppress all output')
+  .action((options) => {
+    const importRegistry = import('../dist/registry/index.js');
+    importRegistry.then(({ list }) => {
+      try {
+        list(process.cwd(), { silent: options.silent });
+      } catch (err) {
+        if (!options.silent) {
+          console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        process.exit(1);
+      }
+    });
+  });
+
+program
+  .command('install')
+  .description('Install all rule packs from the manifest (like npm ci)')
+  .option('--force', 'Force re-download even if cached')
+  .option('--silent', 'Suppress all output')
+  .action(async (options) => {
+    const { install } = await import('../dist/registry/index.js');
+    try {
+      await install(process.cwd(), {
+        force: options.force,
+        silent: options.silent,
+      });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('search')
+  .description('Search the npm registry for bluetemberg rule packs')
+  .argument('<query>', 'Search query')
+  .option('--limit <n>', 'Max results (default: 20)', parseInt)
+  .option('--silent', 'Suppress all output')
+  .action(async (query, options) => {
+    const { search } = await import('../dist/registry/index.js');
+    try {
+      await search(query, {
+        limit: options.limit,
+        silent: options.silent,
+      });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
 program.parse();
