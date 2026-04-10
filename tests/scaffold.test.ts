@@ -88,6 +88,13 @@ describe('scaffold', () => {
       expect(config.targets.skills?.claude).toEqual({ dir: '.claude/skills' });
     });
 
+    it('includes gemini rules target when gemini is in platforms', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['gemini'] });
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.targets.rules?.gemini).toEqual({ dir: '.gemini/context', ext: '.md' });
+    });
+
     it('only includes targets for selected platforms', () => {
       scaffold(root, { ...baseAnswers, platforms: ['cursor'] });
 
@@ -234,6 +241,13 @@ describe('scaffold', () => {
       expect(content).toContain('.cursor/rules/');
       expect(content).toContain('.claude/rules/');
       expect(content).not.toContain('.github/instructions/');
+    });
+
+    it('lists .gemini/context/ when gemini is in platforms', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['gemini'] });
+
+      const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+      expect(content).toContain('.gemini/context/');
     });
   });
 

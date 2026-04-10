@@ -28,7 +28,7 @@ npx @prototypdigital/bluetemberg init
 The interactive wizard will ask you to pick:
 
 - **Team profile** — frontend, backend, full-stack, DevOps, or custom (sets smart defaults for everything below)
-- Target platforms (Cursor / Claude / Copilot)
+- Target platforms (Cursor / Claude / Copilot / Gemini CLI)
 - Starter rules — universal guardrails are always included; profile-specific rules are pre-checked based on your team type
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
@@ -45,6 +45,7 @@ your-project/
 ├── bluetemberg.config.json     # Platforms, targets, source dir
 ├── AGENTS.md                   # Project context for AI tools
 ├── CLAUDE.md                   # Claude-specific pointer (if Claude selected)
+├── GEMINI.md                   # Gemini CLI pointer (if Gemini selected) — do not edit
 ├── llm/
 │   ├── rules/                  # Vendor-neutral rules
 │   ├── agents/                 # Specialist agent definitions
@@ -63,7 +64,8 @@ your-project/
 ├── .claude/skills/             # Generated — do not edit
 ├── .github/instructions/       # Generated — do not edit
 ├── .github/agents/             # Generated — do not edit
-└── .github/skills/             # Generated — do not edit
+├── .github/skills/             # Generated — do not edit
+└── .gemini/context/            # Generated — do not edit
 ```
 
 ## Universal guardrails
@@ -108,20 +110,21 @@ npx bluetemberg sync --prune
 
 ## How sync works
 
-| Source                  | Cursor                      | Claude                      | Copilot                                  |
-| ----------------------- | --------------------------- | --------------------------- | ---------------------------------------- |
-| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`        | `.github/instructions/*.instructions.md` |
-| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`       | `.github/agents/*.agent.md`              |
-| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` | `.github/skills/*/SKILL.md`              |
-| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`          | `.github/mcp.json`                       |
-| `llm/prompts/*.md`      | —                           | —                           | `.github/prompts/*.prompt.md`            |
-| `AGENTS.md`             | —                           | —                           | `.github/copilot-instructions.md`        |
+| Source                  | Cursor                      | Claude                      | Copilot                                  | Gemini CLI             |
+| ----------------------- | --------------------------- | --------------------------- | ---------------------------------------- | ---------------------- |
+| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`        | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` |
+| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`       | `.github/agents/*.agent.md`              | —                      |
+| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` | `.github/skills/*/SKILL.md`              | —                      |
+| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`          | `.github/mcp.json`                       | —                      |
+| `llm/prompts/*.md`      | —                           | —                           | `.github/prompts/*.prompt.md`            | —                      |
+| `AGENTS.md`             | —                           | —                           | `.github/copilot-instructions.md`        | `GEMINI.md`            |
 
 Rules get platform-specific frontmatter transforms:
 
 - **Cursor**: `scope: '**'` -> `alwaysApply: true`; otherwise `globs: [scope]`
 - **Claude**: `paths: [scope]`
 - **Copilot**: `applyTo: scope`
+- **Gemini CLI**: `glob: scope`
 
 Agents and skills are copied verbatim (only the filename extension changes).
 

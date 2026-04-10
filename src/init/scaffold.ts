@@ -181,6 +181,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
   if (answers.platforms.includes('cursor')) targetDirs.push('`.cursor/rules/`');
   if (answers.platforms.includes('claude')) targetDirs.push('`.claude/rules/`');
   if (answers.platforms.includes('copilot')) targetDirs.push('`.github/instructions/`');
+  if (answers.platforms.includes('gemini')) targetDirs.push('`.gemini/context/`');
 
   agentsLines.push(
     '',
