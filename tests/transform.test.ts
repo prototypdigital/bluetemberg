@@ -63,6 +63,23 @@ describe('transformFrontmatter', () => {
     });
   });
 
+  describe('gemini', () => {
+    it('sets glob string for single scope', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: 'src/**' }, 'gemini');
+      expect(result).toEqual({ description: 'Test', glob: 'src/**' });
+    });
+
+    it('joins array scope with comma', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: ['a/**', 'b/**'] }, 'gemini');
+      expect(result).toHaveProperty('glob', 'a/**,b/**');
+    });
+
+    it('defaults scope to ** when omitted', () => {
+      const result = transformFrontmatter({ description: 'Test' }, 'gemini');
+      expect(result).toEqual({ description: 'Test', glob: '**' });
+    });
+  });
+
   describe('cursor — array scope edge case', () => {
     it('uses globs (not alwaysApply) when scope is ["**"] as array', () => {
       const result = transformFrontmatter({ description: 'Test', scope: ['**'] }, 'cursor');

@@ -151,7 +151,12 @@ export function pruneStaleOutputs(args: {
     total += prunePromptsDir(root, expectedPaths);
   }
 
-  total += pruneSingletonIfStale(join(root, '.github', 'copilot-instructions.md'), expectedPaths);
+  if (platforms.includes('copilot')) {
+    total += pruneSingletonIfStale(join(root, '.github', 'copilot-instructions.md'), expectedPaths);
+  }
+  if (platforms.includes('gemini')) {
+    total += pruneSingletonIfStale(join(root, 'GEMINI.md'), expectedPaths);
+  }
 
   if (platforms.includes('claude')) {
     total += pruneSingletonIfStale(join(root, '.claude', 'mcp.json'), expectedPaths);

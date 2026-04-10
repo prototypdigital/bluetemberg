@@ -16,7 +16,16 @@ interface CopilotFrontmatter {
   applyTo: string;
 }
 
-export type TransformedFrontmatter = CursorFrontmatter | ClaudeFrontmatter | CopilotFrontmatter;
+interface GeminiFrontmatter {
+  description: string;
+  glob: string;
+}
+
+export type TransformedFrontmatter =
+  | CursorFrontmatter
+  | ClaudeFrontmatter
+  | CopilotFrontmatter
+  | GeminiFrontmatter;
 
 export function transformFrontmatter(data: RuleFrontmatter, platform: Platform): TransformedFrontmatter {
   const description = data.description || '';
@@ -39,6 +48,12 @@ export function transformFrontmatter(data: RuleFrontmatter, platform: Platform):
         applyTo: Array.isArray(scope) ? scope.join(',') : scope,
       };
 
+    case 'gemini':
+      return {
+        description,
+        glob: Array.isArray(scope) ? scope.join(',') : scope,
+      };
+
     default:
       throw new Error(`Unknown platform: ${platform as string}`);
   }
@@ -53,6 +68,7 @@ export const DEFAULT_TARGETS: {
     cursor: { dir: '.cursor/rules', ext: '.mdc' },
     claude: { dir: '.claude/rules', ext: '.md' },
     copilot: { dir: '.github/instructions', ext: '.instructions.md' },
+    gemini: { dir: '.gemini/context', ext: '.md' },
   },
   agents: {
     cursor: { dir: '.cursor/agents', ext: '.md' },

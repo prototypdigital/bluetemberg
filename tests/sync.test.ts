@@ -227,6 +227,99 @@ describe('sync', () => {
     expect(copilotInstructions).toBe('# My Project\n\nProject docs.\n');
   });
 
+  it('does not write copilot-instructions.md when copilot is not in platforms', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# My Project\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.github', 'copilot-instructions.md'))).toBe(false);
+  });
+
+  it('syncs AGENTS.md to GEMINI.md when gemini is in platforms', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# My Project\n\nProject docs.\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['gemini'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+
+    const geminiMd = readFileSync(join(root, 'GEMINI.md'), 'utf8');
+    expect(geminiMd).toBe('# My Project\n\nProject docs.\n');
+  });
+
+  it('does not write GEMINI.md when gemini is not in platforms', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# My Project\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, 'GEMINI.md'))).toBe(false);
+  });
+
+  it('does not write GEMINI.md when AGENTS.md does not exist', async () => {
+    const config: BlueprintConfig = {
+      platforms: ['gemini'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, 'GEMINI.md'))).toBe(false);
+  });
+
+  it('syncs rules to gemini platform', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'test-rule.md'),
+      '---\ndescription: A test rule\nscope: "src/**"\n---\n\n# Test Rule\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['gemini'],
+      source: 'llm',
+      targets: {
+        rules: { gemini: { dir: '.gemini/context', ext: '.md' } },
+      },
+    };
+
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, '.gemini', 'context', 'test-rule.md'))).toBe(true);
+    const content = readFileSync(join(root, '.gemini', 'context', 'test-rule.md'), 'utf8');
+    expect(content).toContain('glob:');
+    expect(content).toContain('src/**');
+  });
+
+  it('prune removes stale GEMINI.md singleton when AGENTS.md is removed', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['gemini'],
+      source: 'llm',
+      targets: {},
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, 'GEMINI.md'))).toBe(true);
+
+    rmSync(join(root, 'AGENTS.md'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, 'GEMINI.md'))).toBe(false);
+  });
+
   it('handles empty rules directory gracefully', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
 
