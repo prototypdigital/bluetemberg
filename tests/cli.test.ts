@@ -46,4 +46,64 @@ cliSuite('cli sync exit code', () => {
     const r = runCli(['sync', '--silent', root], root);
     expect(r.status).toBe(0);
   });
+
+  it('exits 1 in check mode when files are out of sync', () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'test.md'),
+      '---\ndescription: Test\nscope: "**"\n---\n\n# Test\n',
+    );
+
+    const r = runCli(['sync', '--check', '--silent', root], root);
+    expect(r.status).toBe(1);
+  });
+
+  it('exits 0 in check mode when files are already in sync', () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'test.md'),
+      '---\ndescription: Test\nscope: "**"\n---\n\n# Test\n',
+    );
+
+    runCli(['sync', '--silent', root], root);
+    const r = runCli(['sync', '--check', '--silent', root], root);
+    expect(r.status).toBe(0);
+  });
+
+  it('exits 1 when config file contains invalid JSON', () => {
+    writeFileSync(join(root, 'bluetemberg.config.json'), '{ invalid }');
+
+    const r = runCli(['sync', '--silent', root], root);
+    expect(r.status).toBe(1);
+  });
+
+  it('exits 1 when config has unknown platform', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['vscode'], source: 'llm', targets: {} }),
+    );
+
+    const r = runCli(['sync', '--silent', root], root);
+    expect(r.status).toBe(1);
+  });
+});
+
+cliSuite('cli flags', () => {
+  it('--help exits 0 and prints usage', () => {
+    const r = runCli(['--help'], process.cwd());
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('bluetemberg');
+    expect(r.stdout).toContain('sync');
+  });
+
+  it('--version exits 0 and prints a version string', () => {
+    const r = runCli(['--version'], process.cwd());
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it('unknown command exits non-zero', () => {
+    const r = runCli(['notacommand'], process.cwd());
+    expect(r.status).not.toBe(0);
+  });
 });
