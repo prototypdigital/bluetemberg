@@ -8,6 +8,7 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
 {
   "platforms": ["cursor", "claude", "copilot"],
   "source": "llm",
+  "extends": ["../../"],
   "targets": {
     "rules": {
       "cursor": { "dir": ".cursor/rules", "ext": ".mdc" },
@@ -29,13 +30,13 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
 }
 ```
 
-The `adapters` field is optional. Omit it or use `[]` if you only rely on built-in sync steps.
+The `extends` and `adapters` fields are optional.
 
 ## Fields
 
 ### `platforms`
 
-Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`.
+Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`.
 
 Only selected platforms get generated output during sync.
 
@@ -44,6 +45,43 @@ Only selected platforms get generated output during sync.
 Directory name containing vendor-neutral sources. Default: `"llm"`.
 
 The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skills/`, and optionally `<source>/mcp.json`, `<source>/hooks.json`, `<source>/commands/`, and `<source>/prompts/` (see [Adapters](Adapters)).
+
+### `extends`
+
+Optional string or array of strings that point to **additional source directories** to merge with the local `source` directory. Extended sources supply rules, agents, and skills that your local `source` dir does not define; when the same filename exists in both, the **local file wins**.
+
+Supported formats:
+
+| Format | Example | Resolved as |
+|--------|---------|-------------|
+| Relative path | `"../../"` | Sibling directory (monorepo root). Bluetemberg looks for `<path>/llm/` first, then `<path>` itself. |
+| Absolute path | `"/shared/ai-rules"` | Same resolution as relative. |
+| npm package name | `"@company/ai-rules"` | `node_modules/@company/ai-rules/llm/`, falling back to `node_modules/@company/ai-rules/`. |
+
+```json
+{
+  "extends": ["../../"],
+  "platforms": ["cursor", "claude"],
+  "source": "llm"
+}
+```
+
+**Priority:** The local `source` directory always has the highest priority. If `extends` is an array, earlier entries have higher priority than later ones.
+
+**Monorepo use case:** Place shared rules in the repo root's `llm/` directory, then have each package extend the root:
+
+```
+my-monorepo/
+  llm/rules/coding-standards.md   ← shared
+  packages/
+    frontend/
+      bluetemberg.config.json     ← "extends": ["../../"]
+      llm/rules/react-patterns.md ← local override
+    backend/
+      bluetemberg.config.json     ← "extends": ["../../"]
+```
+
+**Shared npm rule pack use case:** Publish an npm package containing a `llm/` directory, install it, then reference it in `extends`.
 
 ### `adapters`
 
