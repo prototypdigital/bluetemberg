@@ -54,6 +54,10 @@ your-project/
 │   ├── commands/               # Optional — Claude slash commands (if you add it)
 │   └── prompts/                # Optional — Copilot prompt sources (if you add it)
 ├── .cursor/rules/              # Generated — do not edit
+├── .cursor/skills/             # Gitignored — source of truth is llm/skills
+├── .cursor/agents/             # Gitignored — source of truth is llm/agents
+├── .cursor/mcp.json            # Generated (Cursor) — do not edit
+├── .cursor/hooks.json          # Generated (Cursor) — do not edit
 ├── .claude/rules/              # Generated — do not edit
 ├── .claude/agents/             # Generated — do not edit
 ├── .claude/skills/             # Generated — do not edit
