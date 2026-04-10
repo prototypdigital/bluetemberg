@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { writeOrCheck } from '../src/utils/fs.js';
+import { writeOrCheck, ensureDir, readIfExists, listFiles, listDirs } from '../src/utils/fs.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bluetemberg-fs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -31,5 +31,123 @@ describe('writeOrCheck', () => {
     const filePath = join(dir, 'y.txt');
     writeFileSync(filePath, 'a\r\nb', 'utf8');
     expect(writeOrCheck(filePath, 'a\nc', true)).toBe(true);
+  });
+
+  it('reports out-of-sync when file does not exist in check mode', () => {
+    const filePath = join(dir, 'nonexistent.txt');
+    expect(writeOrCheck(filePath, 'content', true)).toBe(true);
+  });
+
+  it('writes file and returns false in write mode', () => {
+    const filePath = join(dir, 'new.txt');
+    const result = writeOrCheck(filePath, 'hello', false);
+    expect(result).toBe(false);
+    expect(existsSync(filePath)).toBe(true);
+  });
+});
+
+describe('ensureDir', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `bluetemberg-fs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('creates a directory recursively', () => {
+    const target = join(dir, 'a', 'b', 'c');
+    ensureDir(target);
+    expect(existsSync(target)).toBe(true);
+  });
+
+  it('does not throw when directory already exists', () => {
+    expect(() => ensureDir(dir)).not.toThrow();
+  });
+});
+
+describe('readIfExists', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `bluetemberg-fs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns file content when file exists', () => {
+    const filePath = join(dir, 'file.txt');
+    writeFileSync(filePath, 'hello world', 'utf8');
+    expect(readIfExists(filePath)).toBe('hello world');
+  });
+
+  it('returns null when file does not exist', () => {
+    expect(readIfExists(join(dir, 'missing.txt'))).toBeNull();
+  });
+});
+
+describe('listFiles', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `bluetemberg-fs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns filtered files in a directory', () => {
+    writeFileSync(join(dir, 'a.md'), '');
+    writeFileSync(join(dir, 'b.md'), '');
+    writeFileSync(join(dir, 'c.txt'), '');
+    const result = listFiles(dir, (f) => f.endsWith('.md'));
+    expect(result.sort()).toEqual(['a.md', 'b.md']);
+  });
+
+  it('returns empty array when directory does not exist', () => {
+    expect(listFiles(join(dir, 'nonexistent'), () => true)).toEqual([]);
+  });
+
+  it('returns empty array when no files match filter', () => {
+    writeFileSync(join(dir, 'a.txt'), '');
+    expect(listFiles(dir, (f) => f.endsWith('.md'))).toEqual([]);
+  });
+});
+
+describe('listDirs', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `bluetemberg-fs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns subdirectory names', () => {
+    mkdirSync(join(dir, 'sub-a'));
+    mkdirSync(join(dir, 'sub-b'));
+    writeFileSync(join(dir, 'file.txt'), '');
+    const result = listDirs(dir);
+    expect(result.sort()).toEqual(['sub-a', 'sub-b']);
+  });
+
+  it('returns empty array when directory does not exist', () => {
+    expect(listDirs(join(dir, 'nonexistent'))).toEqual([]);
+  });
+
+  it('returns empty array when directory has no subdirectories', () => {
+    writeFileSync(join(dir, 'file.txt'), '');
+    expect(listDirs(dir)).toEqual([]);
   });
 });
