@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { PackageManifest, PackageLock, PackageLockEntry } from '../types.js';
 
 const MANIFEST_FILE = 'rule-packages.json';
@@ -25,6 +25,7 @@ export function readManifest(root: string, source = 'llm'): PackageManifest {
 
 export function writeManifest(root: string, manifest: PackageManifest, source = 'llm'): void {
   const p = manifestPath(root, source);
+  mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(manifest, null, 2) + '\n');
 }
 
@@ -43,6 +44,11 @@ function validateManifest(raw: unknown, path: string): PackageManifest {
       const parsed = new URL(obj.registry);
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
         throw new Error(`Invalid manifest at ${path}: "registry" must use http: or https: protocol`);
+      }
+      if (parsed.protocol === 'http:') {
+        console.warn(
+          `Warning: registry "${obj.registry}" uses http — metadata and tarballs may be intercepted. Consider using https.`,
+        );
       }
     } catch (err) {
       if (err instanceof TypeError) {
@@ -88,6 +94,7 @@ export function readLockfile(root: string, source = 'llm'): PackageLock {
 
 export function writeLockfile(root: string, lock: PackageLock, source = 'llm'): void {
   const p = lockfilePath(root, source);
+  mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(lock, null, 2) + '\n');
 }
 

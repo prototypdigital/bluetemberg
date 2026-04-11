@@ -229,6 +229,15 @@ export async function install(
     });
   }
 
+  // Prune stale lockfile entries that are no longer in the manifest.
+  const staleNames = Object.keys(lock.packages).filter((n) => !(n in manifest.packages));
+  for (const name of staleNames) {
+    const entry = lock.packages[name];
+    removePackVersion(root, name, entry.version);
+    delete lock.packages[name];
+    log(`  Pruned stale lockfile entry: ${name}@${entry.version}`);
+  }
+
   writeLockfile(root, lock, source);
   ensureGitignore(root);
 
@@ -277,10 +286,7 @@ export async function search(query: string, options: RegistrySearchOptions = {})
  * `extends` entries — caller handles priority ordering) along with any warnings
  * about packs that are declared but missing from the lockfile or cache.
  */
-export function resolvePackSourceDirs(
-  root: string,
-  source = 'llm',
-): { dirs: string[]; warnings: string[] } {
+export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: string[]; warnings: string[] } {
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
 
@@ -293,7 +299,9 @@ export function resolvePackSourceDirs(
   for (const name of Object.keys(manifest.packages)) {
     const lockEntry = lock.packages[name];
     if (!lockEntry) {
-      warnings.push(`Pack "${name}" is in the manifest but has no lockfile entry. Run "bluetemberg install".`);
+      warnings.push(
+        `Pack "${name}" is in the manifest but has no lockfile entry. Run "bluetemberg install".`,
+      );
       continue;
     }
 
@@ -312,7 +320,7 @@ export function resolvePackSourceDirs(
   for (const name of Object.keys(lock.packages)) {
     if (!(name in manifest.packages)) {
       warnings.push(
-        `Pack "${name}" is in the lockfile but not in the manifest. Run "bluetemberg install" to clean up.`,
+        `Pack "${name}" is in the lockfile but not in the manifest. Run "bluetemberg remove ${name}" or "bluetemberg install" to clean up.`,
       );
     }
   }

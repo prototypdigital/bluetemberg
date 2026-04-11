@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { join, isAbsolute } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { extract } from 'tar';
 import { maxSatisfying } from 'semver';
 import { downloadTarball, verifyIntegrity } from './client.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
@@ -56,29 +56,36 @@ export function resolveVersion(metadata: NpmPackageMetadata, range: string): str
 }
 
 /**
- * Validate tarball contents before extraction to prevent path traversal attacks.
+ * Extract a tarball safely using the `tar` npm package.
  *
- * Lists the archive and checks that every entry, after stripping the top-level
- * `package/` prefix (`--strip-components=1`), resolves within the target directory.
+ * Strips the top-level `package/` prefix (standard npm tarball layout) and
+ * rejects symlinks and entries with path traversal (`..`) to prevent escape
+ * from the destination directory.
  *
- * @throws If any entry would escape the extraction directory.
+ * Using `tar` instead of system `tar` ensures cross-platform support
+ * (Windows, minimal containers) and per-entry security filtering.
  */
-function validateTarContents(tmpFile: string, packageName: string): void {
-  const listing = execFileSync('tar', ['tzf', tmpFile], { stdio: 'pipe', encoding: 'utf8' });
-
-  for (const entry of listing.split('\n').filter(Boolean)) {
-    // Strip the first path component (the `package/` prefix from npm tarballs).
-    const slashIdx = entry.indexOf('/');
-    const stripped = slashIdx === -1 ? '' : entry.slice(slashIdx + 1);
-    if (!stripped) continue; // The top-level directory entry itself — harmless.
-
-    // Reject absolute paths and `..` traversal segments.
-    if (isAbsolute(stripped) || stripped.split('/').some((seg) => seg === '..')) {
-      throw new Error(
-        `Malicious tarball for "${packageName}": entry "${entry}" would extract outside the cache directory`,
-      );
-    }
-  }
+async function extractTarball(tmpFile: string, dest: string, packageName: string): Promise<void> {
+  await extract({
+    file: tmpFile,
+    cwd: dest,
+    strip: 1,
+    filter: (path, entry) => {
+      // Reject symlinks — they can escape the cache directory after extraction.
+      // The entry is a ReadEntry during extraction, which has a `type` field.
+      if ('type' in entry) {
+        const { type } = entry;
+        if (type === 'SymbolicLink' || type === 'Link') {
+          throw new Error(`Malicious tarball for "${packageName}": entry "${path}" is a symlink`);
+        }
+      }
+      // Reject path traversal.
+      if (path.includes('..')) {
+        throw new Error(`Malicious tarball for "${packageName}": entry "${path}" contains path traversal`);
+      }
+      return true;
+    },
+  });
 }
 
 /**
@@ -149,13 +156,8 @@ export async function installPackVersion(
       );
     }
 
-    // Validate tarball contents before extraction to prevent path traversal.
-    validateTarContents(tmpFile, metadata.name);
-
-    // Extract tarball — npm tarballs have a `package/` prefix.
-    execFileSync('tar', ['xzf', tmpFile, '-C', dest, '--strip-components=1'], {
-      stdio: 'pipe',
-    });
+    // Extract tarball with security filtering (rejects symlinks + path traversal).
+    await extractTarball(tmpFile, dest, metadata.name);
   } catch (err) {
     // Clean up partial extraction directory on any failure.
     try {

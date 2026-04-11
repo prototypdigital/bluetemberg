@@ -7,6 +7,7 @@ import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { NpmPackageMetadata, NpmSearchResult } from '../types.js';
 
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
+const FETCH_TIMEOUT_MS = 30_000;
 
 /**
  * Fetch full package metadata (all versions) from the npm registry.
@@ -19,6 +20,7 @@ export async function fetchPackageMetadata(name: string, registryUrl?: string): 
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   if (res.status === 404) {
@@ -48,6 +50,7 @@ export async function searchPackages(
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -74,7 +77,9 @@ export async function searchPackages(
  * @returns The SHA-512 integrity string for the downloaded file (`sha512-<base64>`).
  */
 export async function downloadTarball(url: string, destPath: string): Promise<string> {
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
 
   if (!res.ok) {
     throw new Error(`Failed to download tarball: ${res.status} ${res.statusText} (${url})`);
