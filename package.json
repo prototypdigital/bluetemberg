@@ -10,7 +10,8 @@
     ".": "./dist/index.js",
     "./sync": "./dist/sync/index.js",
     "./sync/pipeline": "./dist/sync/pipeline.js",
-    "./sync/adapter-contract": "./dist/sync/adapter-contract.js"
+    "./sync/adapter-contract": "./dist/sync/adapter-contract.js",
+    "./registry": "./dist/registry/index.js"
   },
   "repository": {
     "type": "git",
@@ -47,12 +48,15 @@
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
     "commander": "^13.0.0",
-    "gray-matter": "^4.0.3"
+    "gray-matter": "^4.0.3",
+    "semver": "^7.7.4",
+    "tar": "^7.5.13"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
     "@commitlint/config-conventional": "^19.0.0",
     "@types/node": "^22.0.0",
+    "@types/semver": "^7.7.1",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.7.0",
