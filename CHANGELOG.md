@@ -20,6 +20,21 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.2](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.1...bluetemberg-v0.2.2) (2026-04-11)
+
+
+### Features
+
+* **registry:** add community rule registry with pack management ([c38e9f2](https://github.com/prototypdigital/bluetemberg/commit/c38e9f28715215f7836ecc58fcfeabf34c52a58a))
+* **registry:** add community rule registry with pack management ([fe213bb](https://github.com/prototypdigital/bluetemberg/commit/fe213bbcee27d7e706c9cb663969b4b808659ed5))
+
+
+### Bug Fixes
+
+* **registry:** address all PR [#37](https://github.com/prototypdigital/bluetemberg/issues/37) review issues ([db3ac12](https://github.com/prototypdigital/bluetemberg/commit/db3ac124f0054efd7ca83868581b1b6cb4495a79))
+* **registry:** address security and correctness issues in pack management ([f72d404](https://github.com/prototypdigital/bluetemberg/commit/f72d40480c62c484da6c73939b3131d406cf7dfb))
+* **registry:** tighten path traversal check and add prune summary to install log ([d8dd226](https://github.com/prototypdigital/bluetemberg/commit/d8dd2262648668897ea00fb038caf2cf9a1b73ec))
+
 ## [0.2.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.0...bluetemberg-v0.2.1) (2026-04-10)
 
 
