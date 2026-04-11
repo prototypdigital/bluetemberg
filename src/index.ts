@@ -6,6 +6,7 @@ export {
   remove as registryRemove,
   list as registryList,
   install as registryInstall,
+  update as registryUpdate,
   search as registrySearch,
   resolvePackSourceDirs,
 } from './registry/index.js';
@@ -22,5 +23,6 @@ export type {
   PackageLockEntry,
   InstalledPackage,
   NpmSearchResult,
+  RegistryUpdateOptions,
 } from './types.js';
 export type { AdapterContext, AdapterRecordError, AdapterRunFn } from './sync/adapter-contract.js';

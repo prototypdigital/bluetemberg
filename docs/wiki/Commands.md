@@ -94,6 +94,21 @@ bluetemberg install
 bluetemberg install --force
 ```
 
+## `bluetemberg update [package]`
+
+Re-resolve and upgrade rule packs to the best version satisfying their manifest range. See [Registry](Registry) for full details.
+
+```bash
+bluetemberg update
+bluetemberg update @company/rules-frontend
+bluetemberg update --latest
+```
+
+| Option | Description |
+| ------ | ----------- |
+| `--latest` | Widen ranges to `"latest"` in manifest, not just re-resolve current range |
+| `--silent` | Suppress all output |
+
 ## `bluetemberg search <query>`
 
 Search npm for rule packs tagged with `bluetemberg-pack`.

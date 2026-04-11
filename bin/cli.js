@@ -136,6 +136,27 @@ program
   });
 
 program
+  .command('update')
+  .description('Update rule packs to the latest version satisfying their manifest range')
+  .argument('[package]', 'Package name to update (updates all when omitted)')
+  .option('--latest', 'Widen ranges to "latest" in manifest, not just re-resolve current range')
+  .option('--silent', 'Suppress all output')
+  .action(async (packageName, options) => {
+    const { update } = await import('../dist/registry/index.js');
+    try {
+      await update(process.cwd(), packageName, {
+        latest: options.latest,
+        silent: options.silent,
+      });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
   .command('search')
   .description('Search the npm registry for bluetemberg rule packs')
   .argument('<query>', 'Search query')
