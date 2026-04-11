@@ -79,8 +79,8 @@ async function extractTarball(tmpFile: string, dest: string, packageName: string
           throw new Error(`Malicious tarball for "${packageName}": entry "${path}" is a symlink`);
         }
       }
-      // Reject path traversal.
-      if (path.includes('..')) {
+      // Reject path traversal — check each segment so `my..file` is not falsely rejected.
+      if (path.split('/').some((seg) => seg === '..')) {
         throw new Error(`Malicious tarball for "${packageName}": entry "${path}" contains path traversal`);
       }
       return true;

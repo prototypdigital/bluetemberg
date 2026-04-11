@@ -241,7 +241,10 @@ export async function install(
   writeLockfile(root, lock, source);
   ensureGitignore(root);
 
-  log(`\nInstalled ${installed.length} pack(s).`);
+  const pruned = staleNames.length;
+  const summary = [`\nInstalled ${installed.length} pack(s).`];
+  if (pruned > 0) summary.push(`Pruned ${pruned} stale lockfile entr${pruned === 1 ? 'y' : 'ies'}.`);
+  log(summary.join(' '));
 
   return installed;
 }
