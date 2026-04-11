@@ -143,6 +143,34 @@ Run this after cloning a repo or when the lockfile has new entries from a teamma
 | `--force` | Force re-download even if cached |
 | `--silent` | Suppress all output |
 
+### `bluetemberg update [package]`
+
+Re-resolve and upgrade rule packs to the best version satisfying their current manifest range.
+
+```bash
+bluetemberg update                  # re-resolves all manifest packs
+bluetemberg update @company/rules   # re-resolves a single pack
+bluetemberg update --latest         # widens all ranges to "latest" in the manifest
+```
+
+**What it does (for each pack):**
+
+1. Fetches the latest metadata from the registry.
+2. Resolves the best version satisfying the current range (or `"latest"` if `--latest`).
+3. Downloads and installs the new version if it differs from the locked one.
+4. Removes the previously cached version when the version changed.
+5. Updates `llm/rule-packages-lock.json` (and `llm/rule-packages.json` when `--latest`).
+6. Logs what changed (e.g. `@company/rules 1.0.0 → 1.2.3`).
+
+After updating, run `bluetemberg sync` to apply the changes.
+
+**Options:**
+
+| Option | Description |
+| ------ | ----------- |
+| `--latest` | Widen each pack's range to `"latest"` in the manifest, not just re-resolve the current range |
+| `--silent` | Suppress all output |
+
 ### `bluetemberg search <query>`
 
 Search the npm registry for rule packs. By default only returns packages with the `bluetemberg-pack` keyword.
@@ -217,12 +245,22 @@ import {
   registryRemove,
   registryList,
   registryInstall,
+  registryUpdate,
   registrySearch,
   resolvePackSourceDirs,
 } from '@prototypdigital/bluetemberg';
 
 // Add a pack
 await registryAdd('/path/to/project', 'my-rules@^1.0.0');
+
+// Update all packs to the latest satisfying version
+await registryUpdate('/path/to/project');
+
+// Update a single pack
+await registryUpdate('/path/to/project', '@company/rules');
+
+// Widen all ranges to "latest"
+await registryUpdate('/path/to/project', undefined, { latest: true });
 
 // List installed packs
 const packs = registryList('/path/to/project', { silent: true });

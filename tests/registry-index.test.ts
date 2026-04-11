@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { resolvePackSourceDirs } from '../src/registry/index.js';
-import { writeManifest, writeLockfile, readManifest } from '../src/registry/manifest.js';
+import { resolvePackSourceDirs, update } from '../src/registry/index.js';
+import { writeManifest, writeLockfile, readManifest, readLockfile } from '../src/registry/manifest.js';
 import { packVersionDir } from '../src/registry/installer.js';
 
 function createTmpDir(): string {
@@ -250,5 +250,193 @@ describe('sync integration with packs', () => {
     const cursorOutput = readFileSync(join(root, '.cursor', 'rules', 'shared.mdc'), 'utf8');
     expect(cursorOutput).toContain('local version');
     expect(cursorOutput).not.toContain('pack version');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// update
+// ---------------------------------------------------------------------------
+
+vi.mock('../src/registry/client.js', () => ({
+  fetchPackageMetadata: vi.fn(),
+  searchPackages: vi.fn(),
+  downloadTarball: vi.fn(),
+  verifyIntegrity: vi.fn(),
+}));
+
+vi.mock('../src/registry/installer.js', async (importOriginal) => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  type InstallerModule = typeof import('../src/registry/installer.js');
+  const actual = await importOriginal<InstallerModule>();
+  return {
+    ...actual,
+    installPackVersion: vi.fn(),
+    removePackVersion: vi.fn(),
+  };
+});
+
+describe('update', () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = createTmpDir();
+    setupProject(root);
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  async function mockInstallPackVersion(version: string): Promise<void> {
+    const { installPackVersion } = await import('../src/registry/installer.js');
+    vi.mocked(installPackVersion).mockResolvedValue({
+      version,
+      resolved: `https://registry.npmjs.org/pack-a/-/pack-a-${version}.tgz`,
+      integrity: `sha512-mock-${version}`,
+    });
+  }
+
+  async function mockFetchMetadata(name: string, versions: string[]): Promise<void> {
+    const { fetchPackageMetadata } = await import('../src/registry/client.js');
+    const versionsMap: Record<
+      string,
+      { name: string; version: string; dist: { tarball: string; shasum: string; integrity: string } }
+    > = {};
+    for (const v of versions) {
+      versionsMap[v] = {
+        name,
+        version: v,
+        dist: {
+          tarball: `https://registry.npmjs.org/${name}/-/${name}-${v}.tgz`,
+          shasum: 'abc123',
+          integrity: `sha512-mock-${v}`,
+        },
+      };
+    }
+    vi.mocked(fetchPackageMetadata).mockResolvedValue({
+      name,
+      'dist-tags': { latest: versions[versions.length - 1] },
+      versions: versionsMap,
+    });
+  }
+
+  it('throws when packageName is not in manifest', async () => {
+    writeManifest(root, { packages: {} });
+
+    await expect(update(root, 'nonexistent', { silent: true })).rejects.toThrow(
+      'Package "nonexistent" is not in the manifest',
+    );
+  });
+
+  it('returns empty array and no-ops when manifest has no packages', async () => {
+    writeManifest(root, { packages: {} });
+
+    const results = await update(root, undefined, { silent: true });
+
+    expect(results).toEqual([]);
+  });
+
+  it('upgrades a pack when a newer version satisfies the range', async () => {
+    writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: { 'pack-a': { version: '1.0.0', resolved: 'x', integrity: 'y' } },
+    });
+
+    await mockFetchMetadata('pack-a', ['1.0.0', '1.2.3']);
+    await mockInstallPackVersion('1.2.3');
+
+    const results = await update(root, undefined, { silent: true });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].version).toBe('1.2.3');
+
+    const lock = readLockfile(root);
+    expect(lock.packages['pack-a'].version).toBe('1.2.3');
+
+    // Manifest range must not change when --latest is not set.
+    const manifest = readManifest(root);
+    expect(manifest.packages['pack-a']).toBe('^1.0.0');
+  });
+
+  it('skips download when locked version matches resolved version and is cached', async () => {
+    writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: { 'pack-a': { version: '1.2.0', resolved: 'x', integrity: 'y' } },
+    });
+
+    // Create cache so isPackCached returns true.
+    mkdirSync(packVersionDir(root, 'pack-a', '1.2.0'), { recursive: true });
+
+    await mockFetchMetadata('pack-a', ['1.0.0', '1.2.0']);
+
+    const { installPackVersion } = await import('../src/registry/installer.js');
+    const results = await update(root, undefined, { silent: true });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].version).toBe('1.2.0');
+    expect(vi.mocked(installPackVersion)).not.toHaveBeenCalled();
+  });
+
+  it('removes old cached version after upgrading', async () => {
+    writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: { 'pack-a': { version: '1.0.0', resolved: 'x', integrity: 'y' } },
+    });
+
+    await mockFetchMetadata('pack-a', ['1.0.0', '1.2.3']);
+    await mockInstallPackVersion('1.2.3');
+
+    const { removePackVersion } = await import('../src/registry/installer.js');
+    await update(root, undefined, { silent: true });
+
+    expect(vi.mocked(removePackVersion)).toHaveBeenCalledWith(root, 'pack-a', '1.0.0');
+  });
+
+  it('widens range to "latest" and updates manifest when --latest is set', async () => {
+    writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: { 'pack-a': { version: '1.0.0', resolved: 'x', integrity: 'y' } },
+    });
+
+    await mockFetchMetadata('pack-a', ['1.0.0', '2.0.0']);
+    await mockInstallPackVersion('2.0.0');
+
+    await update(root, undefined, { latest: true, silent: true });
+
+    const manifest = readManifest(root);
+    expect(manifest.packages['pack-a']).toBe('latest');
+
+    const lock = readLockfile(root);
+    expect(lock.packages['pack-a'].version).toBe('2.0.0');
+  });
+
+  it('updates only the specified package when packageName is provided', async () => {
+    writeManifest(root, { packages: { 'pack-a': '^1.0.0', 'pack-b': '^2.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: {
+        'pack-a': { version: '1.0.0', resolved: 'x', integrity: 'y' },
+        'pack-b': { version: '2.0.0', resolved: 'x', integrity: 'y' },
+      },
+    });
+
+    await mockFetchMetadata('pack-a', ['1.0.0', '1.5.0']);
+    await mockInstallPackVersion('1.5.0');
+
+    const { fetchPackageMetadata } = await import('../src/registry/client.js');
+    const results = await update(root, 'pack-a', { silent: true });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe('pack-a');
+    expect(results[0].version).toBe('1.5.0');
+
+    // pack-b should not have been fetched.
+    expect(vi.mocked(fetchPackageMetadata)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetchPackageMetadata)).toHaveBeenCalledWith('pack-a', undefined);
   });
 });

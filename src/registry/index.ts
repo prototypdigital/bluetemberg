@@ -16,6 +16,7 @@ import type {
   RegistryListOptions,
   RegistryRemoveOptions,
   RegistrySearchOptions,
+  RegistryUpdateOptions,
 } from '../types.js';
 import { loadConfig } from '../sync/index.js';
 
@@ -247,6 +248,117 @@ export async function install(
   log(summary.join(' '));
 
   return installed;
+}
+
+// ---------------------------------------------------------------------------
+// update
+// ---------------------------------------------------------------------------
+
+/**
+ * Update rule packs to the best version satisfying their current manifest range.
+ *
+ * For each pack (or just `packageName` if specified):
+ * 1. Fetches the latest metadata from the registry.
+ * 2. Resolves the best version satisfying the current range (or `"latest"` if
+ *    `options.latest` is set).
+ * 3. Downloads and installs the new version if it differs from the locked one.
+ * 4. Removes the previously cached version when upgraded.
+ * 5. Updates the lockfile (and manifest when `--latest` widens the range).
+ *
+ * @param root - Project root directory.
+ * @param packageName - Optional single package to update; updates all when omitted.
+ */
+export async function update(
+  root: string,
+  packageName?: string,
+  options: RegistryUpdateOptions = {},
+): Promise<InstalledPackage[]> {
+  const log = options.silent ? () => {} : console.log;
+  const config = loadConfig(root);
+  const source = config.source || 'llm';
+
+  const manifest = readManifest(root, source);
+  const lock = readLockfile(root, source);
+
+  if (packageName !== undefined && !(packageName in manifest.packages)) {
+    throw new Error(`Package "${packageName}" is not in the manifest`);
+  }
+
+  const names = packageName ? [packageName] : Object.keys(manifest.packages);
+
+  if (names.length === 0) {
+    log('No rule packs in manifest.');
+    return [];
+  }
+
+  log(`Updating ${names.length} pack(s)...\n`);
+
+  const results: InstalledPackage[] = [];
+  let changedCount = 0;
+
+  for (const name of names) {
+    const currentRange = manifest.packages[name];
+    const range = options.latest ? 'latest' : currentRange;
+    const currentLock = lock.packages[name];
+    const previousVersion = currentLock?.version;
+
+    log(`  Resolving ${name}@${range}...`);
+
+    const metadata = await fetchPackageMetadata(name, manifest.registry);
+    const version = resolveVersion(metadata, range);
+
+    if (previousVersion === version && isPackCached(root, name, version)) {
+      log(`  ${name}@${version} (up to date)`);
+      results.push({
+        name,
+        range: manifest.packages[name],
+        version,
+        path: resolvePackSourceDir(root, name, version) || '',
+      });
+      continue;
+    }
+
+    const arrow = previousVersion ? ` ${previousVersion} →` : '';
+    log(`  ${name}${arrow} ${version} (downloading...)`);
+
+    const lockEntry = await installPackVersion(root, metadata, version);
+
+    // Remove the old cached version after a successful install.
+    if (previousVersion && previousVersion !== version) {
+      removePackVersion(root, name, previousVersion);
+    }
+
+    lock.packages[name] = lockEntry;
+
+    if (options.latest) {
+      manifest.packages[name] = 'latest';
+    }
+
+    const finalRange = manifest.packages[name];
+    results.push({
+      name,
+      range: finalRange,
+      version,
+      path: resolvePackSourceDir(root, name, version) || '',
+    });
+
+    log(`  Updated ${name}${arrow} ${version}`);
+    changedCount++;
+  }
+
+  writeLockfile(root, lock, source);
+
+  if (options.latest) {
+    writeManifest(root, manifest, source);
+  }
+
+  ensureGitignore(root);
+
+  const summary = [`\n${changedCount} pack(s) updated.`];
+  if (changedCount > 0) summary.push(`Run "bluetemberg sync" to apply the changes.`);
+  log(summary.join(' '));
+
+  return results;
 }
 
 // ---------------------------------------------------------------------------

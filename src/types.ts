@@ -211,3 +211,11 @@ export interface RegistryListOptions {
   /** Suppress output. */
   silent?: boolean;
 }
+
+/** Options for `registry.update()`. */
+export interface RegistryUpdateOptions {
+  /** Suppress output. */
+  silent?: boolean;
+  /** Widen each package's range to "latest" in the manifest, not just re-resolve the current range. */
+  latest?: boolean;
+}
