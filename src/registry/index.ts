@@ -263,7 +263,8 @@ export async function install(
  *    `options.latest` is set).
  * 3. Downloads and installs the new version if it differs from the locked one.
  * 4. Removes the previously cached version when upgraded.
- * 5. Updates the lockfile (and manifest when `--latest` widens the range).
+ * 5. Prunes lockfile entries for packages no longer in the manifest (full update only).
+ * 6. Updates the lockfile (and manifest when `--latest` widens the range).
  *
  * @param root - Project root directory.
  * @param packageName - Optional single package to update; updates all when omitted.
@@ -346,6 +347,18 @@ export async function update(
     changedCount++;
   }
 
+  // Prune stale lockfile entries (only on full update, not single-package targeting).
+  let prunedCount = 0;
+  if (!packageName) {
+    for (const name of Object.keys(lock.packages)) {
+      if (!(name in manifest.packages)) {
+        delete lock.packages[name];
+        log(`  Pruned stale lockfile entry: ${name}`);
+        prunedCount++;
+      }
+    }
+  }
+
   writeLockfile(root, lock, source);
 
   if (options.latest) {
@@ -355,7 +368,8 @@ export async function update(
   ensureGitignore(root);
 
   const summary = [`\n${changedCount} pack(s) updated.`];
-  if (changedCount > 0) summary.push(`Run "bluetemberg sync" to apply the changes.`);
+  if (prunedCount > 0) summary.push(`${prunedCount} stale lockfile entry(s) pruned.`);
+  if (changedCount > 0 || prunedCount > 0) summary.push(`Run "bluetemberg sync" to apply the changes.`);
   log(summary.join(' '));
 
   return results;

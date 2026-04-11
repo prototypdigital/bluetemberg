@@ -439,4 +439,44 @@ describe('update', () => {
     expect(vi.mocked(fetchPackageMetadata)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(fetchPackageMetadata)).toHaveBeenCalledWith('pack-a', undefined);
   });
+
+  it('prunes stale lockfile entries not present in the manifest on full update', async () => {
+    writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: {
+        'pack-a': { version: '1.0.0', resolved: 'x', integrity: 'y' },
+        'pack-stale': { version: '3.0.0', resolved: 'x', integrity: 'y' },
+      },
+    });
+
+    // pack-a is already up to date and cached.
+    mkdirSync(packVersionDir(root, 'pack-a', '1.0.0'), { recursive: true });
+    await mockFetchMetadata('pack-a', ['1.0.0']);
+
+    await update(root, undefined, { silent: true });
+
+    const lock = readLockfile(root);
+    expect('pack-stale' in lock.packages).toBe(false);
+    expect('pack-a' in lock.packages).toBe(true);
+  });
+
+  it('does not prune stale entries when targeting a single package', async () => {
+    writeManifest(root, { packages: { 'pack-a': '^1.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: {
+        'pack-a': { version: '1.0.0', resolved: 'x', integrity: 'y' },
+        'pack-stale': { version: '3.0.0', resolved: 'x', integrity: 'y' },
+      },
+    });
+
+    mkdirSync(packVersionDir(root, 'pack-a', '1.0.0'), { recursive: true });
+    await mockFetchMetadata('pack-a', ['1.0.0']);
+
+    await update(root, 'pack-a', { silent: true });
+
+    const lock = readLockfile(root);
+    expect('pack-stale' in lock.packages).toBe(true);
+  });
 });
