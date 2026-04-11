@@ -3,7 +3,13 @@ name: Commitlint
 on:
   pull_request:
     branches: [main]
-    types: [opened, edited, synchronize]
+    types: [opened, edited, synchronize, reopened]
+  # pull_request_target fires for bot-created PRs (e.g. release-please) where
+  # pull_request does not. PR title comes from the event payload, not the
+  # checked-out code, so this is safe to use here.
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
   commitlint:
