@@ -60,6 +60,49 @@ npx bluetemberg sync --prune
 npx bluetemberg sync ./my-project
 ```
 
+## `bluetemberg add <package>`
+
+Install a rule pack from the npm registry. See [Registry](Registry) for full details.
+
+```bash
+bluetemberg add @company/rules-frontend
+bluetemberg add @company/rules-frontend@^1.2.0
+```
+
+## `bluetemberg remove <package>`
+
+Remove a rule pack from the project.
+
+```bash
+bluetemberg remove @company/rules-frontend
+```
+
+## `bluetemberg list`
+
+List installed rule packs with their resolved versions.
+
+```bash
+bluetemberg list
+```
+
+## `bluetemberg install`
+
+Install all packs from the manifest (`llm/rule-packages.json`). Run after cloning a repo.
+
+```bash
+bluetemberg install
+bluetemberg install --force
+```
+
+## `bluetemberg search <query>`
+
+Search npm for rule packs tagged with `bluetemberg-pack`.
+
+```bash
+bluetemberg search typescript
+bluetemberg search frontend rules --limit 10
+```
+
 ## Exit codes
 
 | Code | When |
