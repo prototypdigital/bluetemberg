@@ -70,5 +70,8 @@
     "bin/",
     "dist/",
     "templates/"
+  ],
+  "workspaces": [
+    "packages/*"
   ]
 }

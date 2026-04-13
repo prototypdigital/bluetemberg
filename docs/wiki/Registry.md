@@ -205,6 +205,35 @@ Downloaded packs are extracted to `.bluetemberg/packs/<name>/<version>/`. This d
 - Can be deleted and restored via `bluetemberg install`.
 - Includes an integrity marker file (`.bluetemberg-integrity`) for cache validation.
 
+## Official rule collections
+
+Bluetemberg ships official rule collections as registry packages. These group the bundled rule templates by domain:
+
+| Package | Rules | Description |
+|---------|-------|-------------|
+| `bluetemberg-rules-typescript` | `type-safety`, `coding-standards`, `early-returns`, `no-console-log` | TypeScript code quality |
+| `bluetemberg-rules-git` | `git-move`, `pre-commit-checks` | Git workflow standards |
+| `bluetemberg-rules-security` | `never-read-env`, `security-secrets` | Security guardrails |
+| `bluetemberg-rules-docs` | `docs-parity`, `post-edit-diagnostics` | Documentation & diagnostics |
+| `bluetemberg-rules-frontend` | `design-system-reuse` | Frontend-specific |
+| `bluetemberg-rules-backend` | `api-error-handling` | Backend-specific |
+| `bluetemberg-rules-devops` | `docker-best-practices`, `terraform-conventions` | Infrastructure |
+
+### Using collections via init
+
+When running `bluetemberg init`, select **Rule collections (registry packages)** as the rule source. The wizard will suggest collections based on your team profile and write a `llm/rule-packages.json` manifest. Then run `bluetemberg install` to download the packages.
+
+### Using collections manually
+
+```bash
+bluetemberg add bluetemberg-rules-typescript
+bluetemberg add bluetemberg-rules-git
+bluetemberg install
+bluetemberg sync
+```
+
+Local rules in `llm/rules/` always take priority over collection rules, so you can override any rule by creating a file with the same name.
+
 ## Publishing a rule pack
 
 To publish your own rule pack:

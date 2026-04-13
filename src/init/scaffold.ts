@@ -3,7 +3,15 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureDir } from '../utils/fs.js';
 import { DEFAULT_TARGETS } from '../sync/transform.js';
-import type { InitAnswers, BlueprintConfig, Platform, TargetConfig, SkillTargetConfig } from '../types.js';
+import type {
+  InitAnswers,
+  BlueprintConfig,
+  Platform,
+  TargetConfig,
+  SkillTargetConfig,
+  PackageManifest,
+} from '../types.js';
+import { RULE_COLLECTION_PRESETS } from './presets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
@@ -12,7 +20,12 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   const created: string[] = [];
 
   scaffoldConfig(targetDir, answers, created);
-  scaffoldRules(targetDir, answers, created);
+
+  if (answers.ruleSource === 'collections') {
+    scaffoldRuleCollections(targetDir, answers, created);
+  } else {
+    scaffoldRules(targetDir, answers, created);
+  }
 
   if (answers.includeAgents) {
     scaffoldAgents(targetDir, answers, created);
@@ -56,7 +69,8 @@ function readExistingAdapters(configPath: string): string[] | undefined {
 function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string[]): void {
   const targets: BlueprintConfig['targets'] = {};
 
-  if (answers.rules.length > 0) {
+  const hasRules = answers.rules.length > 0 || (answers.ruleCollections?.length ?? 0) > 0;
+  if (hasRules) {
     targets.rules = {};
     for (const p of answers.platforms) {
       const t = DEFAULT_TARGETS.rules[p];
@@ -108,6 +122,22 @@ function scaffoldRules(targetDir: string, answers: InitAnswers, created: string[
     copyFileSync(src, dest);
     created.push(dest);
   }
+}
+
+function scaffoldRuleCollections(targetDir: string, answers: InitAnswers, created: string[]): void {
+  if (answers.ruleCollections.length === 0) return;
+
+  const packages: Record<string, string> = {};
+  for (const collectionId of answers.ruleCollections) {
+    const preset = RULE_COLLECTION_PRESETS.find((c) => c.id === collectionId);
+    if (!preset) continue;
+    packages[preset.packageName] = '0.1.0';
+  }
+
+  const manifest: PackageManifest = { packages };
+  const manifestPath = join(targetDir, 'llm', 'rule-packages.json');
+  ensureDir(dirname(manifestPath));
+  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
 function scaffoldAgents(targetDir: string, answers: InitAnswers, created: string[]): void {
