@@ -10,17 +10,16 @@ A PR that changes behavior without updating docs is not done.
 ## What counts as user-facing
 
 - New or removed CLI flags, commands, or options
-- Changes to the init wizard (new questions, removed choices, changed defaults)
-- New or removed rule, agent, or skill templates
-- Config schema changes (`bluetemberg.config.json`)
-- Changes to sync behavior or platform output
+- Changes to user-facing workflows (new prompts, removed choices, changed defaults)
+- New or removed public APIs, config options, or schema fields
+- Changes to output behavior or generated artifacts
 
 ## Required behavior
 
 When any of the above change:
 
-1. Update `README.md` if the change affects the install flow, wizard description, or sync table.
-2. Update the relevant `docs/wiki/` page if one covers the changed area.
+1. Update `README.md` if the change affects setup, usage, or the feature overview.
+2. Update the relevant documentation page if one covers the changed area.
 3. Include the doc update in the same commit as the code change — not a follow-up.
 
 ## When NOT required

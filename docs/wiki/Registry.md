@@ -211,12 +211,10 @@ Bluetemberg ships official rule collections as registry packages. These group th
 
 | Package | Rules | Description |
 |---------|-------|-------------|
-| `bluetemberg-rules-typescript` | `type-safety`, `coding-standards`, `early-returns`, `no-console-log` | TypeScript code quality |
-| `bluetemberg-rules-git` | `git-move`, `pre-commit-checks` | Git workflow standards |
-| `bluetemberg-rules-security` | `never-read-env`, `security-secrets` | Security guardrails |
+| `bluetemberg-rules-typescript` | `type-safety`, `coding-standards`, `early-returns`, `no-console-log`, `design-system-reuse` | TypeScript code quality |
+| `bluetemberg-rules-git` | `git-workflow`, `git-move`, `pre-commit-checks` | Git workflow standards |
+| `bluetemberg-rules-security` | `never-read-env`, `security-secrets`, `api-error-handling` | Security guardrails |
 | `bluetemberg-rules-docs` | `docs-parity`, `post-edit-diagnostics` | Documentation & diagnostics |
-| `bluetemberg-rules-frontend` | `design-system-reuse` | Frontend-specific |
-| `bluetemberg-rules-backend` | `api-error-handling` | Backend-specific |
 | `bluetemberg-rules-devops` | `docker-best-practices`, `terraform-conventions` | Infrastructure |
 
 ### Using collections via init

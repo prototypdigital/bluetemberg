@@ -21,6 +21,10 @@ logger.info("Fetching page", { slug });
 logger.error("Something went wrong", { error: err });
 ```
 
+## Exceptions
+
+CLI entry points and files whose sole purpose is user-facing terminal output may use `console.log` directly. All other `src/` code must use a structured logger.
+
 ## Why
 
 - `console.*` calls leak implementation details and unstructured output into production.

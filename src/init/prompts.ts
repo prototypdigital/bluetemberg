@@ -63,7 +63,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
       { value: 'collections', name: 'Rule collections (registry packages)' },
       { value: 'templates', name: 'Individual templates (copied locally)' },
     ],
-    default: 'collections',
+    default: 'templates',
   });
 
   let rules: string[] = [];

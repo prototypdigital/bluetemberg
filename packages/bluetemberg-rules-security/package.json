@@ -1,7 +1,7 @@
 {
   "name": "bluetemberg-rules-security",
   "version": "0.1.0",
-  "description": "Security guardrail rules for Bluetemberg — secrets management, environment file protection.",
+  "description": "Security guardrail rules for Bluetemberg — secrets management, environment file protection, API error handling.",
   "keywords": [
     "bluetemberg-pack",
     "rules",

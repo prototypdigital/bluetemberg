@@ -131,7 +131,7 @@ function scaffoldRuleCollections(targetDir: string, answers: InitAnswers, create
   for (const collectionId of answers.ruleCollections) {
     const preset = RULE_COLLECTION_PRESETS.find((c) => c.id === collectionId);
     if (!preset) continue;
-    packages[preset.packageName] = '0.1.0';
+    packages[preset.packageName] = '^0.1.0';
   }
 
   const manifest: PackageManifest = { packages };

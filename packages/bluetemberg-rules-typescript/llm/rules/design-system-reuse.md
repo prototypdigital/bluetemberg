@@ -1,6 +1,6 @@
 ---
 description: Reuse existing shared UI components and design tokens before creating new ones.
-scope: "**"
+scope: "**/*.{tsx,jsx,svelte,vue}"
 ---
 
 # Design system usage

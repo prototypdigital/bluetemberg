@@ -1,7 +1,7 @@
 {
   "name": "bluetemberg-rules-typescript",
   "version": "0.1.0",
-  "description": "TypeScript code quality rules for Bluetemberg — type safety, coding standards, early returns, no console.log.",
+  "description": "TypeScript code quality rules for Bluetemberg — type safety, coding standards, early returns, no console.log, design system reuse.",
   "keywords": [
     "bluetemberg-pack",
     "rules",
