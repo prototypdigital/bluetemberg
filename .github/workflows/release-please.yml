@@ -7,12 +7,9 @@ on:
 jobs:
   release-please:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - name: Generate app token
-        uses: actions/create-github-app-token@v3.1.1
+        uses: actions/create-github-app-token@v3
         id: app-token
         with:
           client-id: ${{ secrets.GH_APP_CLIENT_ID }}
