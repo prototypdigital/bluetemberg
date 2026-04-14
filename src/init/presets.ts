@@ -1,4 +1,10 @@
-import type { PresetItem, PlatformChoice, PackageManagerChoice, TeamProfileChoice } from '../types.js';
+import type {
+  PresetItem,
+  PlatformChoice,
+  PackageManagerChoice,
+  TeamProfileChoice,
+  RuleCollectionPreset,
+} from '../types.js';
 
 export const TEAM_PROFILES: TeamProfileChoice[] = [
   { id: 'frontend', name: 'Frontend', description: 'UI, design systems, accessibility' },
@@ -112,6 +118,49 @@ export const RULE_PRESETS: PresetItem[] = [
     name: 'Terraform conventions',
     description: 'Module structure, naming, state management',
     default: false,
+    tags: ['devops'],
+  },
+];
+
+export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
+  {
+    id: 'typescript',
+    name: 'TypeScript',
+    packageName: 'bluetemberg-rules-typescript',
+    description: 'Type safety, coding standards, early returns, no console.log, design system reuse',
+    rules: ['type-safety', 'coding-standards', 'early-returns', 'no-console-log', 'design-system-reuse'],
+    tags: ['frontend', 'backend', 'fullstack'],
+  },
+  {
+    id: 'git',
+    name: 'Git',
+    packageName: 'bluetemberg-rules-git',
+    description: 'Git workflow, git move, pre-commit checks',
+    rules: ['git-workflow', 'git-move', 'pre-commit-checks'],
+    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+  },
+  {
+    id: 'security',
+    name: 'Security',
+    packageName: 'bluetemberg-rules-security',
+    description: 'Never read .env, secrets management, API error handling',
+    rules: ['never-read-env', 'security-secrets', 'api-error-handling'],
+    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+  },
+  {
+    id: 'docs',
+    name: 'Docs',
+    packageName: 'bluetemberg-rules-docs',
+    description: 'Docs parity, post-edit diagnostics',
+    rules: ['docs-parity', 'post-edit-diagnostics'],
+    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+  },
+  {
+    id: 'devops',
+    name: 'DevOps',
+    packageName: 'bluetemberg-rules-devops',
+    description: 'Docker best practices, Terraform conventions',
+    rules: ['docker-best-practices', 'terraform-conventions'],
     tags: ['devops'],
   },
 ];

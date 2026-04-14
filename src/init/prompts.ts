@@ -2,6 +2,7 @@ import { input, select, checkbox, confirm } from '@inquirer/prompts';
 import { basename } from 'node:path';
 import {
   RULE_PRESETS,
+  RULE_COLLECTION_PRESETS,
   AGENT_PRESETS,
   SKILL_PRESETS,
   MCP_SERVER_PRESETS,
@@ -9,7 +10,7 @@ import {
   PACKAGE_MANAGERS,
   TEAM_PROFILES,
 } from './presets.js';
-import type { InitAnswers, Platform, PackageManager, TeamProfile, PresetItem } from '../types.js';
+import type { InitAnswers, Platform, PackageManager, TeamProfile, PresetItem, RuleSource } from '../types.js';
 
 function resolveDefaults(presets: PresetItem[], profile: TeamProfile): PresetItem[] {
   if (profile === 'custom') return presets;
@@ -56,18 +57,43 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     required: true,
   });
 
-  const rulePresets = resolveDefaults(RULE_PRESETS, teamProfile);
-  const universalRuleIds = rulePresets.filter((r) => r.universal).map((r) => r.id);
-  const selectedRules = await checkbox<string>({
-    message: 'Starter rules:',
-    choices: rulePresets.map((r) => ({
-      value: r.id,
-      name: `${r.name} — ${r.description}`,
-      checked: r.universal || r.default,
-      disabled: r.universal ? '(required)' : false,
-    })),
+  const ruleSource = await select<RuleSource>({
+    message: 'Rule source:',
+    choices: [
+      { value: 'collections', name: 'Rule collections (registry packages)' },
+      { value: 'templates', name: 'Individual templates (copied locally)' },
+    ],
+    default: 'templates',
   });
-  const rules = [...new Set([...universalRuleIds, ...selectedRules])];
+
+  let rules: string[] = [];
+  let ruleCollections: string[] = [];
+
+  if (ruleSource === 'collections') {
+    const collectionChoices = RULE_COLLECTION_PRESETS.map((c) => ({
+      value: c.id,
+      name: `${c.name} — ${c.description}`,
+      checked: teamProfile === 'custom' ? false : (c.tags?.includes(teamProfile) ?? false),
+    }));
+
+    ruleCollections = await checkbox<string>({
+      message: 'Rule collections:',
+      choices: collectionChoices,
+    });
+  } else {
+    const rulePresets = resolveDefaults(RULE_PRESETS, teamProfile);
+    const universalRuleIds = rulePresets.filter((r) => r.universal).map((r) => r.id);
+    const selectedRules = await checkbox<string>({
+      message: 'Starter rules:',
+      choices: rulePresets.map((r) => ({
+        value: r.id,
+        name: `${r.name} — ${r.description}`,
+        checked: r.universal || r.default,
+        disabled: r.universal ? '(required)' : false,
+      })),
+    });
+    rules = [...new Set([...universalRuleIds, ...selectedRules])];
+  }
 
   const includeAgents = await confirm({
     message: 'Include agent orchestration?',
@@ -128,7 +154,9 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     projectDescription,
     packageManager,
     platforms,
+    ruleSource,
     rules,
+    ruleCollections,
     includeAgents,
     agents,
     includeSkills,

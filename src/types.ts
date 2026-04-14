@@ -38,13 +38,26 @@ export interface BlueprintConfig {
   adapters?: string[];
 }
 
+export type RuleSource = 'templates' | 'collections';
+
+export interface RuleCollectionPreset {
+  id: string;
+  name: string;
+  packageName: string;
+  description: string;
+  rules: string[];
+  tags?: TeamProfile[];
+}
+
 export interface InitAnswers {
   teamProfile: TeamProfile;
   projectName: string;
   projectDescription: string;
   packageManager: PackageManager;
   platforms: Platform[];
+  ruleSource: RuleSource;
   rules: string[];
+  ruleCollections: string[];
   includeAgents: boolean;
   agents: string[];
   includeSkills: boolean;

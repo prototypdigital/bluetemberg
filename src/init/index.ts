@@ -31,8 +31,14 @@ export async function init(targetPath?: string): Promise<void> {
 
   const pm = answers.packageManager === 'npm' ? 'npm run' : answers.packageManager;
   console.log('\n  Done! Next steps:\n');
-  console.log('  1. Review the generated files in llm/');
-  console.log('  2. Customize rules, agents, and skills for your project');
-  console.log(`  3. Run \`${pm} sync:llm-config\` after any changes to llm/`);
+  if (answers.ruleSource === 'collections') {
+    console.log('  1. Run `bluetemberg install` to download rule collections');
+    console.log(`  2. Run \`${pm} sync:llm-config\` to generate platform files`);
+    console.log('  3. Add project-specific rules in llm/rules/ to override collection rules');
+  } else {
+    console.log('  1. Review the generated files in llm/');
+    console.log('  2. Customize rules, agents, and skills for your project');
+    console.log(`  3. Run \`${pm} sync:llm-config\` after any changes to llm/`);
+  }
   console.log('');
 }

@@ -1,0 +1,19 @@
+{
+  "name": "bluetemberg-rules-git",
+  "version": "0.1.0",
+  "description": "Git workflow rules for Bluetemberg — branch protection, naming, PR workflow, git move, pre-commit checks.",
+  "keywords": [
+    "bluetemberg-pack",
+    "rules",
+    "git",
+    "workflow"
+  ],
+  "author": "Prototyp Digital",
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "files": [
+    "llm/"
+  ]
+}

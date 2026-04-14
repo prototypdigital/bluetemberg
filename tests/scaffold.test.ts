@@ -17,7 +17,9 @@ const baseAnswers: InitAnswers = {
   projectDescription: 'A test project.',
   packageManager: 'npm',
   platforms: ['cursor', 'claude', 'copilot'],
+  ruleSource: 'templates',
   rules: ['coding-standards', 'early-returns'],
+  ruleCollections: [],
   includeAgents: false,
   agents: [],
   includeSkills: false,
@@ -126,6 +128,65 @@ describe('scaffold', () => {
 
       const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
       expect(config.adapters).toEqual(['my-custom-adapter']);
+    });
+  });
+
+  describe('rule collections', () => {
+    const collectionsAnswers: InitAnswers = {
+      ...baseAnswers,
+      ruleSource: 'collections',
+      rules: [],
+      ruleCollections: ['typescript', 'git'],
+    };
+
+    it('writes llm/rule-packages.json with selected collection package names', () => {
+      scaffold(root, collectionsAnswers);
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'rule-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-rules-typescript']).toBeDefined();
+      expect(manifest.packages['bluetemberg-rules-git']).toBeDefined();
+    });
+
+    it('writes semver ranges, not exact pins', () => {
+      scaffold(root, collectionsAnswers);
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'rule-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-rules-typescript']).toBe('^0.1.0');
+      expect(manifest.packages['bluetemberg-rules-git']).toBe('^0.1.0');
+    });
+
+    it('does not create llm/rule-packages.json when ruleCollections is empty', () => {
+      scaffold(root, { ...collectionsAnswers, ruleCollections: [] });
+
+      expect(existsSync(join(root, 'llm', 'rule-packages.json'))).toBe(false);
+    });
+
+    it('does not copy rule templates into llm/rules/ when ruleSource is collections', () => {
+      scaffold(root, collectionsAnswers);
+
+      expect(existsSync(join(root, 'llm', 'rules', 'coding-standards.md'))).toBe(false);
+    });
+
+    it('includes rules targets in config when collections are selected', () => {
+      scaffold(root, collectionsAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.targets.rules?.cursor).toBeDefined();
+    });
+
+    it('omits rules targets in config when collections list is empty', () => {
+      scaffold(root, { ...collectionsAnswers, ruleCollections: [] });
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.targets.rules).toBeUndefined();
+    });
+
+    it('skips unknown collection ids gracefully', () => {
+      scaffold(root, { ...collectionsAnswers, ruleCollections: ['typescript', 'nonexistent'] });
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'rule-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-rules-typescript']).toBeDefined();
+      expect(Object.keys(manifest.packages)).toHaveLength(1);
     });
   });
 
