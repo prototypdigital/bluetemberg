@@ -3,7 +3,7 @@ name: Commitlint
 on:
   pull_request:
     branches: [main]
-    types: [opened, edited, synchronize]
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
   commitlint:
