@@ -20,6 +20,14 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.5](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.4...bluetemberg-v0.2.5) (2026-05-02)
+
+
+### Features
+
+* **init:** add --silent, shared catalog, and clearer config errors ([e277f35](https://github.com/prototypdigital/bluetemberg/commit/e277f35c0b4c020266df6d9b6a90efd501845a25))
+* **init:** add --silent, shared catalog, and clearer config errors ([9a68e55](https://github.com/prototypdigital/bluetemberg/commit/9a68e555a0bbe6fedc37caab30d2756cc7bbe450))
+
 ## [0.2.4](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.3...bluetemberg-v0.2.4) (2026-05-02)
 
 
