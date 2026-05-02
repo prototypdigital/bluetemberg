@@ -45,9 +45,9 @@ Developing from a clone: run `npm run build` before `bin/cli.js` — the CLI imp
 
 The interactive wizard will ask you to pick:
 
-- **Team profile** — frontend, backend, full-stack, DevOps, or custom (sets smart defaults for everything below)
+- **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), or Custom — sets defaults for rules, agents, and skills (`--profile pure-infra` in headless runs)
 - Target platforms (Cursor / Claude / Copilot / Gemini CLI)
-- Starter rules — universal guardrails are always included; profile-specific rules are pre-checked based on your team type
+- Starter rules — **universal guardrails depend on profile** (`pure-infra` omits app-code-centric universals—see wiki **Profiles**); other defaults are pre-checked by team type
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
 - MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)
@@ -88,7 +88,7 @@ your-project/
 
 ## Universal guardrails
 
-Seven rules are always included regardless of team profile and cannot be deselected in the wizard. They represent the baseline every project needs:
+**Default set (Frontend, Backend, Full-stack, DevOps / Platform, Custom):** seven rules cannot be deselected in the wizard:
 
 | Rule                    | What it enforces                                        |
 | ----------------------- | ------------------------------------------------------- |
@@ -100,7 +100,11 @@ Seven rules are always included regardless of team profile and cannot be deselec
 | `pre-commit-checks`     | Formatter, linter, and build pass before every commit   |
 | `docs-parity`           | Doc updates ship in the same commit as behavior changes |
 
-All other rules are opt-in and filtered by your chosen team profile.
+**Pure Infrastructure (`pure-infra`):** for repos with no application source (Ansible, K8s, Terraform, Compose, etc.), the wizard omits the app-centric rules above (`coding-standards`, `early-returns`, `post-edit-diagnostics`). It still forces `git-move`, `never-read-env`, `pre-commit-checks`, and `docs-parity`.
+
+All other rules are opt-in defaults by profile (or fully manual for Custom).
+
+Detail: [`docs/wiki/Profiles.md`](docs/wiki/Profiles.md) (**Pure Infrastructure** section).
 
 ## Sync
 
