@@ -103,20 +103,55 @@ export const RULE_PRESETS: PresetItem[] = [
     id: 'security-secrets',
     name: 'Security — secrets',
     description: 'Never hardcode secrets, tokens, or credentials',
-    default: false,
+    default: true,
     tags: ['backend', 'fullstack', 'devops'],
   },
   {
     id: 'docker-best-practices',
     name: 'Docker best practices',
     description: 'Multi-stage builds, non-root users, layer caching',
-    default: false,
+    default: true,
     tags: ['devops'],
   },
   {
     id: 'terraform-conventions',
     name: 'Terraform conventions',
     description: 'Module structure, naming, state management',
+    default: false,
+    tags: ['devops'],
+  },
+  {
+    id: 'ansible-conventions',
+    name: 'Ansible conventions',
+    description: 'FQCN modules, idempotency, Jinja2 safety',
+    default: false,
+    tags: ['devops'],
+  },
+  {
+    id: 'container-image-pinning',
+    name: 'Container image pinning',
+    description: 'Pin image versions to prevent unexpected changes',
+    default: true,
+    tags: ['devops'],
+  },
+  {
+    id: 'jinja2-templates',
+    name: 'Jinja2 templates',
+    description: 'Safe, readable templates with `| default()` and variable scope',
+    default: false,
+    tags: ['devops'],
+  },
+  {
+    id: 'shell-script-standards',
+    name: 'Shell script standards',
+    description: 'Safe bash/sh with `set -euo pipefail`, shellcheck, quoting',
+    default: false,
+    tags: ['devops'],
+  },
+  {
+    id: 'ci-workflow-conventions',
+    name: 'CI workflow conventions',
+    description: 'Secure workflows with pinned actions, OIDC, minimal permissions',
     default: false,
     tags: ['devops'],
   },
@@ -166,8 +201,15 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     id: 'devops',
     name: 'DevOps',
     packageName: 'bluetemberg-rules-devops',
-    description: 'Docker best practices, Terraform conventions',
-    rules: ['docker-best-practices', 'terraform-conventions'],
+    description: 'Docker best practices, Ansible, Terraform, CI/CD workflows',
+    rules: [
+      'docker-best-practices',
+      'container-image-pinning',
+      'ansible-conventions',
+      'terraform-conventions',
+      'shell-script-standards',
+      'ci-workflow-conventions',
+    ],
     tags: ['devops'],
   },
 ];
@@ -236,6 +278,13 @@ export const AGENT_PRESETS: PresetItem[] = [
     default: false,
     tags: ['devops'],
   },
+  {
+    id: 'ansible-specialist',
+    name: 'Ansible specialist',
+    description: 'Ansible roles, playbooks, and Jinja2 templates',
+    default: false,
+    tags: ['devops'],
+  },
 ];
 
 export const SKILL_PRESETS: PresetItem[] = [
@@ -294,6 +343,13 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Database migration review, rollback plans',
     default: false,
     tags: ['backend', 'fullstack'],
+  },
+  {
+    id: 'stack-change-review',
+    name: 'Stack change review',
+    description: 'High-blast-radius infrastructure change review',
+    default: false,
+    tags: ['devops'],
   },
 ];
 
