@@ -10,6 +10,8 @@ npm run build
 npm test
 ```
 
+`bin/cli.js` loads compiled modules from `dist/` (for example preset validation constants, **`init`**, and **`--help --json`**). After a clean clone or when TS sources change, run **`npm run build`** before invoking the CLI from the repo root.
+
 ## Scripts
 
 | Script                 | Purpose                       |
@@ -50,6 +52,7 @@ src/
 │   └── registry.ts        # Built-in MCP server presets
 └── init/
     ├── index.ts           # Init wizard orchestrator
+    ├── init-catalog.ts    # Allowed profile/platform/package-manager values (CLI + `--config` validation)
     ├── prompts.ts         # Inquirer prompt definitions
     ├── presets.ts         # Available rule/agent/skill presets
     └── scaffold.ts        # File generation logic

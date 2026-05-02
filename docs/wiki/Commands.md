@@ -22,18 +22,27 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--rules <csv>`, `--rule-collections <csv>` | Respect `rule-source`: template rule ids extend universal rules automatically; registry collection ids apply when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
 | `--omit-agents`, `--omit-skills`, `--omit-mcp` | Shortcut booleans (`--non-interactive` only). |
+| `--silent` | Hide progress/success logs and forward silence to initial `sync` (still exit non-zero on failure). **Requires** `--non-interactive` **or** `--config`. |
 
 **Global discovery:** combine `--help --json` (any position with `--help`/`-h`) to dump team profiles, package managers, rules, collections, agents, skills, MCP presets, and CLI metadata as JSON (`writeSync`-safe for piping).
 
+From the repo root, `npm run build` must have produced `dist/` first — otherwise `bin/cli.js` cannot load catalogs or `--help --json`.
+
 **What it does:**
 
-1. Asks you to pick a **team profile** (sets smart defaults for all subsequent choices)
-2. Asks for project name, description, and package manager
-3. Asks you to pick platforms, rules, agents, skills, and MCP servers
-4. Creates `llm/` directory with selected starter content
+- **Interactive (default)** — Steps 1–3 are prompts:
+  1. Pick a **team profile** (sets smart defaults for everything below).
+  2. Enter project name, description, and package manager.
+  3. Pick platforms, rules/agents/skills/MCP (per your choices).
+- **`--non-interactive`** — Skips prompts 1–3; defaults come from **`--profile`** (default `fullstack`) plus any override flags you pass.
+- **`--config <file>`** — Skips prompts 1–3; answers come entirely from validated JSON (`InitAnswers`).
+
+Then, for **every** run:
+
+4. Creates `llm/` with the resolved starter content
 5. Generates `bluetemberg.config.json`
-6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude selected), and `GEMINI.md` (if Gemini selected, via the initial sync)
-7. Writes `llm/mcp.json` with chosen MCP preset ids (if MCP selected); the initial sync step generates `.claude/mcp.json`, `.github/mcp.json`, and/or `.cursor/mcp.json` from that manifest (per selected platforms)
+6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude is among selected platforms), and `GEMINI.md` (if Gemini is selected — via the initial sync)
+7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync generates `.claude/mcp.json`, `.github/mcp.json`, and/or `.cursor/mcp.json` from that manifest (per selected platforms)
 8. Adds `sync:llm-config` scripts to `package.json`
 9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
 10. Runs an initial sync to generate all platform-specific files
@@ -48,6 +57,7 @@ npx @prototypdigital/bluetemberg init ./my-project
 
 # Headless
 npx @prototypdigital/bluetemberg init --non-interactive --profile devops --omit-mcp
+npx @prototypdigital/bluetemberg init --non-interactive --profile devops --silent
 npx @prototypdigital/bluetemberg init --config ./bluetemberg.init.json ./my-project
 ```
 
