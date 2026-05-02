@@ -120,6 +120,13 @@ export const RULE_PRESETS: PresetItem[] = [
     default: false,
     tags: ['devops'],
   },
+  {
+    id: 'mermaid-diagrams',
+    name: 'Mermaid diagrams',
+    description: 'Prefer Mermaid over ASCII art in documentation',
+    default: false,
+    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+  },
 ];
 
 export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
@@ -151,8 +158,8 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     id: 'docs',
     name: 'Docs',
     packageName: 'bluetemberg-rules-docs',
-    description: 'Docs parity, post-edit diagnostics',
-    rules: ['docs-parity', 'post-edit-diagnostics'],
+    description: 'Docs parity, post-edit diagnostics, Mermaid diagrams',
+    rules: ['docs-parity', 'post-edit-diagnostics', 'mermaid-diagrams'],
     tags: ['frontend', 'backend', 'fullstack', 'devops'],
   },
   {
