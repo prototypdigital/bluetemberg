@@ -2,7 +2,7 @@ export type Platform = 'cursor' | 'claude' | 'copilot' | 'gemini';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
-export type TeamProfile = 'frontend' | 'backend' | 'fullstack' | 'devops' | 'custom';
+export type TeamProfile = 'frontend' | 'backend' | 'fullstack' | 'devops' | 'pure-infra' | 'custom';
 
 export interface TargetConfig {
   dir: string;
@@ -103,6 +103,8 @@ export interface PresetItem {
   default: boolean;
   tags?: TeamProfile[];
   universal?: boolean;
+  /** Profiles for which this rule is NOT forced even when universal is true. */
+  universalExcludeProfiles?: TeamProfile[];
 }
 
 export interface PlatformChoice {
