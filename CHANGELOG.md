@@ -20,6 +20,14 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.4](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.3...bluetemberg-v0.2.4) (2026-05-02)
+
+
+### Features
+
+* **init:** non-interactive mode, JSON config, and machine-readable help ([cae1932](https://github.com/prototypdigital/bluetemberg/commit/cae19324f2e9e2257da4b98bf5372fd16742774d))
+* **init:** non-interactive mode, JSON config, machine-readable help ([2cc543d](https://github.com/prototypdigital/bluetemberg/commit/2cc543de5efffcab077f53ec81c168c843d82f8e))
+
 ## [0.2.3](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.2...bluetemberg-v0.2.3) (2026-05-02)
 
 
