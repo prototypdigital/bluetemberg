@@ -20,6 +20,30 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.3](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.2...bluetemberg-v0.2.3) (2026-05-02)
+
+
+### Features
+
+* **devops:** add Ansible, container, CI workflow rules and specialist agent ([daa37f6](https://github.com/prototypdigital/bluetemberg/commit/daa37f6a73e9ecb9b110813dc717d1cc537da65e))
+* **devops:** add K8s, Helm, idempotency rules, SRE/K8s agents, infra skills, pure-infra profile ([4a39f75](https://github.com/prototypdigital/bluetemberg/commit/4a39f754c01c17448281fe18ff7c83dee172a84a))
+* **devops:** ansible/k8s/infra rules, agents, skills, and pure-infra profile ([1f037d5](https://github.com/prototypdigital/bluetemberg/commit/1f037d5807802636ab3340e9c863cb1f7b40e4e0))
+* **registry:** add bluetemberg update command ([907c460](https://github.com/prototypdigital/bluetemberg/commit/907c46036ec144509d898fef91030db153b29dd8))
+* **registry:** add official rule collection packages ([56eeb2e](https://github.com/prototypdigital/bluetemberg/commit/56eeb2e7c430e575265c8be0fab70aa465e0a018))
+* **registry:** add official rule collection packages ([b92e1f7](https://github.com/prototypdigital/bluetemberg/commit/b92e1f729184eb577ee6d6dcd08cfff29b57009b))
+* **rules:** add mermaid-diagrams rule template ([363e1da](https://github.com/prototypdigital/bluetemberg/commit/363e1da9ad9e9282d2aa57c970f59aa748a6f040))
+* **rules:** add mermaid-diagrams rule template ([8fa6ab6](https://github.com/prototypdigital/bluetemberg/commit/8fa6ab6bb175dad877f9c1a6ebb6b3fbe9439ec7))
+
+
+### Bug Fixes
+
+* **registry:** address all PR review issues ([1103d4c](https://github.com/prototypdigital/bluetemberg/commit/1103d4c0f3e67d8f0ef1c8d6a9586229dcc28bfc))
+* **registry:** prune stale lockfile entries in update command ([928f85c](https://github.com/prototypdigital/bluetemberg/commit/928f85c7fcedc60b140a4c75945336cba0147d69))
+* **release:** remove unnecessary permissions block and pin app token action to v3 ([4429379](https://github.com/prototypdigital/bluetemberg/commit/44293794c8ded7c3bff48f360f9d919bb03b8c29))
+* **release:** trigger CI and commitlint on bot-created PRs ([4364a60](https://github.com/prototypdigital/bluetemberg/commit/4364a60b01a028b25df6b5594932b119b2ed197e))
+* **release:** trigger CI and commitlint on bot-created PRs ([d21aa81](https://github.com/prototypdigital/bluetemberg/commit/d21aa817978844a9115e14e91855c24c8aede5f4))
+* **release:** use GitHub App token in release-please to trigger CI ([19a03d5](https://github.com/prototypdigital/bluetemberg/commit/19a03d5af6d75f8ce3165e83410ae6419fe3e23f))
+
 ## [0.2.2](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.1...bluetemberg-v0.2.2) (2026-04-11)
 
 
