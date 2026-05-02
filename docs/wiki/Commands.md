@@ -57,6 +57,7 @@ npx @prototypdigital/bluetemberg init ./my-project
 
 # Headless
 npx @prototypdigital/bluetemberg init --non-interactive --profile devops --omit-mcp
+npx @prototypdigital/bluetemberg init --non-interactive --profile pure-infra --omit-mcp --silent
 npx @prototypdigital/bluetemberg init --non-interactive --profile devops --silent
 npx @prototypdigital/bluetemberg init --config ./bluetemberg.init.json ./my-project
 ```

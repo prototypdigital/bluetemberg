@@ -87,7 +87,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         },
         {
           long: '--rules <csv>',
-          description: 'Template rule ids (universal rules are always appended).',
+          description:
+            'Template rule ids (profile universal rules are always merged; pure-infra omits app-code universals).',
           requires: '--non-interactive without --config',
         },
         {

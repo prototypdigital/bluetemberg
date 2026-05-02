@@ -209,7 +209,10 @@ program
   .option('--package-manager <id>', 'pnpm | npm | yarn')
   .option('--platforms <csv>', 'Comma-separated platforms (e.g. cursor,claude)')
   .option('--rule-source <mode>', 'templates | collections')
-  .option('--rules <csv>', 'Template rule ids (universal rules are always enforced)')
+  .option(
+    '--rules <csv>',
+    'Template rule ids (profile universal rules are always merged; pure-infra omits app-code universals)',
+  )
   .option('--rule-collections <csv>', 'Collections when `--rule-source collections`')
   .option('--agents <csv>')
   .option('--skills <csv>')
