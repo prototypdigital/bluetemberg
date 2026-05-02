@@ -25,6 +25,19 @@ Set `GITHUB_TOKEN` to a personal access token with `read:packages` scope.
 npx @prototypdigital/bluetemberg init
 ```
 
+Agents and CI never get a usable TTY, so **`init`** also supports deterministic paths:
+
+```bash
+# Profile defaults (+ optional overrides) without prompts
+npx @prototypdigital/bluetemberg init --non-interactive --profile devops
+
+# Full answers from JSON (matches the `InitAnswers` field list in packaged types / `bluetemberg --help --json`)
+npx @prototypdigital/bluetemberg init --config ./bluetemberg.init.json
+
+# Machine-readable catalogs (profiles, rules, agents, skills, MCP presets, CLI flags)
+npx @prototypdigital/bluetemberg --help --json
+```
+
 The interactive wizard will ask you to pick:
 
 - **Team profile** — frontend, backend, full-stack, DevOps, or custom (sets smart defaults for everything below)

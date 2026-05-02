@@ -106,4 +106,67 @@ cliSuite('cli flags', () => {
     const r = runCli(['notacommand'], process.cwd());
     expect(r.status).not.toBe(0);
   });
+
+  it('--help --json exits 0 and prints machine-readable catalog', () => {
+    const r = runCli(['--help', '--json'], repoRoot);
+    expect(r.status).toBe(0);
+    expect(r.stderr ?? '').toBe('');
+    const parsed = JSON.parse(r.stdout.trim()) as {
+      teamProfiles?: unknown;
+      rules?: unknown;
+      cliVersion?: string;
+    };
+    expect(Array.isArray(parsed.teamProfiles)).toBe(true);
+    expect(Array.isArray(parsed.rules)).toBe(true);
+    expect(parsed.cliVersion ?? '').toMatch(/\d+\.\d+\.\d+/);
+  });
+});
+
+cliSuite('cli init headless', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('--non-interactive scaffolds without prompts', () => {
+    const r = runCli(
+      ['init', '--non-interactive', '--profile', 'devops', '--omit-mcp', '--platforms', 'claude', root],
+      root,
+    );
+    expect(r.status).toBe(0);
+    expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
+    expect(existsSync(join(root, 'llm', 'rules'))).toBe(true);
+  });
+
+  it('rejects --config combined with profile overrides', () => {
+    const cfgPath = join(root, 'init.json');
+    writeFileSync(
+      cfgPath,
+      JSON.stringify({
+        teamProfile: 'fullstack',
+        projectName: 'p',
+        projectDescription: '',
+        packageManager: 'pnpm',
+        platforms: ['claude'],
+        ruleSource: 'templates',
+        rules: [],
+        ruleCollections: [],
+        includeAgents: false,
+        agents: [],
+        includeSkills: false,
+        skills: [],
+        includeMcp: false,
+        mcpServers: [],
+      }),
+    );
+
+    const r = runCli(['init', '--config', cfgPath, '--profile', 'devops', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/Cannot combine/);
+  });
 });

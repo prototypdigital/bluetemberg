@@ -1,11 +1,55 @@
-import { resolve, relative } from 'node:path';
 import { existsSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
+
+import { sync } from '../sync/index.js';
+import type { InitAnswers, InitRunOptions } from '../types.js';
+import { finalizeNonInteractiveAnswers } from './init-answers-from-profile.js';
+import { readInitAnswersFromFile } from './parse-init-answers.js';
 import { runPrompts } from './prompts.js';
 import { scaffold } from './scaffold.js';
-import { sync } from '../sync/index.js';
 
-export async function init(targetPath?: string): Promise<void> {
+function assertMutuallyExclusiveInitOptions(run: InitRunOptions): void {
+  if (run.answers) {
+    if (run.configPath) {
+      throw new Error('Init: use either answers or configPath, not both.');
+    }
+    if (run.nonInteractive || run.nonInteractiveOverrides) {
+      throw new Error('Init: intrinsic answers conflict with non-interactive options.');
+    }
+  }
+
+  if (run.configPath && run.nonInteractive) {
+    throw new Error('Init: use either configPath or nonInteractive, not both.');
+  }
+
+  if (run.configPath && run.nonInteractiveOverrides !== undefined) {
+    const entries = Object.keys(run.nonInteractiveOverrides);
+    if (entries.length > 0) {
+      throw new Error('Init: cannot merge nonInteractiveOverrides when using configPath.');
+    }
+  }
+}
+
+async function resolveInitAnswers(targetDir: string, run?: InitRunOptions): Promise<InitAnswers> {
+  const opts = run ?? {};
+
+  if (opts.answers) return opts.answers;
+
+  if (opts.configPath) {
+    return readInitAnswersFromFile(resolve(opts.configPath));
+  }
+
+  if (opts.nonInteractive) {
+    const profile = opts.profile ?? 'fullstack';
+    return finalizeNonInteractiveAnswers(profile, targetDir, opts.nonInteractiveOverrides ?? {});
+  }
+
+  return runPrompts(targetDir);
+}
+
+export async function init(targetPath?: string, run?: InitRunOptions): Promise<void> {
   const targetDir = resolve(targetPath || '.');
+  assertMutuallyExclusiveInitOptions(run ?? {});
 
   console.log(`\n  Bluetemberg — AI tooling scaffolder\n`);
   console.log(`  Target: ${targetDir}\n`);
@@ -16,7 +60,7 @@ export async function init(targetPath?: string): Promise<void> {
     console.log('  Running init will overwrite existing config and llm/ files.\n');
   }
 
-  const answers = await runPrompts(targetDir);
+  const answers = await resolveInitAnswers(targetDir, run);
 
   console.log('\nScaffolding...\n');
   const created = scaffold(targetDir, answers);
