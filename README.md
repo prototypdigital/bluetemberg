@@ -34,9 +34,14 @@ npx @prototypdigital/bluetemberg init --non-interactive --profile devops
 # Full answers from JSON (matches the `InitAnswers` field list in packaged types / `bluetemberg --help --json`)
 npx @prototypdigital/bluetemberg init --config ./bluetemberg.init.json
 
+# Quiet CI logs (still check exit codes; pairs with `--non-interactive` or `--config`)
+npx @prototypdigital/bluetemberg init --non-interactive --profile devops --silent
+
 # Machine-readable catalogs (profiles, rules, agents, skills, MCP presets, CLI flags)
 npx @prototypdigital/bluetemberg --help --json
 ```
+
+Developing from a clone: run `npm run build` before `bin/cli.js` — the CLI imports `dist/` (including `--help --json` and preset validation constants).
 
 The interactive wizard will ask you to pick:
 
@@ -174,5 +179,7 @@ npm install
 npm run build
 npm test
 ```
+
+The checked-in CLI invokes `dist/` (`init`, catalogs, **`--help --json`**): keep **`npm run build`** up to date locally.
 
 See [Contributing](https://github.com/prototypdigital/bluetemberg/wiki/Contributing) for commit conventions and release process.

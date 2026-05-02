@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { program, Option } from 'commander';
+import { program } from 'commander';
 import { readFileSync, writeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,10 +19,13 @@ if (wantsJsonHelp) {
   process.exit(0);
 }
 
-const TEAM_PROFILES = new Set(['frontend', 'backend', 'fullstack', 'devops', 'pure-infra', 'custom']);
-const PLATFORMS = new Set(['cursor', 'claude', 'copilot', 'gemini']);
-const PACKAGE_MANAGERS = new Set(['pnpm', 'npm', 'yarn']);
-const RULE_SOURCES = new Set(['templates', 'collections']);
+const { INIT_TEAM_PROFILES, INIT_PACKAGE_MANAGERS, INIT_PLATFORMS, INIT_RULE_SOURCES } =
+  await import('../dist/init/init-catalog.js');
+
+const TEAM_PROFILES = new Set(INIT_TEAM_PROFILES);
+const PLATFORMS = new Set(INIT_PLATFORMS);
+const PACKAGE_MANAGERS = new Set(INIT_PACKAGE_MANAGERS);
+const RULE_SOURCES = new Set(INIT_RULE_SOURCES);
 
 function argvHas(flag) {
   return argvParts.includes(flag);
@@ -40,6 +43,12 @@ function csvList(value) {
 /**
  * @param {unknown} opts
  */
+function straySilentRequiresNiOrConfig(opts) {
+  if (!argvHas('--silent')) return null;
+  if ((opts.nonInteractive || opts.config) ?? false) return null;
+  return 'Init `--silent` requires `--non-interactive` or `--config`';
+}
+
 function strayHeadlessOptsWithoutNiOrConfig(opts) {
   if ((opts.nonInteractive || opts.config) ?? false) return null;
   /** @type {string[]} */
@@ -192,13 +201,14 @@ program
   .description('Initialize AI tooling in a project')
   .argument('[directory]', 'Target directory', '.')
   .option('--non-interactive', 'Skip prompts — profile defaults plus optional overrides')
+  .option('--silent', 'Suppress progress output (requires --non-interactive or --config)')
   .option('--config <file>', 'Init answers JSON (InitAnswers shape); exclusive with override flags')
   .option('--profile <id>', 'Team profile (same ids as wizard; `--non-interactive` default fullstack)')
   .option('--project-name <name>')
   .option('--project-description <text>')
-  .addOption(new Option('--package-manager <id>', 'pnpm | npm | yarn').choices(Array.from(PACKAGE_MANAGERS)))
+  .option('--package-manager <id>', 'pnpm | npm | yarn')
   .option('--platforms <csv>', 'Comma-separated platforms (e.g. cursor,claude)')
-  .addOption(new Option('--rule-source <mode>').choices(Array.from(RULE_SOURCES)))
+  .option('--rule-source <mode>', 'templates | collections')
   .option('--rules <csv>', 'Template rule ids (universal rules are always enforced)')
   .option('--rule-collections <csv>', 'Collections when `--rule-source collections`')
   .option('--agents <csv>')
@@ -208,6 +218,12 @@ program
   .option('--omit-skills')
   .option('--omit-mcp')
   .action(async (directory, options) => {
+    const msgSilent = straySilentRequiresNiOrConfig(options);
+    if (msgSilent) {
+      console.error(`${msgSilent}.`);
+      process.exit(1);
+    }
+
     const msgExclusive = strayHeadlessOptsWithoutNiOrConfig(options);
     if (msgExclusive) {
       console.error(`${msgExclusive}.`);
@@ -245,8 +261,19 @@ program
       }
     }
 
+    if (options.silent) {
+      initRunOpts.silent = true;
+    }
+
     const { init } = await import('../dist/init/index.js');
-    await init(resolve(directory), initRunOpts);
+    try {
+      await init(resolve(directory), initRunOpts);
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
   });
 
 program

@@ -1,21 +1,12 @@
 import { readFileSync } from 'node:fs';
 
-import type { InitAnswers, PackageManager, Platform, RuleSource, TeamProfile } from '../types.js';
-
-const TEAM_PROFILES: readonly TeamProfile[] = [
-  'frontend',
-  'backend',
-  'fullstack',
-  'devops',
-  'pure-infra',
-  'custom',
-];
-
-const PACKAGE_MANAGERS: readonly PackageManager[] = ['pnpm', 'npm', 'yarn'];
-
-const PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot', 'gemini'];
-
-const RULE_SOURCES: readonly RuleSource[] = ['templates', 'collections'];
+import type { InitAnswers, Platform } from '../types.js';
+import {
+  INIT_PACKAGE_MANAGERS,
+  INIT_PLATFORMS,
+  INIT_RULE_SOURCES,
+  INIT_TEAM_PROFILES,
+} from './init-catalog.js';
 
 function isRecord(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
@@ -51,20 +42,24 @@ function expectEnum<V extends string>(
   allowed: readonly V[],
 ): V {
   const val = record[field];
-  if (typeof val !== 'string' || !(allowed as readonly string[]).includes(val)) {
+  const allowedFlat = allowed as readonly string[];
+  if (typeof val !== 'string' || !allowedFlat.includes(val)) {
     throw new Error(`Init answers invalid: "${field}" must be one of: ${allowed.join(', ')}.`);
   }
+  // Safe: string is a member of `allowed` union (checked via includes against the same tuple).
   return val as V;
 }
 
 function expectPlatforms(record: Record<string, unknown>, field: string): Platform[] {
   const vals = expectStringArray(record, field);
   if (vals.length === 0) throw new Error('Init answers invalid: "platforms" must be a non-empty array.');
+  const platformIds = INIT_PLATFORMS as readonly string[];
   for (const v of vals) {
-    if (!(PLATFORMS as readonly string[]).includes(v)) {
+    if (!platformIds.includes(v)) {
       throw new Error(`Init answers invalid: unknown platform "${v}".`);
     }
   }
+  // Safe: each id was validated against `INIT_PLATFORMS`.
   return vals as Platform[];
 }
 
@@ -73,12 +68,12 @@ export function assertInitAnswers(record: unknown): InitAnswers {
   if (!isRecord(record)) throw new Error('Init answers invalid: expected a JSON object.');
 
   return {
-    teamProfile: expectEnum(record, 'teamProfile', TEAM_PROFILES),
+    teamProfile: expectEnum(record, 'teamProfile', INIT_TEAM_PROFILES),
     projectName: expectString(record, 'projectName'),
     projectDescription: expectString(record, 'projectDescription'),
-    packageManager: expectEnum(record, 'packageManager', PACKAGE_MANAGERS),
+    packageManager: expectEnum(record, 'packageManager', INIT_PACKAGE_MANAGERS),
     platforms: expectPlatforms(record, 'platforms'),
-    ruleSource: expectEnum(record, 'ruleSource', RULE_SOURCES),
+    ruleSource: expectEnum(record, 'ruleSource', INIT_RULE_SOURCES),
     rules: expectStringArray(record, 'rules'),
     ruleCollections: expectStringArray(record, 'ruleCollections'),
     includeAgents: expectBoolean(record, 'includeAgents'),
@@ -110,6 +105,16 @@ export function parseInitAnswersJson(text: string): InitAnswers {
 }
 
 export function readInitAnswersFromFile(absPath: string): InitAnswers {
-  const raw = readFileSync(absPath, 'utf8');
+  let raw: string;
+  try {
+    raw = readFileSync(absPath, 'utf8');
+  } catch (err: unknown) {
+    if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT') {
+      throw new Error(`Init config not found: ${absPath}`);
+    }
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`Init config could not be read: ${absPath} (${detail})`);
+  }
+
   return parseInitAnswersJson(raw);
 }

@@ -60,6 +60,11 @@ export function getMachineReadableHelp(): Record<string, unknown> {
       options: [
         { long: '--non-interactive', description: 'Use profile defaults plus optional overrides (no TTY).' },
         {
+          long: '--silent',
+          description: 'Suppress progress and success messages (still check exit status).',
+          requires: '`--non-interactive` or `--config`',
+        },
+        {
           long: '--config <file>',
           description: 'Apply InitAnswers JSON from disk (exclusive with init overrides).',
         },

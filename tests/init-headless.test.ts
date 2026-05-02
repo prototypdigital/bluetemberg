@@ -14,6 +14,7 @@ import {
   assertInitAnswers,
   normalizeInitAnswers,
   parseInitAnswersJson,
+  readInitAnswersFromFile,
 } from '../src/init/parse-init-answers.js';
 import type { InitAnswers } from '../src/types.js';
 
@@ -65,6 +66,16 @@ describe('parseInitAnswersJson', () => {
 describe('assertInitAnswers', () => {
   it('throws if record is not an object', () => {
     expect(() => assertInitAnswers(null)).toThrow(/expected a JSON object/);
+  });
+});
+
+describe('readInitAnswersFromFile', () => {
+  it('maps ENOENT to a clear error message', () => {
+    expect(() =>
+      readInitAnswersFromFile(
+        join('/nonexistent-dir', `missing-${Math.random().toString(36).slice(2)}.json`),
+      ),
+    ).toThrow(/Init config not found:/);
   });
 });
 

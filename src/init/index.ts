@@ -49,40 +49,45 @@ async function resolveInitAnswers(targetDir: string, run?: InitRunOptions): Prom
 
 export async function init(targetPath?: string, run?: InitRunOptions): Promise<void> {
   const targetDir = resolve(targetPath || '.');
+  const silent = Boolean(run?.silent);
   assertMutuallyExclusiveInitOptions(run ?? {});
 
-  console.log(`\n  Bluetemberg — AI tooling scaffolder\n`);
-  console.log(`  Target: ${targetDir}\n`);
+  const log = (...args: Parameters<typeof console.log>) => {
+    if (!silent) console.log(...args);
+  };
+
+  log(`\n  Bluetemberg — AI tooling scaffolder\n`);
+  log(`  Target: ${targetDir}\n`);
 
   const configExists = existsSync(resolve(targetDir, 'bluetemberg.config.json'));
   if (configExists) {
-    console.log('  ⚠ bluetemberg.config.json already exists in this directory.');
-    console.log('  Running init will overwrite existing config and llm/ files.\n');
+    log('  ⚠ bluetemberg.config.json already exists in this directory.');
+    log('  Running init will overwrite existing config and llm/ files.\n');
   }
 
   const answers = await resolveInitAnswers(targetDir, run);
 
-  console.log('\nScaffolding...\n');
+  log('\nScaffolding...\n');
   const created = scaffold(targetDir, answers);
 
-  console.log(`Created ${created.length} files:\n`);
+  log(`Created ${created.length} files:\n`);
   for (const f of created) {
-    console.log(`  ${relative(targetDir, f)}`);
+    log(`  ${relative(targetDir, f)}`);
   }
 
-  console.log('\nRunning initial sync...\n');
-  await sync(targetDir);
+  log('\nRunning initial sync...\n');
+  await sync(targetDir, { silent });
 
   const pm = answers.packageManager === 'npm' ? 'npm run' : answers.packageManager;
-  console.log('\n  Done! Next steps:\n');
+  log('\n  Done! Next steps:\n');
   if (answers.ruleSource === 'collections') {
-    console.log('  1. Run `bluetemberg install` to download rule collections');
-    console.log(`  2. Run \`${pm} sync:llm-config\` to generate platform files`);
-    console.log('  3. Add project-specific rules in llm/rules/ to override collection rules');
+    log('  1. Run `bluetemberg install` to download rule collections');
+    log(`  2. Run \`${pm} sync:llm-config\` to generate platform files`);
+    log('  3. Add project-specific rules in llm/rules/ to override collection rules');
   } else {
-    console.log('  1. Review the generated files in llm/');
-    console.log('  2. Customize rules, agents, and skills for your project');
-    console.log(`  3. Run \`${pm} sync:llm-config\` after any changes to llm/`);
+    log('  1. Review the generated files in llm/');
+    log('  2. Customize rules, agents, and skills for your project');
+    log(`  3. Run \`${pm} sync:llm-config\` after any changes to llm/`);
   }
-  console.log('');
+  log('');
 }

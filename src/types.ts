@@ -78,6 +78,8 @@ export interface InitRunOptions {
   nonInteractiveOverrides?: Partial<InitAnswers>;
   /** Bypass prompt/config resolution (embedded callers). */
   answers?: InitAnswers;
+  /** When true, omit progress and success output; forwarded to initial `sync()` as well. */
+  silent?: boolean;
 }
 
 export interface SyncOptions {

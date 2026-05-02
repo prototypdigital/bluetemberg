@@ -143,6 +143,28 @@ cliSuite('cli init headless', () => {
     expect(existsSync(join(root, 'llm', 'rules'))).toBe(true);
   });
 
+  it('rejects --config when the path is missing', () => {
+    const missing = join(root, 'no-init-config-here.json');
+    const r = runCli(['init', '--config', missing, root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/Error: Init config not found:/);
+    expect(r.stderr ?? '').not.toMatch(/readFileUtf8|readFileSync/);
+  });
+
+  it('accepts --silent only with `--non-interactive` or `--config`', () => {
+    const r = runCli(['init', '--silent', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/`--silent` requires `--non-interactive`/);
+  });
+
+  it('--non-interactive --silent exits 0 with minimal output', () => {
+    const r = runCli(['init', '--non-interactive', '--silent', '--platforms', 'claude', root], root);
+    expect(r.status).toBe(0);
+    expect((r.stdout ?? '').trim()).toBe('');
+    expect((r.stderr ?? '').trim()).toBe('');
+    expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
+  });
+
   it('rejects --config combined with profile overrides', () => {
     const cfgPath = join(root, 'init.json');
     writeFileSync(
