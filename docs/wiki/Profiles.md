@@ -6,11 +6,11 @@ The first question the `init` wizard asks is **Team profile**. Your answer sets 
 
 Each preset (rule, agent, skill) has a `tags` array listing which profiles consider it a default. When you pick a profile, every preset tagged with that profile is pre-checked in the wizard. Presets not tagged for your profile are still available — just unchecked.
 
-Universal rules bypass this system entirely. They are always included and cannot be deselected, regardless of which profile you pick.
+Forced **universal** rules cannot be unchecked in the wizard, but **`pure-infra` uses a smaller universal set**: it skips app-code-centric rules (`coding-standards`, `early-returns`, `post-edit-diagnostics`). See [Pure Infrastructure](#pure-infrastructure) below.
 
-## Universal guardrails (always included)
+## Universal guardrails — default profiles
 
-These rules are included in every project. They appear checked and marked **(required)** in the wizard.
+These seven rules apply to **Frontend**, **Backend**, **Full-stack**, **DevOps / Platform**, and **Custom**. They appear checked and marked **(required)** in the wizard.
 
 | Rule | What it enforces |
 | ---- | ---------------- |
@@ -232,4 +232,4 @@ This profile shares most rules with DevOps / Platform but does not force-include
 
 ## Custom
 
-Pick everything individually. No presets are pre-checked (except universal guardrails, which are always included). Use this when your project doesn't fit a standard profile or when you want full control.
+Pick everything individually. No presets are pre-checked (except universal guardrails: the **seven-rule default set**, same table as Frontend). Use this when your project doesn't fit a standard profile or when you want full control.
