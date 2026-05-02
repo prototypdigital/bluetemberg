@@ -82,15 +82,20 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     });
   } else {
     const rulePresets = resolveDefaults(RULE_PRESETS, teamProfile);
-    const universalRuleIds = rulePresets.filter((r) => r.universal).map((r) => r.id);
+    const universalRuleIds = rulePresets
+      .filter((r) => r.universal && !r.universalExcludeProfiles?.includes(teamProfile))
+      .map((r) => r.id);
     const selectedRules = await checkbox<string>({
       message: 'Starter rules:',
-      choices: rulePresets.map((r) => ({
-        value: r.id,
-        name: `${r.name} — ${r.description}`,
-        checked: r.universal || r.default,
-        disabled: r.universal ? '(required)' : false,
-      })),
+      choices: rulePresets.map((r) => {
+        const isForced = r.universal && !r.universalExcludeProfiles?.includes(teamProfile);
+        return {
+          value: r.id,
+          name: `${r.name} — ${r.description}`,
+          checked: isForced || r.default,
+          disabled: isForced ? '(required)' : false,
+        };
+      }),
     });
     rules = [...new Set([...universalRuleIds, ...selectedRules])];
   }
