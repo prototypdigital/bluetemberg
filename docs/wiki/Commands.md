@@ -2,11 +2,28 @@
 
 ## `bluetemberg init [directory]`
 
-Interactive wizard that scaffolds AI tooling into a project.
+Interactive wizard that scaffolds AI tooling into a project. When you need reproducible installs (agents, CI, infrastructure scripts), prefer **non-interactive** mode or **`--config`**.
 
 **Arguments:**
 
 - `directory` — target directory (default: current directory)
+
+**Options:**
+
+| Option | Notes |
+| ------ | ----- |
+| `--non-interactive` | Use the same preset logic as the wizard for the chosen `--profile` (default profile: `fullstack`), then merge optional overrides. Exclusive with `--config`. |
+| `--config <file>` | Validate JSON against `InitAnswers` (`teamProfile`, `projectName`, `platforms`, `ruleSource`, `rules`, `ruleCollections`, boolean includes, arrays, …). Overrides like `--profile`, `--omit-mcp`, and CSV lists cannot be mixed with `--config`. |
+| `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `custom`). |
+| `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
+| `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
+| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). `--non-interactive` only. |
+| `--rule-source` | Values: `templates` or `collections`. `--non-interactive` only. |
+| `--rules <csv>`, `--rule-collections <csv>` | Respect `rule-source`: template rule ids extend universal rules automatically; registry collection ids apply when `--rule-source collections`. |
+| `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
+| `--omit-agents`, `--omit-skills`, `--omit-mcp` | Shortcut booleans (`--non-interactive` only). |
+
+**Global discovery:** combine `--help --json` (any position with `--help`/`-h`) to dump team profiles, package managers, rules, collections, agents, skills, MCP presets, and CLI metadata as JSON (`writeSync`-safe for piping).
 
 **What it does:**
 
@@ -28,7 +45,13 @@ Universal guardrail rules are always included and shown as non-deselectable in t
 ```bash
 npx @prototypdigital/bluetemberg init
 npx @prototypdigital/bluetemberg init ./my-project
+
+# Headless
+npx @prototypdigital/bluetemberg init --non-interactive --profile devops --omit-mcp
+npx @prototypdigital/bluetemberg init --config ./bluetemberg.init.json ./my-project
 ```
+
+Programmatic callers can keep using `init(root, opts)`/`scaffold(...)`/`sync(...)` exported from the package (`InitRunOptions` describes the programmatic mirror of the CLI knobs).
 
 ## `bluetemberg sync [directory]`
 

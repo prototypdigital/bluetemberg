@@ -10,16 +10,8 @@ import {
   PACKAGE_MANAGERS,
   TEAM_PROFILES,
 } from './presets.js';
-import type { InitAnswers, Platform, PackageManager, TeamProfile, PresetItem, RuleSource } from '../types.js';
-
-function resolveDefaults(presets: PresetItem[], profile: TeamProfile): PresetItem[] {
-  if (profile === 'custom') return presets;
-
-  return presets.map((p) => ({
-    ...p,
-    default: p.tags?.includes(profile) ?? p.default,
-  }));
-}
+import type { InitAnswers, Platform, PackageManager, TeamProfile, RuleSource } from '../types.js';
+import { resolvePresetDefaults } from './preset-resolution.js';
 
 export async function runPrompts(targetDir: string): Promise<InitAnswers> {
   const teamProfile = await select<TeamProfile>({
@@ -81,7 +73,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
       choices: collectionChoices,
     });
   } else {
-    const rulePresets = resolveDefaults(RULE_PRESETS, teamProfile);
+    const rulePresets = resolvePresetDefaults(RULE_PRESETS, teamProfile);
     const universalRuleIds = rulePresets
       .filter((r) => r.universal && !r.universalExcludeProfiles?.includes(teamProfile))
       .map((r) => r.id);
@@ -107,7 +99,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let agents: string[] = [];
   if (includeAgents) {
-    const agentPresets = resolveDefaults(AGENT_PRESETS, teamProfile);
+    const agentPresets = resolvePresetDefaults(AGENT_PRESETS, teamProfile);
     agents = await checkbox<string>({
       message: 'Specialist agents:',
       choices: agentPresets.map((a) => ({
@@ -125,7 +117,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let skills: string[] = [];
   if (includeSkills) {
-    const skillPresets = resolveDefaults(SKILL_PRESETS, teamProfile);
+    const skillPresets = resolvePresetDefaults(SKILL_PRESETS, teamProfile);
     skills = await checkbox<string>({
       message: 'Starter skills:',
       choices: skillPresets.map((s) => ({

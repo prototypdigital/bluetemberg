@@ -1,5 +1,6 @@
 export { sync, loadConfig, shouldExitWithFailure } from './sync/index.js';
 export { init } from './init/index.js';
+export { scaffold } from './init/scaffold.js';
 export { transformFrontmatter, DEFAULT_TARGETS } from './sync/transform.js';
 export {
   add as registryAdd,
@@ -14,6 +15,7 @@ export type {
   Platform,
   BlueprintConfig,
   InitAnswers,
+  InitRunOptions,
   SyncOptions,
   SyncResults,
   RuleFrontmatter,

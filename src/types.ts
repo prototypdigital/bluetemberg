@@ -66,6 +66,20 @@ export interface InitAnswers {
   mcpServers: string[];
 }
 
+/** Options for `init()` besides the target directory (CLI parity). */
+export interface InitRunOptions {
+  /** Read full answers from `--config` JSON. */
+  configPath?: string;
+  /** Use profile baseline + optional `nonInteractiveOverrides` instead of prompts. */
+  nonInteractive?: boolean;
+  /** Team profile for non-interactive mode (default `fullstack`). Ignored when `configPath` is set. */
+  profile?: TeamProfile;
+  /** Merged onto `buildInitAnswersFromProfile` when `nonInteractive` is true (ignored when `configPath`). */
+  nonInteractiveOverrides?: Partial<InitAnswers>;
+  /** Bypass prompt/config resolution (embedded callers). */
+  answers?: InitAnswers;
+}
+
 export interface SyncOptions {
   check?: boolean;
   config?: BlueprintConfig;
