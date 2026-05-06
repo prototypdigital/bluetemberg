@@ -96,9 +96,7 @@ describe('syncMarketplace', () => {
 
     await sync(root, { config, silent: true });
 
-    const marketplaceJson = JSON.parse(
-      readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'),
-    );
+    const marketplaceJson = JSON.parse(readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'));
 
     expect(marketplaceJson.plugins).toHaveLength(2);
     expect(marketplaceJson.plugins[0].name).toBe('frontend');

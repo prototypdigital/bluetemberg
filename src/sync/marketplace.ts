@@ -145,10 +145,7 @@ function emitPlugin(
   };
 }
 
-export function syncMarketplace(
-  ctx: MarketplaceSyncContext,
-  recordError: (msg: string) => void,
-): void {
+export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: string) => void): void {
   const allSkills = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
     existsSync(join(dirPath, 'SKILL.md')),
   );
@@ -158,7 +155,9 @@ export function syncMarketplace(
 
   const projectName = basename(ctx.root);
 
-  ctx.log(`Marketplace: ${ctx.plugins.length} plugin(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)`);
+  ctx.log(
+    `Marketplace: ${ctx.plugins.length} plugin(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)`,
+  );
 
   ensureDir(join(ctx.root, '.claude-plugin'));
 
@@ -179,10 +178,16 @@ export function syncMarketplace(
       null,
       2,
     );
-    commitPlannedWrite(ctx, join(ctx.root, 'plugins', pluginDef.name, '.claude-plugin', 'plugin.json'), pluginJson);
+    commitPlannedWrite(
+      ctx,
+      join(ctx.root, 'plugins', pluginDef.name, '.claude-plugin', 'plugin.json'),
+      pluginJson,
+    );
 
     if (!ctx.checkMode) {
-      ctx.log(`  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents)`);
+      ctx.log(
+        `  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents)`,
+      );
     }
   }
 
