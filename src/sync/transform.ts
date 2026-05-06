@@ -60,7 +60,7 @@ export function transformFrontmatter(data: RuleFrontmatter, platform: Platform):
 }
 
 export const DEFAULT_TARGETS: {
-  rules: Record<Platform, TargetConfig>;
+  rules: Partial<Record<Platform, TargetConfig>>;
   agents: Partial<Record<Platform, TargetConfig>>;
   skills: Partial<Record<Platform, SkillTargetConfig>>;
 } = {
