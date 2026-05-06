@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
 import { ensureDir } from '../utils/fs.js';
@@ -10,6 +10,7 @@ import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { runOptionalAdapters } from './adapters-runner.js';
+import { syncMarketplace } from './marketplace.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
@@ -22,7 +23,7 @@ import type {
   SkillTargetConfig,
 } from '../types.js';
 
-const VALID_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot', 'gemini'];
+const VALID_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot', 'gemini', 'claude-marketplace'];
 
 function validateTargets(targets: unknown, configPath: string): void {
   if (targets === undefined) {
@@ -246,6 +247,14 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
+
+  if (ctx.platforms.includes('claude-marketplace')) {
+    const projectName = basename(root);
+    const pluginDefs = ctx.config.marketplace?.plugins ?? [
+      { name: projectName, displayName: projectName, description: '' },
+    ];
+    syncMarketplace(ctx, ctx.sourceDirs, projectName, pluginDefs);
+  }
 
   await runOptionalAdapters(
     {

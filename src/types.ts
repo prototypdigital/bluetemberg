@@ -1,4 +1,4 @@
-export type Platform = 'cursor' | 'claude' | 'copilot' | 'gemini';
+export type Platform = 'cursor' | 'claude' | 'copilot' | 'gemini' | 'claude-marketplace';
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
@@ -13,6 +13,29 @@ export interface SkillTargetConfig {
   dir: string;
 }
 
+export interface MarketplacePluginDefinition {
+  /** Plugin identifier, used as directory name under `plugins/`. */
+  name: string;
+  /** Human-readable display name shown in Claude Desktop. */
+  displayName?: string;
+  /** Short description shown in Claude Desktop. */
+  description?: string;
+  /**
+   * Team profiles this plugin targets. When set, only llm/ files tagged with a matching
+   * profile are included. When omitted, all llm/ content is included.
+   */
+  profiles?: TeamProfile[];
+}
+
+export interface MarketplaceConfig {
+  /**
+   * Plugin definitions. Each entry becomes one installable plugin in the marketplace.
+   * When omitted, bluetemberg emits a single plugin named after the project containing
+   * all llm/ skills and agents.
+   */
+  plugins?: MarketplacePluginDefinition[];
+}
+
 export interface BlueprintConfig {
   platforms: Platform[];
   source: string;
@@ -21,6 +44,11 @@ export interface BlueprintConfig {
     agents?: Partial<Record<Platform, TargetConfig>>;
     skills?: Partial<Record<Platform, SkillTargetConfig>>;
   };
+  /**
+   * Marketplace plugin definitions. Only used when `claude-marketplace` is in `platforms`.
+   * Controls how llm/ content maps to installable plugins.
+   */
+  marketplace?: MarketplaceConfig;
   /**
    * Additional source directories to merge with the local `source` directory.
    * Supports relative paths (e.g. `"../../"` for monorepo root) and npm package names

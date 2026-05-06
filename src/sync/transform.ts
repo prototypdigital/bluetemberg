@@ -54,13 +54,16 @@ export function transformFrontmatter(data: RuleFrontmatter, platform: Platform):
         glob: Array.isArray(scope) ? scope.join(',') : scope,
       };
 
+    case 'claude-marketplace':
+      return { description, paths: Array.isArray(scope) ? scope : [scope] };
+
     default:
       throw new Error(`Unknown platform: ${platform as string}`);
   }
 }
 
 export const DEFAULT_TARGETS: {
-  rules: Record<Platform, TargetConfig>;
+  rules: Partial<Record<Platform, TargetConfig>>;
   agents: Partial<Record<Platform, TargetConfig>>;
   skills: Partial<Record<Platform, SkillTargetConfig>>;
 } = {
