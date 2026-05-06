@@ -4,10 +4,12 @@ import matter from 'gray-matter';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
+// RULE_PRESETS included for forward-compatibility if rules are ever added to marketplace output
 import { RULE_PRESETS, AGENT_PRESETS, SKILL_PRESETS } from '../init/presets.js';
 import type { MarketplacePluginDefinition, TeamProfile } from '../types.js';
 
-/** Build a lookup map from preset ID → profile tags, covering rules, agents, and skills. */
+/** Lookup map from preset ID → profile tags, covering rules, agents, and skills. */
+// tags values are constrained to TeamProfile by TEAM_PROFILES — cast is safe
 const PRESET_PROFILES: Map<string, TeamProfile[]> = new Map(
   [...RULE_PRESETS, ...AGENT_PRESETS, ...SKILL_PRESETS].map((p) => [p.id, (p.tags ?? []) as TeamProfile[]]),
 );
@@ -58,7 +60,7 @@ function readSkillMeta(skillDir: string, sourceParent: string): FileMeta {
       profiles: resolveProfiles(skillDir, (data.profiles as TeamProfile[]) || []),
     };
   } catch {
-    return { name: skillDir, description: '', profiles: PRESET_PROFILES.get(skillDir) ?? [] };
+    return { name: skillDir, description: '', profiles: resolveProfiles(skillDir, []) };
   }
 }
 
@@ -73,7 +75,7 @@ function readAgentMeta(agentFile: string, sourceDir: string): FileMeta {
       profiles: resolveProfiles(id, (data.profiles as TeamProfile[]) || []),
     };
   } catch {
-    return { name: id, description: '', profiles: PRESET_PROFILES.get(id) ?? [] };
+    return { name: id, description: '', profiles: resolveProfiles(id, []) };
   }
 }
 
