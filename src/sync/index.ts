@@ -253,7 +253,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
     ];
-    syncMarketplace(ctx, ctx.sourceDirs, projectName, pluginDefs);
+    syncMarketplace({ ...ctx, plugins: pluginDefs }, (msg) => recordError(ctx, msg));
   }
 
   await runOptionalAdapters(

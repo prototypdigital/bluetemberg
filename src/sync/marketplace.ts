@@ -6,19 +6,12 @@ import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import type { MarketplacePluginDefinition, TeamProfile } from '../types.js';
 
-interface MarketplaceSyncContext extends SyncSink {
+export interface MarketplaceSyncContext extends SyncSink {
   sourceDirs: string[];
-  projectName: string;
   plugins: MarketplacePluginDefinition[];
 }
 
-interface SkillManifestEntry {
-  name: string;
-  description: string;
-  path: string;
-}
-
-interface AgentManifestEntry {
+interface ManifestEntry {
   name: string;
   description: string;
   path: string;
@@ -28,8 +21,8 @@ interface PluginManifest {
   name: string;
   displayName: string;
   description: string;
-  skills: SkillManifestEntry[];
-  agents: AgentManifestEntry[];
+  skills: ManifestEntry[];
+  agents: ManifestEntry[];
 }
 
 interface MarketplaceManifest {
@@ -87,17 +80,20 @@ function emitPlugin(
   plugin: MarketplacePluginDefinition,
   allSkills: Map<string, string>,
   allAgents: Map<string, string>,
+  recordError: (msg: string) => void,
 ): PluginManifest {
   const pluginDir = join(ctx.root, 'plugins', plugin.name);
   const skillsDir = join(pluginDir, 'skills');
   const agentsDir = join(pluginDir, 'agents');
+  const manifestDir = join(pluginDir, '.claude-plugin');
 
   ensureDir(pluginDir);
   ensureDir(skillsDir);
   ensureDir(agentsDir);
+  ensureDir(manifestDir);
 
-  const skillEntries: SkillManifestEntry[] = [];
-  const agentEntries: AgentManifestEntry[] = [];
+  const skillEntries: ManifestEntry[] = [];
+  const agentEntries: ManifestEntry[] = [];
 
   for (const [dirName, sourceParent] of allSkills) {
     const meta = readSkillMeta(dirName, sourceParent);
@@ -116,7 +112,7 @@ function emitPlugin(
         path: `plugins/${plugin.name}/skills/${dirName}/SKILL.md`,
       });
     } catch {
-      ctx.results.warnings.push(`marketplace: could not read skill ${dirName}`);
+      recordError(`marketplace: could not read skill ${dirName}`);
     }
   }
 
@@ -136,7 +132,7 @@ function emitPlugin(
         path: `plugins/${plugin.name}/agents/${file}`,
       });
     } catch {
-      ctx.results.warnings.push(`marketplace: could not read agent ${file}`);
+      recordError(`marketplace: could not read agent ${file}`);
     }
   }
 
@@ -150,33 +146,26 @@ function emitPlugin(
 }
 
 export function syncMarketplace(
-  sink: SyncSink,
-  sourceDirs: string[],
-  projectName: string,
-  pluginDefs: MarketplacePluginDefinition[],
+  ctx: MarketplaceSyncContext,
+  recordError: (msg: string) => void,
 ): void {
-  const allSkills = mergeSourceDirs(sourceDirs, 'skills', (dirPath) =>
+  const allSkills = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
     existsSync(join(dirPath, 'SKILL.md')),
   );
-  const allAgents = mergeSourceFiles(sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
+  const allAgents = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
 
   if (allSkills.size === 0 && allAgents.size === 0) return;
 
-  const ctx: MarketplaceSyncContext = {
-    ...sink,
-    sourceDirs,
-    projectName,
-    plugins: pluginDefs,
-  };
+  const projectName = basename(ctx.root);
 
-  sink.log(`Marketplace: ${pluginDefs.length} plugin(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)`);
+  ctx.log(`Marketplace: ${ctx.plugins.length} plugin(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)`);
 
-  ensureDir(join(sink.root, '.claude-plugin'));
+  ensureDir(join(ctx.root, '.claude-plugin'));
 
   const pluginManifests: PluginManifest[] = [];
 
-  for (const pluginDef of pluginDefs) {
-    const manifest = emitPlugin(ctx, pluginDef, allSkills, allAgents);
+  for (const pluginDef of ctx.plugins) {
+    const manifest = emitPlugin(ctx, pluginDef, allSkills, allAgents, recordError);
     pluginManifests.push(manifest);
 
     const pluginJson = JSON.stringify(
@@ -190,10 +179,10 @@ export function syncMarketplace(
       null,
       2,
     );
-    commitPlannedWrite(ctx, join(sink.root, 'plugins', pluginDef.name, '.claude-plugin', 'plugin.json'), pluginJson);
+    commitPlannedWrite(ctx, join(ctx.root, 'plugins', pluginDef.name, '.claude-plugin', 'plugin.json'), pluginJson);
 
-    if (!sink.checkMode) {
-      sink.log(`  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents)`);
+    if (!ctx.checkMode) {
+      ctx.log(`  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents)`);
     }
   }
 
@@ -208,11 +197,11 @@ export function syncMarketplace(
 
   commitPlannedWrite(
     ctx,
-    join(sink.root, '.claude-plugin', 'marketplace.json'),
+    join(ctx.root, '.claude-plugin', 'marketplace.json'),
     JSON.stringify(marketplace, null, 2),
   );
 
-  if (!sink.checkMode) {
-    sink.log(`  -> .claude-plugin/marketplace.json`);
+  if (!ctx.checkMode) {
+    ctx.log(`  -> .claude-plugin/marketplace.json`);
   }
 }
