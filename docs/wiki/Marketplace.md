@@ -196,11 +196,27 @@ Root manifest listing all plugins in this marketplace:
 }
 ```
 
+## Claude hooks bundling
+
+When `llm/claude-hooks.json` exists in any source directory, its contents are bundled into every plugin as `plugins/{name}/hooks/hooks.json`. The same file is referenced in `plugin.json` under the `hooks` key.
+
+```
+plugins/
+└── my-project/
+    ├── .claude-plugin/plugin.json   ← includes "hooks": "plugins/my-project/hooks/hooks.json"
+    └── hooks/
+        └── hooks.json              ← copied from llm/claude-hooks.json
+```
+
+**Note:** The source file is `claude-hooks.json` (not `hooks.json`) to avoid conflict with Cursor's `llm/hooks.json`. Hooks are plugin-level — the same file goes to every plugin with no profile filtering.
+
+When the source file is absent, no `hooks/` directory is created and the `hooks` field is omitted from `plugin.json`.
+
 ## Stale output pruning
 
 `bluetemberg sync --prune` cleans up marketplace outputs that are no longer generated. It scans `plugins/` and `.claude-plugin/` and removes:
 
-- Skills, agents, and `plugin.json` files belonging to plugins that no longer exist or contain that file
+- Skills, agents, `hooks.json`, and `plugin.json` files belonging to plugins that no longer exist or contain that file
 - `marketplace.json` if the platform is removed
 
 This requires `"claude-marketplace"` to remain in `platforms` when pruning. To remove all marketplace output, temporarily keep the platform listed, run `sync --prune`, then remove it from `platforms`.

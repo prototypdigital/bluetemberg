@@ -299,6 +299,135 @@ describe('syncMarketplace', () => {
     expect(existsSync(join(root, `plugins/${projectName}/agents/my-agent.md`))).toBe(true);
   });
 
+  describe('hooks bundling', () => {
+    const HOOKS_CONTENT = JSON.stringify(
+      { hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo pre' }] }] } },
+      null,
+      2,
+    );
+
+    function writeHooks(r: string): void {
+      mkdirSync(join(r, 'llm'), { recursive: true });
+      writeFileSync(join(r, 'llm', 'claude-hooks.json'), HOOKS_CONTENT);
+    }
+
+    it('copies claude-hooks.json to plugins/<name>/hooks/hooks.json for each plugin', async () => {
+      writeSkill(root, 'api-design');
+      writeHooks(root);
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          plugins: [{ name: 'backend' }, { name: 'devops' }],
+        },
+      };
+
+      await sync(root, { config, silent: true });
+
+      expect(existsSync(join(root, 'plugins/backend/hooks/hooks.json'))).toBe(true);
+      expect(existsSync(join(root, 'plugins/devops/hooks/hooks.json'))).toBe(true);
+      expect(readFileSync(join(root, 'plugins/backend/hooks/hooks.json'), 'utf8')).toBe(HOOKS_CONTENT);
+    });
+
+    it('includes hooks path in plugin.json manifest when hooks are present', async () => {
+      writeSkill(root, 'api-design');
+      writeHooks(root);
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: { plugins: [{ name: 'backend' }] },
+      };
+
+      await sync(root, { config, silent: true });
+
+      const pluginJson = JSON.parse(
+        readFileSync(join(root, 'plugins/backend/.claude-plugin/plugin.json'), 'utf8'),
+      );
+      expect(pluginJson.hooks).toBe('plugins/backend/hooks/hooks.json');
+    });
+
+    it('omits hooks key from plugin.json when no claude-hooks.json exists', async () => {
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: { plugins: [{ name: 'backend' }] },
+      };
+
+      await sync(root, { config, silent: true });
+
+      const pluginJson = JSON.parse(
+        readFileSync(join(root, 'plugins/backend/.claude-plugin/plugin.json'), 'utf8'),
+      );
+      expect(pluginJson.hooks).toBeUndefined();
+    });
+
+    it('does not create hooks dir when no claude-hooks.json exists', async () => {
+      writeSkill(root, 'api-design');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      expect(existsSync(join(root, `plugins/${projectName}/hooks`))).toBe(false);
+    });
+  });
+
+  describe('modern skill frontmatter pass-through', () => {
+    it('passes disable-model-invocation through verbatim', async () => {
+      writeSkill(root, 'deploy', 'disable-model-invocation: true');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      const content = readFileSync(
+        join(root, `plugins/${projectName}/skills/deploy/SKILL.md`),
+        'utf8',
+      );
+      expect(content).toContain('disable-model-invocation: true');
+    });
+
+    it('passes allowed-tools through verbatim', async () => {
+      writeSkill(root, 'commit', 'allowed-tools:\n  - Bash\n  - Edit');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      const content = readFileSync(
+        join(root, `plugins/${projectName}/skills/commit/SKILL.md`),
+        'utf8',
+      );
+      expect(content).toContain('allowed-tools:');
+      expect(content).toContain('- Bash');
+    });
+
+    it('passes context: fork through verbatim', async () => {
+      writeSkill(root, 'review', 'context: fork');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      const content = readFileSync(
+        join(root, `plugins/${projectName}/skills/review/SKILL.md`),
+        'utf8',
+      );
+      expect(content).toContain('context: fork');
+    });
+
+    it('passes hooks frontmatter field through verbatim', async () => {
+      writeSkill(root, 'scaffold', 'hooks:\n  pre: echo start\n  post: echo done');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      const content = readFileSync(
+        join(root, `plugins/${projectName}/skills/scaffold/SKILL.md`),
+        'utf8',
+      );
+      expect(content).toContain('hooks:');
+      expect(content).toContain('pre: echo start');
+    });
+  });
+
   describe('remote + extraKnownMarketplaces', () => {
     it('writes extraKnownMarketplaces to .claude/settings.json when remote is set', async () => {
       writeSkill(root, 'api-design');
