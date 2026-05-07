@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
 import { DEFAULT_TARGETS } from './transform.js';
 import { filterTargets } from '../utils/target-filtering.js';
@@ -105,6 +106,81 @@ function prunePromptsDir(root: string, expected: Set<string>): number {
   return removed;
 }
 
+function pruneMarketplace(root: string, expected: Set<string>): number {
+  let removed = 0;
+
+  const pluginsBase = join(root, 'plugins');
+  if (existsSync(pluginsBase)) {
+    for (const pluginEnt of readdirSync(pluginsBase, { withFileTypes: true })) {
+      if (!pluginEnt.isDirectory()) continue;
+      const pluginDir = join(pluginsBase, pluginEnt.name);
+
+      const skillsDir = join(pluginDir, 'skills');
+      if (existsSync(skillsDir)) {
+        for (const skillEnt of readdirSync(skillsDir, { withFileTypes: true })) {
+          if (!skillEnt.isDirectory()) continue;
+          const skillMd = join(skillsDir, skillEnt.name, 'SKILL.md');
+          if (!existsSync(skillMd)) continue;
+          const abs = resolve(skillMd);
+          if (!expected.has(abs)) {
+            unlinkSync(abs);
+            removed++;
+            try {
+              rmdirSync(join(skillsDir, skillEnt.name));
+            } catch {
+              // directory not empty — ignore
+            }
+          }
+        }
+        try {
+          rmdirSync(skillsDir);
+        } catch {
+          // directory not empty — ignore
+        }
+      }
+
+      const agentsDir = join(pluginDir, 'agents');
+      if (existsSync(agentsDir)) {
+        for (const name of readdirSync(agentsDir)) {
+          if (!name.endsWith('.md')) continue;
+          const abs = resolve(join(agentsDir, name));
+          if (!expected.has(abs)) {
+            unlinkSync(abs);
+            removed++;
+          }
+        }
+        try {
+          rmdirSync(agentsDir);
+        } catch {
+          // directory not empty — ignore
+        }
+      }
+
+      const pluginJson = join(pluginDir, '.claude-plugin', 'plugin.json');
+      removed += pruneSingletonIfStale(pluginJson, expected);
+      try {
+        rmdirSync(join(pluginDir, '.claude-plugin'));
+      } catch {
+        // directory not empty — ignore
+      }
+      try {
+        rmdirSync(pluginDir);
+      } catch {
+        // directory not empty — ignore
+      }
+    }
+    try {
+      rmdirSync(pluginsBase);
+    } catch {
+      // directory not empty — ignore
+    }
+  }
+
+  removed += pruneSingletonIfStale(join(root, '.claude-plugin', 'marketplace.json'), expected);
+
+  return removed;
+}
+
 function pruneSingletonIfStale(absPath: string, expected: Set<string>): number {
   if (!existsSync(absPath)) {
     return 0;
@@ -170,6 +246,10 @@ export function pruneStaleOutputs(args: {
 
   if (platforms.includes('cursor')) {
     total += pruneSingletonIfStale(join(root, '.cursor', 'hooks.json'), expectedPaths);
+  }
+
+  if (platforms.includes(MARKETPLACE_PLATFORM)) {
+    total += pruneMarketplace(root, expectedPaths);
   }
 
   if (total > 0) {

@@ -801,6 +801,76 @@ describe('sync', () => {
     expect(existsSync(join(root, '.cursor', 'hooks.json'))).toBe(false);
   });
 
+  it('prune removes stale marketplace skill when source skill is removed', async () => {
+    mkdirSync(join(root, 'llm', 'skills', 'keep-skill'), { recursive: true });
+    mkdirSync(join(root, 'llm', 'skills', 'drop-skill'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'skills', 'keep-skill', 'SKILL.md'), '---\nname: keep\n---\n\n# Keep\n');
+    writeFileSync(join(root, 'llm', 'skills', 'drop-skill', 'SKILL.md'), '---\nname: drop\n---\n\n# Drop\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude-marketplace'],
+      source: 'llm',
+      targets: {},
+      marketplace: { plugins: [{ name: 'my-plugin' }] },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, 'plugins/my-plugin/skills/keep-skill/SKILL.md'))).toBe(true);
+    expect(existsSync(join(root, 'plugins/my-plugin/skills/drop-skill/SKILL.md'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'skills', 'drop-skill'), { recursive: true });
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, 'plugins/my-plugin/skills/keep-skill/SKILL.md'))).toBe(true);
+    expect(existsSync(join(root, 'plugins/my-plugin/skills/drop-skill/SKILL.md'))).toBe(false);
+  });
+
+  it('prune removes stale marketplace agent when source agent is removed', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'keep-agent.md'), '---\nname: keep\n---\n\n# Keep\n');
+    writeFileSync(join(root, 'llm', 'agents', 'drop-agent.md'), '---\nname: drop\n---\n\n# Drop\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude-marketplace'],
+      source: 'llm',
+      targets: {},
+      marketplace: { plugins: [{ name: 'my-plugin' }] },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, 'plugins/my-plugin/agents/keep-agent.md'))).toBe(true);
+    expect(existsSync(join(root, 'plugins/my-plugin/agents/drop-agent.md'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'agents', 'drop-agent.md'));
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, 'plugins/my-plugin/agents/keep-agent.md'))).toBe(true);
+    expect(existsSync(join(root, 'plugins/my-plugin/agents/drop-agent.md'))).toBe(false);
+  });
+
+  it('prune cleans up empty plugin directories when all content is removed', async () => {
+    mkdirSync(join(root, 'llm', 'skills', 'only-skill'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'skills', 'only-skill', 'SKILL.md'), '---\nname: only\n---\n\n# Only\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude-marketplace'],
+      source: 'llm',
+      targets: {},
+      marketplace: { plugins: [{ name: 'my-plugin' }] },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, 'plugins/my-plugin/skills/only-skill/SKILL.md'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'skills', 'only-skill'), { recursive: true });
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(existsSync(join(root, 'plugins/my-plugin/skills/only-skill'))).toBe(false);
+    expect(existsSync(join(root, 'plugins/my-plugin/skills'))).toBe(false);
+    expect(existsSync(join(root, 'plugins/my-plugin'))).toBe(false);
+    expect(existsSync(join(root, 'plugins'))).toBe(false);
+  });
+
   it('prune handles missing output directories gracefully', async () => {
     const config: BlueprintConfig = {
       platforms: ['cursor', 'claude', 'copilot'],

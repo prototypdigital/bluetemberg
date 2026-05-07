@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureDir } from '../utils/fs.js';
 import { DEFAULT_TARGETS } from '../sync/transform.js';
+import { MARKETPLACE_PLATFORM } from '../types.js';
 import type {
   InitAnswers,
   BlueprintConfig,
@@ -42,7 +43,7 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   }
 
   updatePackageScripts(targetDir, created);
-  patchPrettierIgnore(targetDir, created);
+  patchPrettierIgnore(targetDir, answers, created);
 
   return created;
 }
@@ -101,6 +102,13 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     platforms: answers.platforms,
     source: 'llm',
     targets,
+    ...(answers.platforms.includes(MARKETPLACE_PLATFORM)
+      ? {
+          marketplace: {
+            plugins: [{ name: answers.projectName }],
+          },
+        }
+      : {}),
     ...(existingAdapters !== undefined ? { adapters: existingAdapters } : {}),
   };
 
@@ -212,6 +220,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
   if (answers.platforms.includes('claude')) targetDirs.push('`.claude/rules/`');
   if (answers.platforms.includes('copilot')) targetDirs.push('`.github/instructions/`');
   if (answers.platforms.includes('gemini')) targetDirs.push('`.gemini/context/`');
+  if (answers.platforms.includes(MARKETPLACE_PLATFORM)) targetDirs.push('`plugins/`');
 
   agentsLines.push(
     '',
@@ -289,9 +298,10 @@ function updatePackageScripts(targetDir: string, created: string[]): void {
   }
 }
 
-const PRETTIERIGNORE_ENTRIES = ['llm/', 'docs/wiki/'];
+const BASE_PRETTIERIGNORE_ENTRIES = ['llm/', 'docs/wiki/'];
+const MARKETPLACE_PRETTIERIGNORE_ENTRIES = ['plugins/'];
 
-function patchPrettierIgnore(targetDir: string, created: string[]): void {
+function patchPrettierIgnore(targetDir: string, answers: InitAnswers, created: string[]): void {
   const filePath = join(targetDir, '.prettierignore');
   let content = '';
 
@@ -299,8 +309,13 @@ function patchPrettierIgnore(targetDir: string, created: string[]): void {
     content = readFileSync(filePath, 'utf8');
   }
 
+  const entries = [
+    ...BASE_PRETTIERIGNORE_ENTRIES,
+    ...(answers.platforms.includes(MARKETPLACE_PLATFORM) ? MARKETPLACE_PRETTIERIGNORE_ENTRIES : []),
+  ];
+
   const lines = content.split('\n');
-  const missing = PRETTIERIGNORE_ENTRIES.filter((entry) => !lines.includes(entry));
+  const missing = entries.filter((entry) => !lines.includes(entry));
   if (missing.length === 0) return;
 
   const suffix = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
