@@ -92,6 +92,7 @@ Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how 
 ```json
 {
   "marketplace": {
+    "remote": "prototypdigital/claude-marketplace",
     "plugins": [
       {
         "name": "frontend",
@@ -104,7 +105,10 @@ Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how 
 }
 ```
 
-When omitted, a single plugin named after the project directory is emitted containing all `llm/` skills and agents. See [Marketplace](Marketplace) for the full schema and profile filtering behavior.
+- `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` writes `extraKnownMarketplaces` into `.claude/settings.json` so Claude Desktop auto-prompts teammates to install plugins.
+- `plugins` — when omitted, a single plugin named after the project directory is emitted.
+
+See [Marketplace](Marketplace) for the full schema, profile filtering behavior, and CI workflow setup.
 
 ### `adapters`
 

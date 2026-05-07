@@ -42,6 +42,10 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
     scaffoldMcp(targetDir, answers, created);
   }
 
+  if (answers.platforms.includes('claude-marketplace')) {
+    scaffoldMarketplaceWorkflow(targetDir, created);
+  }
+
   updatePackageScripts(targetDir, created);
   patchPrettierIgnore(targetDir, answers, created);
 
@@ -105,7 +109,8 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     ...(answers.platforms.includes(MARKETPLACE_PLATFORM)
       ? {
           marketplace: {
-            plugins: [{ name: answers.projectName }],
+            remote: 'prototypdigital/claude-marketplace',
+            plugins: [{ name: answers.projectName, displayName: answers.projectName }],
           },
         }
       : {}),
@@ -279,6 +284,16 @@ function scaffoldMcp(targetDir: string, answers: InitAnswers, created: string[])
   ensureDir(llmDir);
   const manifest = { servers };
   safeWrite(join(llmDir, 'mcp.json'), JSON.stringify(manifest, null, 2) + '\n', created);
+}
+
+function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void {
+  const src = join(TEMPLATES_DIR, 'ci', 'sync-marketplace.yml');
+  if (!existsSync(src)) return;
+
+  const dest = join(targetDir, '.github', 'workflows', 'sync-marketplace.yml');
+  ensureDir(dirname(dest));
+  copyFileSync(src, dest);
+  created.push(dest);
 }
 
 function updatePackageScripts(targetDir: string, created: string[]): void {

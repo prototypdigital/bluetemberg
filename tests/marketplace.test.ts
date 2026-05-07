@@ -298,4 +298,67 @@ describe('syncMarketplace', () => {
     expect(existsSync(join(root, `plugins/${projectName}/agents/README.md`))).toBe(false);
     expect(existsSync(join(root, `plugins/${projectName}/agents/my-agent.md`))).toBe(true);
   });
+
+  describe('remote + extraKnownMarketplaces', () => {
+    it('writes extraKnownMarketplaces to .claude/settings.json when remote is set', async () => {
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: { remote: 'prototypdigital/claude-marketplace' },
+      };
+
+      await sync(root, { config, silent: true });
+
+      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+      expect(settings.extraKnownMarketplaces).toContain('prototypdigital/claude-marketplace');
+    });
+
+    it('preserves existing settings keys when writing extraKnownMarketplaces', async () => {
+      writeSkill(root, 'api-design');
+      mkdirSync(join(root, '.claude'), { recursive: true });
+      writeFileSync(
+        join(root, '.claude', 'settings.json'),
+        JSON.stringify({ theme: 'dark', extraKnownMarketplaces: ['other/repo'] }, null, 2),
+      );
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: { remote: 'prototypdigital/claude-marketplace' },
+      };
+
+      await sync(root, { config, silent: true });
+
+      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+      expect(settings.theme).toBe('dark');
+      expect(settings.extraKnownMarketplaces).toContain('other/repo');
+      expect(settings.extraKnownMarketplaces).toContain('prototypdigital/claude-marketplace');
+    });
+
+    it('does not duplicate the remote entry on repeated syncs', async () => {
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: { remote: 'prototypdigital/claude-marketplace' },
+      };
+
+      await sync(root, { config, silent: true });
+      await sync(root, { config, silent: true });
+
+      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+      const count = (settings.extraKnownMarketplaces as string[]).filter(
+        (v) => v === 'prototypdigital/claude-marketplace',
+      ).length;
+      expect(count).toBe(1);
+    });
+
+    it('does not write settings.json when remote is not set', async () => {
+      writeSkill(root, 'api-design');
+
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+    });
+  });
 });
