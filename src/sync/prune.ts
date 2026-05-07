@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
 import { DEFAULT_TARGETS } from './transform.js';
 import { filterTargets } from '../utils/target-filtering.js';
@@ -127,9 +128,14 @@ function pruneMarketplace(root: string, expected: Set<string>): number {
             try {
               rmdirSync(join(skillsDir, skillEnt.name));
             } catch {
-              // not empty — ignore
+              // directory not empty — ignore
             }
           }
+        }
+        try {
+          rmdirSync(skillsDir);
+        } catch {
+          // directory not empty — ignore
         }
       }
 
@@ -143,10 +149,30 @@ function pruneMarketplace(root: string, expected: Set<string>): number {
             removed++;
           }
         }
+        try {
+          rmdirSync(agentsDir);
+        } catch {
+          // directory not empty — ignore
+        }
       }
 
       const pluginJson = join(pluginDir, '.claude-plugin', 'plugin.json');
       removed += pruneSingletonIfStale(pluginJson, expected);
+      try {
+        rmdirSync(join(pluginDir, '.claude-plugin'));
+      } catch {
+        // directory not empty — ignore
+      }
+      try {
+        rmdirSync(pluginDir);
+      } catch {
+        // directory not empty — ignore
+      }
+    }
+    try {
+      rmdirSync(pluginsBase);
+    } catch {
+      // directory not empty — ignore
     }
   }
 
@@ -222,7 +248,7 @@ export function pruneStaleOutputs(args: {
     total += pruneSingletonIfStale(join(root, '.cursor', 'hooks.json'), expectedPaths);
   }
 
-  if (platforms.includes('claude-marketplace')) {
+  if (platforms.includes(MARKETPLACE_PLATFORM)) {
     total += pruneMarketplace(root, expectedPaths);
   }
 

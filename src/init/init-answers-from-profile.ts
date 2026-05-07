@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { InitAnswers, Platform, RuleCollectionPreset, TeamProfile } from '../types.js';
 import { resolvePresetDefaults } from './preset-resolution.js';
 import {
@@ -62,7 +63,7 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     projectName: basename(targetDir),
     projectDescription: '',
     packageManager: 'pnpm',
-    platforms: PLATFORM_CHOICES.filter((p) => p.id !== 'claude-marketplace').map((p) => p.id) as Platform[],
+    platforms: PLATFORM_CHOICES.filter((p) => p.id !== MARKETPLACE_PLATFORM).map((p) => p.id) as Platform[],
     ruleSource: 'templates',
     rules: rulesForTemplatesProfile(teamProfile),
     ruleCollections: [],

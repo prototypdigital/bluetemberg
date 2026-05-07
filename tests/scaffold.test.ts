@@ -420,6 +420,65 @@ describe('scaffold', () => {
       const occurrences = (content.match(/llm\//g) ?? []).length;
       expect(occurrences).toBe(1);
     });
+
+    it('does not add plugins/ when claude-marketplace is not in platforms', () => {
+      scaffold(root, baseAnswers);
+
+      const content = readFileSync(join(root, '.prettierignore'), 'utf8');
+      expect(content).not.toContain('plugins/');
+    });
+
+    it('adds plugins/ when claude-marketplace is in platforms', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['cursor', 'claude-marketplace'] });
+
+      const content = readFileSync(join(root, '.prettierignore'), 'utf8');
+      expect(content).toContain('plugins/');
+    });
+  });
+
+  describe('claude-marketplace', () => {
+    const marketplaceAnswers: InitAnswers = {
+      ...baseAnswers,
+      platforms: ['cursor', 'claude-marketplace'],
+      projectName: 'my-plugin',
+    };
+
+    it('adds marketplace.plugins block to config when claude-marketplace is selected', () => {
+      scaffold(root, marketplaceAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.marketplace).toBeDefined();
+      expect(config.marketplace.plugins).toHaveLength(1);
+      expect(config.marketplace.plugins[0].name).toBe('my-plugin');
+    });
+
+    it('does not add redundant displayName equal to name', () => {
+      scaffold(root, marketplaceAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.marketplace.plugins[0].displayName).toBeUndefined();
+    });
+
+    it('omits marketplace from config when claude-marketplace is not in platforms', () => {
+      scaffold(root, baseAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.marketplace).toBeUndefined();
+    });
+
+    it('lists plugins/ in AGENTS.md when claude-marketplace is in platforms', () => {
+      scaffold(root, marketplaceAnswers);
+
+      const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+      expect(content).toContain('`plugins/`');
+    });
+
+    it('does not list plugins/ in AGENTS.md when claude-marketplace is not in platforms', () => {
+      scaffold(root, baseAnswers);
+
+      const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+      expect(content).not.toContain('`plugins/`');
+    });
   });
 
   describe('return value', () => {

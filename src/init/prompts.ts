@@ -1,5 +1,6 @@
 import { input, select, checkbox, confirm } from '@inquirer/prompts';
 import { basename } from 'node:path';
+import { MARKETPLACE_PLATFORM } from '../types.js';
 import {
   RULE_PRESETS,
   RULE_COLLECTION_PRESETS,
@@ -44,7 +45,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     choices: PLATFORM_CHOICES.map((p) => ({
       value: p.id,
       name: p.name,
-      checked: p.id !== 'claude-marketplace',
+      checked: p.id !== MARKETPLACE_PLATFORM,
     })),
     required: true,
   });
