@@ -36,9 +36,11 @@ The `extends` and `adapters` fields are optional.
 
 ### `platforms`
 
-Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`.
+Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"claude-marketplace"`.
 
 Only selected platforms get generated output during sync.
+
+`"claude-marketplace"` emits a plugin bundle under `plugins/` and `.claude-plugin/` that can be installed by teammates via `/plugin marketplace add owner/repo`. See [Marketplace](Marketplace).
 
 ### `source`
 
@@ -82,6 +84,27 @@ my-monorepo/
 ```
 
 **Shared npm rule pack use case:** Publish an npm package containing a `llm/` directory, install it, then reference it in `extends`.
+
+### `marketplace`
+
+Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how `llm/` content maps to installable plugins:
+
+```json
+{
+  "marketplace": {
+    "plugins": [
+      {
+        "name": "frontend",
+        "displayName": "Frontend Developer",
+        "description": "Rules and skills for React/TypeScript projects",
+        "profiles": ["frontend", "fullstack"]
+      }
+    ]
+  }
+}
+```
+
+When omitted, a single plugin named after the project directory is emitted containing all `llm/` skills and agents. See [Marketplace](Marketplace) for the full schema and profile filtering behavior.
 
 ### `adapters`
 

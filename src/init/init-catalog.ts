@@ -15,6 +15,12 @@ export const INIT_TEAM_PROFILES: readonly TeamProfile[] = [
 
 export const INIT_PACKAGE_MANAGERS: readonly PackageManager[] = ['pnpm', 'npm', 'yarn'];
 
-export const INIT_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot', 'gemini'];
+export const INIT_PLATFORMS: readonly Platform[] = [
+  'cursor',
+  'claude',
+  'copilot',
+  'gemini',
+  'claude-marketplace',
+];
 
 export const INIT_RULE_SOURCES: readonly RuleSource[] = ['templates', 'collections'];

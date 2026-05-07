@@ -101,6 +101,13 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     platforms: answers.platforms,
     source: 'llm',
     targets,
+    ...(answers.platforms.includes('claude-marketplace')
+      ? {
+          marketplace: {
+            plugins: [{ name: answers.projectName, displayName: answers.projectName }],
+          },
+        }
+      : {}),
     ...(existingAdapters !== undefined ? { adapters: existingAdapters } : {}),
   };
 
@@ -212,6 +219,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
   if (answers.platforms.includes('claude')) targetDirs.push('`.claude/rules/`');
   if (answers.platforms.includes('copilot')) targetDirs.push('`.github/instructions/`');
   if (answers.platforms.includes('gemini')) targetDirs.push('`.gemini/context/`');
+  if (answers.platforms.includes('claude-marketplace')) targetDirs.push('`plugins/`');
 
   agentsLines.push(
     '',
@@ -289,7 +297,7 @@ function updatePackageScripts(targetDir: string, created: string[]): void {
   }
 }
 
-const PRETTIERIGNORE_ENTRIES = ['llm/', 'docs/wiki/'];
+const PRETTIERIGNORE_ENTRIES = ['llm/', 'docs/wiki/', 'plugins/'];
 
 function patchPrettierIgnore(targetDir: string, created: string[]): void {
   const filePath = join(targetDir, '.prettierignore');

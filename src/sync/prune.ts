@@ -105,6 +105,56 @@ function prunePromptsDir(root: string, expected: Set<string>): number {
   return removed;
 }
 
+function pruneMarketplace(root: string, expected: Set<string>): number {
+  let removed = 0;
+
+  const pluginsBase = join(root, 'plugins');
+  if (existsSync(pluginsBase)) {
+    for (const pluginEnt of readdirSync(pluginsBase, { withFileTypes: true })) {
+      if (!pluginEnt.isDirectory()) continue;
+      const pluginDir = join(pluginsBase, pluginEnt.name);
+
+      const skillsDir = join(pluginDir, 'skills');
+      if (existsSync(skillsDir)) {
+        for (const skillEnt of readdirSync(skillsDir, { withFileTypes: true })) {
+          if (!skillEnt.isDirectory()) continue;
+          const skillMd = join(skillsDir, skillEnt.name, 'SKILL.md');
+          if (!existsSync(skillMd)) continue;
+          const abs = resolve(skillMd);
+          if (!expected.has(abs)) {
+            unlinkSync(abs);
+            removed++;
+            try {
+              rmdirSync(join(skillsDir, skillEnt.name));
+            } catch {
+              // not empty — ignore
+            }
+          }
+        }
+      }
+
+      const agentsDir = join(pluginDir, 'agents');
+      if (existsSync(agentsDir)) {
+        for (const name of readdirSync(agentsDir)) {
+          if (!name.endsWith('.md')) continue;
+          const abs = resolve(join(agentsDir, name));
+          if (!expected.has(abs)) {
+            unlinkSync(abs);
+            removed++;
+          }
+        }
+      }
+
+      const pluginJson = join(pluginDir, '.claude-plugin', 'plugin.json');
+      removed += pruneSingletonIfStale(pluginJson, expected);
+    }
+  }
+
+  removed += pruneSingletonIfStale(join(root, '.claude-plugin', 'marketplace.json'), expected);
+
+  return removed;
+}
+
 function pruneSingletonIfStale(absPath: string, expected: Set<string>): number {
   if (!existsSync(absPath)) {
     return 0;
@@ -170,6 +220,10 @@ export function pruneStaleOutputs(args: {
 
   if (platforms.includes('cursor')) {
     total += pruneSingletonIfStale(join(root, '.cursor', 'hooks.json'), expectedPaths);
+  }
+
+  if (platforms.includes('claude-marketplace')) {
+    total += pruneMarketplace(root, expectedPaths);
   }
 
   if (total > 0) {

@@ -453,6 +453,7 @@ export const PLATFORM_CHOICES: PlatformChoice[] = [
   { id: 'claude', name: 'Claude Code' },
   { id: 'copilot', name: 'GitHub Copilot' },
   { id: 'gemini', name: 'Gemini CLI' },
+  { id: 'claude-marketplace', name: 'Claude Code Marketplace (plugin distribution)' },
 ];
 
 export const PACKAGE_MANAGERS: PackageManagerChoice[] = [

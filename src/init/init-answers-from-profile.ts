@@ -62,7 +62,7 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     projectName: basename(targetDir),
     projectDescription: '',
     packageManager: 'pnpm',
-    platforms: PLATFORM_CHOICES.map((p) => p.id) as Platform[],
+    platforms: PLATFORM_CHOICES.filter((p) => p.id !== 'claude-marketplace').map((p) => p.id) as Platform[],
     ruleSource: 'templates',
     rules: rulesForTemplatesProfile(teamProfile),
     ruleCollections: [],

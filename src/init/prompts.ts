@@ -44,7 +44,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     choices: PLATFORM_CHOICES.map((p) => ({
       value: p.id,
       name: p.name,
-      checked: true,
+      checked: p.id !== 'claude-marketplace',
     })),
     required: true,
   });
