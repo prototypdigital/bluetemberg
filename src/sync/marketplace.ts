@@ -4,7 +4,15 @@ import matter from 'gray-matter';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
+// RULE_PRESETS included for forward-compatibility if rules are ever added to marketplace output
+import { RULE_PRESETS, AGENT_PRESETS, SKILL_PRESETS } from '../init/presets.js';
 import type { MarketplacePluginDefinition, TeamProfile } from '../types.js';
+
+/** Lookup map from preset ID → profile tags, covering rules, agents, and skills. */
+// tags values are constrained to TeamProfile by TEAM_PROFILES — cast is safe
+const PRESET_PROFILES: Map<string, TeamProfile[]> = new Map(
+  [...RULE_PRESETS, ...AGENT_PRESETS, ...SKILL_PRESETS].map((p) => [p.id, (p.tags ?? []) as TeamProfile[]]),
+);
 
 export interface MarketplaceSyncContext extends SyncSink {
   sourceDirs: string[];
@@ -37,6 +45,11 @@ interface FileMeta {
   profiles: TeamProfile[];
 }
 
+function resolveProfiles(id: string, frontmatterProfiles: TeamProfile[]): TeamProfile[] {
+  if (frontmatterProfiles.length > 0) return frontmatterProfiles;
+  return PRESET_PROFILES.get(id) ?? [];
+}
+
 function readSkillMeta(skillDir: string, sourceParent: string): FileMeta {
   const skillPath = join(sourceParent, skillDir, 'SKILL.md');
   try {
@@ -44,24 +57,25 @@ function readSkillMeta(skillDir: string, sourceParent: string): FileMeta {
     return {
       name: (data.name as string) || skillDir,
       description: (data.description as string) || '',
-      profiles: (data.profiles as TeamProfile[]) || [],
+      profiles: resolveProfiles(skillDir, (data.profiles as TeamProfile[]) || []),
     };
   } catch {
-    return { name: skillDir, description: '', profiles: [] };
+    return { name: skillDir, description: '', profiles: resolveProfiles(skillDir, []) };
   }
 }
 
 function readAgentMeta(agentFile: string, sourceDir: string): FileMeta {
   const agentPath = join(sourceDir, agentFile);
+  const id = basename(agentFile, '.md');
   try {
     const { data } = matter.read(agentPath);
     return {
-      name: (data.name as string) || basename(agentFile, '.md'),
+      name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: (data.profiles as TeamProfile[]) || [],
+      profiles: resolveProfiles(id, (data.profiles as TeamProfile[]) || []),
     };
   } catch {
-    return { name: basename(agentFile, '.md'), description: '', profiles: [] };
+    return { name: id, description: '', profiles: resolveProfiles(id, []) };
   }
 }
 

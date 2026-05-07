@@ -203,6 +203,90 @@ describe('syncMarketplace', () => {
     expect(existsSync(join(root, '.claude-plugin'))).toBe(false);
   });
 
+  describe('preset-based profile resolution', () => {
+    it('skill with a known preset ID and no frontmatter resolves profiles from presets', async () => {
+      // 'patterns' is in SKILL_PRESETS with tags: ['frontend', 'backend', 'fullstack']
+      writeSkill(root, 'patterns'); // no profiles frontmatter
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          plugins: [
+            { name: 'frontend-plugin', profiles: ['frontend'] },
+            { name: 'devops-plugin', profiles: ['devops', 'pure-infra'] },
+          ],
+        },
+      };
+
+      await sync(root, { config, silent: true });
+
+      // 'patterns' matches frontend — should appear in frontend-plugin
+      expect(existsSync(join(root, 'plugins/frontend-plugin/skills/patterns/SKILL.md'))).toBe(true);
+      // 'patterns' has no devops tag — should NOT appear in devops-plugin
+      expect(existsSync(join(root, 'plugins/devops-plugin/skills/patterns/SKILL.md'))).toBe(false);
+    });
+
+    it('agent with a known preset ID and no frontmatter resolves profiles from presets', async () => {
+      // 'frontend-specialist' is in AGENT_PRESETS with tags: ['frontend', 'fullstack']
+      writeAgent(root, 'frontend-specialist'); // no profiles frontmatter
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          plugins: [
+            { name: 'frontend-plugin', profiles: ['frontend'] },
+            { name: 'devops-plugin', profiles: ['devops'] },
+          ],
+        },
+      };
+
+      await sync(root, { config, silent: true });
+
+      expect(existsSync(join(root, 'plugins/frontend-plugin/agents/frontend-specialist.md'))).toBe(true);
+      expect(existsSync(join(root, 'plugins/devops-plugin/agents/frontend-specialist.md'))).toBe(false);
+    });
+
+    it('frontmatter profiles take priority over preset lookup', async () => {
+      // 'patterns' is in SKILL_PRESETS as frontend/backend/fullstack — override to devops only
+      writeSkill(root, 'patterns', 'profiles:\n  - devops');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          plugins: [
+            { name: 'frontend-plugin', profiles: ['frontend'] },
+            { name: 'devops-plugin', profiles: ['devops'] },
+          ],
+        },
+      };
+
+      await sync(root, { config, silent: true });
+
+      expect(existsSync(join(root, 'plugins/devops-plugin/skills/patterns/SKILL.md'))).toBe(true);
+      expect(existsSync(join(root, 'plugins/frontend-plugin/skills/patterns/SKILL.md'))).toBe(false);
+    });
+
+    it('unknown preset ID with no frontmatter is treated as universal', async () => {
+      writeSkill(root, 'my-custom-skill'); // not in any preset, no frontmatter
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          plugins: [
+            { name: 'frontend-plugin', profiles: ['frontend'] },
+            { name: 'devops-plugin', profiles: ['devops'] },
+          ],
+        },
+      };
+
+      await sync(root, { config, silent: true });
+
+      // universal — appears in all plugins
+      expect(existsSync(join(root, 'plugins/frontend-plugin/skills/my-custom-skill/SKILL.md'))).toBe(true);
+      expect(existsSync(join(root, 'plugins/devops-plugin/skills/my-custom-skill/SKILL.md'))).toBe(true);
+    });
+  });
+
   it('does not include README.md from agents directory', async () => {
     mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
     writeFileSync(join(root, 'llm', 'agents', 'README.md'), '# Agents\n');
