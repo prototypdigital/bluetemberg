@@ -16,8 +16,6 @@ const PRESET_PROFILES: Map<string, TeamProfile[]> = new Map(
 
 export interface MarketplaceSyncContext extends SyncSink {
   sourceDirs: string[];
-  /** Primary source directory (`llm/`). Used to locate `claude-hooks.json`. */
-  sourceBase: string;
   plugins: MarketplacePluginDefinition[];
 }
 
@@ -34,7 +32,7 @@ interface PluginManifest {
   skills: ManifestEntry[];
   agents: ManifestEntry[];
   /** Relative path to `hooks/hooks.json` within the plugin dir. Present only when hooks are defined. */
-  hooksPath?: string;
+  hooks?: string;
 }
 
 interface MarketplaceManifest {
@@ -173,13 +171,13 @@ function emitPlugin(
     }
   }
 
-  let hooksPath: string | undefined;
+  let hooks: string | undefined;
   if (hooksContent !== null) {
     const hooksDir = join(pluginDir, 'hooks');
     ensureDir(hooksDir);
     const hooksOutPath = join(hooksDir, 'hooks.json');
     commitPlannedWrite(ctx, hooksOutPath, hooksContent);
-    hooksPath = `plugins/${plugin.name}/hooks/hooks.json`;
+    hooks = `plugins/${plugin.name}/hooks/hooks.json`;
   }
 
   return {
@@ -188,7 +186,7 @@ function emitPlugin(
     description: plugin.description ?? '',
     skills: skillEntries,
     agents: agentEntries,
-    ...(hooksPath !== undefined ? { hooksPath } : {}),
+    ...(hooks !== undefined ? { hooks } : {}),
   };
 }
 
@@ -221,10 +219,8 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
       description: manifest.description,
       skills: manifest.skills,
       agents: manifest.agents,
+      ...(manifest.hooks !== undefined ? { hooks: manifest.hooks } : {}),
     };
-    if (manifest.hooksPath !== undefined) {
-      pluginJsonObj.hooks = manifest.hooksPath;
-    }
 
     commitPlannedWrite(
       ctx,
@@ -233,7 +229,7 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
     );
 
     if (!ctx.checkMode) {
-      const hooksNote = manifest.hooksPath !== undefined ? ', hooks' : '';
+      const hooksNote = manifest.hooks !== undefined ? ', hooks' : '';
       ctx.log(
         `  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents${hooksNote})`,
       );

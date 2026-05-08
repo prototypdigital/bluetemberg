@@ -18,12 +18,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
 
       - name: Generate marketplace output
         run: npx -y @prototypdigital/bluetemberg sync
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push to claude-marketplace repo
         env:
@@ -31,7 +28,12 @@ jobs:
         run: |
           git clone "https://x-access-token:${MARKETPLACE_PUSH_TOKEN}@github.com/${{ vars.MARKETPLACE_REPO }}.git" /tmp/marketplace
 
-          # Copy generated output
+          # Abort if sync produced no output — do not wipe the marketplace with empty dirs
+          if [ ! -d plugins ] || [ ! -d .claude-plugin ]; then
+            echo "No marketplace output found — skipping push."
+            exit 0
+          fi
+
           rm -rf /tmp/marketplace/plugins /tmp/marketplace/.claude-plugin
           cp -r plugins /tmp/marketplace/plugins
           cp -r .claude-plugin /tmp/marketplace/.claude-plugin

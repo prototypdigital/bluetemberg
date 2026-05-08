@@ -379,10 +379,7 @@ describe('syncMarketplace', () => {
       const projectName = basename(root);
       await sync(root, { config: BASE_CONFIG, silent: true });
 
-      const content = readFileSync(
-        join(root, `plugins/${projectName}/skills/deploy/SKILL.md`),
-        'utf8',
-      );
+      const content = readFileSync(join(root, `plugins/${projectName}/skills/deploy/SKILL.md`), 'utf8');
       expect(content).toContain('disable-model-invocation: true');
     });
 
@@ -392,10 +389,7 @@ describe('syncMarketplace', () => {
       const projectName = basename(root);
       await sync(root, { config: BASE_CONFIG, silent: true });
 
-      const content = readFileSync(
-        join(root, `plugins/${projectName}/skills/commit/SKILL.md`),
-        'utf8',
-      );
+      const content = readFileSync(join(root, `plugins/${projectName}/skills/commit/SKILL.md`), 'utf8');
       expect(content).toContain('allowed-tools:');
       expect(content).toContain('- Bash');
     });
@@ -406,10 +400,7 @@ describe('syncMarketplace', () => {
       const projectName = basename(root);
       await sync(root, { config: BASE_CONFIG, silent: true });
 
-      const content = readFileSync(
-        join(root, `plugins/${projectName}/skills/review/SKILL.md`),
-        'utf8',
-      );
+      const content = readFileSync(join(root, `plugins/${projectName}/skills/review/SKILL.md`), 'utf8');
       expect(content).toContain('context: fork');
     });
 
@@ -419,10 +410,7 @@ describe('syncMarketplace', () => {
       const projectName = basename(root);
       await sync(root, { config: BASE_CONFIG, silent: true });
 
-      const content = readFileSync(
-        join(root, `plugins/${projectName}/skills/scaffold/SKILL.md`),
-        'utf8',
-      );
+      const content = readFileSync(join(root, `plugins/${projectName}/skills/scaffold/SKILL.md`), 'utf8');
       expect(content).toContain('hooks:');
       expect(content).toContain('pre: echo start');
     });
@@ -486,6 +474,35 @@ describe('syncMarketplace', () => {
       writeSkill(root, 'api-design');
 
       await sync(root, { config: BASE_CONFIG, silent: true });
+
+      expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+    });
+
+    it('recovers from corrupt settings.json and writes fresh entry', async () => {
+      writeSkill(root, 'api-design');
+      mkdirSync(join(root, '.claude'), { recursive: true });
+      writeFileSync(join(root, '.claude', 'settings.json'), '{ not valid json %%%');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: { remote: 'prototypdigital/claude-marketplace' },
+      };
+
+      await sync(root, { config, silent: true });
+
+      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+      expect(settings.extraKnownMarketplaces).toContain('prototypdigital/claude-marketplace');
+    });
+
+    it('skips settings write when remote is not in owner/repo format', async () => {
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: { remote: 'https://github.com/prototypdigital/claude-marketplace' },
+      };
+
+      await sync(root, { config, silent: true });
 
       expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
     });

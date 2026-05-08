@@ -109,8 +109,7 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     ...(answers.platforms.includes(MARKETPLACE_PLATFORM)
       ? {
           marketplace: {
-            remote: 'prototypdigital/claude-marketplace',
-            plugins: [{ name: answers.projectName, displayName: answers.projectName }],
+            plugins: [{ name: answers.projectName }],
           },
         }
       : {}),

@@ -21,11 +21,17 @@ function readExistingSettings(path: string): Record<string, unknown> {
   return {};
 }
 
+const OWNER_REPO_RE = /^[^/]+\/[^/]+$/;
+
 /**
  * Merges `remote` into `.claude/settings.json` under `extraKnownMarketplaces`.
  * Existing settings are preserved; the remote entry is added if not already present.
  */
 export function syncClaudeSettings(ctx: ClaudeSettingsSyncContext): void {
+  if (!OWNER_REPO_RE.test(ctx.remote)) {
+    ctx.log(`Claude settings: skipping — remote "${ctx.remote}" is not in owner/repo format`);
+    return;
+  }
   const claudeDir = join(ctx.root, '.claude');
   const settingsPath = join(claudeDir, 'settings.json');
 
