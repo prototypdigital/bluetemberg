@@ -20,6 +20,33 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.6](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.5...bluetemberg-v0.2.6) (2026-05-08)
+
+
+### Features
+
+* add claude-marketplace platform emitter ([8c6cefb](https://github.com/prototypdigital/bluetemberg/commit/8c6cefb0cbd87cb586997b00e954cebdc1d8eb7e))
+* add claude-marketplace platform emitter ([96fdc18](https://github.com/prototypdigital/bluetemberg/commit/96fdc187814e113da60633e50797dc4399ea7dda))
+* implement profile filtering for marketplace plugins ([4a97f75](https://github.com/prototypdigital/bluetemberg/commit/4a97f75a71f66ee20d9f59a88ee71ee9749e12e7))
+* **marketplace:** add hooks bundling and skill frontmatter pass-through ([d4dcab4](https://github.com/prototypdigital/bluetemberg/commit/d4dcab4f8742e7e4c1121c77aec744d0e2136de7))
+* **marketplace:** add react-patterns to skill templates and SKILL_PRESETS ([0d8151d](https://github.com/prototypdigital/bluetemberg/commit/0d8151d9316847db95fdb6ac9fe841cb1918c1c5))
+* **marketplace:** add remote repo sync, extraKnownMarketplaces, and CI workflow ([005aa89](https://github.com/prototypdigital/bluetemberg/commit/005aa8920a0513f6e7e0f04b4868b7372cb7912b))
+* **marketplace:** dedicated repo sync, extraKnownMarketplaces, CI workflow ([6228e5d](https://github.com/prototypdigital/bluetemberg/commit/6228e5de90f522dd0107d87dd246f9ee85152ff5))
+* **marketplace:** dogfood marketplace, profile skills/agents, extend init wizard ([b2a3355](https://github.com/prototypdigital/bluetemberg/commit/b2a33559fcadf31cf20f0491b7b874f112f52726))
+* **marketplace:** dogfood marketplace, profile skills/agents, extend init wizard ([76b648a](https://github.com/prototypdigital/bluetemberg/commit/76b648a7541c6d71c76048f1b3f65faecf03d306))
+* **marketplace:** wire claude-marketplace into init, scaffold, prune, and docs ([101cf79](https://github.com/prototypdigital/bluetemberg/commit/101cf798416cedb06b089df8f0d30cc0a6f09831))
+* **marketplace:** wire claude-marketplace into init, scaffold, prune, and docs ([5f5fa84](https://github.com/prototypdigital/bluetemberg/commit/5f5fa84f21767f5866ff4b334c92dec953b91731))
+* resolve marketplace profile filtering from presets ([fc5d0db](https://github.com/prototypdigital/bluetemberg/commit/fc5d0dbf7717340de23daa18d33b2b433c4c840b))
+* resolve profile filtering from presets for standard files ([7a7dfd2](https://github.com/prototypdigital/bluetemberg/commit/7a7dfd2de0e1331211af6c73419e95eb7fcb3fc9))
+
+
+### Bug Fixes
+
+* address review issues in claude-marketplace emitter ([5582695](https://github.com/prototypdigital/bluetemberg/commit/55826958281aed1684af5409e0dc3ee409d0148c))
+* **marketplace:** address review findings from PR [#72](https://github.com/prototypdigital/bluetemberg/issues/72) ([dd6fd47](https://github.com/prototypdigital/bluetemberg/commit/dd6fd47a100303f02e1d8bc748ad90d466306d5f))
+* **marketplace:** address review findings from PR [#73](https://github.com/prototypdigital/bluetemberg/issues/73) ([f5e994e](https://github.com/prototypdigital/bluetemberg/commit/f5e994ec5dae32b86c2d4028959c19321abe97b4))
+* use resolveProfiles in catch blocks and add preset-resolution tests ([9174a74](https://github.com/prototypdigital/bluetemberg/commit/9174a745bb6ea5343eb8690ef0333f964caa21ee))
+
 ## [0.2.5](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.4...bluetemberg-v0.2.5) (2026-05-02)
 
 
