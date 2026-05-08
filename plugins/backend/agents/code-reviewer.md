@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Reviews pull requests for code quality, patterns, naming, and potential bugs.
-tools: ['read', 'search']
+tools: ["read", "search"]
 profiles:
   - frontend
   - backend

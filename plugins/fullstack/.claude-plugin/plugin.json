@@ -2,6 +2,58 @@
   "name": "fullstack",
   "displayName": "Full-Stack Developer",
   "description": "Skills and agents for full-stack projects (frontend + backend)",
+  "rules": [
+    {
+      "name": "coding-standards",
+      "description": "Keep functions and components small, readable, and easy to reason about.",
+      "path": "plugins/fullstack/rules/coding-standards.md"
+    },
+    {
+      "name": "docs-parity",
+      "description": "Keep documentation in sync with every user-facing change.",
+      "path": "plugins/fullstack/rules/docs-parity.md"
+    },
+    {
+      "name": "early-returns",
+      "description": "Prefer early returns and guard clauses over nested conditionals.",
+      "path": "plugins/fullstack/rules/early-returns.md"
+    },
+    {
+      "name": "git-move",
+      "description": "Use git mv for tracked files to preserve history.",
+      "path": "plugins/fullstack/rules/git-move.md"
+    },
+    {
+      "name": "git-workflow",
+      "description": "Branch protection, branch naming, and PR workflow rules — no direct pushes to main, branches must follow type/description convention, PRs must be rebased on top of origin/main before raising.",
+      "path": "plugins/fullstack/rules/git-workflow.md"
+    },
+    {
+      "name": "mermaid-diagrams",
+      "description": "Use Mermaid diagrams instead of ASCII art.",
+      "path": "plugins/fullstack/rules/mermaid-diagrams.md"
+    },
+    {
+      "name": "never-read-env",
+      "description": "Never read .env files directly in code.",
+      "path": "plugins/fullstack/rules/never-read-env.md"
+    },
+    {
+      "name": "post-edit-diagnostics",
+      "description": "Run diagnostics and formatter after editing code files.",
+      "path": "plugins/fullstack/rules/post-edit-diagnostics.md"
+    },
+    {
+      "name": "pre-commit-checks",
+      "description": "Run formatter, linter, and build checks before every commit.",
+      "path": "plugins/fullstack/rules/pre-commit-checks.md"
+    },
+    {
+      "name": "type-safety",
+      "description": "Enforce strict type safety — no implicit any, no unguarded assertions.",
+      "path": "plugins/fullstack/rules/type-safety.md"
+    }
+  ],
   "skills": [
     {
       "name": "docs-upkeep",

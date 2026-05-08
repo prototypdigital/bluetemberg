@@ -4,7 +4,6 @@ import matter from 'gray-matter';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
-// RULE_PRESETS included for forward-compatibility if rules are ever added to marketplace output
 import { RULE_PRESETS, AGENT_PRESETS, SKILL_PRESETS } from '../init/presets.js';
 import type { MarketplacePluginDefinition, TeamProfile } from '../types.js';
 
@@ -29,6 +28,7 @@ interface PluginManifest {
   name: string;
   displayName: string;
   description: string;
+  rules: ManifestEntry[];
   skills: ManifestEntry[];
   agents: ManifestEntry[];
   /** Relative path to `hooks/hooks.json` within the plugin dir. Present only when hooks are defined. */
@@ -50,6 +50,21 @@ interface FileMeta {
 function resolveProfiles(id: string, frontmatterProfiles: TeamProfile[]): TeamProfile[] {
   if (frontmatterProfiles.length > 0) return frontmatterProfiles;
   return PRESET_PROFILES.get(id) ?? [];
+}
+
+function readRuleMeta(ruleFile: string, sourceDir: string): FileMeta {
+  const rulePath = join(sourceDir, ruleFile);
+  const id = basename(ruleFile, '.md');
+  try {
+    const { data } = matter.read(rulePath);
+    return {
+      name: (data.name as string) || id,
+      description: (data.description as string) || '',
+      profiles: resolveProfiles(id, (data.profiles as TeamProfile[]) || []),
+    };
+  } catch {
+    return { name: id, description: '', profiles: resolveProfiles(id, []) };
+  }
 }
 
 function readSkillMeta(skillDir: string, sourceParent: string): FileMeta {
@@ -112,23 +127,47 @@ function readHooksContent(sourceDirs: string[]): string | null {
 function emitPlugin(
   ctx: MarketplaceSyncContext,
   plugin: MarketplacePluginDefinition,
+  allRules: Map<string, string>,
   allSkills: Map<string, string>,
   allAgents: Map<string, string>,
   hooksContent: string | null,
   recordError: (msg: string) => void,
 ): PluginManifest {
   const pluginDir = join(ctx.root, 'plugins', plugin.name);
+  const rulesDir = join(pluginDir, 'rules');
   const skillsDir = join(pluginDir, 'skills');
   const agentsDir = join(pluginDir, 'agents');
   const manifestDir = join(pluginDir, '.claude-plugin');
 
   ensureDir(pluginDir);
+  ensureDir(rulesDir);
   ensureDir(skillsDir);
   ensureDir(agentsDir);
   ensureDir(manifestDir);
 
+  const ruleEntries: ManifestEntry[] = [];
   const skillEntries: ManifestEntry[] = [];
   const agentEntries: ManifestEntry[] = [];
+
+  for (const [file, sourceDir] of allRules) {
+    const meta = readRuleMeta(file, sourceDir);
+    if (!matchesPlugin(meta, plugin.profiles)) continue;
+
+    const srcPath = join(sourceDir, file);
+    const outPath = join(rulesDir, file);
+
+    try {
+      const content = readFileSync(srcPath, 'utf8');
+      commitPlannedWrite(ctx, outPath, content);
+      ruleEntries.push({
+        name: meta.name,
+        description: meta.description,
+        path: `plugins/${plugin.name}/rules/${file}`,
+      });
+    } catch {
+      recordError(`marketplace: could not read rule ${file}`);
+    }
+  }
 
   for (const [dirName, sourceParent] of allSkills) {
     const meta = readSkillMeta(dirName, sourceParent);
@@ -184,6 +223,7 @@ function emitPlugin(
     name: plugin.name,
     displayName: plugin.displayName ?? plugin.name,
     description: plugin.description ?? '',
+    rules: ruleEntries,
     skills: skillEntries,
     agents: agentEntries,
     ...(hooks !== undefined ? { hooks } : {}),
@@ -191,18 +231,19 @@ function emitPlugin(
 }
 
 export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: string) => void): void {
+  const allRules = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md') && f !== 'README.md');
   const allSkills = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
     existsSync(join(dirPath, 'SKILL.md')),
   );
   const allAgents = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
 
-  if (allSkills.size === 0 && allAgents.size === 0) return;
+  if (allRules.size === 0 && allSkills.size === 0 && allAgents.size === 0) return;
 
   const hooksContent = readHooksContent(ctx.sourceDirs);
   const projectName = basename(ctx.root);
 
   ctx.log(
-    `Marketplace: ${ctx.plugins.length} plugin(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)${hooksContent !== null ? ', hooks' : ''}`,
+    `Marketplace: ${ctx.plugins.length} plugin(s), ${allRules.size} rule(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)${hooksContent !== null ? ', hooks' : ''}`,
   );
 
   ensureDir(join(ctx.root, '.claude-plugin'));
@@ -210,13 +251,14 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
   const pluginManifests: PluginManifest[] = [];
 
   for (const pluginDef of ctx.plugins) {
-    const manifest = emitPlugin(ctx, pluginDef, allSkills, allAgents, hooksContent, recordError);
+    const manifest = emitPlugin(ctx, pluginDef, allRules, allSkills, allAgents, hooksContent, recordError);
     pluginManifests.push(manifest);
 
     const pluginJsonObj: Record<string, unknown> = {
       name: manifest.name,
       displayName: manifest.displayName,
       description: manifest.description,
+      rules: manifest.rules,
       skills: manifest.skills,
       agents: manifest.agents,
       ...(manifest.hooks !== undefined ? { hooks: manifest.hooks } : {}),
@@ -231,7 +273,7 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
     if (!ctx.checkMode) {
       const hooksNote = manifest.hooks !== undefined ? ', hooks' : '';
       ctx.log(
-        `  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents${hooksNote})`,
+        `  -> plugins/${pluginDef.name}/ (${manifest.rules.length} rules, ${manifest.skills.length} skills, ${manifest.agents.length} agents${hooksNote})`,
       );
     }
   }

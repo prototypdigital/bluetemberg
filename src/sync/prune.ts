@@ -139,6 +139,23 @@ function pruneMarketplace(root: string, expected: Set<string>): number {
         }
       }
 
+      const rulesDir = join(pluginDir, 'rules');
+      if (existsSync(rulesDir)) {
+        for (const name of readdirSync(rulesDir)) {
+          if (!name.endsWith('.md')) continue;
+          const abs = resolve(join(rulesDir, name));
+          if (!expected.has(abs)) {
+            unlinkSync(abs);
+            removed++;
+          }
+        }
+        try {
+          rmdirSync(rulesDir);
+        } catch {
+          // directory not empty — ignore
+        }
+      }
+
       const agentsDir = join(pluginDir, 'agents');
       if (existsSync(agentsDir)) {
         for (const name of readdirSync(agentsDir)) {

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
 
-Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, and **GitHub Copilot** — and optional **Claude Code Marketplace** distribution so teammates can install profile-matched skill packs without any local tooling.
+Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, and **GitHub Copilot** — and optional **Claude Code Marketplace** distribution so teammates can install profile-matched rule + skill + agent packs without any local tooling.
 
 > **Internal package** — published to [GitHub Packages](https://github.com/orgs/prototypdigital/packages) under `@prototypdigital/bluetemberg`.
 
@@ -92,10 +92,10 @@ When `claude-marketplace` is in `platforms`, sync also generates:
 .claude-plugin/
 └── marketplace.json            # Root manifest listing all plugins
 plugins/
-├── frontend/                   # Skills + agents for frontend devs
-├── fullstack/                  # Skills + agents for full-stack devs
-├── backend/                    # Skills + agents for backend devs
-└── devops/                     # Skills + agents for DevOps / platform engineers
+├── frontend/                   # Rules + skills + agents for frontend devs
+├── fullstack/                  # Rules + skills + agents for full-stack devs
+├── backend/                    # Rules + skills + agents for backend devs
+└── devops/                     # Rules + skills + agents for DevOps / platform engineers
 ```
 
 ## Universal guardrails
@@ -144,15 +144,15 @@ npx bluetemberg sync --prune
 
 ## How sync works
 
-| Source                  | Cursor                      | Claude                      | Copilot                                  | Gemini CLI             |
-| ----------------------- | --------------------------- | --------------------------- | ---------------------------------------- | ---------------------- | --- |
-| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`        | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` |
-| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`       | `.github/agents/*.agent.md`              | —                      |
-| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` | `.github/skills/*/SKILL.md`              | —                      |
-| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`          | `.github/mcp.json`                       | —                      |
-| `llm/prompts/*.md`      | —                           | —                           | `.github/prompts/*.prompt.md`            | —                      |
-| `AGENTS.md`             | —                           | —                           | `.github/copilot-instructions.md`        | `GEMINI.md`            |
-| `llm/` (marketplace)    | —                           | `plugins/\*/skills          | agents/`                                 | —                      | —   |
+| Source                  | Cursor                      | Claude                                 | Copilot                                  | Gemini CLI             |
+| ----------------------- | --------------------------- | -------------------------------------- | ---------------------------------------- | ---------------------- |
+| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`                   | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` |
+| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`                  | `.github/agents/*.agent.md`              | —                      |
+| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md`            | `.github/skills/*/SKILL.md`              | —                      |
+| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`                     | `.github/mcp.json`                       | —                      |
+| `llm/prompts/*.md`      | —                           | —                                      | `.github/prompts/*.prompt.md`            | —                      |
+| `AGENTS.md`             | —                           | —                                      | `.github/copilot-instructions.md`        | `GEMINI.md`            |
+| `llm/` (marketplace)    | —                           | `plugins/*/rules \| skills \| agents/` | —                                        | —                      |
 
 Rules get platform-specific frontmatter transforms:
 
