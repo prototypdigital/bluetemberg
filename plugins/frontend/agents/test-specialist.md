@@ -1,7 +1,7 @@
 ---
 name: test-specialist
 description: Creates, refactors, and stabilizes automated tests with deterministic patterns.
-tools: ['read', 'search', 'edit', 'execute']
+tools: ["read", "search", "edit", "execute"]
 profiles:
   - frontend
   - backend
