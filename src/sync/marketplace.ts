@@ -31,6 +31,8 @@ interface PluginManifest {
   description: string;
   skills: ManifestEntry[];
   agents: ManifestEntry[];
+  /** Relative path to `hooks/hooks.json` within the plugin dir. Present only when hooks are defined. */
+  hooks?: string;
 }
 
 interface MarketplaceManifest {
@@ -89,11 +91,30 @@ function matchesPlugin(fileMeta: FileMeta, pluginProfiles: TeamProfile[] | undef
   return fileMeta.profiles.some((p) => pluginProfiles.includes(p));
 }
 
+/**
+ * Reads `claude-hooks.json` from source dirs in priority order.
+ * Returns the raw file content of the first match, or null if not found.
+ */
+function readHooksContent(sourceDirs: string[]): string | null {
+  for (const dir of sourceDirs) {
+    const hooksPath = join(dir, 'claude-hooks.json');
+    if (existsSync(hooksPath)) {
+      try {
+        return readFileSync(hooksPath, 'utf8');
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 function emitPlugin(
   ctx: MarketplaceSyncContext,
   plugin: MarketplacePluginDefinition,
   allSkills: Map<string, string>,
   allAgents: Map<string, string>,
+  hooksContent: string | null,
   recordError: (msg: string) => void,
 ): PluginManifest {
   const pluginDir = join(ctx.root, 'plugins', plugin.name);
@@ -150,12 +171,22 @@ function emitPlugin(
     }
   }
 
+  let hooks: string | undefined;
+  if (hooksContent !== null) {
+    const hooksDir = join(pluginDir, 'hooks');
+    ensureDir(hooksDir);
+    const hooksOutPath = join(hooksDir, 'hooks.json');
+    commitPlannedWrite(ctx, hooksOutPath, hooksContent);
+    hooks = `plugins/${plugin.name}/hooks/hooks.json`;
+  }
+
   return {
     name: plugin.name,
     displayName: plugin.displayName ?? plugin.name,
     description: plugin.description ?? '',
     skills: skillEntries,
     agents: agentEntries,
+    ...(hooks !== undefined ? { hooks } : {}),
   };
 }
 
@@ -167,10 +198,11 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
 
   if (allSkills.size === 0 && allAgents.size === 0) return;
 
+  const hooksContent = readHooksContent(ctx.sourceDirs);
   const projectName = basename(ctx.root);
 
   ctx.log(
-    `Marketplace: ${ctx.plugins.length} plugin(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)`,
+    `Marketplace: ${ctx.plugins.length} plugin(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)${hooksContent !== null ? ', hooks' : ''}`,
   );
 
   ensureDir(join(ctx.root, '.claude-plugin'));
@@ -178,29 +210,28 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
   const pluginManifests: PluginManifest[] = [];
 
   for (const pluginDef of ctx.plugins) {
-    const manifest = emitPlugin(ctx, pluginDef, allSkills, allAgents, recordError);
+    const manifest = emitPlugin(ctx, pluginDef, allSkills, allAgents, hooksContent, recordError);
     pluginManifests.push(manifest);
 
-    const pluginJson = JSON.stringify(
-      {
-        name: manifest.name,
-        displayName: manifest.displayName,
-        description: manifest.description,
-        skills: manifest.skills,
-        agents: manifest.agents,
-      },
-      null,
-      2,
-    );
+    const pluginJsonObj: Record<string, unknown> = {
+      name: manifest.name,
+      displayName: manifest.displayName,
+      description: manifest.description,
+      skills: manifest.skills,
+      agents: manifest.agents,
+      ...(manifest.hooks !== undefined ? { hooks: manifest.hooks } : {}),
+    };
+
     commitPlannedWrite(
       ctx,
       join(ctx.root, 'plugins', pluginDef.name, '.claude-plugin', 'plugin.json'),
-      pluginJson,
+      JSON.stringify(pluginJsonObj, null, 2),
     );
 
     if (!ctx.checkMode) {
+      const hooksNote = manifest.hooks !== undefined ? ', hooks' : '';
       ctx.log(
-        `  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents)`,
+        `  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents${hooksNote})`,
       );
     }
   }

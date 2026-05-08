@@ -30,6 +30,14 @@ export interface MarketplacePluginDefinition {
 
 export interface MarketplaceConfig {
   /**
+   * GitHub repository in `owner/repo` format that hosts the published marketplace output.
+   * When set, bluetemberg writes this value into `.claude/settings.json` under
+   * `extraKnownMarketplaces` so Claude Desktop auto-prompts teammates to install plugins
+   * when they open the project. The CI workflow scaffolded by `bluetemberg init` uses this
+   * value to push generated `plugins/` and `.claude-plugin/` output to that repo.
+   */
+  remote?: string;
+  /**
    * Plugin definitions. Each entry becomes one installable plugin in the marketplace.
    * When omitted, bluetemberg emits a single plugin named after the project containing
    * all llm/ skills and agents.

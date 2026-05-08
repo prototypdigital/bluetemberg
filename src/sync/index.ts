@@ -11,6 +11,7 @@ import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
+import { syncClaudeSettings } from './settings.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
@@ -254,6 +255,11 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
       { name: projectName, displayName: projectName, description: '' },
     ];
     syncMarketplace({ ...ctx, plugins: pluginDefs }, (msg) => recordError(ctx, msg));
+
+    const remote = ctx.config.marketplace?.remote;
+    if (remote) {
+      syncClaudeSettings({ ...ctx, remote });
+    }
   }
 
   await runOptionalAdapters(

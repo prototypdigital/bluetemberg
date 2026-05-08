@@ -158,6 +158,10 @@ function pruneMarketplace(root: string, expected: Set<string>): number {
 
       const pluginJson = join(pluginDir, '.claude-plugin', 'plugin.json');
       removed += pruneSingletonIfStale(pluginJson, expected);
+
+      const hooksJson = join(pluginDir, 'hooks', 'hooks.json');
+      removed += pruneSingletonIfStale(hooksJson, expected);
+
       try {
         rmdirSync(join(pluginDir, '.claude-plugin'));
       } catch {
