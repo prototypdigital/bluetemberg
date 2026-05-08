@@ -26,6 +26,8 @@ Running `bluetemberg sync` then produces:
 plugins/
 └── my-project/
     ├── .claude-plugin/plugin.json
+    ├── rules/
+    │   └── {rule-id}.md
     ├── skills/
     │   └── {skill-id}/SKILL.md
     └── agents/
@@ -132,12 +134,24 @@ When `plugins` is omitted entirely, bluetemberg emits a single plugin named afte
 
 ## Profile filtering
 
-When a plugin definition includes a `profiles` array, only `llm/` files matching at least one of those profiles are included in that plugin.
+When a plugin definition includes a `profiles` array, only `llm/` files matching at least one of those profiles are included in that plugin. This applies to **rules, skills, and agents**.
 
 **Resolution order:**
-1. If the file's `SKILL.md` or agent `.md` has a `profiles:` frontmatter field, that value is used.
+1. If the file has a `profiles:` frontmatter field, that value is used.
 2. If no frontmatter field is present but the file's directory/basename matches a known bluetemberg preset ID, the preset's `tags` are used.
 3. If neither applies, the file is treated as **universal** — included in every plugin regardless of profile filters.
+
+```yaml
+# llm/rules/type-safety.md
+---
+description: Enforce strict type safety — no implicit any, no unguarded assertions.
+scope: "**"
+profiles:
+  - frontend
+  - backend
+  - fullstack
+---
+```
 
 ```yaml
 # llm/skills/api-design/SKILL.md
@@ -165,6 +179,13 @@ Per-plugin manifest listing all included skills and agents:
   "name": "frontend",
   "displayName": "Frontend Developer",
   "description": "...",
+  "rules": [
+    {
+      "name": "coding-standards",
+      "description": "Keep functions and components small, readable, and easy to reason about.",
+      "path": "plugins/frontend/rules/coding-standards.md"
+    }
+  ],
   "skills": [
     {
       "name": "Patterns",
@@ -216,7 +237,7 @@ When the source file is absent, no `hooks/` directory is created and the `hooks`
 
 `bluetemberg sync --prune` cleans up marketplace outputs that are no longer generated. It scans `plugins/` and `.claude-plugin/` and removes:
 
-- Skills, agents, `hooks.json`, and `plugin.json` files belonging to plugins that no longer exist or contain that file
+- Rules, skills, agents, `hooks.json`, and `plugin.json` files belonging to plugins that no longer exist or contain that file
 - `marketplace.json` if the platform is removed
 
 This requires `"claude-marketplace"` to remain in `platforms` when pruning. To remove all marketplace output, temporarily keep the platform listed, run `sync --prune`, then remove it from `platforms`.
