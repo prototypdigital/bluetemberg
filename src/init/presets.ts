@@ -365,6 +365,13 @@ export const SKILL_PRESETS: PresetItem[] = [
     tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
   },
   {
+    id: 'react-patterns',
+    name: 'React patterns',
+    description: 'Component composition, hook extraction, and state co-location for React projects',
+    default: false,
+    tags: ['frontend', 'fullstack'],
+  },
+  {
     id: 'code-review',
     name: 'Code review',
     description: 'Structured review checklist for PRs',
