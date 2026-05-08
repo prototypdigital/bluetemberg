@@ -82,6 +82,10 @@ export function assertInitAnswers(record: unknown): InitAnswers {
     skills: expectStringArray(record, 'skills'),
     includeMcp: expectBoolean(record, 'includeMcp'),
     mcpServers: expectStringArray(record, 'mcpServers'),
+    marketplaceRemote: typeof record.marketplaceRemote === 'string' ? record.marketplaceRemote : '',
+    marketplacePlugins: Array.isArray(record.marketplacePlugins)
+      ? (record.marketplacePlugins as string[])
+      : [],
   };
 }
 

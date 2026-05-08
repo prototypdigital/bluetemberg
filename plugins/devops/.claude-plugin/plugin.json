@@ -1,0 +1,24 @@
+{
+  "name": "devops",
+  "displayName": "DevOps / Platform Engineer",
+  "description": "Skills and agents for CI/CD, containers, and infrastructure",
+  "skills": [
+    {
+      "name": "docs-upkeep",
+      "description": "Keep canonical documentation aligned with implementation and workflow changes in the same task.",
+      "path": "plugins/devops/skills/docs-upkeep/SKILL.md"
+    },
+    {
+      "name": "workspace-hygiene",
+      "description": "On-demand workspace audit — review change scope, clean temp artifacts, verify commit focus.",
+      "path": "plugins/devops/skills/workspace-hygiene/SKILL.md"
+    }
+  ],
+  "agents": [
+    {
+      "name": "docs-maintainer",
+      "description": "Keeps documentation aligned with code and workflow changes.",
+      "path": "plugins/devops/agents/docs-maintainer.md"
+    }
+  ]
+}

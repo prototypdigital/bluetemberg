@@ -1,7 +1,7 @@
 ---
 name: docs-maintainer
 description: Keeps documentation aligned with code and workflow changes.
-tools: ["read", "search", "edit"]
+tools: ['read', 'search', 'edit']
 profiles:
   - frontend
   - backend
