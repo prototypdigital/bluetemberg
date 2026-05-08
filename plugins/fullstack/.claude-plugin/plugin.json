@@ -1,0 +1,44 @@
+{
+  "name": "fullstack",
+  "displayName": "Full-Stack Developer",
+  "description": "Skills and agents for full-stack projects (frontend + backend)",
+  "skills": [
+    {
+      "name": "docs-upkeep",
+      "description": "Keep canonical documentation aligned with implementation and workflow changes in the same task.",
+      "path": "plugins/fullstack/skills/docs-upkeep/SKILL.md"
+    },
+    {
+      "name": "patterns",
+      "description": "Apply reusable architecture and coding patterns from project standards when implementing features or reviewing structure.",
+      "path": "plugins/fullstack/skills/patterns/SKILL.md"
+    },
+    {
+      "name": "react-patterns",
+      "description": "Apply React component patterns — composition, co-location, and hook extraction — before reaching for custom solutions.",
+      "path": "plugins/fullstack/skills/react-patterns/SKILL.md"
+    },
+    {
+      "name": "workspace-hygiene",
+      "description": "On-demand workspace audit — review change scope, clean temp artifacts, verify commit focus.",
+      "path": "plugins/fullstack/skills/workspace-hygiene/SKILL.md"
+    }
+  ],
+  "agents": [
+    {
+      "name": "code-reviewer",
+      "description": "Reviews pull requests for code quality, patterns, naming, and potential bugs.",
+      "path": "plugins/fullstack/agents/code-reviewer.md"
+    },
+    {
+      "name": "docs-maintainer",
+      "description": "Keeps documentation aligned with code and workflow changes.",
+      "path": "plugins/fullstack/agents/docs-maintainer.md"
+    },
+    {
+      "name": "test-specialist",
+      "description": "Creates, refactors, and stabilizes automated tests with deterministic patterns.",
+      "path": "plugins/fullstack/agents/test-specialist.md"
+    }
+  ]
+}

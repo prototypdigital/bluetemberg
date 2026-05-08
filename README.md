@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
 
-Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, and **GitHub Copilot**.
+Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, and **GitHub Copilot** — and optional **Claude Code Marketplace** distribution so teammates can install profile-matched skill packs without any local tooling.
 
 > **Internal package** — published to [GitHub Packages](https://github.com/orgs/prototypdigital/packages) under `@prototypdigital/bluetemberg`.
 
@@ -86,6 +86,18 @@ your-project/
 └── .gemini/context/            # Generated — do not edit
 ```
 
+When `claude-marketplace` is in `platforms`, sync also generates:
+
+```
+.claude-plugin/
+└── marketplace.json            # Root manifest listing all plugins
+plugins/
+├── frontend/                   # Skills + agents for frontend devs
+├── fullstack/                  # Skills + agents for full-stack devs
+├── backend/                    # Skills + agents for backend devs
+└── devops/                     # Skills + agents for DevOps / platform engineers
+```
+
 ## Universal guardrails
 
 **Default set (Frontend, Backend, Full-stack, DevOps / Platform, Custom):** seven rules cannot be deselected in the wizard:
@@ -133,13 +145,14 @@ npx bluetemberg sync --prune
 ## How sync works
 
 | Source                  | Cursor                      | Claude                      | Copilot                                  | Gemini CLI             |
-| ----------------------- | --------------------------- | --------------------------- | ---------------------------------------- | ---------------------- |
+| ----------------------- | --------------------------- | --------------------------- | ---------------------------------------- | ---------------------- | --- |
 | `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`        | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` |
 | `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`       | `.github/agents/*.agent.md`              | —                      |
 | `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` | `.github/skills/*/SKILL.md`              | —                      |
 | `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`          | `.github/mcp.json`                       | —                      |
 | `llm/prompts/*.md`      | —                           | —                           | `.github/prompts/*.prompt.md`            | —                      |
 | `AGENTS.md`             | —                           | —                           | `.github/copilot-instructions.md`        | `GEMINI.md`            |
+| `llm/` (marketplace)    | —                           | `plugins/\*/skills          | agents/`                                 | —                      | —   |
 
 Rules get platform-specific frontmatter transforms:
 
@@ -154,6 +167,35 @@ Agents and skills are copied verbatim (only the filename extension changes).
 
 **Programmatic API:** `import { sync, loadConfig, shouldExitWithFailure } from '@prototypdigital/bluetemberg'`. `sync()` returns a **Promise** (it may load optional `adapters`). Always **await** it, e.g. `const results = await sync(root, { config: loadConfig(root), prune: true });`. Use `shouldExitWithFailure(results, checkMode)` to mirror CLI exit semantics. Release notes for each version live in [CHANGELOG.md](CHANGELOG.md) (updated by Release Please). Breaking changes should use conventional commits—see [Contributing — Changelog and breaking changes](https://github.com/prototypdigital/bluetemberg/wiki/Contributing#changelog-and-breaking-changes).
 
+## Marketplace
+
+Add `"claude-marketplace"` to `platforms` and define plugins in `bluetemberg.config.json` to emit installable Claude Code plugin bundles:
+
+```json
+{
+  "platforms": ["claude", "claude-marketplace"],
+  "marketplace": {
+    "remote": "your-org/claude-marketplace",
+    "plugins": [
+      { "name": "frontend", "displayName": "Frontend Developer", "profiles": ["frontend"] },
+      {
+        "name": "fullstack",
+        "displayName": "Full-Stack Developer",
+        "profiles": ["frontend", "backend", "fullstack"]
+      },
+      { "name": "backend", "displayName": "Backend Developer", "profiles": ["backend"] },
+      { "name": "devops", "displayName": "DevOps Engineer", "profiles": ["devops", "pure-infra"] }
+    ]
+  }
+}
+```
+
+Each plugin bundles only the skills and agents whose `profiles` frontmatter (or preset tags) overlap with the plugin's `profiles` list. Skills and agents with no profile are included everywhere.
+
+When `remote` is set, `bluetemberg sync` writes `extraKnownMarketplaces` to `.claude/settings.json` — Claude Code then auto-prompts teammates to install the relevant plugin when they open the project. **Teammates need no local bluetemberg install.**
+
+See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guide including the CI push workflow.
+
 ## Documentation
 
 See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full documentation:
@@ -163,6 +205,7 @@ See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full doc
 - [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands)
 - [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)
 - [Profiles](https://github.com/prototypdigital/bluetemberg/wiki/Profiles)
+- [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace)
 - [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules)
 - [Writing Agents](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Agents)
 - [Writing Skills](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills)

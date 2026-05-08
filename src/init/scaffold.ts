@@ -7,12 +7,13 @@ import { MARKETPLACE_PLATFORM } from '../types.js';
 import type {
   InitAnswers,
   BlueprintConfig,
+  MarketplacePluginDefinition,
   Platform,
   TargetConfig,
   SkillTargetConfig,
   PackageManifest,
 } from '../types.js';
-import { RULE_COLLECTION_PRESETS } from './presets.js';
+import { RULE_COLLECTION_PRESETS, MARKETPLACE_PLUGIN_PACKS } from './presets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
@@ -71,6 +72,30 @@ function readExistingAdapters(configPath: string): string[] | undefined {
   return undefined;
 }
 
+function buildMarketplacePlugins(answers: InitAnswers): MarketplacePluginDefinition[] {
+  const packIds = answers.marketplacePlugins;
+  if (!packIds || packIds.length === 0) {
+    return [{ name: answers.projectName }];
+  }
+  return packIds.map((id) => {
+    const pack = MARKETPLACE_PLUGIN_PACKS.find((p) => p.id === id);
+    if (!pack) return { name: id };
+    return {
+      name: pack.id,
+      displayName: pack.displayName,
+      description: pack.description,
+      profiles: pack.profiles,
+    };
+  });
+}
+
+function buildMarketplaceConfig(answers: InitAnswers): BlueprintConfig['marketplace'] {
+  return {
+    ...(answers.marketplaceRemote ? { remote: answers.marketplaceRemote } : {}),
+    plugins: buildMarketplacePlugins(answers),
+  };
+}
+
 function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string[]): void {
   const targets: BlueprintConfig['targets'] = {};
 
@@ -107,11 +132,7 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     source: 'llm',
     targets,
     ...(answers.platforms.includes(MARKETPLACE_PLATFORM)
-      ? {
-          marketplace: {
-            plugins: [{ name: answers.projectName }],
-          },
-        }
+      ? { marketplace: buildMarketplaceConfig(answers) }
       : {}),
     ...(existingAdapters !== undefined ? { adapters: existingAdapters } : {}),
   };

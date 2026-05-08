@@ -10,9 +10,26 @@ import {
   PLATFORM_CHOICES,
   PACKAGE_MANAGERS,
   TEAM_PROFILES,
+  MARKETPLACE_PLUGIN_PACKS,
 } from './presets.js';
 import type { InitAnswers, Platform, PackageManager, TeamProfile, RuleSource } from '../types.js';
 import { resolvePresetDefaults } from './preset-resolution.js';
+
+function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
+  switch (teamProfile) {
+    case 'frontend':
+      return ['frontend'];
+    case 'backend':
+      return ['backend'];
+    case 'fullstack':
+      return ['frontend', 'fullstack', 'backend'];
+    case 'devops':
+    case 'pure-infra':
+      return ['devops'];
+    case 'custom':
+      return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
+  }
+}
 
 export async function runPrompts(targetDir: string): Promise<InitAnswers> {
   const teamProfile = await select<TeamProfile>({
@@ -49,6 +66,26 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     })),
     required: true,
   });
+
+  let marketplaceRemote = '';
+  let marketplacePlugins: string[] = [];
+
+  if (platforms.includes(MARKETPLACE_PLATFORM)) {
+    marketplaceRemote = await input({
+      message: 'Marketplace remote repo (owner/repo, leave blank to skip):',
+      default: '',
+    });
+
+    const defaults = defaultMarketplacePacks(teamProfile);
+    marketplacePlugins = await checkbox<string>({
+      message: 'Plugin packs to distribute:',
+      choices: MARKETPLACE_PLUGIN_PACKS.map((p) => ({
+        value: p.id,
+        name: `${p.displayName} — ${p.description}`,
+        checked: defaults.includes(p.id),
+      })),
+    });
+  }
 
   const ruleSource = await select<RuleSource>({
     message: 'Rule source:',
@@ -161,5 +198,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     skills,
     includeMcp,
     mcpServers,
+    marketplaceRemote,
+    marketplacePlugins,
   };
 }

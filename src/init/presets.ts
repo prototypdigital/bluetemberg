@@ -2,6 +2,7 @@ import type {
   PresetItem,
   PlatformChoice,
   PackageManagerChoice,
+  TeamProfile,
   TeamProfileChoice,
   RuleCollectionPreset,
 } from '../types.js';
@@ -454,6 +455,40 @@ export const PLATFORM_CHOICES: PlatformChoice[] = [
   { id: 'copilot', name: 'GitHub Copilot' },
   { id: 'gemini', name: 'Gemini CLI' },
   { id: 'claude-marketplace', name: 'Claude Code Marketplace (plugin distribution)' },
+];
+
+export interface MarketplacePluginPackChoice {
+  id: string;
+  displayName: string;
+  description: string;
+  profiles: TeamProfile[];
+}
+
+export const MARKETPLACE_PLUGIN_PACKS: MarketplacePluginPackChoice[] = [
+  {
+    id: 'frontend',
+    displayName: 'Frontend Developer',
+    description: 'Skills and agents for React/TypeScript frontend projects',
+    profiles: ['frontend'],
+  },
+  {
+    id: 'fullstack',
+    displayName: 'Full-Stack Developer',
+    description: 'Skills and agents for full-stack projects (frontend + backend)',
+    profiles: ['frontend', 'backend', 'fullstack'],
+  },
+  {
+    id: 'backend',
+    displayName: 'Backend Developer',
+    description: 'Skills and agents for API, database, and service projects',
+    profiles: ['backend'],
+  },
+  {
+    id: 'devops',
+    displayName: 'DevOps / Platform Engineer',
+    description: 'Skills and agents for CI/CD, containers, and infrastructure',
+    profiles: ['devops', 'pure-infra'],
+  },
 ];
 
 export const PACKAGE_MANAGERS: PackageManagerChoice[] = [

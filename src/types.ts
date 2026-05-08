@@ -101,6 +101,10 @@ export interface InitAnswers {
   skills: string[];
   includeMcp: boolean;
   mcpServers: string[];
+  /** `owner/repo` for the dedicated marketplace repo. Empty string = not configured. */
+  marketplaceRemote?: string;
+  /** Plugin pack IDs to distribute (e.g. `['frontend', 'fullstack']`). Empty = single project plugin. */
+  marketplacePlugins?: string[];
 }
 
 /** Options for `init()` besides the target directory (CLI parity). */

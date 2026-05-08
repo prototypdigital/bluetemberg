@@ -73,6 +73,8 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     skills: skillsForProfile(teamProfile),
     includeMcp: true,
     mcpServers: defaultMcpServerIds(),
+    marketplaceRemote: '',
+    marketplacePlugins: [],
   };
 }
 
@@ -135,5 +137,7 @@ export function finalizeNonInteractiveAnswers(
     skills,
     includeMcp,
     mcpServers,
+    marketplaceRemote: overrides.marketplaceRemote ?? base.marketplaceRemote,
+    marketplacePlugins: overrides.marketplacePlugins ?? base.marketplacePlugins,
   };
 }

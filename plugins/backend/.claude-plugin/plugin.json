@@ -1,0 +1,39 @@
+{
+  "name": "backend",
+  "displayName": "Backend Developer",
+  "description": "Skills and agents for API, database, and service projects",
+  "skills": [
+    {
+      "name": "docs-upkeep",
+      "description": "Keep canonical documentation aligned with implementation and workflow changes in the same task.",
+      "path": "plugins/backend/skills/docs-upkeep/SKILL.md"
+    },
+    {
+      "name": "patterns",
+      "description": "Apply reusable architecture and coding patterns from project standards when implementing features or reviewing structure.",
+      "path": "plugins/backend/skills/patterns/SKILL.md"
+    },
+    {
+      "name": "workspace-hygiene",
+      "description": "On-demand workspace audit — review change scope, clean temp artifacts, verify commit focus.",
+      "path": "plugins/backend/skills/workspace-hygiene/SKILL.md"
+    }
+  ],
+  "agents": [
+    {
+      "name": "code-reviewer",
+      "description": "Reviews pull requests for code quality, patterns, naming, and potential bugs.",
+      "path": "plugins/backend/agents/code-reviewer.md"
+    },
+    {
+      "name": "docs-maintainer",
+      "description": "Keeps documentation aligned with code and workflow changes.",
+      "path": "plugins/backend/agents/docs-maintainer.md"
+    },
+    {
+      "name": "test-specialist",
+      "description": "Creates, refactors, and stabilizes automated tests with deterministic patterns.",
+      "path": "plugins/backend/agents/test-specialist.md"
+    }
+  ]
+}
