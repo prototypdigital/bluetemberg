@@ -21,11 +21,18 @@ interface GeminiFrontmatter {
   glob: string;
 }
 
+interface WindsurfFrontmatter {
+  trigger: 'always_on' | 'glob';
+  description: string;
+  glob?: string;
+}
+
 export type TransformedFrontmatter =
   | CursorFrontmatter
   | ClaudeFrontmatter
   | CopilotFrontmatter
-  | GeminiFrontmatter;
+  | GeminiFrontmatter
+  | WindsurfFrontmatter;
 
 export function transformFrontmatter(data: RuleFrontmatter, platform: Platform): TransformedFrontmatter {
   const description = data.description || '';
@@ -54,6 +61,13 @@ export function transformFrontmatter(data: RuleFrontmatter, platform: Platform):
         glob: Array.isArray(scope) ? scope.join(',') : scope,
       };
 
+    case 'windsurf': {
+      if (scope === '**') {
+        return { trigger: 'always_on', description };
+      }
+      return { trigger: 'glob', description, glob: Array.isArray(scope) ? scope.join(',') : scope };
+    }
+
     default:
       throw new Error(`Unknown platform: ${platform as string}`);
   }
@@ -69,6 +83,7 @@ export const DEFAULT_TARGETS: {
     claude: { dir: '.claude/rules', ext: '.md' },
     copilot: { dir: '.github/instructions', ext: '.instructions.md' },
     gemini: { dir: '.gemini/context', ext: '.md' },
+    windsurf: { dir: '.windsurf/rules', ext: '.md' },
   },
   agents: {
     cursor: { dir: '.cursor/agents', ext: '.md' },
@@ -79,5 +94,6 @@ export const DEFAULT_TARGETS: {
     cursor: { dir: '.cursor/skills' },
     claude: { dir: '.claude/skills' },
     copilot: { dir: '.github/skills' },
+    windsurf: { dir: '.windsurf/skills' },
   },
 };

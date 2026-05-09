@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
 
-Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, and **GitHub Copilot** — and optional **Claude Code Marketplace** distribution so teammates can install profile-matched rule + skill + agent packs without any local tooling.
+Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, **GitHub Copilot**, and **Windsurf** — and optional **Claude Code Marketplace** distribution so teammates can install profile-matched rule + skill + agent packs without any local tooling.
 
 > **Internal package** — published to [GitHub Packages](https://github.com/orgs/prototypdigital/packages) under `@prototypdigital/bluetemberg`.
 
@@ -46,7 +46,7 @@ Developing from a clone: run `npm run build` before `bin/cli.js` — the CLI imp
 The interactive wizard will ask you to pick:
 
 - **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), or Custom — sets defaults for rules, agents, and skills (`--profile pure-infra` in headless runs)
-- Target platforms (Cursor / Claude / Copilot / Gemini CLI)
+- Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf)
 - Starter rules — **universal guardrails depend on profile** (`pure-infra` omits app-code-centric universals—see wiki **Profiles**); other defaults are pre-checked by team type
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
@@ -83,7 +83,10 @@ your-project/
 ├── .github/instructions/       # Generated — do not edit
 ├── .github/agents/             # Generated — do not edit
 ├── .github/skills/             # Generated — do not edit
-└── .gemini/context/            # Generated — do not edit
+├── .gemini/context/            # Generated — do not edit
+├── .windsurf/rules/            # Generated — do not edit
+├── .windsurf/skills/           # Generated — do not edit
+└── .windsurf/workflows/        # Generated — do not edit
 ```
 
 When `claude-marketplace` is in `platforms`, sync also generates:
@@ -144,15 +147,16 @@ npx bluetemberg sync --prune
 
 ## How sync works
 
-| Source                  | Cursor                      | Claude                                 | Copilot                                  | Gemini CLI             |
-| ----------------------- | --------------------------- | -------------------------------------- | ---------------------------------------- | ---------------------- |
-| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`                   | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` |
-| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`                  | `.github/agents/*.agent.md`              | —                      |
-| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md`            | `.github/skills/*/SKILL.md`              | —                      |
-| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`                     | `.github/mcp.json`                       | —                      |
-| `llm/prompts/*.md`      | —                           | —                                      | `.github/prompts/*.prompt.md`            | —                      |
-| `AGENTS.md`             | —                           | —                                      | `.github/copilot-instructions.md`        | `GEMINI.md`            |
-| `llm/` (marketplace)    | —                           | `plugins/*/rules \| skills \| agents/` | —                                        | —                      |
+| Source                  | Cursor                      | Claude                                 | Copilot                                  | Gemini CLI             | Windsurf               |
+| ----------------------- | --------------------------- | -------------------------------------- | ---------------------------------------- | ---------------------- | ---------------------- |
+| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`                   | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` | `.windsurf/rules/*.md` |
+| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`                  | `.github/agents/*.agent.md`              | —                      | —                      |
+| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md`            | `.github/skills/*/SKILL.md`              | —                      | `.windsurf/skills/*/SKILL.md` |
+| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`                     | `.github/mcp.json`                       | —                      | —                                |
+| `llm/commands/*.md`     | —                           | `.claude/commands/*.md`                | —                                        | —                      | `.windsurf/workflows/*.md`       |
+| `llm/prompts/*.md`      | —                           | —                                      | `.github/prompts/*.prompt.md`            | —                      | —                                |
+| `AGENTS.md`             | —                           | —                                      | `.github/copilot-instructions.md`        | `GEMINI.md`            | —                                |
+| `llm/` (marketplace)    | —                           | `plugins/*/rules \| skills \| agents/` | —                                        | —                      | —                      |
 
 Rules get platform-specific frontmatter transforms:
 
@@ -160,6 +164,7 @@ Rules get platform-specific frontmatter transforms:
 - **Claude**: `paths: [scope]`
 - **Copilot**: `applyTo: scope`
 - **Gemini CLI**: `glob: scope`
+- **Windsurf**: `scope: '**'` -> `trigger: always_on`; otherwise `trigger: glob`, `glob: scope`
 
 Agents and skills are copied verbatim (only the filename extension changes).
 

@@ -1,4 +1,4 @@
-export type Platform = 'cursor' | 'claude' | 'copilot' | 'gemini' | 'claude-marketplace';
+export type Platform = 'cursor' | 'claude' | 'copilot' | 'gemini' | 'windsurf' | 'claude-marketplace';
 export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';

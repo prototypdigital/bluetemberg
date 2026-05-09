@@ -8,6 +8,7 @@ import { pruneStaleOutputs } from './prune.js';
 import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
+import { syncWindsurfWorkflows } from './windsurf-workflows.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
@@ -24,7 +25,14 @@ import type {
   SkillTargetConfig,
 } from '../types.js';
 
-const VALID_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot', 'gemini', 'claude-marketplace'];
+const VALID_PLATFORMS: readonly Platform[] = [
+  'cursor',
+  'claude',
+  'copilot',
+  'gemini',
+  'windsurf',
+  'claude-marketplace',
+];
 
 function validateTargets(targets: unknown, configPath: string): void {
   if (targets === undefined) {
@@ -247,6 +255,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   syncMcp(ctx, (msg) => recordError(ctx, msg));
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
+  syncWindsurfWorkflows(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {

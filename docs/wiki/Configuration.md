@@ -36,7 +36,7 @@ The `extends` and `adapters` fields are optional.
 
 ### `platforms`
 
-Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"claude-marketplace"`.
+Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"windsurf"`, `"claude-marketplace"`.
 
 Only selected platforms get generated output during sync.
 
@@ -159,6 +159,7 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 | cursor   | `.cursor/rules`        | `.mdc`             |
 | claude   | `.claude/rules`        | `.md`              |
 | copilot  | `.github/instructions` | `.instructions.md` |
+| windsurf | `.windsurf/rules`      | `.md`              |
 
 #### Agent targets
 
@@ -170,11 +171,12 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 
 #### Skill targets
 
-| Platform | Default dir      |
-| -------- | ---------------- |
-| cursor   | `.cursor/skills` |
-| claude   | `.claude/skills` |
-| copilot  | `.github/skills` |
+| Platform | Default dir        |
+| -------- | ------------------ |
+| cursor   | `.cursor/skills`   |
+| claude   | `.claude/skills`   |
+| copilot  | `.github/skills`   |
+| windsurf | `.windsurf/skills` |
 
 Skills are synced as `<skill-name>/SKILL.md` within the target directory.
 
