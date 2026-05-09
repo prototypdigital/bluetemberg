@@ -107,7 +107,7 @@ describe('finalizeNonInteractiveAnswers', () => {
     const dir = join('/tmp', 'bluetemberg-init-test-nonexistent-dir');
     const got = finalizeNonInteractiveAnswers('devops', dir, {});
     expect(got.packageManager).toBe('pnpm');
-    expect(got.platforms.length).toBe(4);
+    expect(got.platforms.length).toBe(5);
     expect(got.includeAgents).toBe(true);
     expect(universalRulesForProfile('devops').every((id) => got.rules.includes(id))).toBe(true);
   });
