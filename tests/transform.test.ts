@@ -80,6 +80,28 @@ describe('transformFrontmatter', () => {
     });
   });
 
+  describe('windsurf', () => {
+    it('sets always_on for global scope', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: '**' }, 'windsurf');
+      expect(result).toEqual({ trigger: 'always_on', description: 'Test' });
+    });
+
+    it('sets always_on when scope is omitted', () => {
+      const result = transformFrontmatter({ description: 'Test' }, 'windsurf');
+      expect(result).toEqual({ trigger: 'always_on', description: 'Test' });
+    });
+
+    it('sets trigger glob for file-scoped rules', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: 'src/**' }, 'windsurf');
+      expect(result).toEqual({ trigger: 'glob', description: 'Test', glob: 'src/**' });
+    });
+
+    it('joins array scope with comma', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: ['src/**', 'lib/**'] }, 'windsurf');
+      expect(result).toEqual({ trigger: 'glob', description: 'Test', glob: 'src/**,lib/**' });
+    });
+  });
+
   describe('cursor — array scope edge case', () => {
     it('uses globs (not alwaysApply) when scope is ["**"] as array', () => {
       const result = transformFrontmatter({ description: 'Test', scope: ['**'] }, 'cursor');
