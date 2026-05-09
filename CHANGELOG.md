@@ -20,6 +20,16 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.7](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.6...bluetemberg-v0.2.7) (2026-05-09)
+
+
+### Features
+
+* **marketplace:** bundle rules into plugin packs with profile filtering ([469e1c4](https://github.com/prototypdigital/bluetemberg/commit/469e1c491b03ea87fa578e18aab224508d3bf516))
+* **marketplace:** bundle rules into plugin packs with profile filtering ([730bd9d](https://github.com/prototypdigital/bluetemberg/commit/730bd9d2268e3de41f483bafa611fb88aa0fa90c))
+* **windsurf:** add Windsurf as a sync target platform ([f9c7f68](https://github.com/prototypdigital/bluetemberg/commit/f9c7f68d2a61b5568bbad54ef71b530f3c023a90))
+* **windsurf:** add Windsurf as a sync target platform ([f468789](https://github.com/prototypdigital/bluetemberg/commit/f468789dc5f3bee46baa1c4bba5e4a7c3cfc5f3a))
+
 ## [0.2.6](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.5...bluetemberg-v0.2.6) (2026-05-08)
 
 
