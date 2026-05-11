@@ -13,42 +13,22 @@ Use this skill when reviewing a pull request or a set of code changes before mer
 - Post-implementation self-review before opening a PR
 - Peer review requested by a teammate
 
-## Procedure
+## Required behavior
 
-Work through the following steps in order. Do not skip steps for small changes.
+1. The agent MUST establish intent before reading any code — run `git log --oneline origin/main..HEAD` and `git diff --stat origin/main..HEAD`, read the PR description if available, and state the intent in one sentence. A finding is only valid if it conflicts with the stated intent or introduces unacceptable risk.
+2. The agent MUST review the diff, not the full files — run `git diff origin/main..HEAD` and focus on changed lines and their enclosing function or block. Full files should only be read when a change cannot be understood without broader context.
+3. The agent MUST reason before critiquing — for each changed area, trace: (a) what the code does after the change, (b) what inputs it accepts and their valid ranges, (c) what can go wrong. Only raise a finding once a concrete consequence can be stated, not a theoretical one.
+4. The agent MUST format every finding using [Conventional Comments](https://conventionalcomments.org) labels with a file and line reference.
+5. The agent MUST check these categories in priority order: correctness, security, error handling, API contracts, performance, test coverage.
+6. The agent MUST write a summary after all findings: restate the PR intent, count findings by severity, give a merge verdict (Block / Request changes / Approve with suggestions / Approve), and cite one specific `praise`.
+7. The agent SHOULD acknowledge one thing done well per review — cite file and line, not a generic compliment. This is supported by [Google Engineering Practices](https://google.github.io/eng-practices/review/reviewer/comments.html): *"If you see things you like in the CL, comment on those too!"*
+8. The agent MUST NOT comment on formatting, whitespace, or style without a project style-guide reference — these belong to automated tools. Per [Cloudflare's production review system](https://blog.cloudflare.com/ai-code-review/): *"Without these boundaries, you get a firehose of speculative theoretical warnings that developers will immediately learn to ignore."*
+9. The agent MUST NOT raise speculative findings — every finding needs a concrete consequence, not a theoretical one.
+10. The agent MUST NOT flag issues already caught by CI (type errors, lint failures, failing tests reported in the pipeline).
 
-### Step 1 — Understand intent
+## Finding format
 
-Before looking at code, establish what the change is supposed to accomplish:
-
-```bash
-git log --oneline origin/main..HEAD   # commits on this branch
-git diff --stat origin/main..HEAD     # files and line counts changed
-```
-
-If a PR description or issue link is available, read it. Summarize the intent in one sentence before proceeding. This anchors your review — a finding is only valid if it conflicts with the stated intent or introduces unacceptable risk.
-
-### Step 2 — Read the diff, not the files
-
-```bash
-git diff origin/main..HEAD
-```
-
-Focus on changed lines and their immediate context (the enclosing function or block). Do not read entire files unless a change cannot be understood without broader context.
-
-### Step 3 — Reason before critiquing
-
-For each changed area, trace the execution path:
-1. What does this code do now (after the change)?
-2. What are the inputs and their valid ranges?
-3. What can go wrong (error paths, edge cases, concurrent access)?
-4. Does the change match the stated intent?
-
-Only raise a finding once you can state a concrete consequence, not a theoretical one.
-
-### Step 4 — Issue findings
-
-Format every finding using Conventional Comments labels:
+Use [Conventional Comments](https://conventionalcomments.org) labels. Every finding must include a file and line reference (`src/foo.ts:42`).
 
 ```
 <label>(<optional-scope>): <what in one sentence>
@@ -58,50 +38,30 @@ Format every finding using Conventional Comments labels:
 <fix — corrected snippet or concrete alternative, if applicable>
 ```
 
-**Labels and severity:**
-
-| Label | Severity | Meaning |
+| Label | Blocks merge? | Meaning |
 |---|---|---|
-| `issue` | Critical | Must be fixed before merge — correctness bug, security vulnerability, or data loss risk |
-| `warning` | Major | Concrete regression or pattern that will likely cause problems; strongly recommended to fix |
-| `suggestion` | Minor | Worth considering; optional but improves quality |
-| `nitpick` | Nit | Purely stylistic, no behavioral impact; author can ignore |
-| `praise` | Positive | Something done well — cite it specifically |
+| `issue` | Yes | Correctness bug, security vulnerability, or data loss risk — must fix before merge |
+| `warning` | Recommended | Concrete regression or bad pattern that will likely cause problems — strongly advised to fix (project extension of CC; not in the CC spec) |
+| `suggestion` | No | Worth considering; optional improvement |
+| `nitpick` | No | Purely stylistic, no behavioral impact; author can ignore |
+| `praise` | — | Something done well — always cite a specific file and line |
 
-**Always include** a file and line reference for each finding: `src/foo.ts:42`.
+## Examples
 
-### Step 5 — Write a summary
-
-After all findings, write a short summary (3–6 sentences):
-
-1. One sentence restating the PR intent.
-2. Count of findings by severity (e.g., "1 issue, 2 warnings, 3 suggestions").
-3. A merge verdict: **Block** (has `issue`-level findings) / **Request changes** (has `warning`-level) / **Approve with suggestions** / **Approve**.
-4. One specific `praise` — cite a file and line, not a generic compliment.
-
-## Categories to check
-
-Check these categories explicitly in order of priority:
-
-1. **Correctness** — logic errors, wrong conditions, off-by-one, incorrect state transitions
-2. **Security** — injection vectors, auth bypass, hardcoded secrets, unsafe deserialization, exposed internals in error responses
-3. **Error handling** — unhandled rejection, swallowed exceptions, missing fallbacks at system boundaries
-4. **API contracts** — breaking changes to public interfaces, unexpected type widening, missing validation on external input
-5. **Performance** — O(n²) where O(n) is achievable, unnecessary allocations in hot paths, N+1 queries
-6. **Tests** — new behavior with no test coverage, tests that only test the happy path
-
-## What NOT to comment on
-
-Do not raise findings for:
-
-- Formatting, indentation, or whitespace — delegate to the project formatter
-- Style preferences without a project style-guide reference
-- Speculative "this could theoretically fail if..." warnings with no concrete path
-- Issues already caught by CI (type errors, lint failures, failing tests reported in the pipeline)
-- Vendored or generated code outside the PR author's control
+- A PR adds a new API endpoint without input validation → `issue(security): src/routes/upload.ts:34 — user-supplied filename passed directly to fs.writeFile with no sanitisation; a path traversal attack can write to arbitrary paths`
+- A PR switches from `Promise.all` to sequential awaits in a loop → `warning(performance): src/jobs/sync.ts:88 — sequential awaits in a loop over N items degrades from O(1) to O(N) wait time; use Promise.all to restore concurrent execution`
+- A PR extracts a 60-line function into two focused helpers → `praise: src/sync/transform.ts:12-34 — splitting resolveProfiles into two focused helpers makes the branching logic easy to follow without scrolling`
 
 ## When NOT to use
 
 - Automated formatting-only PRs (no behavior change)
 - Generated code (migrations created by a tool, lock file updates)
 - Work-in-progress draft PRs explicitly not ready for review
+- Vendored or third-party code outside the PR author's control
+
+## Further reading
+
+- [Conventional Comments](https://conventionalcomments.org) — label spec used for finding format
+- [Google Engineering Practices — How to write review comments](https://google.github.io/eng-practices/review/reviewer/comments.html) — `Nit:`, `Optional:`, `FYI:` severity labels; guidance on praising good code
+- [Cloudflare: Orchestrating AI Code Review at scale](https://blog.cloudflare.com/ai-code-review/) — evidence for explicit negative constraints and signal-over-noise bias
+- [Ericsson: Automated Code Review Using LLMs (arXiv 2507.19115)](https://arxiv.org/abs/2507.19115) — production LLM review at scale; ICSME 2025
