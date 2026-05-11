@@ -56,6 +56,11 @@
   ],
   "skills": [
     {
+      "name": "code-review",
+      "description": "Structured code review — intent-first, diff-focused, severity-tiered findings with actionable fix suggestions.",
+      "path": "plugins/fullstack/skills/code-review/SKILL.md"
+    },
+    {
       "name": "docs-upkeep",
       "description": "Keep canonical documentation aligned with implementation and workflow changes in the same task.",
       "path": "plugins/fullstack/skills/docs-upkeep/SKILL.md"
