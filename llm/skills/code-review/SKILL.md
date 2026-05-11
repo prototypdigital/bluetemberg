@@ -1,6 +1,10 @@
 ---
 name: code-review
 description: Structured code review — intent-first, diff-focused, severity-tiered findings with actionable fix suggestions.
+profiles:
+  - frontend
+  - backend
+  - fullstack
 ---
 
 # code-review
