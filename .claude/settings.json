@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "EnterWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'branch=$(git branch --show-current 2>/dev/null); if [[ \"$branch\" == claude/* ]]; then echo \"Branch \\\"$branch\\\" uses an auto-generated name. Rename it to follow conventions before pushing:\\n  git branch -m <type>/<short-description>\\nTypes: feat fix chore refactor docs test\"; fi'"
+          }
+        ]
+      }
+    ]
+  }
+}
