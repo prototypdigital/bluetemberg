@@ -1,12 +1,23 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "EnterWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'name=$(cat | jq -r \".name // empty\" 2>/dev/null); if [[ -z \"$name\" || \"$name\" == claude/* ]]; then echo \"EnterWorktree requires a conventional branch name. Call EnterWorktree again with name=\\\"type/description\\\" (e.g. feat/my-feature). Ask the user what the branch should be called if unclear. Types: feat fix chore refactor docs test\"; exit 2; fi'"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "EnterWorktree",
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'branch=$(git branch --show-current 2>/dev/null); if [[ \"$branch\" == claude/* ]]; then echo \"Branch \\\"$branch\\\" uses an auto-generated name. Rename it to follow conventions before pushing:\\n  git branch -m <type>/<short-description>\\nTypes: feat fix chore refactor docs test\"; fi'"
+            "command": "bash -c 'input=$(cat); name=$(echo \"$input\" | jq -r \".tool_input.name // empty\" 2>/dev/null); repo_root=$(git rev-parse --show-toplevel 2>/dev/null); worktree=\"$repo_root/.claude/worktrees/$name\"; if [[ -d \"$worktree\" ]]; then if [[ -f \"$repo_root/.env\" ]]; then cp \"$repo_root/.env\" \"$worktree/.env\" && echo \"Copied .env to worktree.\"; fi; if [[ -f \"$worktree/package.json\" ]]; then npm install --prefix \"$worktree\" --silent && echo \"Dependencies installed in worktree.\"; fi; fi'"
           }
         ]
       }
