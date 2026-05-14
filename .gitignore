@@ -11,7 +11,10 @@ coverage/
 .cursor/agents/
 .cursor/mcp.json
 .cursor/hooks.json
-.claude/
+.claude/rules/
+.claude/agents/
+.claude/skills/
+.claude/settings.local.json
 .github/instructions/
 .github/agents/
 .github/skills/

@@ -33,6 +33,18 @@ Examples:
 
 Never push fixes or additions directly onto another open PR's branch. Always open a new branch and a new PR.
 
+## Worktrees
+
+When creating a worktree via `EnterWorktree`, always pass a conventional `name` parameter — do **not** rely on the auto-generated `claude/*` name:
+
+```
+EnterWorktree(name="feat/short-description")
+```
+
+If the task scope is unclear, ask the user what the branch should be called before creating the worktree. The project hook will block `EnterWorktree` calls that omit `name` or use a `claude/*` name.
+
+After the worktree is created, dependencies are installed and `.env` is copied automatically.
+
 ## Pull requests
 
 - Always open PRs against `origin/main`.

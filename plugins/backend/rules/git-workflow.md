@@ -33,6 +33,18 @@ Examples:
 
 Never push fixes or additions directly onto another open PR's branch. Always open a new branch and a new PR.
 
+## Worktrees
+
+When Claude Code creates a worktree via `EnterWorktree`, it auto-generates a branch name like `claude/<adjective>-<scientist>-<hex>`. This does **not** follow the project convention.
+
+**Before the first push**, rename the branch to a conventional name:
+
+```bash
+git branch -m feat/short-description
+```
+
+Never open a PR from a `claude/*` branch — rename first, then push and open the PR.
+
 ## Pull requests
 
 - Always open PRs against `origin/main`.
