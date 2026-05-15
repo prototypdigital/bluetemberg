@@ -20,6 +20,14 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.9](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.8...bluetemberg-v0.2.9) (2026-05-15)
+
+
+### Bug Fixes
+
+* **init:** scaffold .claude/settings.json with EnterWorktree naming gate ([aaf8a14](https://github.com/prototypdigital/bluetemberg/commit/aaf8a14fd40c345c9ea291359a2549e203098769))
+* **init:** scaffold .claude/settings.json with EnterWorktree naming gate ([651aa93](https://github.com/prototypdigital/bluetemberg/commit/651aa93145f7aba34e9e96cfababc33b2fa026ff))
+
 ## [0.2.8](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.7...bluetemberg-v0.2.8) (2026-05-15)
 
 
