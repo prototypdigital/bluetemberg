@@ -47,6 +47,10 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
     scaffoldMarketplaceWorkflow(targetDir, created);
   }
 
+  if (answers.platforms.includes('claude')) {
+    scaffoldClaudeSettings(targetDir, created);
+  }
+
   updatePackageScripts(targetDir, created);
   patchPrettierIgnore(targetDir, answers, created);
 
@@ -314,6 +318,52 @@ function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void
   ensureDir(dirname(dest));
   copyFileSync(src, dest);
   created.push(dest);
+}
+
+const ENTER_WORKTREE_NAMING_HOOK =
+  `bash -c 'name=$(cat | jq -r ".name // empty" 2>/dev/null); ` +
+  `if [[ -z "$name" || "$name" == claude/* ]]; then ` +
+  `echo "EnterWorktree requires a conventional branch name. ` +
+  `Call EnterWorktree again with name=\\"type/description\\" (e.g. feat/my-feature). ` +
+  `Ask the user what the branch should be called if unclear. ` +
+  `Types: feat fix chore refactor docs test"; exit 2; fi'`;
+
+function scaffoldClaudeSettings(targetDir: string, created: string[]): void {
+  const settingsPath = join(targetDir, '.claude', 'settings.json');
+
+  let settings: Record<string, unknown> = {
+    $schema: 'https://json.schemastore.org/claude-code-settings.json',
+  };
+
+  if (existsSync(settingsPath)) {
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as Record<string, unknown>;
+    } catch {
+      // corrupt — overwrite
+    }
+  }
+
+  const hooks = (settings.hooks ?? {}) as Record<string, unknown[]>;
+  const preToolUse = (hooks.PreToolUse ?? []) as Array<Record<string, unknown>>;
+
+  const alreadyHasHook = preToolUse.some(
+    (entry) =>
+      entry.matcher === 'EnterWorktree' &&
+      Array.isArray(entry.hooks) &&
+      (entry.hooks as Array<Record<string, unknown>>).some((h) =>
+        String(h.command ?? '').includes('claude/*'),
+      ),
+  );
+
+  if (!alreadyHasHook) {
+    preToolUse.unshift({
+      matcher: 'EnterWorktree',
+      hooks: [{ type: 'command', command: ENTER_WORKTREE_NAMING_HOOK }],
+    });
+    hooks.PreToolUse = preToolUse;
+    settings.hooks = hooks;
+    safeWrite(settingsPath, JSON.stringify(settings, null, 2) + '\n', created);
+  }
 }
 
 function updatePackageScripts(targetDir: string, created: string[]): void {

@@ -340,6 +340,38 @@ describe('scaffold', () => {
     });
   });
 
+  describe('.claude/settings.json', () => {
+    it('creates settings.json with EnterWorktree PreToolUse hook when claude is in platforms', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['claude'] });
+
+      const settingsPath = join(root, '.claude', 'settings.json');
+      expect(existsSync(settingsPath)).toBe(true);
+      const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+      const preToolUse = settings.hooks?.PreToolUse ?? [];
+      const hook = preToolUse.find((e: Record<string, unknown>) => e.matcher === 'EnterWorktree');
+      expect(hook).toBeDefined();
+      expect(
+        (hook.hooks as Array<Record<string, unknown>>).some((h) => String(h.command).includes('claude/*')),
+      ).toBe(true);
+    });
+
+    it('does not create settings.json when claude is not in platforms', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['cursor', 'copilot'] });
+
+      expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+    });
+
+    it('does not duplicate the EnterWorktree hook if settings.json already has it', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['claude'] });
+      scaffold(root, { ...baseAnswers, platforms: ['claude'] });
+
+      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+      const preToolUse = settings.hooks?.PreToolUse ?? [];
+      const worktreeHooks = preToolUse.filter((e: Record<string, unknown>) => e.matcher === 'EnterWorktree');
+      expect(worktreeHooks).toHaveLength(1);
+    });
+  });
+
   describe('MCP', () => {
     it('creates llm/mcp.json when includeMcp is true and servers are selected', () => {
       scaffold(root, { ...baseAnswers, includeMcp: true, mcpServers: ['interactive', 'context7'] });
