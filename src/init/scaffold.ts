@@ -51,6 +51,10 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
     scaffoldClaudeSettings(targetDir, created);
   }
 
+  if (answers.includeGuardrails !== false && (answers.guardrails?.length ?? 0) > 0) {
+    scaffoldGuardrails(targetDir, answers.guardrails!, created);
+  }
+
   updatePackageScripts(targetDir, created);
   patchPrettierIgnore(targetDir, answers, created);
 
@@ -309,6 +313,22 @@ function scaffoldMcp(targetDir: string, answers: InitAnswers, created: string[])
   ensureDir(llmDir);
   const manifest = { servers };
   safeWrite(join(llmDir, 'mcp.json'), JSON.stringify(manifest, null, 2) + '\n', created);
+}
+
+function scaffoldGuardrails(targetDir: string, guardrailIds: string[], created: string[]): void {
+  const destDir = join(targetDir, 'llm', 'guardrails');
+  ensureDir(destDir);
+
+  for (const id of guardrailIds) {
+    const src = join(TEMPLATES_DIR, 'guardrails', `${id}.md`);
+    if (!existsSync(src)) {
+      console.warn(`  Warning: guardrail template "${id}" not found, skipping`);
+      continue;
+    }
+    const dest = join(destDir, `${id}.md`);
+    copyFileSync(src, dest);
+    created.push(dest);
+  }
 }
 
 function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void {

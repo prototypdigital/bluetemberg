@@ -499,6 +499,17 @@ export const MARKETPLACE_PLUGIN_PACKS: MarketplacePluginPackChoice[] = [
   },
 ];
 
+export const GUARDRAIL_PRESETS: PresetItem[] = [
+  {
+    id: 'conventional-branch-names',
+    name: 'Conventional branch names',
+    description: 'Block auto-generated worktree branch names; require type/description format',
+    default: true,
+    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
+  },
+];
+
 export const PACKAGE_MANAGERS: PackageManagerChoice[] = [
   { id: 'pnpm', name: 'pnpm' },
   { id: 'npm', name: 'npm' },

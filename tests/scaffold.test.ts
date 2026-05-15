@@ -541,4 +541,57 @@ describe('scaffold', () => {
       expect(created.some((p) => p.endsWith('AGENTS.md'))).toBe(true);
     });
   });
+
+  describe('guardrails', () => {
+    it('scaffolds llm/guardrails/ when includeGuardrails is true with guardrail ids', () => {
+      scaffold(root, {
+        ...baseAnswers,
+        includeGuardrails: true,
+        guardrails: ['conventional-branch-names'],
+      });
+
+      expect(existsSync(join(root, 'llm', 'guardrails', 'conventional-branch-names.md'))).toBe(true);
+    });
+
+    it('does not create llm/guardrails/ when includeGuardrails is false', () => {
+      scaffold(root, { ...baseAnswers, includeGuardrails: false, guardrails: ['conventional-branch-names'] });
+
+      expect(existsSync(join(root, 'llm', 'guardrails'))).toBe(false);
+    });
+
+    it('does not create llm/guardrails/ when guardrails array is empty', () => {
+      scaffold(root, { ...baseAnswers, includeGuardrails: true, guardrails: [] });
+
+      expect(existsSync(join(root, 'llm', 'guardrails'))).toBe(false);
+    });
+
+    it('does not create llm/guardrails/ when guardrails fields are absent', () => {
+      scaffold(root, baseAnswers);
+
+      expect(existsSync(join(root, 'llm', 'guardrails'))).toBe(false);
+    });
+
+    it('scaffolded guardrail file has valid frontmatter with trigger and check', () => {
+      scaffold(root, {
+        ...baseAnswers,
+        includeGuardrails: true,
+        guardrails: ['conventional-branch-names'],
+      });
+
+      const content = readFileSync(join(root, 'llm', 'guardrails', 'conventional-branch-names.md'), 'utf8');
+      expect(content).toContain('trigger: EnterWorktree');
+      expect(content).toContain('field: name');
+      expect(content).toContain('not_empty: true');
+    });
+
+    it('includes guardrail files in created list', () => {
+      const created = scaffold(root, {
+        ...baseAnswers,
+        includeGuardrails: true,
+        guardrails: ['conventional-branch-names'],
+      });
+
+      expect(created.some((p) => p.includes('guardrails'))).toBe(true);
+    });
+  });
 });
