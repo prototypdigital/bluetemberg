@@ -20,6 +20,20 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.8](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.7...bluetemberg-v0.2.8) (2026-05-15)
+
+
+### Features
+
+* **skills:** add structured code-review skill ([ad8cbb3](https://github.com/prototypdigital/bluetemberg/commit/ad8cbb3b1a66de858b97260a98d197fd33f18260))
+* **skills:** add structured code-review skill with intent-first, severity-tiered prompting ([8c924fb](https://github.com/prototypdigital/bluetemberg/commit/8c924fb6e24e5e591890389338d33aa573ba001b))
+
+
+### Bug Fixes
+
+* **skills:** correct code-review skill format and fact-check claims ([10946cf](https://github.com/prototypdigital/bluetemberg/commit/10946cfd61a53bf4a076135373f0397be832fd51))
+* **skills:** remove external links from skill body — move to PR description ([6229dac](https://github.com/prototypdigital/bluetemberg/commit/6229dac9e51e2590db3ec4e57d6c0835921e795a))
+
 ## [0.2.7](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.6...bluetemberg-v0.2.7) (2026-05-09)
 
 
