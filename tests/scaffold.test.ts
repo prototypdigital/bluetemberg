@@ -48,6 +48,13 @@ describe('scaffold', () => {
       expect(config.source).toBe('llm');
     });
 
+    it('records the selected team profile in the config', () => {
+      scaffold(root, baseAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.profile).toBe('frontend');
+    });
+
     it('includes rules targets when rules are selected', () => {
       scaffold(root, baseAnswers);
 

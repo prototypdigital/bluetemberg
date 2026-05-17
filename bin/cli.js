@@ -319,6 +319,30 @@ program
   });
 
 program
+  .command('switch-profile')
+  .description('Switch the project to a different team profile (non-destructive)')
+  .argument('<profile>', `New profile id (one of: ${[...TEAM_PROFILES].join(', ')})`)
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--silent', 'Suppress output')
+  .action(async (profile, directory, options) => {
+    if (!TEAM_PROFILES.has(profile)) {
+      console.error(`Unknown profile "${profile}". Expected one of: ${[...TEAM_PROFILES].join(', ')}`);
+      process.exit(1);
+    }
+
+    const { switchProfile } = await import('../dist/init/switch-profile.js');
+    try {
+      const result = switchProfile(resolve(directory), profile, { silent: options.silent });
+      void result;
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
   .command('add')
   .description('Add a rule pack from the npm registry')
   .argument('<package>', 'Package name with optional @version (e.g. my-rules@^1.0.0)')
