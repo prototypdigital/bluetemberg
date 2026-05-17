@@ -16,6 +16,7 @@ import { syncClaudeSettings } from './settings.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
+import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -23,6 +24,7 @@ import type {
   SyncResults,
   TargetConfig,
   SkillTargetConfig,
+  TeamProfile,
 } from '../types.js';
 
 const VALID_PLATFORMS: readonly Platform[] = [
@@ -102,6 +104,14 @@ function validateConfig(config: unknown, configPath: string): BlueprintConfig {
 
   if (cfg.source !== undefined && typeof cfg.source !== 'string') {
     throw new Error(`Invalid config in ${configPath}: "source" must be a string`);
+  }
+
+  if (cfg.profile !== undefined) {
+    if (typeof cfg.profile !== 'string' || !INIT_TEAM_PROFILES.includes(cfg.profile as TeamProfile)) {
+      throw new Error(
+        `Invalid config in ${configPath}: "profile" must be one of ${INIT_TEAM_PROFILES.join(', ')}`,
+      );
+    }
   }
 
   if (cfg.extends !== undefined) {

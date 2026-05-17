@@ -1072,6 +1072,24 @@ describe('loadConfig', () => {
 
     expect(() => loadConfig(root)).toThrow('expected an object');
   });
+
+  it('accepts a valid profile field', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['claude'], source: 'llm', profile: 'backend', targets: {} }),
+    );
+
+    expect(() => loadConfig(root)).not.toThrow();
+  });
+
+  it('throws on an unknown profile value', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['claude'], source: 'llm', profile: 'nope', targets: {} }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('"profile" must be one of');
+  });
 });
 
 describe('shouldExitWithFailure', () => {

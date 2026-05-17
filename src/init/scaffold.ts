@@ -134,6 +134,7 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
   const config: BlueprintConfig = {
     platforms: answers.platforms,
     source: 'llm',
+    ...(answers.teamProfile ? { profile: answers.teamProfile } : {}),
     targets,
     ...(answers.platforms.includes(MARKETPLACE_PLATFORM)
       ? { marketplace: buildMarketplaceConfig(answers) }

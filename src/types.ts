@@ -48,6 +48,12 @@ export interface MarketplaceConfig {
 export interface BlueprintConfig {
   platforms: Platform[];
   source: string;
+  /**
+   * Team profile selected at init time. Recorded for tooling (e.g. `switch-profile`)
+   * and to show what baseline the project was scaffolded from. Sync ignores this field —
+   * `llm/` remains the source of truth.
+   */
+  profile?: TeamProfile;
   targets: {
     rules?: Partial<Record<Platform, TargetConfig>>;
     agents?: Partial<Record<Platform, TargetConfig>>;
