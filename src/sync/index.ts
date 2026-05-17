@@ -23,6 +23,7 @@ import type {
   SyncResults,
   TargetConfig,
   SkillTargetConfig,
+  TeamProfile,
 } from '../types.js';
 
 const VALID_PLATFORMS: readonly Platform[] = [
@@ -32,6 +33,15 @@ const VALID_PLATFORMS: readonly Platform[] = [
   'gemini',
   'windsurf',
   'claude-marketplace',
+];
+
+const VALID_PROFILES: readonly TeamProfile[] = [
+  'frontend',
+  'backend',
+  'fullstack',
+  'devops',
+  'pure-infra',
+  'custom',
 ];
 
 function validateTargets(targets: unknown, configPath: string): void {
@@ -102,6 +112,14 @@ function validateConfig(config: unknown, configPath: string): BlueprintConfig {
 
   if (cfg.source !== undefined && typeof cfg.source !== 'string') {
     throw new Error(`Invalid config in ${configPath}: "source" must be a string`);
+  }
+
+  if (cfg.profile !== undefined) {
+    if (typeof cfg.profile !== 'string' || !VALID_PROFILES.includes(cfg.profile as TeamProfile)) {
+      throw new Error(
+        `Invalid config in ${configPath}: "profile" must be one of ${VALID_PROFILES.join(', ')}`,
+      );
+    }
   }
 
   if (cfg.extends !== undefined) {

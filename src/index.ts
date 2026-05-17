@@ -1,6 +1,8 @@
 export { sync, loadConfig, shouldExitWithFailure } from './sync/index.js';
 export { init } from './init/index.js';
 export { scaffold } from './init/scaffold.js';
+export { switchProfile } from './init/switch-profile.js';
+export type { SwitchProfileOptions, SwitchProfileResult } from './init/switch-profile.js';
 export { transformFrontmatter, DEFAULT_TARGETS } from './sync/transform.js';
 export {
   add as registryAdd,
@@ -13,6 +15,7 @@ export {
 } from './registry/index.js';
 export type {
   Platform,
+  TeamProfile,
   BlueprintConfig,
   InitAnswers,
   InitRunOptions,

@@ -121,6 +121,23 @@ All other rules are opt-in defaults by profile (or fully manual for Custom).
 
 Detail: [`docs/wiki/Profiles.md`](docs/wiki/Profiles.md) (**Pure Infrastructure** section).
 
+## Switching profile
+
+`bluetemberg init` records the selected team profile under `profile` in `bluetemberg.config.json`. To change profile later without re-running the full init wizard:
+
+```bash
+npx bluetemberg switch-profile backend
+```
+
+The command is **non-destructive**:
+
+- Copies any missing template files for the new profile into `llm/`.
+- Never overwrites files you've already edited.
+- Reports rules/agents/skills that are now outside the new profile's defaults so you can review and remove them manually.
+- Updates `profile` in `bluetemberg.config.json`.
+
+Run `npx bluetemberg sync` afterwards to regenerate platform files.
+
 ## Sync
 
 After editing anything in `llm/`, regenerate platform files:

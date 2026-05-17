@@ -39,12 +39,12 @@ export function rulesForTemplatesProfile(teamProfile: TeamProfile): string[] {
   return [...new Set([...universal, ...selectedIds])];
 }
 
-function agentsForProfile(teamProfile: TeamProfile): string[] {
+export function agentsForProfile(teamProfile: TeamProfile): string[] {
   const resolved = resolvePresetDefaults(AGENT_PRESETS, teamProfile);
   return resolved.filter((a) => a.default).map((a) => a.id);
 }
 
-function skillsForProfile(teamProfile: TeamProfile): string[] {
+export function skillsForProfile(teamProfile: TeamProfile): string[] {
   const resolved = resolvePresetDefaults(SKILL_PRESETS, teamProfile);
   return resolved.filter((s) => s.default).map((s) => s.id);
 }
