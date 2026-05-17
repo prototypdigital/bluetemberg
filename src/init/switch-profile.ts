@@ -3,11 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureDir } from '../utils/fs.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
-import {
-  agentsForProfile,
-  rulesForTemplatesProfile,
-  skillsForProfile,
-} from './init-answers-from-profile.js';
+import { agentsForProfile, rulesForTemplatesProfile, skillsForProfile } from './init-answers-from-profile.js';
 import type { TeamProfile } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -21,6 +17,10 @@ export interface SwitchProfileResult {
   fromProfile: TeamProfile | undefined;
   toProfile: TeamProfile;
   added: string[];
+  /**
+   * Paths in `llm/` not belonging to the new profile's defaults.
+   * Rules and agent entries are file paths (`*.md`); skill entries are directory paths.
+   */
   stale: string[];
 }
 
@@ -45,7 +45,12 @@ export function switchProfile(
     throw new Error(`No bluetemberg.config.json found in ${root}. Run "bluetemberg init" first.`);
   }
 
-  const raw = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+  } catch {
+    throw new Error(`Could not parse ${configPath} — check for JSON syntax errors.`);
+  }
   const fromProfile =
     typeof raw.profile === 'string' && INIT_TEAM_PROFILES.includes(raw.profile as TeamProfile)
       ? (raw.profile as TeamProfile)
@@ -152,7 +157,11 @@ function reportResult(result: SwitchProfileResult): void {
   if (stale.length > 0) {
     console.log(`\n  ${stale.length} file(s) in llm/ are not part of the "${toProfile}" defaults:`);
     for (const f of stale) console.log(`    ? ${f}`);
-    console.log('  Review and delete manually if no longer needed.');
+    if (toProfile === 'custom') {
+      console.log('  Note: custom profile has no fixed defaults — this list is informational only.');
+    } else {
+      console.log('  Review and delete manually if no longer needed.');
+    }
   }
 
   console.log('\n  Next: run `bluetemberg sync` to regenerate platform files.\n');

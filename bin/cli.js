@@ -332,7 +332,8 @@ program
 
     const { switchProfile } = await import('../dist/init/switch-profile.js');
     try {
-      switchProfile(resolve(directory), profile, { silent: options.silent });
+      const result = switchProfile(resolve(directory), profile, { silent: options.silent });
+      void result;
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

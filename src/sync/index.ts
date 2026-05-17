@@ -16,6 +16,7 @@ import { syncClaudeSettings } from './settings.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
+import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -33,15 +34,6 @@ const VALID_PLATFORMS: readonly Platform[] = [
   'gemini',
   'windsurf',
   'claude-marketplace',
-];
-
-const VALID_PROFILES: readonly TeamProfile[] = [
-  'frontend',
-  'backend',
-  'fullstack',
-  'devops',
-  'pure-infra',
-  'custom',
 ];
 
 function validateTargets(targets: unknown, configPath: string): void {
@@ -115,9 +107,9 @@ function validateConfig(config: unknown, configPath: string): BlueprintConfig {
   }
 
   if (cfg.profile !== undefined) {
-    if (typeof cfg.profile !== 'string' || !VALID_PROFILES.includes(cfg.profile as TeamProfile)) {
+    if (typeof cfg.profile !== 'string' || !INIT_TEAM_PROFILES.includes(cfg.profile as TeamProfile)) {
       throw new Error(
-        `Invalid config in ${configPath}: "profile" must be one of ${VALID_PROFILES.join(', ')}`,
+        `Invalid config in ${configPath}: "profile" must be one of ${INIT_TEAM_PROFILES.join(', ')}`,
       );
     }
   }
