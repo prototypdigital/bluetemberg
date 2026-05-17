@@ -162,6 +162,18 @@ npx bluetemberg sync --prune
 
 `--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
 
+## Platform support
+
+| Platform       | Rules | Agents | Skills |
+| -------------- | ----- | ------ | ------ |
+| Cursor         | ✓     | ✓      | ✓      |
+| Claude Code    | ✓     | ✓      | ✓      |
+| GitHub Copilot | ✓     | ✓      | ✓      |
+| Gemini CLI     | ✓ ¹   | —      | —      |
+| Windsurf       | ✓     | —      | ✓      |
+
+¹ Gemini CLI has no native rules API — rules are emitted as plain context files under `.gemini/context/` and prepended to the model context on each request. Agents and skills are not supported by the Gemini CLI extension at this time.
+
 ## How sync works
 
 | Source                  | Cursor                      | Claude                                 | Copilot                                  | Gemini CLI             | Windsurf                      |
