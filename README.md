@@ -164,13 +164,13 @@ npx bluetemberg sync --prune
 
 ## Platform support
 
-| Platform        | Rules | Agents | Skills |
-| --------------- | ----- | ------ | ------ |
-| Cursor          | ✓     | ✓      | ✓      |
-| Claude Code     | ✓     | ✓      | ✓      |
-| GitHub Copilot  | ✓     | ✓      | ✓      |
-| Gemini CLI      | ✓ ¹   | —      | —      |
-| Windsurf        | ✓     | —      | ✓      |
+| Platform       | Rules | Agents | Skills |
+| -------------- | ----- | ------ | ------ |
+| Cursor         | ✓     | ✓      | ✓      |
+| Claude Code    | ✓     | ✓      | ✓      |
+| GitHub Copilot | ✓     | ✓      | ✓      |
+| Gemini CLI     | ✓ ¹   | —      | —      |
+| Windsurf       | ✓     | —      | ✓      |
 
 ¹ Gemini CLI has no native rules API — rules are emitted as plain context files under `.gemini/context/` and prepended to the model context on each request. Agents and skills are not supported by the Gemini CLI extension at this time.
 
