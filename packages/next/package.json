@@ -1,6 +1,6 @@
 {
   "name": "@prototypdigital/next",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Next.js rules for Bluetemberg — NEXT_PUBLIC_* env var handling, build-time vs runtime injection.",
   "keywords": [
     "bluetemberg-pack",
