@@ -35,15 +35,15 @@ Never push fixes or additions directly onto another open PR's branch. Always ope
 
 ## Worktrees
 
-When Claude Code creates a worktree via `EnterWorktree`, it auto-generates a branch name like `claude/<adjective>-<scientist>-<hex>`. This does **not** follow the project convention.
+When creating a worktree via `EnterWorktree`, always pass a conventional `name` parameter — do **not** rely on the auto-generated `claude/*` name:
 
-**Before the first push**, rename the branch to a conventional name:
-
-```bash
-git branch -m feat/short-description
+```
+EnterWorktree(name="feat/short-description")
 ```
 
-Never open a PR from a `claude/*` branch — rename first, then push and open the PR.
+If the task scope is unclear, ask the user what the branch should be called before creating the worktree. The project hook will block `EnterWorktree` calls that omit `name` or use a `claude/*` name.
+
+After the worktree is created, dependencies are installed and `.env` is copied automatically.
 
 ## Pull requests
 
