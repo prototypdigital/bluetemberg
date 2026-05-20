@@ -9,6 +9,7 @@ import {
   SKILL_PRESETS,
   MCP_SERVER_PRESETS,
   PLATFORM_CHOICES,
+  GUARDRAIL_PRESETS,
 } from './presets.js';
 
 /** Universal rule ids enforced for `teamProfile` (respects `universalExcludeProfiles`, same as the wizard). */
@@ -53,6 +54,11 @@ function defaultMcpServerIds(): string[] {
   return MCP_SERVER_PRESETS.filter((m) => m.default).map((m) => m.id);
 }
 
+function defaultGuardrailIds(teamProfile: TeamProfile): string[] {
+  const resolved = resolvePresetDefaults(GUARDRAIL_PRESETS, teamProfile);
+  return resolved.filter((g) => g.default).map((g) => g.id);
+}
+
 /**
  * Baseline identical to submitting the wizard with only profile-based checkbox defaults:
  * templates source, all platforms checked, agents/skills/MCP inclusion with wizard defaults.
@@ -75,6 +81,8 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     mcpServers: defaultMcpServerIds(),
     marketplaceRemote: '',
     marketplacePlugins: [],
+    includeGuardrails: true,
+    guardrails: defaultGuardrailIds(teamProfile),
   };
 }
 
@@ -139,5 +147,7 @@ export function finalizeNonInteractiveAnswers(
     mcpServers,
     marketplaceRemote: overrides.marketplaceRemote ?? base.marketplaceRemote,
     marketplacePlugins: overrides.marketplacePlugins ?? base.marketplacePlugins,
+    includeGuardrails: overrides.includeGuardrails ?? base.includeGuardrails,
+    guardrails: overrides.guardrails ?? base.guardrails,
   };
 }

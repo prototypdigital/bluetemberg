@@ -111,6 +111,8 @@ export interface InitAnswers {
   marketplaceRemote?: string;
   /** Plugin pack IDs to distribute (e.g. `['frontend', 'fullstack']`). Empty = single project plugin. */
   marketplacePlugins?: string[];
+  includeGuardrails?: boolean;
+  guardrails?: string[];
 }
 
 /** Options for `init()` besides the target directory (CLI parity). */
@@ -157,6 +159,33 @@ export interface SyncResults {
 export interface RuleFrontmatter {
   description?: string;
   scope?: string | string[];
+}
+
+export interface GuardrailCheck {
+  /** JSON field in the tool input to examine (e.g. `"name"`). */
+  field: string;
+  /** Block if the field value is empty or missing. */
+  not_empty?: boolean;
+  /** Block if the field value matches this regex pattern. */
+  not_matches?: string;
+  /** Block if the field value does NOT match this regex pattern. */
+  matches?: string;
+}
+
+export interface GuardrailFrontmatter {
+  description?: string;
+  /** Tool name this guardrail fires on (e.g. `"EnterWorktree"`). */
+  trigger: string;
+  /** Hook phase. Defaults to `"PreToolUse"`. */
+  hook_type?: 'PreToolUse' | 'PostToolUse';
+  /** Condition that must pass — fails → hook blocks and shows message. */
+  check: GuardrailCheck;
+  /** Error message shown to the AI when the condition fails. */
+  message: string;
+  /** Platforms that support this guardrail. Defaults to all supported platforms. */
+  platforms?: Platform[];
+  /** Team profiles for marketplace plugin filtering. */
+  profiles?: TeamProfile[];
 }
 
 export interface PresetItem {

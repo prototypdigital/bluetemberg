@@ -13,6 +13,7 @@ import { syncCopilotPrompts } from './prompts.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
 import { syncClaudeSettings } from './settings.js';
+import { syncGuardrails } from './guardrails.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
@@ -262,6 +263,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   syncSkills(ctx);
   syncCopilotInstructions(ctx);
   syncGeminiInstructions(ctx);
+  syncGuardrails(ctx, (msg) => recordError(ctx, msg));
   syncMcp(ctx, (msg) => recordError(ctx, msg));
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));

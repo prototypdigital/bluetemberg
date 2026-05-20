@@ -1279,3 +1279,114 @@ describe('extends: source merging', () => {
     expect(results.synced).toBe(1);
   });
 });
+
+describe('guardrails sync', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  function writeGuardrail(id: string, content: string): void {
+    mkdirSync(join(root, 'llm', 'guardrails'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'guardrails', `${id}.md`), content);
+  }
+
+  const VALID_GUARDRAIL = `---
+description: Test guardrail
+trigger: EnterWorktree
+hook_type: PreToolUse
+check:
+  field: name
+  not_empty: true
+  not_matches: "^claude/"
+message: "Branch name required"
+---
+
+# Test
+`;
+
+  it('writes .claude/settings.json with PreToolUse hook when claude is in platforms', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const settingsPath = join(root, '.claude', 'settings.json');
+    expect(existsSync(settingsPath)).toBe(true);
+
+    const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    const preToolUse = settings.hooks?.PreToolUse ?? [];
+    expect(preToolUse).toHaveLength(1);
+    expect(preToolUse[0].matcher).toBe('EnterWorktree');
+    expect(preToolUse[0].hooks[0].type).toBe('command');
+    expect(String(preToolUse[0].hooks[0].command)).toContain('jq');
+  });
+
+  it('generated command contains the not_matches pattern', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+    const command = String(settings.hooks.PreToolUse[0].hooks[0].command);
+    expect(command).toContain('^claude/');
+  });
+
+  it('does not write settings.json when no llm/guardrails/ directory exists', async () => {
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+  });
+
+  it('does not write settings.json when claude is not in platforms', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = { platforms: ['cursor'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+  });
+
+  it('preserves existing non-hooks settings keys when merging', async () => {
+    mkdirSync(join(root, '.claude'), { recursive: true });
+    writeFileSync(
+      join(root, '.claude', 'settings.json'),
+      JSON.stringify({ extraKnownMarketplaces: ['owner/repo'] }, null, 2),
+    );
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+    expect(settings.extraKnownMarketplaces).toEqual(['owner/repo']);
+    expect(settings.hooks?.PreToolUse).toHaveLength(1);
+  });
+
+  it('regenerates hooks section idempotently on repeated sync runs', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    await sync(root, { config, silent: true });
+
+    const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+    expect(settings.hooks.PreToolUse).toHaveLength(1);
+  });
+
+  it('records an error for guardrail files with invalid frontmatter', async () => {
+    writeGuardrail('bad-guardrail', '---\ndescription: Missing required fields\n---\n\n# Bad\n');
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('bad-guardrail'))).toBe(true);
+  });
+});
