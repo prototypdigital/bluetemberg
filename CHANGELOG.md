@@ -20,6 +20,23 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.2.10](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.9...bluetemberg-v0.2.10) (2026-05-20)
+
+
+### Features
+
+* **guardrails:** add guardrails as a first-class vendor-neutral primitive ([0bea351](https://github.com/prototypdigital/bluetemberg/commit/0bea35143f38ee1ddcf74067442b1bd902e754db))
+* **guardrails:** add guardrails as a first-class vendor-neutral primitive ([59ce090](https://github.com/prototypdigital/bluetemberg/commit/59ce090ca6021e252a78aecac6ee5849c433c984))
+* **init:** add profile field to config and switch-profile command ([cc4c1a4](https://github.com/prototypdigital/bluetemberg/commit/cc4c1a487c3d68bd7ed6846eb0b13fe4a3577907))
+* **init:** add profile field to config and switch-profile command ([579cc1b](https://github.com/prototypdigital/bluetemberg/commit/579cc1b42b1eb7ce295994adf58e1d0d95883214))
+* **next:** add @prototypdigital/next rules pack ([4d30ae9](https://github.com/prototypdigital/bluetemberg/commit/4d30ae9d1688ed524ddbd88f168fbeda902c2f30))
+* **next:** add @prototypdigital/next rules pack with NEXT_PUBLIC_* rule ([2aad3a0](https://github.com/prototypdigital/bluetemberg/commit/2aad3a0be616f0adc60580ffca27c48518a4f77a))
+
+
+### Bug Fixes
+
+* **switch-profile:** address code review issues ([0934471](https://github.com/prototypdigital/bluetemberg/commit/093447161862f9e5f516a0a69e8989e8429a3315))
+
 ## [0.2.9](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.8...bluetemberg-v0.2.9) (2026-05-15)
 
 
