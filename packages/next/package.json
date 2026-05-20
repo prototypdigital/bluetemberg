@@ -1,0 +1,19 @@
+{
+  "name": "@prototypdigital/next",
+  "version": "0.1.0",
+  "description": "Next.js rules for Bluetemberg — NEXT_PUBLIC_* env var handling, build-time vs runtime injection.",
+  "keywords": [
+    "bluetemberg-pack",
+    "rules",
+    "nextjs",
+    "frontend"
+  ],
+  "author": "Prototyp Digital",
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "files": [
+    "llm/"
+  ]
+}

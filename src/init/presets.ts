@@ -102,6 +102,13 @@ export const RULE_PRESETS: PresetItem[] = [
     tags: ['frontend', 'fullstack'],
   },
   {
+    id: 'nextjs-public-env-vars',
+    name: 'Next.js NEXT_PUBLIC_* env vars',
+    description: 'Build-time-only vars — never inject via k8s configmaps or runtime Docker env',
+    default: false,
+    tags: ['frontend', 'fullstack', 'devops'],
+  },
+  {
     id: 'api-error-handling',
     name: 'API error handling',
     description: 'Structured error responses, never leak stack traces',
