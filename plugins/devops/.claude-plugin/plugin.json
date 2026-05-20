@@ -39,6 +39,11 @@
       "path": "plugins/devops/rules/never-read-env.md"
     },
     {
+      "name": "nextjs-public-env-vars",
+      "description": "NEXT_PUBLIC_* are inlined into the bundle at build time — never use for secrets or per-environment values.",
+      "path": "plugins/devops/rules/nextjs-public-env-vars.md"
+    },
+    {
       "name": "pre-commit-checks",
       "description": "Run formatter, linter, and build checks before every commit.",
       "path": "plugins/devops/rules/pre-commit-checks.md"

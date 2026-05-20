@@ -39,6 +39,11 @@
       "path": "plugins/frontend/rules/never-read-env.md"
     },
     {
+      "name": "nextjs-public-env-vars",
+      "description": "NEXT_PUBLIC_* are inlined into the bundle at build time — never use for secrets or per-environment values.",
+      "path": "plugins/frontend/rules/nextjs-public-env-vars.md"
+    },
+    {
       "name": "post-edit-diagnostics",
       "description": "Run diagnostics and formatter after editing code files.",
       "path": "plugins/frontend/rules/post-edit-diagnostics.md"
