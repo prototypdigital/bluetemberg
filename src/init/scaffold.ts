@@ -26,7 +26,7 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   if (answers.ruleSource === 'collections') {
     scaffoldRuleCollections(targetDir, answers, created);
   } else if (answers.ruleSource === 'none') {
-    ensureDir(join(targetDir, 'llm', 'rules'));
+    scaffoldEmptyRules(targetDir, created);
   } else {
     scaffoldRules(targetDir, answers, created);
   }
@@ -149,6 +149,15 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
   };
 
   safeWrite(configPath, JSON.stringify(config, null, 2) + '\n', created);
+}
+
+/**
+ * Empty rule source: create `llm/rules/` with a `.gitkeep` placeholder so the
+ * otherwise-empty directory is committed for "bring your own rules" projects.
+ * The placeholder is non-`.md`, so `sync` (which reads only `*.md`) ignores it.
+ */
+function scaffoldEmptyRules(targetDir: string, created: string[]): void {
+  safeWrite(join(targetDir, 'llm', 'rules', '.gitkeep'), '', created);
 }
 
 function scaffoldRules(targetDir: string, answers: InitAnswers, created: string[]): void {

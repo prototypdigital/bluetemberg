@@ -227,10 +227,16 @@ describe('scaffold', () => {
       ruleCollections: [],
     };
 
-    it('creates an empty llm/rules/ directory', () => {
+    it('creates the llm/rules/ directory', () => {
       scaffold(root, noneAnswers);
 
       expect(existsSync(join(root, 'llm', 'rules'))).toBe(true);
+    });
+
+    it('writes a .gitkeep so the empty llm/rules/ survives a commit', () => {
+      scaffold(root, noneAnswers);
+
+      expect(existsSync(join(root, 'llm', 'rules', '.gitkeep'))).toBe(true);
     });
 
     it('does not copy any rule templates into llm/rules/', () => {
