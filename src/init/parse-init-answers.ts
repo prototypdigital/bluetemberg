@@ -89,10 +89,13 @@ export function assertInitAnswers(record: unknown): InitAnswers {
   };
 }
 
-/** Match wizard invariants: `templates` ↔ local rules only; `collections` ↔ registry collections only. */
+/** Match wizard invariants: `templates` ↔ local rules; `collections` ↔ registry collections; `none` ↔ neither. */
 export function normalizeInitAnswers(answers: InitAnswers): InitAnswers {
   if (answers.ruleSource === 'templates') {
     return { ...answers, ruleCollections: [] };
+  }
+  if (answers.ruleSource === 'none') {
+    return { ...answers, rules: [], ruleCollections: [] };
   }
   return { ...answers, rules: [] };
 }

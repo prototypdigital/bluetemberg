@@ -18,7 +18,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
 | `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). `--non-interactive` only. |
-| `--rule-source` | Values: `templates` or `collections`. `--non-interactive` only. |
+| `--rule-source` | Values: `templates`, `collections`, or `none` (empty scaffold — bring your own rules). `--non-interactive` only. |
 | `--rules <csv>`, `--rule-collections <csv>` | Respect `rule-source`: template rule ids extend universal rules automatically; registry collection ids apply when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
 | `--omit-agents`, `--omit-skills`, `--omit-mcp` | Shortcut booleans (`--non-interactive` only). |

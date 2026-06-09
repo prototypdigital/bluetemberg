@@ -111,6 +111,9 @@ export function finalizeNonInteractiveAnswers(
       overrides.ruleCollections !== undefined && overrides.ruleCollections.length > 0
         ? overrides.ruleCollections
         : defaultRuleCollections(teamProfile);
+  } else if (ruleSource === 'none') {
+    rules = [];
+    ruleCollections = [];
   } else {
     ruleCollections = [];
     const rulesOv = overrides.rules;

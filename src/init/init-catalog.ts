@@ -24,4 +24,4 @@ export const INIT_PLATFORMS: readonly Platform[] = [
   'claude-marketplace',
 ];
 
-export const INIT_RULE_SOURCES: readonly RuleSource[] = ['templates', 'collections'];
+export const INIT_RULE_SOURCES: readonly RuleSource[] = ['templates', 'collections', 'none'];
