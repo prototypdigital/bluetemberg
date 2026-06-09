@@ -47,7 +47,8 @@ The interactive wizard will ask you to pick:
 
 - **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), or Custom — sets defaults for rules, agents, and skills (`--profile pure-infra` in headless runs)
 - Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf)
-- Starter rules — **universal guardrails depend on profile** (`pure-infra` omits app-code-centric universals—see wiki **Profiles**); other defaults are pre-checked by team type
+- **Rule source** — individual templates copied locally, versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
+- Starter rules (templates source) — **universal guardrails depend on profile** (`pure-infra` omits app-code-centric universals—see wiki **Profiles**); other defaults are pre-checked by team type
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
 - MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)

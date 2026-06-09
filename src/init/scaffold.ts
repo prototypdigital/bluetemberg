@@ -25,6 +25,8 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
 
   if (answers.ruleSource === 'collections') {
     scaffoldRuleCollections(targetDir, answers, created);
+  } else if (answers.ruleSource === 'none') {
+    ensureDir(join(targetDir, 'llm', 'rules'));
   } else {
     scaffoldRules(targetDir, answers, created);
   }

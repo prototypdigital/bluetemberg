@@ -219,6 +219,47 @@ describe('scaffold', () => {
     });
   });
 
+  describe('empty rule source (none)', () => {
+    const noneAnswers: InitAnswers = {
+      ...baseAnswers,
+      ruleSource: 'none',
+      rules: [],
+      ruleCollections: [],
+    };
+
+    it('creates an empty llm/rules/ directory', () => {
+      scaffold(root, noneAnswers);
+
+      expect(existsSync(join(root, 'llm', 'rules'))).toBe(true);
+    });
+
+    it('does not copy any rule templates into llm/rules/', () => {
+      scaffold(root, noneAnswers);
+
+      expect(existsSync(join(root, 'llm', 'rules', 'coding-standards.md'))).toBe(false);
+    });
+
+    it('does not create llm/rule-packages.json', () => {
+      scaffold(root, noneAnswers);
+
+      expect(existsSync(join(root, 'llm', 'rule-packages.json'))).toBe(false);
+    });
+
+    it('omits rules targets in config when no rules or collections are selected', () => {
+      scaffold(root, noneAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.targets.rules).toBeUndefined();
+    });
+
+    it('still scaffolds config and AGENTS.md', () => {
+      scaffold(root, noneAnswers);
+
+      expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
+      expect(existsSync(join(root, 'AGENTS.md'))).toBe(true);
+    });
+  });
+
   describe('agents', () => {
     it('copies agent templates into llm/agents/ when includeAgents is true', () => {
       scaffold(root, { ...baseAnswers, includeAgents: true, agents: ['frontend-specialist'] });
