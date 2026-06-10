@@ -4,7 +4,7 @@
 
 Where the [Registry](Registry) installs npm packs already written in Bluetemberg's `llm/` layout, **sources** target the wider ecosystem: a GitHub repo of `.cursorrules`/`.mdc` files, for example. Bluetemberg fetches, translates, caches, and pins them with the same reproducibility as packs.
 
-> **Backend status:** GitHub repos and PRPM (`registry.prpm.dev`) are supported today. The cursor.directory backend is a planned follow-up — the framework and CLI already accept its spec grammar, but `source add cursor-directory:…` reports "not supported yet" until its adapter lands.
+> **Backend status:** GitHub repos, PRPM (`registry.prpm.dev`), and cursor.directory are all supported. cursor.directory requires a one-time env config (see below) because its content table is not readable by its public key.
 
 ## How it works
 
@@ -32,7 +32,7 @@ So a local rule always wins over an external rule with the same filename.
 | ------- | ---- | ----- |
 | GitHub | `github:<owner>/<repo>[#<ref>][:<path>]` | `ref` defaults to `HEAD` (the repo's default branch); `path` narrows to a subdirectory. |
 | PRPM | `prpm:<name>[@<range>]` | `range` defaults to `latest`. Each PRPM package is a single rule/agent/skill. |
-| cursor.directory _(planned)_ | `cursor-directory:<slug>` | `*` selects every active plugin. |
+| cursor.directory | `cursor-directory:<slug>` | Resolves the plugin's GitHub repo and fetches through the GitHub backend. Requires env config (below). |
 
 ```bash
 # The rules/ folder of awesome-cursorrules at its current default branch
@@ -47,6 +47,22 @@ bluetemberg source add "prpm:@patrickjs/nextjs-react-tailwind-cursorrules-prompt
 ```
 
 PRPM packages come in varied layouts (a structured `skills/<name>/SKILL.md`, or a single flat file); the PRPM adapter normalizes both into native dirs, routing by the package's declared `subtype`, before translation. The version is the immutable pin recorded in the lockfile.
+
+### cursor.directory
+
+cursor.directory has no public content API: its rule-content table is locked by row-level security to its server (the public key can read plugin *metadata* but not rule bodies). Since every cursor.directory plugin is a GitHub repo, the adapter reads the plugin's `repository` from the public `plugins` table, then **fetches the actual rules through the GitHub backend** — so you still get real content with a reproducible commit-SHA pin.
+
+Because cursor.directory is bot-gated, its public Supabase URL + publishable key can't be auto-discovered. Provide them once via env (find them in any `*.supabase.co` request in the site's browser network panel):
+
+```bash
+export BLUETEMBERG_CURSOR_DIRECTORY_URL="https://<project>.supabase.co"
+export BLUETEMBERG_CURSOR_DIRECTORY_KEY="<publishable-key>"
+
+bluetemberg source search "nextjs" --type cursor-directory
+bluetemberg source add "cursor-directory:<slug>"
+```
+
+Without these set, `source add cursor-directory:…` fails with a clear message. (`github:` and `prpm:` sources need no configuration.)
 
 ## Manifest and lockfile
 
