@@ -107,42 +107,34 @@ No manual version bumping or tagging is needed.
 
 ---
 
-## Adding a rule template
+## Adding a rule to a collection
 
-Rules are always-on, passive context. See [Writing Rules](Writing-Rules) for format details.
+Rules ship as part of versioned npm packages in [bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules). To add a new rule, open a PR there — not in this repo.
 
-### 1. Create the template file
+If you need to add a new **collection** (a new `bluetemberg-rules-*` package) to the wizard:
 
-Add a Markdown file to `templates/rules/`:
+### 1. Publish the package
 
-```markdown
----
-description: One-line description of what this rule enforces.
-scope: '**'
----
+Follow the contributing guide in the bluetemberg-rules repo. The package must be live on npm before the wizard can suggest it.
 
-# Rule title
+### 2. Add a collection preset
 
-Concise, actionable content the AI sees on every interaction.
-```
-
-### 2. Add a preset entry
-
-In `src/init/presets.ts`, add an entry to the `RULE_PRESETS` array:
+In `src/init/presets.ts`, add an entry to `RULE_COLLECTION_PRESETS`:
 
 ```ts
 {
-  id: 'my-new-rule',            // must match the filename (minus .md)
-  name: 'My new rule',          // displayed in the wizard
-  description: 'What it does',  // shown next to the name
-  default: false,               // true = pre-checked for tagged profiles
-  tags: ['backend', 'fullstack'],  // which profiles pre-check this rule
+  id: 'my-collection',
+  name: 'My Collection',
+  packageName: 'bluetemberg-rules-my-collection',
+  description: 'What these rules enforce',
+  rules: ['rule-id-a', 'rule-id-b'],     // ids of rules inside the package
+  tags: ['backend', 'fullstack'],         // which profiles pre-select this collection
 },
 ```
 
 ### 3. Update the docs
 
-Add the rule to the table in [Writing Rules](Writing-Rules) and to any affected profile tables in [Profiles](Profiles). The `docs-parity` universal rule requires this — PRs that add templates without updating docs are not considered complete.
+Update the collections table in [Profiles](Profiles) and [Registry](Registry). PRs that add a collection without updating docs are not considered complete.
 
 ### 4. Test and open a PR
 
@@ -150,15 +142,7 @@ Add the rule to the table in [Writing Rules](Writing-Rules) and to any affected 
 npm run build && npm test
 ```
 
-Try it locally in a throwaway directory:
-
-```bash
-mkdir /tmp/test-project && cd /tmp/test-project
-npm init -y
-node /path/to/bluetemberg/bin/cli.js init
-```
-
-Open a PR with title: `feat: add <name> rule template`
+Open a PR with title: `feat: add <name> rule collection`
 
 ## Adding an agent template
 
@@ -266,9 +250,9 @@ Add a new section to [Profiles](Profiles) with the rules/agents/skills matrix. A
 
 PR title: `feat: add <name> team profile`
 
-## How tags and universal work
+## How tags work
 
-Every preset has a `tags` array listing which profiles consider it a default:
+Every collection, agent, and skill preset has a `tags` array listing which profiles consider it a default:
 
 ```ts
 tags: ['frontend', 'backend', 'fullstack']
@@ -276,16 +260,8 @@ tags: ['frontend', 'backend', 'fullstack']
 
 When a user picks a profile, every preset tagged for that profile gets pre-checked in the wizard. The `custom` profile skips tag-based defaults — nothing is pre-checked.
 
-The `universal` flag overrides everything:
-
-```ts
-universal: true   // always selected, shown as "(required)", cannot be deselected
-```
-
-Universal presets are included regardless of profile, even `custom`. Use this sparingly — only for hard requirements that every project needs. Currently 7 rules are universal. No agents or skills are universal.
-
 ## The docs-parity rule
 
-Bluetemberg enforces a `docs-parity` universal rule: documentation must ship in the same commit as every user-facing change. This applies to the tool itself.
+Bluetemberg enforces a `docs-parity` rule (part of `bluetemberg-rules-docs`): documentation must ship in the same commit as every user-facing change. This applies to the tool itself.
 
 When your PR changes behavior — a new template, a new flag, a config schema change — update the relevant wiki pages in `docs/wiki/` as part of the same commit. CI won't catch a missing doc update, but code reviewers will, and the rule exists to remind you.

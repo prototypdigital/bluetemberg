@@ -42,8 +42,8 @@ The interactive wizard will ask you to pick:
 
 - **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), or Custom — sets defaults for rules, agents, and skills (`--profile pure-infra` in headless runs)
 - Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf)
-- **Rule source** — individual templates copied locally, versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
-- Starter rules (templates source) — **universal guardrails depend on profile** (`pure-infra` omits app-code-centric universals—see wiki **Profiles**); other defaults are pre-checked by team type
+- **Rule source** — versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
+- Rule collections pre-selected by profile — defaults depend on team type (see wiki **Profiles**)
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
 - MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)
@@ -97,25 +97,22 @@ plugins/
 └── devops/                     # Rules + skills + agents for DevOps / platform engineers
 ```
 
-## Universal guardrails
+## Rule collections by profile
 
-**Default set (Frontend, Backend, Full-stack, DevOps / Platform, Custom):** seven rules cannot be deselected in the wizard:
+Rules are delivered as versioned npm packages from the [bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules) registry. The init wizard pre-selects collections based on your team profile; you can add or remove any collection before confirming.
 
-| Rule                    | What it enforces                                        |
-| ----------------------- | ------------------------------------------------------- |
-| `coding-standards`      | Function complexity, readability, naming                |
-| `early-returns`         | Guard clauses over nested conditionals                  |
-| `git-move`              | `git mv` for tracked files to preserve history          |
-| `never-read-env`        | No direct `.env` reads in code                          |
-| `post-edit-diagnostics` | Run diagnostics and formatter after every edit          |
-| `pre-commit-checks`     | Formatter, linter, and build pass before every commit   |
-| `docs-parity`           | Doc updates ship in the same commit as behavior changes |
+| Collection | Package | Profiles |
+| ---------- | ------- | -------- |
+| TypeScript | `bluetemberg-rules-typescript` | Frontend, Backend, Full-stack |
+| Git | `bluetemberg-rules-git` | Frontend, Backend, Full-stack, DevOps, Pure Infra |
+| Security | `bluetemberg-rules-security` | Frontend, Backend, Full-stack, DevOps, Pure Infra |
+| Docs | `bluetemberg-rules-docs` | Frontend, Backend, Full-stack, DevOps, Pure Infra |
+| DevOps | `bluetemberg-rules-devops` | DevOps, Pure Infra |
+| Next.js | `bluetemberg-rules-nextjs` | Frontend, Full-stack |
 
-**Pure Infrastructure (`pure-infra`):** for repos with no application source (Ansible, K8s, Terraform, Compose, etc.), the wizard omits the app-centric rules above (`coding-standards`, `early-returns`, `post-edit-diagnostics`). It still forces `git-move`, `never-read-env`, `pre-commit-checks`, and `docs-parity`.
+After `init`, run `bluetemberg install` to download the selected packs into `llm/rules/`.
 
-All other rules are opt-in defaults by profile (or fully manual for Custom).
-
-Detail: [`docs/wiki/Profiles.md`](docs/wiki/Profiles.md) (**Pure Infrastructure** section).
+Detail: [`docs/wiki/Registry.md`](docs/wiki/Registry.md) and [`docs/wiki/Profiles.md`](docs/wiki/Profiles.md).
 
 ## Switching profile
 

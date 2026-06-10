@@ -35,7 +35,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-git',
     description: 'Git workflow, git move, pre-commit checks',
     rules: ['git-workflow', 'git-move', 'pre-commit-checks'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
   },
   {
     id: 'security',
@@ -43,7 +43,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-security',
     description: 'Never read .env, secrets management, API error handling',
     rules: ['never-read-env', 'security-secrets', 'api-error-handling'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
   },
   {
     id: 'docs',
@@ -51,7 +51,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-docs',
     description: 'Docs parity, post-edit diagnostics, Mermaid diagrams',
     rules: ['docs-parity', 'post-edit-diagnostics', 'mermaid-diagrams'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops'],
+    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
   },
   {
     id: 'devops',

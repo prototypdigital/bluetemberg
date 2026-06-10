@@ -40,4 +40,4 @@ The alternative — writing platform-specific configs by hand, separately for ea
 - It does not evaluate or run your rules. It copies and transforms them.
 - It does not require an internet connection at sync time.
 - It does not lock you into any AI platform. The `llm/` files are plain Markdown. You can stop using Bluetemberg and the files remain useful.
-- It does not tell you what rules to write. The starter templates are defaults, not requirements (except the universal guardrails, which are baseline behaviors every project needs).
+- It does not tell you what rules to write. The official rule packs are defaults, not requirements — you can add, remove, or replace any collection.

@@ -163,5 +163,8 @@ function reportResult(result: SwitchProfileResult): void {
     }
   }
 
+  console.log(
+    '\n  Note: rule collections are not changed by profile switch — edit `llm/rule-packages.json` manually if needed.',
+  );
   console.log('\n  Next: run `bluetemberg sync` to regenerate platform files.\n');
 }
