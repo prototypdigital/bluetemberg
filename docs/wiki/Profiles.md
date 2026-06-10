@@ -6,21 +6,18 @@ The first question the `init` wizard asks is **Team profile**. Your answer sets 
 
 Each preset (rule, agent, skill) has a `tags` array listing which profiles consider it a default. When you pick a profile, every preset tagged with that profile is pre-checked in the wizard. Presets not tagged for your profile are still available — just unchecked.
 
-Forced **universal** rules cannot be unchecked in the wizard, but **`pure-infra` uses a smaller universal set**: it skips app-code-centric rules (`coding-standards`, `early-returns`, `post-edit-diagnostics`). See [Pure Infrastructure](#pure-infrastructure) below.
+When you pick a profile, every collection tagged for that profile is pre-checked in the wizard. You can add or remove any collection before confirming.
 
-## Universal guardrails — default profiles
+## Default collections by profile
 
-These seven rules apply to **Frontend**, **Backend**, **Full-stack**, **DevOps / Platform**, and **Custom**. They appear checked and marked **(required)** in the wizard.
-
-| Rule | What it enforces |
-| ---- | ---------------- |
-| `coding-standards` | Function complexity, readability, naming conventions |
-| `early-returns` | Guard clauses over nested conditionals |
-| `git-move` | Use `git mv` for tracked files to preserve history |
-| `never-read-env` | Never read `.env` files directly in code |
-| `post-edit-diagnostics` | Run diagnostics and formatter after every edit |
-| `pre-commit-checks` | Formatter, linter, and build pass before every commit |
-| `docs-parity` | Doc updates ship in the same commit as behavior changes |
+| Collection | Frontend | Backend | Full-stack | DevOps | Pure Infra | Custom |
+| ---------- | :------: | :-----: | :--------: | :----: | :--------: | :----: |
+| TypeScript | ✓ | ✓ | ✓ | — | — | — |
+| Git | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Security | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Docs | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| DevOps | — | — | — | ✓ | ✓ | — |
+| Next.js | ✓ | — | ✓ | — | — | — |
 
 ## Frontend
 
@@ -178,16 +175,7 @@ This profile is the union of Frontend and Backend defaults.
 
 Use this profile for repos that contain only infrastructure: Ansible roles, Kubernetes manifests, Helm charts, Docker Compose stacks, Terraform modules. There is no application code (no JS/TS, no Python services, no CI-built binaries).
 
-This profile shares most rules with DevOps / Platform but does not force-include the app-code-specific universals (`coding-standards`, `early-returns`, `post-edit-diagnostics`), which are not meaningful in infrastructure-only repos.
-
-### Universal guardrails (always included)
-
-| Rule | What it enforces |
-| ---- | ---------------- |
-| `git-move` | Use `git mv` for tracked files to preserve history |
-| `never-read-env` | Never read `.env` files directly in code |
-| `pre-commit-checks` | Formatter, linter, and build pass before every commit |
-| `docs-parity` | Doc updates ship in the same commit as behavior changes |
+This profile is scoped to infrastructure-only repos. It defaults to `git`, `security`, `docs`, and `devops` collections — the TypeScript collection is not included since there is no application code.
 
 ### Rules
 
@@ -232,4 +220,4 @@ This profile shares most rules with DevOps / Platform but does not force-include
 
 ## Custom
 
-Pick everything individually. No presets are pre-checked (except universal guardrails: the **seven-rule default set**, same table as Frontend). Use this when your project doesn't fit a standard profile or when you want full control.
+Pick everything individually. No collections are pre-checked. Use this when your project doesn't fit a standard profile or when you want full control.

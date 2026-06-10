@@ -113,11 +113,11 @@ cliSuite('cli flags', () => {
     expect(r.stderr ?? '').toBe('');
     const parsed = JSON.parse(r.stdout.trim()) as {
       teamProfiles?: unknown;
-      rules?: unknown;
+      ruleCollections?: unknown;
       cliVersion?: string;
     };
     expect(Array.isArray(parsed.teamProfiles)).toBe(true);
-    expect(Array.isArray(parsed.rules)).toBe(true);
+    expect(Array.isArray(parsed.ruleCollections)).toBe(true);
     expect(parsed.cliVersion ?? '').toMatch(/\d+\.\d+\.\d+/);
   });
 });
@@ -140,7 +140,7 @@ cliSuite('cli init headless', () => {
     );
     expect(r.status).toBe(0);
     expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
-    expect(existsSync(join(root, 'llm', 'rules'))).toBe(true);
+    expect(existsSync(join(root, 'llm', 'rule-packages.json'))).toBe(true);
   });
 
   it('rejects --config when the path is missing', () => {
@@ -175,7 +175,7 @@ cliSuite('cli init headless', () => {
         projectDescription: '',
         packageManager: 'pnpm',
         platforms: ['claude'],
-        ruleSource: 'templates',
+        ruleSource: 'collections',
         rules: [],
         ruleCollections: [],
         includeAgents: false,

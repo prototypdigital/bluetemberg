@@ -17,9 +17,9 @@ const baseAnswers: InitAnswers = {
   projectDescription: 'A test project.',
   packageManager: 'npm',
   platforms: ['cursor', 'claude', 'copilot'],
-  ruleSource: 'templates',
-  rules: ['coding-standards', 'early-returns'],
-  ruleCollections: [],
+  ruleSource: 'collections',
+  rules: [],
+  ruleCollections: ['typescript', 'git'],
   includeAgents: false,
   agents: [],
   includeSkills: false,
@@ -67,8 +67,8 @@ describe('scaffold', () => {
       });
     });
 
-    it('omits rules targets when no rules are selected', () => {
-      scaffold(root, { ...baseAnswers, rules: [] });
+    it('omits rules targets when no rules or collections are selected', () => {
+      scaffold(root, { ...baseAnswers, rules: [], ruleCollections: [] });
 
       const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
       expect(config.targets.rules).toBeUndefined();
@@ -194,28 +194,6 @@ describe('scaffold', () => {
       const manifest = JSON.parse(readFileSync(join(root, 'llm', 'rule-packages.json'), 'utf8'));
       expect(manifest.packages['bluetemberg-rules-typescript']).toBeDefined();
       expect(Object.keys(manifest.packages)).toHaveLength(1);
-    });
-  });
-
-  describe('rules', () => {
-    it('copies rule templates into llm/rules/', () => {
-      scaffold(root, { ...baseAnswers, rules: ['coding-standards', 'early-returns'] });
-
-      expect(existsSync(join(root, 'llm', 'rules', 'coding-standards.md'))).toBe(true);
-      expect(existsSync(join(root, 'llm', 'rules', 'early-returns.md'))).toBe(true);
-    });
-
-    it('skips rules with unknown template IDs', () => {
-      scaffold(root, { ...baseAnswers, rules: ['coding-standards', 'nonexistent-rule'] });
-
-      expect(existsSync(join(root, 'llm', 'rules', 'coding-standards.md'))).toBe(true);
-      expect(existsSync(join(root, 'llm', 'rules', 'nonexistent-rule.md'))).toBe(false);
-    });
-
-    it('creates llm/rules/ directory even when rules list is empty', () => {
-      scaffold(root, { ...baseAnswers, rules: [] });
-
-      expect(existsSync(join(root, 'llm', 'rules'))).toBe(true);
     });
   });
 

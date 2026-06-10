@@ -18,9 +18,9 @@ const baseAnswers: InitAnswers = {
   projectDescription: 'A test project.',
   packageManager: 'npm',
   platforms: ['cursor', 'claude'],
-  ruleSource: 'templates',
-  rules: ['coding-standards', 'design-system-reuse'],
-  ruleCollections: [],
+  ruleSource: 'collections',
+  rules: [],
+  ruleCollections: ['typescript'],
   includeAgents: true,
   agents: ['frontend-specialist'],
   includeSkills: false,
@@ -84,25 +84,15 @@ describe('switchProfile', () => {
     expect(result.added).toContain(backendAgent);
   });
 
-  it('does not overwrite files that already exist in llm/', () => {
+  it('does not overwrite existing agent files in llm/', () => {
     scaffold(root, baseAnswers);
 
-    const codingStandards = join(root, 'llm', 'rules', 'coding-standards.md');
-    writeFileSync(codingStandards, '# Custom override\n');
+    const frontendAgent = join(root, 'llm', 'agents', 'frontend-specialist.md');
+    writeFileSync(frontendAgent, '# Custom override\n');
 
     switchProfile(root, 'fullstack', { silent: true });
 
-    expect(readFileSync(codingStandards, 'utf8')).toBe('# Custom override\n');
-  });
-
-  it('reports stale rules from the previous profile', () => {
-    scaffold(root, baseAnswers);
-
-    const result = switchProfile(root, 'backend', { silent: true });
-
-    const designSystemPath = join(root, 'llm', 'rules', 'design-system-reuse.md');
-    expect(result.stale).toContain(designSystemPath);
-    expect(existsSync(designSystemPath)).toBe(true);
+    expect(readFileSync(frontendAgent, 'utf8')).toBe('# Custom override\n');
   });
 
   it('exposes the previous profile in the result', () => {

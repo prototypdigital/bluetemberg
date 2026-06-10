@@ -3,7 +3,6 @@ import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { InitAnswers, Platform, RuleCollectionPreset, TeamProfile } from '../types.js';
 import { resolvePresetDefaults } from './preset-resolution.js';
 import {
-  RULE_PRESETS,
   RULE_COLLECTION_PRESETS,
   AGENT_PRESETS,
   SKILL_PRESETS,
@@ -12,32 +11,11 @@ import {
   GUARDRAIL_PRESETS,
 } from './presets.js';
 
-/** Universal rule ids enforced for `teamProfile` (respects `universalExcludeProfiles`, same as the wizard). */
-export function universalRulesForProfile(teamProfile: TeamProfile): string[] {
-  const resolved = resolvePresetDefaults(RULE_PRESETS, teamProfile);
-  return resolved
-    .filter((r) => r.universal && !r.universalExcludeProfiles?.includes(teamProfile))
-    .map((r) => r.id);
-}
-
 export function defaultRuleCollections(teamProfile: TeamProfile): string[] {
   if (teamProfile === 'custom') return [];
   return RULE_COLLECTION_PRESETS.filter(
     (c: RuleCollectionPreset) => c.tags?.includes(teamProfile) ?? false,
   ).map((c) => c.id);
-}
-
-/** Template rules equivalent to confirming the checkbox step with wizard defaults only. */
-export function rulesForTemplatesProfile(teamProfile: TeamProfile): string[] {
-  const resolved = resolvePresetDefaults(RULE_PRESETS, teamProfile);
-  const universal = universalRulesForProfile(teamProfile);
-  const selectedIds = resolved
-    .filter((r) => {
-      const forced = Boolean(r.universal && !r.universalExcludeProfiles?.includes(teamProfile));
-      return forced || r.default;
-    })
-    .map((r) => r.id);
-  return [...new Set([...universal, ...selectedIds])];
 }
 
 export function agentsForProfile(teamProfile: TeamProfile): string[] {
@@ -61,7 +39,7 @@ function defaultGuardrailIds(teamProfile: TeamProfile): string[] {
 
 /**
  * Baseline identical to submitting the wizard with only profile-based checkbox defaults:
- * templates source, all platforms checked, agents/skills/MCP inclusion with wizard defaults.
+ * collections source, all platforms checked, agents/skills/MCP inclusion with wizard defaults.
  */
 export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir: string): InitAnswers {
   return {
@@ -70,9 +48,9 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     projectDescription: '',
     packageManager: 'pnpm',
     platforms: PLATFORM_CHOICES.filter((p) => p.id !== MARKETPLACE_PLATFORM).map((p) => p.id) as Platform[],
-    ruleSource: 'templates',
-    rules: rulesForTemplatesProfile(teamProfile),
-    ruleCollections: [],
+    ruleSource: 'collections',
+    rules: [],
+    ruleCollections: defaultRuleCollections(teamProfile),
     includeAgents: true,
     agents: agentsForProfile(teamProfile),
     includeSkills: true,
@@ -105,23 +83,14 @@ export function finalizeNonInteractiveAnswers(
       : base.platforms;
 
   let ruleCollections = base.ruleCollections;
-  let rules = base.rules;
-  if (ruleSource === 'collections') {
-    rules = overrides.rules ?? [];
+  const rules: string[] = [];
+  if (ruleSource === 'none') {
+    ruleCollections = [];
+  } else {
     ruleCollections =
       overrides.ruleCollections !== undefined && overrides.ruleCollections.length > 0
         ? overrides.ruleCollections
         : defaultRuleCollections(teamProfile);
-  } else if (ruleSource === 'none') {
-    rules = [];
-    ruleCollections = [];
-  } else {
-    ruleCollections = [];
-    const rulesOv = overrides.rules;
-    rules =
-      rulesOv !== undefined
-        ? [...new Set([...universalRulesForProfile(teamProfile), ...rulesOv])]
-        : rulesForTemplatesProfile(teamProfile);
   }
 
   const includeAgents = overrides.includeAgents ?? base.includeAgents;

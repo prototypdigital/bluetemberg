@@ -4,14 +4,21 @@ import matter from 'gray-matter';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
-import { RULE_PRESETS, AGENT_PRESETS, SKILL_PRESETS } from '../init/presets.js';
+import { RULE_COLLECTION_PRESETS, AGENT_PRESETS, SKILL_PRESETS } from '../init/presets.js';
 import type { MarketplacePluginDefinition, TeamProfile } from '../types.js';
 
-/** Lookup map from preset ID → profile tags, covering rules, agents, and skills. */
-// tags values are constrained to TeamProfile by TEAM_PROFILES — cast is safe
-const PRESET_PROFILES: Map<string, TeamProfile[]> = new Map(
-  [...RULE_PRESETS, ...AGENT_PRESETS, ...SKILL_PRESETS].map((p) => [p.id, (p.tags ?? []) as TeamProfile[]]),
-);
+/**
+ * Lookup map from preset ID → profile tags, covering rules (derived from collections),
+ * agents, and skills.
+ * tags values are constrained to TeamProfile by TEAM_PROFILES — cast is safe.
+ */
+const PRESET_PROFILES: Map<string, TeamProfile[]> = new Map([
+  ...RULE_COLLECTION_PRESETS.flatMap((c) =>
+    c.rules.map((ruleId) => [ruleId, (c.tags ?? []) as TeamProfile[]] as const),
+  ),
+  ...AGENT_PRESETS.map((p) => [p.id, (p.tags ?? []) as TeamProfile[]] as const),
+  ...SKILL_PRESETS.map((p) => [p.id, (p.tags ?? []) as TeamProfile[]] as const),
+]);
 
 export interface MarketplaceSyncContext extends SyncSink {
   sourceDirs: string[];

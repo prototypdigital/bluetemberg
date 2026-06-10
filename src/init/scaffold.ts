@@ -27,10 +27,8 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
 
   if (answers.ruleSource === 'collections') {
     scaffoldRuleCollections(targetDir, answers, created);
-  } else if (answers.ruleSource === 'none') {
-    scaffoldEmptyRules(targetDir, created);
   } else {
-    scaffoldRules(targetDir, answers, created);
+    scaffoldEmptyRules(targetDir, created);
   }
 
   if (answers.includeAgents) {
@@ -164,23 +162,6 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
  */
 function scaffoldEmptyRules(targetDir: string, created: string[]): void {
   safeWrite(join(targetDir, 'llm', 'rules', '.gitkeep'), '', created);
-}
-
-function scaffoldRules(targetDir: string, answers: InitAnswers, created: string[]): void {
-  const destDir = join(targetDir, 'llm', 'rules');
-  ensureDir(destDir);
-
-  for (const ruleId of answers.rules) {
-    const src = join(TEMPLATES_DIR, 'rules', `${ruleId}.md`);
-    if (!existsSync(src)) {
-      console.warn(`  Warning: rule template "${ruleId}" not found, skipping`);
-      continue;
-    }
-
-    const dest = join(destDir, `${ruleId}.md`);
-    copyFileSync(src, dest);
-    created.push(dest);
-  }
 }
 
 function scaffoldRuleCollections(targetDir: string, answers: InitAnswers, created: string[]): void {

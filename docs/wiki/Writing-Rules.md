@@ -45,37 +45,32 @@ The sync engine converts `scope` into platform-specific frontmatter:
 
 Not all rules are equal. Bluetemberg has three intent levels:
 
+Rules ship inside `bluetemberg-rules-*` npm packages, not as local templates. The wizard lets users select which **collections** (packages) to install; individual rule selection is not supported.
+
 | Tier | Behavior | When to use |
 | ---- | -------- | ----------- |
-| **Universal** | Always included, cannot be deselected in the wizard | Hard requirements that every project needs — formatting, linting, security baselines |
-| **Team default** | Pre-checked for tagged profiles, deselectable | Strong recommendations for a team type — `type-safety` for frontend/backend |
-| **Team optional** | Off by default, opt-in | Specialized rules that only apply to certain stacks — `terraform-conventions`, `docker-best-practices` |
+| **Collection default** | Collection is pre-checked for tagged profiles | The collection's rules are broadly useful for that team type |
+| **Collection optional** | Collection is available but not pre-checked | Specialized rules that only apply to certain stacks |
 
-Universal rules are marked `universal: true` in `src/init/presets.ts`. See [Contributing](Contributing) for how to add or promote rules.
+Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_PRESETS`. See [Contributing](Contributing) for how to add a new collection.
 
 ## Naming convention
 
 - Use **kebab-case** for filenames: `coding-standards.md`, `no-console-log.md`
 - The filename (minus `.md`) becomes the output filename stem across all platforms
 
-## Available starter rules
+## Available rule collections
 
-| Rule | Scope | Tier | Tags | Description |
-| ---- | ----- | ---- | ---- | ----------- |
-| `coding-standards` | `**` | Universal | all | Function complexity, readability, naming conventions |
-| `early-returns` | `**` | Universal | all | Guard clauses over nested conditionals |
-| `git-move` | `**` | Universal | all | Use `git mv` for tracked files to preserve history |
-| `never-read-env` | `**` | Universal | all | Never read `.env` files directly in code |
-| `post-edit-diagnostics` | `**` | Universal | frontend, backend, fullstack | Run diagnostics and formatter after editing code files |
-| `pre-commit-checks` | `**` | Universal | all | Formatter, linter, and build pass before every commit |
-| `docs-parity` | `**` | Universal | all | Doc updates ship in the same commit as behavior changes |
-| `type-safety` | `**` | Default | frontend, backend, fullstack | No `any`, no unguarded assertions, prefer `unknown` |
-| `no-console-log` | `src/**` | Optional | backend, fullstack | Forbid `console.*` in production code, use logger |
-| `design-system-reuse` | `**` | Optional | frontend, fullstack | Reuse shared UI components and tokens |
-| `api-error-handling` | `**` | Optional | backend, fullstack | Structured error responses, never leak stack traces |
-| `security-secrets` | `**` | Optional | backend, fullstack, devops | Never hardcode secrets, tokens, or credentials |
-| `docker-best-practices` | `**` | Optional | devops | Multi-stage builds, non-root users, layer caching |
-| `terraform-conventions` | `**` | Optional | devops | Module structure, naming, state management |
+Rules are grouped into collections. For the full list of individual rules inside each pack, see the [Catalog](https://github.com/prototypdigital/bluetemberg-rules/wiki/Catalog) in the bluetemberg-rules wiki.
+
+| Collection | Package | Profiles | Contents |
+| ---------- | ------- | -------- | -------- |
+| TypeScript | `bluetemberg-rules-typescript` | Frontend, Backend, Full-stack | `type-safety`, `coding-standards`, `early-returns`, `no-console-log`, `design-system-reuse` |
+| Git | `bluetemberg-rules-git` | All except Custom | `git-workflow`, `git-move`, `pre-commit-checks` |
+| Security | `bluetemberg-rules-security` | All except Custom | `never-read-env`, `security-secrets`, `api-error-handling` |
+| Docs | `bluetemberg-rules-docs` | All except Custom | `docs-parity`, `post-edit-diagnostics`, `mermaid-diagrams` |
+| DevOps | `bluetemberg-rules-devops` | DevOps, Pure Infra | Docker, Ansible, K8s, Terraform, CI/CD, idempotency, runbooks |
+| Next.js | `bluetemberg-rules-nextjs` | Frontend, Full-stack | `nextjs-public-env-vars` |
 
 ## Writing a good rule
 
@@ -88,6 +83,6 @@ Universal rules are marked `universal: true` in `src/init/presets.ts`. See [Cont
 
 ## Tips
 
-- If a behavior must happen on every project, it should probably be a universal rule — talk to the maintainers
-- If a behavior only matters for certain stacks, tag it for the relevant profiles
+- Rules live in `bluetemberg-rules-*` packages — to add or update a rule, contribute to that repo
+- If a behavior only matters for certain stacks, it belongs in a collection tagged for those profiles
 - If it requires multi-step reasoning or judgment calls, it might be a [skill](Writing-Skills) instead

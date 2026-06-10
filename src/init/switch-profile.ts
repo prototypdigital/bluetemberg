@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureDir } from '../utils/fs.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
-import { agentsForProfile, rulesForTemplatesProfile, skillsForProfile } from './init-answers-from-profile.js';
+import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
 import type { TeamProfile } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -61,7 +61,6 @@ export function switchProfile(
   }
 
   const specs: AssetSpec[] = [
-    { kind: 'rules', targetIds: rulesForTemplatesProfile(toProfile) },
     { kind: 'agents', targetIds: agentsForProfile(toProfile) },
     { kind: 'skills', targetIds: skillsForProfile(toProfile) },
   ];
@@ -164,5 +163,8 @@ function reportResult(result: SwitchProfileResult): void {
     }
   }
 
+  console.log(
+    '\n  Note: rule collections are not changed by profile switch — edit `llm/rule-packages.json` manually if needed.',
+  );
   console.log('\n  Next: run `bluetemberg sync` to regenerate platform files.\n');
 }
