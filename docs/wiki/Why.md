@@ -24,6 +24,8 @@ A shared external kit creates its own drift problem: the kit evolves, your proje
 
 Bluetemberg's job is to give you the starting set of rules and keep the platform-specific files in sync. What you do with the rules after that is your call.
 
+Pulling from an **external source** (`bluetemberg source add`) doesn't reintroduce the kit-drift problem: rules fetched from a community GitHub repo, PRPM, or cursor.directory are pinned to an exact version in a committed lockfile, translated into your tree, and always lose to your local rules on a filename clash. They're a convenience for *seeding* rules you'll then own — not a live dependency that can shift underneath you.
+
 ## The kickoff + maintain split
 
 There are two distinct phases to AI tooling setup:
@@ -33,7 +35,7 @@ There are two distinct phases to AI tooling setup:
 
 Bluetemberg handles both. `init` handles the kickoff: it asks a few questions, picks appropriate defaults for your team type, and generates everything. `sync` handles maintenance: one command regenerates all platform files from the source of truth, and `sync --check` in CI catches drift before it ships.
 
-The alternative — writing platform-specific configs by hand, separately for each tool — means every change has to be made three times (Cursor, Claude, Copilot), and there's no automated way to verify they're consistent.
+The alternative — writing platform-specific configs by hand, separately for each tool — means every change has to be made by hand for each tool you support (Cursor, Claude, Copilot, Gemini CLI, Windsurf), and there's no automated way to verify they're consistent.
 
 ## What Bluetemberg does not do
 
