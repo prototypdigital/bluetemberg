@@ -9,6 +9,7 @@ vi.mock('../src/registry/client.js', () => ({
 }));
 
 import { cursorDirectoryAdapter } from '../src/sources/adapters/cursor-directory.js';
+import { cursorDirectoryConfig } from '../src/sources/constants.js';
 import { downloadTarball } from '../src/registry/client.js';
 import type { ResolvedSource } from '../src/sources/types.js';
 
@@ -97,6 +98,50 @@ describe('cursorDirectoryAdapter.resolve', () => {
     await expect(cursorDirectoryAdapter.resolve({ type: 'cursor-directory', slug: 'x' })).rejects.toThrow(
       'access denied',
     );
+  });
+
+  it('forwards SourceNetOptions.apiKey to the Supabase request', async () => {
+    let seenKey: string | undefined;
+    globalThis.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/rest/v1/plugins')) {
+        seenKey = (init?.headers as Record<string, string> | undefined)?.apikey;
+        return {
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([{ slug: 'x', name: 'X', repository: 'https://github.com/a/b' }]),
+        } as Response;
+      }
+      if (url.includes('api.github.com/repos')) {
+        return { ok: true, status: 200, json: () => Promise.resolve({ sha: 'a'.repeat(40) }) } as Response;
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    await cursorDirectoryAdapter.resolve(
+      { type: 'cursor-directory', slug: 'x' },
+      { apiKey: 'sb_publishable_custom' },
+    );
+    expect(seenKey).toBe('sb_publishable_custom');
+  });
+});
+
+describe('cursorDirectoryConfig — baked public defaults', () => {
+  beforeEach(() => {
+    delete process.env.BLUETEMBERG_CURSOR_DIRECTORY_URL;
+    delete process.env.BLUETEMBERG_CURSOR_DIRECTORY_KEY;
+  });
+
+  it('ships a public publishable key (never a service-role secret) + a cursor.directory URL', () => {
+    const { url, key } = cursorDirectoryConfig();
+    // Guards against a future edit swapping in a sb_secret_/service_role key.
+    expect(key).toMatch(/^sb_publishable_/);
+    expect(url).toContain('cursor.directory');
+  });
+
+  it('lets env override the baked defaults', () => {
+    process.env.BLUETEMBERG_CURSOR_DIRECTORY_KEY = 'sb_publishable_override';
+    expect(cursorDirectoryConfig().key).toBe('sb_publishable_override');
   });
 });
 

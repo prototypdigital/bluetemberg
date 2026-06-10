@@ -5,14 +5,15 @@ import type {
   RawFetchResult,
   ResolvedSource,
   SourceAdapter,
+  SourceNetOptions,
   SourceSearchResult,
   SourceSpec,
 } from '../types.js';
 
 const NOT_CONFIGURED =
-  'cursor.directory access is not configured. Set BLUETEMBERG_CURSOR_DIRECTORY_URL and ' +
-  "BLUETEMBERG_CURSOR_DIRECTORY_KEY to cursor.directory's public Supabase URL + publishable key " +
-  "(visible in any *.supabase.co request in the site's browser network panel).";
+  'cursor.directory access is not configured: the Supabase URL or key resolved empty. ' +
+  'Unset BLUETEMBERG_CURSOR_DIRECTORY_URL / _KEY to use the built-in public defaults, or set ' +
+  "them to cursor.directory's Supabase URL + publishable key.";
 
 const EXPERIMENTAL_WARNING =
   'cursor-directory: experimental adapter — uses an undocumented internal API whose credentials ' +
@@ -29,10 +30,12 @@ function warnOnce(): void {
  * cursor.directory source. Its rule *content* table is RLS-locked to the anon key,
  * so we read the anon-readable `plugins` table for a plugin's GitHub `repository`,
  * then delegate the actual fetch to the GitHub adapter — giving real content with
- * a reproducible commit-SHA pin. Requires the public Supabase URL + publishable key
- * via env (the site is bot-gated, so these can't be auto-discovered).
+ * a reproducible commit-SHA pin. Ships with cursor.directory's public Supabase URL +
+ * publishable key baked in (see `constants.ts`), so it works with no setup; override
+ * via `SourceNetOptions.apiKey` or the `BLUETEMBERG_CURSOR_DIRECTORY_*` env vars if the
+ * upstream key rotates.
  */
-async function resolve(spec: SourceSpec): Promise<ResolvedSource> {
+async function resolve(spec: SourceSpec, options: SourceNetOptions = {}): Promise<ResolvedSource> {
   warnOnce();
   if (spec.type !== 'cursor-directory')
     throw new Error(`cursor-directory adapter received a "${spec.type}" spec`);
@@ -44,6 +47,7 @@ async function resolve(spec: SourceSpec): Promise<ResolvedSource> {
 
   const rows = await queryPlugins(
     `plugins?slug=eq.${encodeURIComponent(spec.slug)}&active=eq.true&select=slug,name,repository&limit=1`,
+    options.apiKey,
   );
   if (rows.length === 0) {
     throw new Error(`cursor.directory: plugin "${spec.slug}" not found or not active`);
@@ -57,14 +61,20 @@ async function resolve(spec: SourceSpec): Promise<ResolvedSource> {
     );
   }
 
-  // Delegate to GitHub for the immutable SHA pin + tarball URL.
-  const gh = await githubAdapter.resolve({
-    type: 'github',
-    owner: repo.owner,
-    repo: repo.repo,
-    ref: 'HEAD',
-    path: '',
-  });
+  // Delegate to GitHub for the immutable SHA pin + tarball URL. cursor.directory has
+  // no version concept, so we always track the repo's default-branch HEAD at add time
+  // (resolved to an immutable SHA in the lock); `source update` re-pins to the latest
+  // HEAD. Forward net options so a GitHub token can lift the unauthenticated rate limit.
+  const gh = await githubAdapter.resolve(
+    {
+      type: 'github',
+      owner: repo.owner,
+      repo: repo.repo,
+      ref: 'HEAD',
+      path: '',
+    },
+    options,
+  );
 
   return {
     spec,
@@ -78,17 +88,22 @@ async function resolve(spec: SourceSpec): Promise<ResolvedSource> {
 
 // The resolved source already points at a GitHub codeload tarball, so the GitHub
 // adapter's fetch (download + security-filtered extract) works unchanged.
-function fetchSource(resolved: ResolvedSource, tmpDir: string): Promise<RawFetchResult> {
-  return githubAdapter.fetch(resolved, tmpDir);
+function fetchSource(
+  resolved: ResolvedSource,
+  tmpDir: string,
+  options: SourceNetOptions = {},
+): Promise<RawFetchResult> {
+  return githubAdapter.fetch(resolved, tmpDir, options);
 }
 
-async function search(query: string): Promise<SourceSearchResult[]> {
+async function search(query: string, options: SourceNetOptions = {}): Promise<SourceSearchResult[]> {
   warnOnce();
   const safe = encodeURIComponent(query.replace(/[^a-zA-Z0-9 _-]/g, '').trim());
   let rows: Record<string, unknown>[];
   try {
     rows = await queryPlugins(
       `plugins?active=eq.true&or=(name.ilike.*${safe}*,description.ilike.*${safe}*)&select=slug,name,description&limit=50`,
+      options.apiKey,
     );
   } catch (err) {
     process.stderr.write(
@@ -117,8 +132,9 @@ export const cursorDirectoryAdapter: SourceAdapter = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function queryPlugins(path: string): Promise<Record<string, unknown>[]> {
-  const { url, key } = cursorDirectoryConfig();
+async function queryPlugins(path: string, apiKeyOverride?: string): Promise<Record<string, unknown>[]> {
+  const { url, key: defaultKey } = cursorDirectoryConfig();
+  const key = apiKeyOverride || defaultKey;
   if (!url || !key) throw new Error(NOT_CONFIGURED);
 
   const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/${path}`, {
