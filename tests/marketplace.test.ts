@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { tmpdir } from 'node:os';
-import { sync } from '../src/sync/index.js';
-import type { BlueprintConfig } from '../src/types.js';
+import { sync, shouldExitWithFailure } from '../src/sync/index.js';
+import type { BlueprintConfig, TeamProfile } from '../src/types.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bluetemberg-marketplace-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -284,6 +284,47 @@ describe('syncMarketplace', () => {
       // universal — appears in all plugins
       expect(existsSync(join(root, 'plugins/frontend-plugin/skills/my-custom-skill/SKILL.md'))).toBe(true);
       expect(existsSync(join(root, 'plugins/devops-plugin/skills/my-custom-skill/SKILL.md'))).toBe(true);
+    });
+  });
+
+  describe('profile validation', () => {
+    it('records an error and skips the plugin when an unknown profile is referenced', async () => {
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          plugins: [{ name: 'bad-plugin', profiles: ['frontned' as unknown as TeamProfile] }],
+        },
+      };
+
+      const results = await sync(root, { config, silent: true });
+
+      expect(results.errors).toHaveLength(1);
+      expect(results.errors[0]).toContain('bad-plugin');
+      expect(results.errors[0]).toContain('frontned');
+      expect(shouldExitWithFailure(results, false)).toBe(true);
+      // Plugin was skipped — no output directory created
+      expect(existsSync(join(root, 'plugins/bad-plugin'))).toBe(false);
+    });
+
+    it('records an error when a plugin with valid profiles resolves to 0 files', async () => {
+      // 'api-design' resolves to backend/fullstack via preset — devops plugin gets nothing
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          plugins: [{ name: 'devops-plugin', profiles: ['devops'] }],
+        },
+      };
+
+      const results = await sync(root, { config, silent: true });
+
+      expect(results.errors).toHaveLength(1);
+      expect(results.errors[0]).toContain('devops-plugin');
+      expect(results.errors[0]).toContain('0 files');
+      expect(shouldExitWithFailure(results, false)).toBe(true);
     });
   });
 
