@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync, copyFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, copyFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { create } from 'tar';
@@ -9,7 +9,7 @@ vi.mock('../src/registry/client.js', () => ({
 }));
 
 import { githubAdapter } from '../src/sources/adapters/github.js';
-import { assertSafeTarEntry } from '../src/sources/tarball.js';
+import { assertSafeTarEntry, extractTarball } from '../src/sources/tarball.js';
 import { downloadTarball } from '../src/registry/client.js';
 
 function createTmpDir(): string {
@@ -131,5 +131,37 @@ describe('assertSafeTarEntry — extraction security policy', () => {
   it('allows normal files (including names that merely contain "..")', () => {
     expect(() => assertSafeTarEntry('ok', 'rules/my..file.md', 'File')).not.toThrow();
     expect(() => assertSafeTarEntry('ok', 'rules/clean.mdc', 'File')).not.toThrow();
+  });
+});
+
+describe('extractTarball — security + size cap', () => {
+  it('rejects a tarball whose extracted bytes exceed the cap', async () => {
+    const dest = createTmpDir();
+    try {
+      await expect(extractTarball(fixtureTgz, dest, 'toobig', { maxBytes: 10 })).rejects.toThrow(
+        'exceeds the maximum extracted size',
+      );
+    } finally {
+      rmSync(dest, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects cleanly (no unhandled error) on a symlink entry', async () => {
+    const evilSrc = createTmpDir();
+    const wrapper = join(evilSrc, 'evil-repo');
+    mkdirSync(wrapper, { recursive: true });
+    writeFileSync(join(wrapper, 'real.md'), 'ok\n');
+    symlinkSync('/etc/passwd', join(wrapper, 'link'));
+    const evilTgz = join(createTmpDir(), 'evil.tgz');
+    await create({ file: evilTgz, cwd: evilSrc, gzip: true }, ['evil-repo']);
+
+    const dest = createTmpDir();
+    try {
+      await expect(extractTarball(evilTgz, dest, 'evil')).rejects.toThrow('symlink');
+      // The symlink must not have been written.
+      expect(existsSync(join(dest, 'link'))).toBe(false);
+    } finally {
+      rmSync(dest, { recursive: true, force: true });
+    }
   });
 });

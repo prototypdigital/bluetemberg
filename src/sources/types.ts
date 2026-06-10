@@ -91,6 +91,14 @@ export interface SourceSearchResult {
  */
 export interface SourceAdapter {
   readonly type: SourceType;
+  /**
+   * Whether {@link ResolvedSource.integrity} is a stable pin the pipeline must
+   * re-verify on every reinstall. True for immutable, content-stable tarballs
+   * (e.g. PRPM published versions). Omitted/false for GitHub codeload archives,
+   * whose gzip bytes are not guaranteed stable over time — there the commit SHA
+   * is the real pin, so a recomputed hash mismatch is expected, not malicious.
+   */
+  readonly verifiesIntegrity?: boolean;
   /** Resolve a floating spec to a pinned, integrity-bearing {@link ResolvedSource}. */
   resolve(spec: SourceSpec, options?: SourceNetOptions): Promise<ResolvedSource>;
   /** Populate `tmpDir` with raw files (download+extract a tarball, or write files directly). */

@@ -39,6 +39,8 @@ export function sourceKey(spec: SourceSpec): SourceKey {
 }
 
 const NAME_SEGMENT = /^[A-Za-z0-9._-]+$/;
+/** PRPM package name: an npm-style segment, optionally scoped (`@scope/name`). */
+const PRPM_NAME = /^(@[A-Za-z0-9._-]+\/)?[A-Za-z0-9._-]+$/;
 
 function parseGithub(body: string, raw: string): SourceSpec {
   // Split off `:path` first (the first colon after owner/repo[#ref]), then `#ref`.
@@ -72,6 +74,11 @@ function parsePrpm(body: string, raw: string): SourceSpec {
   const { name, range } = splitNameRange(body);
   if (name === '') {
     throw new Error(`Invalid prpm source "${raw}": expected "prpm:name[@range]"`);
+  }
+  if (!PRPM_NAME.test(name)) {
+    throw new Error(
+      `Invalid prpm source "${raw}": name must be a package name like "name" or "@scope/name" ([A-Za-z0-9._-])`,
+    );
   }
   return { type: 'prpm', name, range };
 }

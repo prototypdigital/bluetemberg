@@ -10,6 +10,13 @@ const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
 const FETCH_TIMEOUT_MS = 30_000;
 
 /**
+ * Hard cap on a downloaded tarball's compressed size. Rule/agent/skill packs are
+ * tiny (KBs); this only exists to stop a hostile or runaway remote from filling the
+ * disk. Override per-call when a legitimately larger archive is expected.
+ */
+const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
+
+/**
  * Fetch full package metadata (all versions) from the npm registry.
  *
  * @throws If the HTTP request fails or the package is not found.
@@ -74,9 +81,16 @@ export async function searchPackages(
 /**
  * Download a tarball from the given URL to a local file path.
  *
+ * @param maxBytes - Abort the download if the response exceeds this many bytes
+ *   (defaults to {@link MAX_DOWNLOAD_BYTES}); guards against disk-fill from a
+ *   hostile or runaway remote.
  * @returns The SHA-512 integrity string for the downloaded file (`sha512-<base64>`).
  */
-export async function downloadTarball(url: string, destPath: string): Promise<string> {
+export async function downloadTarball(
+  url: string,
+  destPath: string,
+  maxBytes: number = MAX_DOWNLOAD_BYTES,
+): Promise<string> {
   const res = await fetch(url, {
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
@@ -93,9 +107,15 @@ export async function downloadTarball(url: string, destPath: string): Promise<st
   const nodeStream = Readable.fromWeb(res.body as WebReadableStream);
   const fileStream = createWriteStream(destPath);
 
-  // Hash each chunk as it passes through, then write directly to disk.
+  // Hash each chunk as it passes through, enforce the size cap, then write to disk.
+  let received = 0;
   const hashTransform = new Transform({
     transform(chunk: Buffer, _enc: BufferEncoding, cb: TransformCallback) {
+      received += chunk.length;
+      if (received > maxBytes) {
+        cb(new Error(`Tarball from ${url} exceeds the maximum allowed size of ${maxBytes} bytes`));
+        return;
+      }
       hash.update(chunk);
       cb(null, chunk);
     },

@@ -65,6 +65,13 @@ function validateSpec(spec: unknown, key: string, path: string): SourceSpec {
     assertString(obj.repo, `sources["${key}"].repo`, path);
     assertString(obj.ref, `sources["${key}"].ref`, path);
     assertString(obj.path, `sources["${key}"].path`, path);
+    // Guard the trust boundary: a hand-edited manifest must not smuggle traversal
+    // into the source root (the spec-string parser enforces the same on `add`).
+    if ((obj.path as string).split('/').some((seg) => seg === '..')) {
+      throw new Error(
+        `Invalid source manifest at ${path}: sources["${key}"].path must not contain ".." segments`,
+      );
+    }
     return {
       type,
       owner: obj.owner as string,

@@ -74,6 +74,16 @@ describe('source manifest (llm/rule-sources.json)', () => {
     expect(() => readSourceManifest(root)).toThrow('.path must be a string');
   });
 
+  it('rejects a github path containing ".." traversal', () => {
+    writeFileSync(
+      sourceManifestPath(root),
+      JSON.stringify({
+        sources: { x: { type: 'github', owner: 'o', repo: 'r', ref: 'HEAD', path: '../etc' } },
+      }),
+    );
+    expect(() => readSourceManifest(root)).toThrow('must not contain ".." segments');
+  });
+
   it('respects a custom source directory', () => {
     mkdirSync(join(root, 'custom'), { recursive: true });
     writeSourceManifest(
