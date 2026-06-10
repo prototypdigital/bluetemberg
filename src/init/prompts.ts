@@ -184,6 +184,23 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     });
   }
 
+  const includeExternalSources = await confirm({
+    message: 'Add external rule sources? (github, prpm, cursor.directory)',
+    default: false,
+  });
+
+  let externalSources: string[] = [];
+  if (includeExternalSources) {
+    const raw = await input({
+      message: 'Source specs (comma-separated, e.g. github:PatrickJS/awesome-cursorrules#HEAD:rules):',
+      default: '',
+    });
+    externalSources = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
   return {
     teamProfile,
     projectName,
@@ -201,5 +218,6 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     mcpServers,
     marketplaceRemote,
     marketplacePlugins,
+    externalSources,
   };
 }

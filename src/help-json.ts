@@ -13,6 +13,7 @@ import {
   TEAM_PROFILES,
 } from './init/presets.js';
 import { INIT_RULE_SOURCES } from './init/init-catalog.js';
+import { SOURCE_TYPES } from './sources/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -100,6 +101,12 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         { long: '--agents <csv>', requires: '--non-interactive without --config' },
         { long: '--skills <csv>', requires: '--non-interactive without --config' },
         { long: '--mcp-servers <csv>', requires: '--non-interactive without --config' },
+        {
+          long: '--sources <csv>',
+          description:
+            'External source specs (comma-separated, e.g. "github:owner/repo#HEAD:rules"). Written to llm/rule-sources.json.',
+          requires: '--non-interactive without --config',
+        },
         { long: '--omit-agents', requires: '--non-interactive without --config' },
         { long: '--omit-skills', requires: '--non-interactive without --config' },
         { long: '--omit-mcp', requires: '--non-interactive without --config' },
@@ -119,6 +126,59 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         'skills',
         'includeMcp',
         'mcpServers',
+        'externalSources',
+      ],
+    },
+    source: {
+      types: [...SOURCE_TYPES],
+      specFormat: {
+        github: 'github:<owner>/<repo>[#<ref>][:<path>]',
+        prpm: 'prpm:<name>[@<range>]',
+        'cursor-directory': 'cursor-directory:<slug>',
+      },
+      commands: [
+        {
+          name: 'add',
+          args: '<spec>',
+          description: 'Resolve, fetch, and pin an external source; writes manifest + lockfile.',
+          options: [{ long: '--silent', description: 'Suppress all output.' }],
+        },
+        {
+          name: 'remove',
+          args: '<key>',
+          description: 'Remove a source by key (as shown by "bluetemberg source list").',
+          options: [{ long: '--silent', description: 'Suppress all output.' }],
+        },
+        {
+          name: 'list',
+          description: 'List configured external sources with their pinned refs.',
+          options: [{ long: '--silent', description: 'Suppress all output.' }],
+        },
+        {
+          name: 'install',
+          description: 'Install all sources from the manifest (like npm ci).',
+          options: [
+            { long: '--force', description: 'Force re-download even if cached.' },
+            { long: '--silent', description: 'Suppress all output.' },
+          ],
+        },
+        {
+          name: 'update',
+          args: '[key]',
+          description:
+            'Re-resolve sources to the newest ref/version satisfying their spec. Updates all when key is omitted.',
+          options: [{ long: '--silent', description: 'Suppress all output.' }],
+        },
+        {
+          name: 'search',
+          args: '<query>',
+          description: 'Search backends that support discovery (prpm, cursor-directory).',
+          options: [
+            { long: '--type <type>', description: 'Restrict to one backend: prpm | cursor-directory.' },
+            { long: '--limit <n>', description: 'Max results (default: 20).' },
+            { long: '--silent', description: 'Suppress all output.' },
+          ],
+        },
       ],
     },
   };

@@ -83,6 +83,7 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     marketplacePlugins: [],
     includeGuardrails: true,
     guardrails: defaultGuardrailIds(teamProfile),
+    externalSources: [],
   };
 }
 
@@ -152,5 +153,6 @@ export function finalizeNonInteractiveAnswers(
     marketplacePlugins: overrides.marketplacePlugins ?? base.marketplacePlugins,
     includeGuardrails: overrides.includeGuardrails ?? base.includeGuardrails,
     guardrails: overrides.guardrails ?? base.guardrails,
+    externalSources: overrides.externalSources ?? base.externalSources,
   };
 }
