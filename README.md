@@ -101,14 +101,14 @@ plugins/
 
 Rules are delivered as versioned npm packages from the [bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules) registry. The init wizard pre-selects collections based on your team profile; you can add or remove any collection before confirming.
 
-| Collection | Package | Profiles |
-| ---------- | ------- | -------- |
-| TypeScript | `bluetemberg-rules-typescript` | Frontend, Backend, Full-stack |
-| Git | `bluetemberg-rules-git` | Frontend, Backend, Full-stack, DevOps, Pure Infra |
-| Security | `bluetemberg-rules-security` | Frontend, Backend, Full-stack, DevOps, Pure Infra |
-| Docs | `bluetemberg-rules-docs` | Frontend, Backend, Full-stack, DevOps, Pure Infra |
-| DevOps | `bluetemberg-rules-devops` | DevOps, Pure Infra |
-| Next.js | `bluetemberg-rules-nextjs` | Frontend, Full-stack |
+| Collection | Package                        | Profiles                                          |
+| ---------- | ------------------------------ | ------------------------------------------------- |
+| TypeScript | `bluetemberg-rules-typescript` | Frontend, Backend, Full-stack                     |
+| Git        | `bluetemberg-rules-git`        | Frontend, Backend, Full-stack, DevOps, Pure Infra |
+| Security   | `bluetemberg-rules-security`   | Frontend, Backend, Full-stack, DevOps, Pure Infra |
+| Docs       | `bluetemberg-rules-docs`       | Frontend, Backend, Full-stack, DevOps, Pure Infra |
+| DevOps     | `bluetemberg-rules-devops`     | DevOps, Pure Infra                                |
+| Next.js    | `bluetemberg-rules-nextjs`     | Frontend, Full-stack                              |
 
 After `init`, run `bluetemberg install` to download the selected packs into `llm/rules/`.
 
