@@ -58,6 +58,17 @@ cliSuite('cli sync exit code', () => {
     expect(r.status).toBe(1);
   });
 
+  it('exits 1 via the --dry-run alias when files are out of sync', () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'test.md'),
+      '---\ndescription: Test\nscope: "**"\n---\n\n# Test\n',
+    );
+
+    const r = runCli(['sync', '--dry-run', '--silent', root], root);
+    expect(r.status).toBe(1);
+  });
+
   it('exits 0 in check mode when files are already in sync', () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(
