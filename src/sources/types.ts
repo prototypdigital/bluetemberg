@@ -44,6 +44,8 @@ export interface ResolvedSource {
   integrity: string;
   /** cursor-directory only: the plugin's repository URL, enabling the github fallback. */
   repository?: string;
+  /** Item category, when the backend declares it (e.g. PRPM `subtype`). Guides normalization. */
+  subtype?: SourceSubtype;
 }
 
 /**
@@ -117,6 +119,8 @@ export interface SourceLockEntry {
   integrity: string;
   /** cursor-directory only: the plugin's repository URL (for the github fallback). */
   repository?: string;
+  /** Item category, when the backend declares it (e.g. PRPM `subtype`). */
+  subtype?: SourceSubtype;
 }
 
 /** Lockfile — pinned sources keyed by {@link SourceKey}. */

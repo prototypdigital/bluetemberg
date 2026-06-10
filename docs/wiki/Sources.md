@@ -4,7 +4,7 @@
 
 Where the [Registry](Registry) installs npm packs already written in Bluetemberg's `llm/` layout, **sources** target the wider ecosystem: a GitHub repo of `.cursorrules`/`.mdc` files, for example. Bluetemberg fetches, translates, caches, and pins them with the same reproducibility as packs.
 
-> **Backend status:** GitHub repos are supported today. PRPM (`registry.prpm.dev`) and cursor.directory backends are planned follow-ups — the framework and CLI already accept their spec grammar, but `source add` for those types reports "not supported yet" until their adapters land.
+> **Backend status:** GitHub repos and PRPM (`registry.prpm.dev`) are supported today. The cursor.directory backend is a planned follow-up — the framework and CLI already accept its spec grammar, but `source add cursor-directory:…` reports "not supported yet" until its adapter lands.
 
 ## How it works
 
@@ -31,7 +31,7 @@ So a local rule always wins over an external rule with the same filename.
 | Backend | Spec | Notes |
 | ------- | ---- | ----- |
 | GitHub | `github:<owner>/<repo>[#<ref>][:<path>]` | `ref` defaults to `HEAD` (the repo's default branch); `path` narrows to a subdirectory. |
-| PRPM _(planned)_ | `prpm:<name>[@<range>]` | `range` defaults to `latest`. |
+| PRPM | `prpm:<name>[@<range>]` | `range` defaults to `latest`. Each PRPM package is a single rule/agent/skill. |
 | cursor.directory _(planned)_ | `cursor-directory:<slug>` | `*` selects every active plugin. |
 
 ```bash
@@ -40,7 +40,13 @@ bluetemberg source add "github:PatrickJS/awesome-cursorrules#HEAD:rules"
 
 # A specific tag, whole-repo
 bluetemberg source add "github:my-org/ai-rules#v2.1.0"
+
+# Find and add a package from PRPM (resolved to a pinned version)
+bluetemberg source search "react" --type prpm
+bluetemberg source add "prpm:@patrickjs/nextjs-react-tailwind-cursorrules-prompt-file"
 ```
+
+PRPM packages come in varied layouts (a structured `skills/<name>/SKILL.md`, or a single flat file); the PRPM adapter normalizes both into native dirs, routing by the package's declared `subtype`, before translation. The version is the immutable pin recorded in the lockfile.
 
 ## Manifest and lockfile
 

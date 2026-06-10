@@ -76,5 +76,6 @@ function lockEntry(resolved: ResolvedSource, integrity: string): SourceLockEntry
     integrity,
   };
   if (resolved.repository) entry.repository = resolved.repository;
+  if (resolved.subtype) entry.subtype = resolved.subtype;
   return entry;
 }

@@ -154,7 +154,7 @@ bluetemberg search frontend rules --limit 10
 
 ## `bluetemberg source <subcommand>`
 
-Manage **external rule sources** — rules pulled from outside the npm pack registry and translated into native bluetemberg format. See [Sources](Sources) for the full guide. Currently supported backend: **GitHub repos** (PRPM and cursor.directory land in follow-up releases).
+Manage **external rule sources** — rules pulled from outside the npm pack registry and translated into native bluetemberg format. See [Sources](Sources) for the full guide. Currently supported backends: **GitHub repos** and **PRPM** (cursor.directory lands in a follow-up release).
 
 | Subcommand | Description |
 | ---------- | ----------- |
@@ -168,6 +168,9 @@ Manage **external rule sources** — rules pulled from outside the npm pack regi
 ```bash
 # Pull the rules/ folder of awesome-cursorrules at its current default branch
 bluetemberg source add "github:PatrickJS/awesome-cursorrules#HEAD:rules"
+# Pull a single package from PRPM (a rule, agent, or skill)
+bluetemberg source search react --type prpm
+bluetemberg source add "prpm:@patrickjs/nextjs-react-tailwind-cursorrules-prompt-file"
 bluetemberg source list
 bluetemberg sync            # external rules now emit to every configured platform
 bluetemberg source install  # on a fresh clone, restore from the lockfile
