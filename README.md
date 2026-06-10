@@ -158,6 +158,17 @@ npx bluetemberg sync --prune
 
 `--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
 
+## External sources
+
+Pull rules from outside the npm pack registry — e.g. a community GitHub repo of `.cursorrules`/`.mdc` files — and Bluetemberg translates them into native frontmatter, caches them, and includes them on `sync`:
+
+```bash
+npx bluetemberg source add "github:PatrickJS/awesome-cursorrules#HEAD:rules"
+npx bluetemberg sync
+```
+
+Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (commit both; run `bluetemberg source install` on a fresh clone) and are the lowest priority during sync, so your local rules always win. GitHub repos are supported today; PRPM and cursor.directory are planned. See [Sources](https://github.com/prototypdigital/bluetemberg/wiki/Sources).
+
 ## Platform support
 
 | Platform       | Rules | Agents | Skills |

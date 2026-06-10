@@ -152,6 +152,29 @@ bluetemberg search typescript
 bluetemberg search frontend rules --limit 10
 ```
 
+## `bluetemberg source <subcommand>`
+
+Manage **external rule sources** — rules pulled from outside the npm pack registry and translated into native bluetemberg format. See [Sources](Sources) for the full guide. Currently supported backend: **GitHub repos** (PRPM and cursor.directory land in follow-up releases).
+
+| Subcommand | Description |
+| ---------- | ----------- |
+| `source add <spec>` | Resolve, fetch, translate, and pin a source. Spec: `github:owner/repo[#ref][:path]`, `prpm:name[@range]`, or `cursor-directory:slug`. |
+| `source remove <key>` | Remove a source (key as shown by `source list`). |
+| `source list` | List configured sources with their pinned refs. |
+| `source install [--force]` | Restore all sources from `llm/rule-sources-lock.json` (like `npm ci`). Run after cloning. |
+| `source update [key]` | Re-resolve the floating spec to the newest ref/version and reinstall if it changed. |
+| `source search <query>` | Search backends that support discovery (`--type`, `--limit`). GitHub repos are not searchable. |
+
+```bash
+# Pull the rules/ folder of awesome-cursorrules at its current default branch
+bluetemberg source add "github:PatrickJS/awesome-cursorrules#HEAD:rules"
+bluetemberg source list
+bluetemberg sync            # external rules now emit to every configured platform
+bluetemberg source install  # on a fresh clone, restore from the lockfile
+```
+
+Each `add`/`update`/`install` writes `.bluetemberg/sources/` (git-ignored cache) plus the committed `llm/rule-sources.json` (manifest) and `llm/rule-sources-lock.json` (lockfile). Sources are the **lowest** priority during sync — local `llm/`, `extends`, and npm packs all win on a filename clash.
+
 ## Exit codes
 
 | Code | When |

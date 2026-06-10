@@ -13,6 +13,8 @@ import type {
   SkillTargetConfig,
   PackageManifest,
 } from '../types.js';
+import { parseSourceSpec, sourceKey } from '../sources/spec.js';
+import type { SourceManifest } from '../sources/types.js';
 import { RULE_COLLECTION_PRESETS, MARKETPLACE_PLUGIN_PACKS } from './presets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -55,6 +57,10 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
 
   if (answers.includeGuardrails !== false && (answers.guardrails?.length ?? 0) > 0) {
     scaffoldGuardrails(targetDir, answers.guardrails!, created);
+  }
+
+  if ((answers.externalSources?.length ?? 0) > 0) {
+    scaffoldSources(targetDir, answers.externalSources!, created);
   }
 
   updatePackageScripts(targetDir, created);
@@ -340,6 +346,26 @@ function scaffoldGuardrails(targetDir: string, guardrailIds: string[], created: 
     copyFileSync(src, dest);
     created.push(dest);
   }
+}
+
+function scaffoldSources(targetDir: string, specStrings: string[], created: string[]): void {
+  const manifest: SourceManifest = { sources: {} };
+
+  for (const raw of specStrings) {
+    try {
+      const spec = parseSourceSpec(raw);
+      const key = sourceKey(spec);
+      manifest.sources[key] = spec;
+    } catch {
+      console.warn(`  Warning: invalid source spec "${raw}", skipping`);
+    }
+  }
+
+  if (Object.keys(manifest.sources).length === 0) return;
+
+  const manifestPath = join(targetDir, 'llm', 'rule-sources.json');
+  ensureDir(dirname(manifestPath));
+  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
 function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void {

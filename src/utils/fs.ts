@@ -1,5 +1,5 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 
 export function ensureDir(dirPath: string): void {
   mkdirSync(dirPath, { recursive: true });
@@ -37,4 +37,24 @@ export function listDirs(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
+}
+
+/**
+ * Ensure `.bluetemberg/` (the pack + external-source cache) is git-ignored.
+ *
+ * No-op when there is no `.gitignore` (don't create one for a non-git project)
+ * or when the marker is already present.
+ */
+export function ensureGitignore(root: string): void {
+  const gitignorePath = join(root, '.gitignore');
+  const marker = '.bluetemberg/';
+
+  if (!existsSync(gitignorePath)) return;
+
+  const content = readFileSync(gitignorePath, 'utf8');
+  if (content.includes(marker)) return;
+
+  const lines = content.split('\n');
+  const newContent = [...lines, '', '# Bluetemberg cache', marker, ''].join('\n');
+  writeFileSync(gitignorePath, newContent);
 }

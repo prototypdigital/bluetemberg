@@ -27,6 +27,7 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Adapters](Adapters) — sync extensions, platform gates, roadmap
 - [Consumer Setup](Consumer-Setup) — set up a downstream project
 - [Registry](Registry) — install community & official rule packs (official packs live in [bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules))
+- [Sources](Sources) — pull rules from external repos (GitHub, and more) and translate them to native format
 - [Contributing](Contributing) — dev setup, adding templates, and release process
 
 

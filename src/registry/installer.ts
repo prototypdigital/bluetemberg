@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { extract } from 'tar';
 import { maxSatisfying } from 'semver';
 import { downloadTarball, verifyIntegrity } from './client.js';
+import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
 const PACKS_DIR = '.bluetemberg/packs';
@@ -53,39 +53,6 @@ export function resolveVersion(metadata: NpmPackageMetadata, range: string): str
   }
 
   return best;
-}
-
-/**
- * Extract a tarball safely using the `tar` npm package.
- *
- * Strips the top-level `package/` prefix (standard npm tarball layout) and
- * rejects symlinks and entries with path traversal (`..`) to prevent escape
- * from the destination directory.
- *
- * Using `tar` instead of system `tar` ensures cross-platform support
- * (Windows, minimal containers) and per-entry security filtering.
- */
-async function extractTarball(tmpFile: string, dest: string, packageName: string): Promise<void> {
-  await extract({
-    file: tmpFile,
-    cwd: dest,
-    strip: 1,
-    filter: (path, entry) => {
-      // Reject symlinks — they can escape the cache directory after extraction.
-      // The entry is a ReadEntry during extraction, which has a `type` field.
-      if ('type' in entry) {
-        const { type } = entry;
-        if (type === 'SymbolicLink' || type === 'Link') {
-          throw new Error(`Malicious tarball for "${packageName}": entry "${path}" is a symlink`);
-        }
-      }
-      // Reject path traversal — check each segment so `my..file` is not falsely rejected.
-      if (path.split('/').some((seg) => seg === '..')) {
-        throw new Error(`Malicious tarball for "${packageName}": entry "${path}" contains path traversal`);
-      }
-      return true;
-    },
-  });
 }
 
 /**
