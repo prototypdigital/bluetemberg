@@ -207,15 +207,17 @@ Downloaded packs are extracted to `.bluetemberg/packs/<name>/<version>/`. This d
 
 ## Official rule collections
 
-Bluetemberg ships official rule collections as registry packages. These group the bundled rule templates by domain:
+Bluetemberg's official rule packs live in their own repository — **[prototypdigital/bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules)** — and publish independently to npm. They group ready-made rules by domain:
 
-| Package | Rules | Description |
-|---------|-------|-------------|
-| `bluetemberg-rules-typescript` | `type-safety`, `coding-standards`, `early-returns`, `no-console-log`, `design-system-reuse` | TypeScript code quality |
-| `bluetemberg-rules-git` | `git-workflow`, `git-move`, `pre-commit-checks` | Git workflow standards |
-| `bluetemberg-rules-security` | `never-read-env`, `security-secrets`, `api-error-handling` | Security guardrails |
-| `bluetemberg-rules-docs` | `docs-parity`, `post-edit-diagnostics` | Documentation & diagnostics |
-| `bluetemberg-rules-devops` | `docker-best-practices`, `terraform-conventions` | Infrastructure |
+| Package | Domain |
+|---------|--------|
+| `bluetemberg-rules-typescript` | TypeScript code quality |
+| `bluetemberg-rules-git` | Git workflow standards |
+| `bluetemberg-rules-security` | Security guardrails |
+| `bluetemberg-rules-docs` | Documentation & diagnostics |
+| `bluetemberg-rules-devops` | Infrastructure |
+
+For the rules inside each pack, see the [Catalog](https://github.com/prototypdigital/bluetemberg-rules/wiki/Catalog) in the bluetemberg-rules wiki.
 
 ### Using collections via init
 
@@ -275,7 +277,7 @@ import {
   registryUpdate,
   registrySearch,
   resolvePackSourceDirs,
-} from '@prototypdigital/bluetemberg';
+} from 'bluetemberg';
 
 // Add a pack
 await registryAdd('/path/to/project', 'my-rules@^1.0.0');

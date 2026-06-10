@@ -1,4 +1,4 @@
-name: Publish to GitHub Packages
+name: Publish to npm
 
 on:
   release:
@@ -8,9 +8,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: NPM
     permissions:
+      id-token: write
       contents: read
-      packages: write
 
     steps:
       - name: Checkout
@@ -21,7 +22,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          registry-url: 'https://npm.pkg.github.com'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: npm ci
@@ -32,7 +33,9 @@ jobs:
       - name: Test
         run: npm test
 
+      # Trusted Publishing (OIDC) needs a recent npm; the runner's bundled npm may predate it.
+      - name: Update npm to Trusted-Publisher-capable version
+        run: npm install -g npm@latest
+
       - name: Publish
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm publish --provenance --access public

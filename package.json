@@ -1,5 +1,5 @@
 {
-  "name": "@prototypdigital/bluetemberg",
+  "name": "bluetemberg",
   "version": "0.2.10",
   "description": "Scaffold vendor-neutral AI tooling (rules, agents, skills) with cross-platform sync for Cursor, Claude, and GitHub Copilot.",
   "type": "module",
@@ -18,7 +18,7 @@
     "url": "https://github.com/prototypdigital/bluetemberg.git"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
@@ -44,7 +44,7 @@
     "cli"
   ],
   "author": "Prototyp Digital",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
     "commander": "^13.0.0",
@@ -60,7 +60,7 @@
     "eslint": "^9.0.0",
     "prettier": "^3.8.3",
     "typescript": "^5.7.0",
-    "typescript-eslint": "^8.0.0",
+    "typescript-eslint": "^8.59.4",
     "vitest": "^3.0.0"
   },
   "engines": {

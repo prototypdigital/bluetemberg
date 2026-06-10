@@ -54,6 +54,19 @@ describe('parseInitAnswersJson', () => {
     expect(got.ruleSource).toBe('collections');
   });
 
+  it('normalizes none mode to drop both rules and ruleCollections', () => {
+    const rec = {
+      ...minimalTemplates,
+      ruleSource: 'none',
+      rules: ['should-strip'],
+      ruleCollections: ['also-strip'],
+    };
+    const got = parseInitAnswersJson(JSON.stringify(rec));
+    expect(got.rules).toEqual([]);
+    expect(got.ruleCollections).toEqual([]);
+    expect(got.ruleSource).toBe('none');
+  });
+
   it('rejects unknown platform ids', () => {
     expect(() =>
       parseInitAnswersJson(
@@ -100,6 +113,12 @@ describe('normalizeInitAnswers explicit', () => {
   it('templates clears collections', () => {
     expect(normalizeInitAnswers(base).ruleCollections).toEqual([]);
   });
+
+  it('none clears both rules and collections', () => {
+    const got = normalizeInitAnswers({ ...base, ruleSource: 'none', rules: ['x'] });
+    expect(got.rules).toEqual([]);
+    expect(got.ruleCollections).toEqual([]);
+  });
 });
 
 describe('finalizeNonInteractiveAnswers', () => {
@@ -128,6 +147,15 @@ describe('finalizeNonInteractiveAnswers', () => {
       includeAgents: false,
     });
     expect(got.agents).toEqual([]);
+  });
+
+  it('rule-source none yields empty rules and collections', () => {
+    const got = finalizeNonInteractiveAnswers('fullstack', join('/tmp', 'proj'), {
+      ruleSource: 'none',
+    });
+    expect(got.ruleSource).toBe('none');
+    expect(got.rules).toEqual([]);
+    expect(got.ruleCollections).toEqual([]);
   });
 });
 

@@ -81,7 +81,7 @@ export interface BlueprintConfig {
   adapters?: string[];
 }
 
-export type RuleSource = 'templates' | 'collections';
+export type RuleSource = 'templates' | 'collections' | 'none';
 
 export interface RuleCollectionPreset {
   id: string;
