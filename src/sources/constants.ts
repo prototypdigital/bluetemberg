@@ -19,9 +19,22 @@ export const PRPM_API_BASE = 'https://registry.prpm.dev/api/v1';
 // --- cursor.directory (Supabase PostgREST) -------------------------------
 //
 // cursor.directory exposes no documented REST API; its frontend reads data from
-// Supabase using a public *publishable* (anon) key. We replicate that client path.
-// These are placeholders captured from the deployed bundle during the PR3 spike;
-// both are overridable by env for self-hosting / key rotation.
+// Supabase using a public *publishable* (anon) key. We replicate that client path
+// to read plugin metadata only — the rule-content table is RLS-locked to the anon
+// key, so content is fetched from each plugin's GitHub `repository` instead.
+//
+// These are public client credentials (baked into the site's JS bundle). Override
+// via env if the project rotates them; env takes precedence over the defaults below.
 
-export const CURSOR_DIRECTORY_SUPABASE_URL = process.env.BLUETEMBERG_CURSOR_DIRECTORY_URL ?? '';
-export const CURSOR_DIRECTORY_PUBLISHABLE_KEY = process.env.BLUETEMBERG_CURSOR_DIRECTORY_KEY ?? '';
+/** Public Supabase base URL for cursor.directory (custom domain over knhgkaawjfqqwmsgmxns.supabase.co). */
+const CURSOR_DIRECTORY_DEFAULT_URL = 'https://service.cursor.directory';
+/** Public publishable key extracted from cursor.directory's client bundle (verified live 2026-06-10). */
+const CURSOR_DIRECTORY_DEFAULT_KEY = 'sb_publishable_uMy8fK8O2IS3FANtHWiP6w_FQ9Ojj0J';
+
+/** Resolve cursor.directory's Supabase URL + publishable key from the environment. */
+export function cursorDirectoryConfig(): { url: string; key: string } {
+  return {
+    url: process.env.BLUETEMBERG_CURSOR_DIRECTORY_URL ?? CURSOR_DIRECTORY_DEFAULT_URL,
+    key: process.env.BLUETEMBERG_CURSOR_DIRECTORY_KEY ?? CURSOR_DIRECTORY_DEFAULT_KEY,
+  };
+}

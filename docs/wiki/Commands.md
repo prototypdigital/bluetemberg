@@ -154,7 +154,7 @@ bluetemberg search frontend rules --limit 10
 
 ## `bluetemberg source <subcommand>`
 
-Manage **external rule sources** — rules pulled from outside the npm pack registry and translated into native bluetemberg format. See [Sources](Sources) for the full guide. Currently supported backends: **GitHub repos** and **PRPM** (cursor.directory lands in a follow-up release).
+Manage **external rule sources** — rules pulled from outside the npm pack registry and translated into native bluetemberg format. See [Sources](Sources) for the full guide. Supported backends: **GitHub repos**, **PRPM**, and **cursor.directory** (the last requires the `BLUETEMBERG_CURSOR_DIRECTORY_URL` / `_KEY` env vars — see [Sources](Sources)).
 
 | Subcommand | Description |
 | ---------- | ----------- |
