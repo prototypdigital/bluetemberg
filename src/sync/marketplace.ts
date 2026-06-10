@@ -4,8 +4,10 @@ import matter from 'gray-matter';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
-import { RULE_COLLECTION_PRESETS, AGENT_PRESETS, SKILL_PRESETS } from '../init/presets.js';
+import { RULE_COLLECTION_PRESETS, AGENT_PRESETS, SKILL_PRESETS, TEAM_PROFILES } from '../init/presets.js';
 import type { MarketplacePluginDefinition, TeamProfile } from '../types.js';
+
+const VALID_PROFILE_IDS: ReadonlySet<string> = new Set(TEAM_PROFILES.map((p) => p.id));
 
 /**
  * Lookup map from preset ID → profile tags, covering rules (derived from collections),
@@ -258,7 +260,24 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
   const pluginManifests: PluginManifest[] = [];
 
   for (const pluginDef of ctx.plugins) {
+    const unknownProfiles = (pluginDef.profiles ?? []).filter((p) => !VALID_PROFILE_IDS.has(p));
+    if (unknownProfiles.length > 0) {
+      recordError(
+        `Plugin "${pluginDef.name}" references unknown profile(s): ${unknownProfiles.join(', ')} — valid profiles are: ${[...VALID_PROFILE_IDS].sort().join(', ')}`,
+      );
+      continue;
+    }
+
     const manifest = emitPlugin(ctx, pluginDef, allRules, allSkills, allAgents, hooksContent, recordError);
+
+    const totalFiles = manifest.rules.length + manifest.skills.length + manifest.agents.length;
+    if (totalFiles === 0) {
+      const profileNames = (pluginDef.profiles ?? []).join(', ');
+      const note = profileNames ? ` — no source files match profile(s): ${profileNames}` : '';
+      recordError(`Plugin "${pluginDef.name}" resolved to 0 files${note}`);
+      continue;
+    }
+
     pluginManifests.push(manifest);
 
     const pluginJsonObj: Record<string, unknown> = {
