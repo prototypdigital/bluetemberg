@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { verifyIntegrity } from '../registry/client.js';
 import { getAdapter } from './adapters/index.js';
 import { sourceContentDir } from './cache.js';
 import { translateDir } from './translate/index.js';
@@ -45,6 +46,22 @@ export async function installResolvedSource(
     const adapter = getAdapter(resolved.spec.type);
     const raw = await adapter.fetch(resolved, tmpDir, options.net);
     if (raw.integrity) integrity = raw.integrity;
+
+    // Reinstalling from a pinned lockfile entry: when the adapter's integrity is a
+    // stable pin (immutable tarballs), the freshly downloaded bytes must match what
+    // was locked. A first-time `add` resolves with empty integrity and is skipped
+    // (trust-on-first-use); GitHub-backed sources opt out via `verifiesIntegrity`.
+    if (
+      adapter.verifiesIntegrity &&
+      resolved.integrity !== '' &&
+      !verifyIntegrity(resolved.integrity, integrity)
+    ) {
+      throw new Error(
+        `Integrity mismatch for "${resolved.key}@${resolved.ref}": lockfile pins ${resolved.integrity} but the ` +
+          `download produced ${integrity}. The pinned content changed upstream. Run ` +
+          `"bluetemberg source update ${resolved.key}" to re-pin, or "source install --force" to accept it.`,
+      );
+    }
 
     const srcRoot = raw.rootSubdir ? join(raw.rawDir, raw.rootSubdir) : raw.rawDir;
     translateDir(srcRoot, dest, { subtypeHint: raw.subtypeHint });

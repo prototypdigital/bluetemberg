@@ -288,7 +288,8 @@ program
   .command('sync')
   .description('Sync llm/ sources to platform-specific directories')
   .argument('[directory]', 'Project root directory', '.')
-  .option('--check, --dry-run', 'Exit 1 if files are out of sync (no writes)')
+  .option('--check', 'Exit 1 if files are out of sync (no writes)')
+  .option('--dry-run', 'Alias for --check')
   .option('--silent', 'Suppress all output')
   .option(
     '--prune',

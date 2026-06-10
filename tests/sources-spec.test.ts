@@ -74,6 +74,14 @@ describe('parseSourceSpec — prpm', () => {
       range: 'latest',
     });
   });
+
+  it('rejects a name with ".." traversal', () => {
+    expect(() => parseSourceSpec('prpm:../evil')).toThrow('name must be a package name');
+  });
+
+  it('rejects a name with illegal characters', () => {
+    expect(() => parseSourceSpec('prpm:foo bar')).toThrow('name must be a package name');
+  });
 });
 
 describe('parseSourceSpec — cursor-directory', () => {

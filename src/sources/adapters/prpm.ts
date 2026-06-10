@@ -91,6 +91,9 @@ async function search(query: string): Promise<SourceSearchResult[]> {
 
 export const prpmAdapter: SourceAdapter = {
   type: 'prpm',
+  // PRPM publishes immutable, content-stable versions, so the tarball hash is a
+  // meaningful pin — re-verify it on reinstall (trust-on-first-use thereafter).
+  verifiesIntegrity: true,
   resolve,
   fetch: fetchSource,
   search,

@@ -4,7 +4,7 @@
 
 Where the [Registry](Registry) installs npm packs already written in Bluetemberg's `llm/` layout, **sources** target the wider ecosystem: a GitHub repo of `.cursorrules`/`.mdc` files, for example. Bluetemberg fetches, translates, caches, and pins them with the same reproducibility as packs.
 
-> **Backend status:** GitHub repos, PRPM (`registry.prpm.dev`), and cursor.directory are all supported. cursor.directory requires a one-time env config (see below) because its content table is not readable by its public key.
+> **Backend status:** GitHub repos, PRPM (`registry.prpm.dev`), and cursor.directory are all supported. cursor.directory works out of the box but is **experimental** (it uses an undocumented internal API whose key may rotate) — see its section below.
 
 ## How it works
 
@@ -32,7 +32,7 @@ So a local rule always wins over an external rule with the same filename.
 | ------- | ---- | ----- |
 | GitHub | `github:<owner>/<repo>[#<ref>][:<path>]` | `ref` defaults to `HEAD` (the repo's default branch); `path` narrows to a subdirectory. |
 | PRPM | `prpm:<name>[@<range>]` | `range` defaults to `latest`. Each PRPM package is a single rule/agent/skill. |
-| cursor.directory | `cursor-directory:<slug>` | Resolves the plugin's GitHub repo and fetches through the GitHub backend. Requires env config (below). |
+| cursor.directory | `cursor-directory:<slug>` | Resolves the plugin's GitHub repo and fetches through the GitHub backend. Works out of the box; experimental (below). |
 
 ```bash
 # The rules/ folder of awesome-cursorrules at its current default branch
@@ -50,19 +50,27 @@ PRPM packages come in varied layouts (a structured `skills/<name>/SKILL.md`, or 
 
 ### cursor.directory
 
+> **Experimental.** This adapter talks to cursor.directory's undocumented internal API using a public *publishable* (anon) key whose value may rotate without notice. The first time you use it in a session, bluetemberg prints a one-time warning to stderr. `source search` degrades to an empty result if the backend is unreachable; `source add` fails loudly. If it stops working, the upstream key has likely rotated — override it (see below).
+
 cursor.directory has no public content API: its rule-content table is locked by row-level security to its server (the public key can read plugin *metadata* but not rule bodies). Since every cursor.directory plugin is a GitHub repo, the adapter reads the plugin's `repository` from the public `plugins` table, then **fetches the actual rules through the GitHub backend** — so you still get real content with a reproducible commit-SHA pin.
 
-Because cursor.directory is bot-gated, its public Supabase URL + publishable key can't be auto-discovered. Provide them once via env (find them in any `*.supabase.co` request in the site's browser network panel):
+It works out of the box — bluetemberg ships with cursor.directory's public Supabase URL + publishable key baked in, so no setup is required:
 
 ```bash
-export BLUETEMBERG_CURSOR_DIRECTORY_URL="https://<project>.supabase.co"
-export BLUETEMBERG_CURSOR_DIRECTORY_KEY="<publishable-key>"
-
 bluetemberg source search "nextjs" --type cursor-directory
 bluetemberg source add "cursor-directory:<slug>"
 ```
 
-Without these set, `source add cursor-directory:…` fails with a clear message. (`github:` and `prpm:` sources need no configuration.)
+cursor.directory has no version concept, so a plugin is pinned to its GitHub repo's **default-branch HEAD at add time** (locked to an immutable commit SHA in the lockfile); `bluetemberg source update` re-pins to the latest HEAD.
+
+If the upstream key rotates and the adapter starts failing, override the baked defaults via env (find them in any `*.supabase.co` request in the site's browser network panel) — these are optional:
+
+```bash
+export BLUETEMBERG_CURSOR_DIRECTORY_URL="https://<project>.supabase.co"
+export BLUETEMBERG_CURSOR_DIRECTORY_KEY="<publishable-key>"
+```
+
+(`github:` and `prpm:` sources need no configuration.)
 
 ## Manifest and lockfile
 
@@ -98,4 +106,6 @@ See [Commands](Commands#bluetemberg-source-subcommand) for the full reference: `
 
 ## Security
 
-Repo tarballs are extracted through the same hardened path as npm packs — symlink/hardlink entries and `..` path-traversal segments are rejected. Cache keys and filenames derived from remote input are sanitized to a single safe path segment.
+Repo tarballs are extracted through the same hardened path as npm packs — symlink/hardlink entries and `..` path-traversal segments are rejected (the extraction rejects cleanly rather than writing the offending entry). Downloads are size-capped and total extracted size is bounded, so a hostile or runaway archive can't fill the disk. Cache keys and filenames derived from remote input are sanitized to a single safe path segment.
+
+For PRPM (immutable published versions) the lockfile integrity hash is re-verified on every reinstall; a mismatch aborts with a clear error. GitHub-backed sources (including cursor.directory) pin the **commit SHA** as the source of truth, since codeload archive bytes are not guaranteed stable over time.

@@ -94,7 +94,7 @@ Releases are fully automated via [Release Please](https://github.com/googleapis/
 2. A "release PR" is opened with version bump and CHANGELOG update
 3. A maintainer reviews and merges the release PR
 4. A GitHub Release is created automatically
-5. The publish workflow triggers and pushes to GitHub Packages
+5. The publish workflow triggers and publishes to public npm via Trusted Publishers (OIDC) with provenance
 
 No manual version bumping or tagging is needed.
 

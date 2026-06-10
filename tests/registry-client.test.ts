@@ -247,4 +247,20 @@ describe('downloadTarball', () => {
       'Empty response body',
     );
   });
+
+  it('aborts when the response exceeds the byte cap', async () => {
+    const body = Buffer.alloc(1024, 1);
+    const readable = new ReadableStream({
+      start(controller) {
+        controller.enqueue(body);
+        controller.close();
+      },
+    });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, body: readable });
+
+    await expect(downloadTarball('https://example.com/big.tgz', tmpFile, 512)).rejects.toThrow(
+      'exceeds the maximum allowed size',
+    );
+  });
 });
