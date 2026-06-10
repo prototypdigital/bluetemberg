@@ -18,8 +18,8 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
 | `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). `--non-interactive` only. |
-| `--rule-source` | Values: `templates`, `collections`, or `none` (empty scaffold — bring your own rules). `--non-interactive` only. |
-| `--rules <csv>`, `--rule-collections <csv>` | Respect `rule-source`: template rule ids extend universal rules automatically; registry collection ids apply when `--rule-source collections`. |
+| `--rule-source` | Values: `collections` (default) or `none` (empty scaffold — bring your own rules). `--non-interactive` only. |
+| `--rule-collections <csv>` | Registry collection ids to include (e.g. `typescript,git`). Applies when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
 | `--omit-agents`, `--omit-skills`, `--omit-mcp` | Shortcut booleans (`--non-interactive` only). |
 | `--silent` | Hide progress/success logs and forward silence to initial `sync` (still exit non-zero on failure). **Requires** `--non-interactive` **or** `--config`. |
@@ -47,7 +47,7 @@ Then, for **every** run:
 9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
 10. Runs an initial sync to generate all platform-specific files
 
-Universal guardrail rules are always included and shown as non-deselectable in the rules step. See [Profiles](Profiles) for what each team profile pre-checks.
+Collections are pre-selected based on the chosen profile. See [Profiles](Profiles) for what each team profile defaults to.
 
 **Example:**
 

@@ -86,11 +86,10 @@ Rules have three intent levels, not just on/off:
 
 | Tier | Behavior | Examples |
 | ---- | -------- | -------- |
-| **Universal** | Always included, shown as `(required)` in the wizard, cannot be deselected | `pre-commit-checks`, `docs-parity`, `never-read-env` |
-| **Team default** | Pre-checked for a given team profile, deselectable | `type-safety` (frontend/backend), `docker-best-practices` (devops) |
-| **Team optional** | Off by default, opt-in | `terraform-conventions`, `no-console-log` |
+| **Collection default** | Pre-checked for a given team profile; the whole collection is toggled | `git`, `security`, `docs` (all profiles); `typescript` (frontend/backend/fullstack) |
+| **Collection optional** | Available but not pre-checked for the profile | `nextjs` (backend), `devops` (frontend) |
 
-Universal rules are marked `universal: true` in `src/init/presets.ts`. The init wizard merges their IDs into the final selection regardless of what the checkbox returns. See [Profiles](Profiles) for the full matrix of what each team profile includes.
+Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_PRESETS`. Each has a `tags` array listing which profiles default-select it. See [Profiles](Profiles) for the full matrix.
 
 ## Config resolution
 

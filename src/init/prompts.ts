@@ -2,7 +2,6 @@ import { input, select, checkbox, confirm } from '@inquirer/prompts';
 import { basename } from 'node:path';
 import { MARKETPLACE_PLATFORM } from '../types.js';
 import {
-  RULE_PRESETS,
   RULE_COLLECTION_PRESETS,
   AGENT_PRESETS,
   SKILL_PRESETS,
@@ -91,13 +90,12 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     message: 'Rule source:',
     choices: [
       { value: 'collections', name: 'Rule collections (registry packages)' },
-      { value: 'templates', name: 'Individual templates (copied locally)' },
       { value: 'none', name: 'Empty — bring your own rules' },
     ],
-    default: 'templates',
+    default: 'collections',
   });
 
-  let rules: string[] = [];
+  const rules: string[] = [];
   let ruleCollections: string[] = [];
 
   if (ruleSource === 'collections') {
@@ -111,24 +109,6 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
       message: 'Rule collections:',
       choices: collectionChoices,
     });
-  } else if (ruleSource === 'templates') {
-    const rulePresets = resolvePresetDefaults(RULE_PRESETS, teamProfile);
-    const universalRuleIds = rulePresets
-      .filter((r) => r.universal && !r.universalExcludeProfiles?.includes(teamProfile))
-      .map((r) => r.id);
-    const selectedRules = await checkbox<string>({
-      message: 'Starter rules:',
-      choices: rulePresets.map((r) => {
-        const isForced = r.universal && !r.universalExcludeProfiles?.includes(teamProfile);
-        return {
-          value: r.id,
-          name: `${r.name} — ${r.description}`,
-          checked: isForced || r.default,
-          disabled: isForced ? '(required)' : false,
-        };
-      }),
-    });
-    rules = [...new Set([...universalRuleIds, ...selectedRules])];
   }
 
   const includeAgents = await confirm({

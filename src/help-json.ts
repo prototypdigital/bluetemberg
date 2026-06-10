@@ -8,7 +8,6 @@ import {
   PACKAGE_MANAGERS,
   PLATFORM_CHOICES,
   RULE_COLLECTION_PRESETS,
-  RULE_PRESETS,
   SKILL_PRESETS,
   TEAM_PROFILES,
 } from './init/presets.js';
@@ -42,12 +41,6 @@ export function getMachineReadableHelp(): Record<string, unknown> {
     packageManagers: PACKAGE_MANAGERS.map((p) => p.id),
     platforms: PLATFORM_CHOICES.map((p) => ({ id: p.id, name: p.name })),
     ruleSource: [...INIT_RULE_SOURCES],
-    rules: RULE_PRESETS.map((r) => ({
-      id: r.id,
-      name: r.name,
-      description: r.description,
-      universal: Boolean(r.universal),
-    })),
     ruleCollections: RULE_COLLECTION_PRESETS.map((c) => ({
       id: c.id,
       name: c.name,
@@ -84,13 +77,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           requires: '--non-interactive without --config',
         },
         {
-          long: '--rule-source <templates|collections>',
-          requires: '--non-interactive without --config',
-        },
-        {
-          long: '--rules <csv>',
-          description:
-            'Template rule ids (profile universal rules are always merged; pure-infra omits app-code universals).',
+          long: '--rule-source <collections|none>',
           requires: '--non-interactive without --config',
         },
         {
@@ -118,7 +105,6 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         'packageManager',
         'platforms',
         'ruleSource',
-        'rules',
         'ruleCollections',
         'includeAgents',
         'agents',
