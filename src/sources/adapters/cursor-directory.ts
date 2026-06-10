@@ -14,6 +14,17 @@ const NOT_CONFIGURED =
   "BLUETEMBERG_CURSOR_DIRECTORY_KEY to cursor.directory's public Supabase URL + publishable key " +
   "(visible in any *.supabase.co request in the site's browser network panel).";
 
+const EXPERIMENTAL_WARNING =
+  'cursor-directory: experimental adapter — uses an undocumented internal API whose credentials ' +
+  'may rotate without notice. Set BLUETEMBERG_CURSOR_DIRECTORY_KEY to override if broken.';
+
+let warnedExperimental = false;
+function warnOnce(): void {
+  if (warnedExperimental) return;
+  warnedExperimental = true;
+  process.stderr.write(`\nWarning: ${EXPERIMENTAL_WARNING}\n\n`);
+}
+
 /**
  * cursor.directory source. Its rule *content* table is RLS-locked to the anon key,
  * so we read the anon-readable `plugins` table for a plugin's GitHub `repository`,
@@ -22,6 +33,7 @@ const NOT_CONFIGURED =
  * via env (the site is bot-gated, so these can't be auto-discovered).
  */
 async function resolve(spec: SourceSpec): Promise<ResolvedSource> {
+  warnOnce();
   if (spec.type !== 'cursor-directory')
     throw new Error(`cursor-directory adapter received a "${spec.type}" spec`);
   if (spec.slug === '*') {
@@ -71,10 +83,19 @@ function fetchSource(resolved: ResolvedSource, tmpDir: string): Promise<RawFetch
 }
 
 async function search(query: string): Promise<SourceSearchResult[]> {
+  warnOnce();
   const safe = encodeURIComponent(query.replace(/[^a-zA-Z0-9 _-]/g, '').trim());
-  const rows = await queryPlugins(
-    `plugins?active=eq.true&or=(name.ilike.*${safe}*,description.ilike.*${safe}*)&select=slug,name,description&limit=50`,
-  );
+  let rows: Record<string, unknown>[];
+  try {
+    rows = await queryPlugins(
+      `plugins?active=eq.true&or=(name.ilike.*${safe}*,description.ilike.*${safe}*)&select=slug,name,description&limit=50`,
+    );
+  } catch (err) {
+    process.stderr.write(
+      `cursor-directory: search unavailable — ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    return [];
+  }
   return rows
     .filter((r) => typeof r.slug === 'string')
     .map((r) => ({
