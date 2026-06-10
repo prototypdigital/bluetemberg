@@ -6,10 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { getMachineReadableHelp } from '../src/help-json.js';
 import { init } from '../src/init/index.js';
-import {
-  finalizeNonInteractiveAnswers,
-  universalRulesForProfile,
-} from '../src/init/init-answers-from-profile.js';
+import { finalizeNonInteractiveAnswers } from '../src/init/init-answers-from-profile.js';
 import {
   assertInitAnswers,
   normalizeInitAnswers,
@@ -19,15 +16,15 @@ import {
 import type { InitAnswers } from '../src/types.js';
 
 describe('parseInitAnswersJson', () => {
-  const minimalTemplates: Record<string, unknown> = {
+  const minimalCollections: Record<string, unknown> = {
     teamProfile: 'fullstack',
     projectName: 'p',
     projectDescription: 'd',
     packageManager: 'pnpm',
     platforms: ['claude'],
-    ruleSource: 'templates',
+    ruleSource: 'collections',
     rules: [],
-    ruleCollections: ['noise'],
+    ruleCollections: ['typescript'],
     includeAgents: false,
     agents: [],
     includeSkills: false,
@@ -36,19 +33,8 @@ describe('parseInitAnswersJson', () => {
     mcpServers: [],
   };
 
-  it('normalizes templates mode to drop ruleCollections', () => {
-    const got = parseInitAnswersJson(JSON.stringify(minimalTemplates));
-    expect(got.ruleCollections).toEqual([]);
-    expect(got.ruleSource).toBe('templates');
-  });
-
   it('normalizes collections mode to drop template rules array', () => {
-    const rec = {
-      ...minimalTemplates,
-      ruleSource: 'collections',
-      rules: ['should-strip'],
-      ruleCollections: [],
-    };
+    const rec = { ...minimalCollections, rules: ['should-strip'] };
     const got = parseInitAnswersJson(JSON.stringify(rec));
     expect(got.rules).toEqual([]);
     expect(got.ruleSource).toBe('collections');
@@ -56,7 +42,7 @@ describe('parseInitAnswersJson', () => {
 
   it('normalizes none mode to drop both rules and ruleCollections', () => {
     const rec = {
-      ...minimalTemplates,
+      ...minimalCollections,
       ruleSource: 'none',
       rules: ['should-strip'],
       ruleCollections: ['also-strip'],
@@ -69,9 +55,7 @@ describe('parseInitAnswersJson', () => {
 
   it('rejects unknown platform ids', () => {
     expect(() =>
-      parseInitAnswersJson(
-        JSON.stringify({ ...minimalTemplates, platforms: ['unknown'], ruleCollections: [] }),
-      ),
+      parseInitAnswersJson(JSON.stringify({ ...minimalCollections, platforms: ['unknown'] })),
     ).toThrow(/unknown platform/);
   });
 });
@@ -99,7 +83,7 @@ describe('normalizeInitAnswers explicit', () => {
     projectDescription: '',
     packageManager: 'npm',
     platforms: ['cursor'],
-    ruleSource: 'templates',
+    ruleSource: 'collections',
     rules: [],
     ruleCollections: ['typescript'],
     includeAgents: true,
@@ -110,8 +94,8 @@ describe('normalizeInitAnswers explicit', () => {
     mcpServers: [],
   };
 
-  it('templates clears collections', () => {
-    expect(normalizeInitAnswers(base).ruleCollections).toEqual([]);
+  it('collections clears template rules array', () => {
+    expect(normalizeInitAnswers({ ...base, rules: ['x'] }).rules).toEqual([]);
   });
 
   it('none clears both rules and collections', () => {
@@ -122,24 +106,23 @@ describe('normalizeInitAnswers explicit', () => {
 });
 
 describe('finalizeNonInteractiveAnswers', () => {
-  it('baseline matches profile presets for devops', () => {
+  it('baseline defaults to collections with profile-tagged packs for devops', () => {
     const dir = join('/tmp', 'bluetemberg-init-test-nonexistent-dir');
     const got = finalizeNonInteractiveAnswers('devops', dir, {});
     expect(got.packageManager).toBe('pnpm');
     expect(got.platforms.length).toBe(5);
     expect(got.includeAgents).toBe(true);
-    expect(universalRulesForProfile('devops').every((id) => got.rules.includes(id))).toBe(true);
+    expect(got.ruleSource).toBe('collections');
+    expect(got.ruleCollections.length).toBeGreaterThan(0);
   });
 
-  it('accepts shallow overrides without wiping universal rules when rules are provided', () => {
+  it('respects ruleCollections override', () => {
     const got = finalizeNonInteractiveAnswers('frontend', join('/tmp', 'proj'), {
-      rules: ['design-system-reuse'],
+      ruleCollections: ['typescript'],
       packageManager: 'npm',
     });
     expect(got.packageManager).toBe('npm');
-    const u = universalRulesForProfile('frontend');
-    expect(u.every((id) => got.rules.includes(id))).toBe(true);
-    expect(got.rules).toContain('design-system-reuse');
+    expect(got.ruleCollections).toEqual(['typescript']);
   });
 
   it('omit agents via overrides', () => {
@@ -193,7 +176,7 @@ describe('getMachineReadableHelp', () => {
   it('lists catalog arrays for programmatic discovery', () => {
     const j = getMachineReadableHelp();
     expect(Array.isArray(j.teamProfiles)).toBe(true);
-    expect(Array.isArray(j.rules)).toBe(true);
+    expect(Array.isArray(j.ruleCollections)).toBe(true);
     expect(typeof j.cliVersion === 'string' && j.cliVersion.length > 0).toBe(true);
   });
 });
