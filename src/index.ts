@@ -13,6 +13,26 @@ export {
   search as registrySearch,
   resolvePackSourceDirs,
 } from './registry/index.js';
+export {
+  addSource,
+  removeSource,
+  listSources,
+  installSources,
+  updateSources,
+  searchSources,
+  resolveExternalSourceDirs,
+} from './sources/registry.js';
+export { parseSourceSpec, sourceKey } from './sources/spec.js';
+export type {
+  SourceType,
+  SourceSpec,
+  SourceManifest,
+  SourceLock,
+  SourceLockEntry,
+  InstalledSource,
+  SourceSearchResult,
+  SourceAdapter,
+} from './sources/types.js';
 export type {
   Platform,
   TeamProfile,

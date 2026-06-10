@@ -17,6 +17,7 @@ import { syncGuardrails } from './guardrails.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
+import { resolveExternalSourceDirs } from '../sources/registry.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import type {
   Platform,
@@ -172,8 +173,12 @@ export function loadConfig(root: string): BlueprintConfig {
 
 interface SyncContext extends SyncSink {
   sourceBase: string;
-  /** All source dirs in priority order: local first, then each `extends` entry. */
+  /** All source dirs in priority order: local, then `extends`, then packs, then external sources. */
   sourceDirs: string[];
+  /** Count of `extends` dirs (for accurate per-file origin labels). */
+  extendedCount: number;
+  /** Count of registry-pack dirs. */
+  packCount: number;
   config: BlueprintConfig;
   platforms: Platform[];
   verbose: boolean;
@@ -218,8 +223,12 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const sourceBase = join(root, config.source || 'llm');
   const { dirs: extendedDirs, warnings: extendsWarnings } = resolveExtendedSourceDirs(config.extends, root);
   const { dirs: packDirs, warnings: packWarnings } = resolvePackSourceDirs(root, config.source || 'llm');
-  // Priority: local sourceBase first, then extends entries, then registry packs.
-  const sourceDirs = [sourceBase, ...extendedDirs, ...packDirs];
+  const { dirs: externalDirs, warnings: externalWarnings } = resolveExternalSourceDirs(
+    root,
+    config.source || 'llm',
+  );
+  // Priority: local sourceBase first, then extends entries, then registry packs, then external sources.
+  const sourceDirs = [sourceBase, ...extendedDirs, ...packDirs, ...externalDirs];
 
   const results: SyncResults = { synced: 0, outOfSync: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
@@ -232,6 +241,8 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     root,
     sourceBase,
     sourceDirs,
+    extendedCount: extendedDirs.length,
+    packCount: packDirs.length,
     config,
     platforms,
     verbose,
@@ -241,9 +252,10 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     expectedOutputPaths,
   };
 
-  // Surface extends and pack resolution warnings before sync output.
+  // Surface extends, pack, and external-source resolution warnings before sync output.
   for (const w of extendsWarnings) recordWarning(ctx, w);
   for (const w of packWarnings) recordWarning(ctx, w);
+  for (const w of externalWarnings) recordWarning(ctx, w);
 
   if (verbose) {
     log(`Source dirs (priority order):`);
@@ -251,9 +263,13 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     for (let i = 0; i < extendedDirs.length; i++) {
       log(`  [${i + 1}] ${extendedDirs[i]} (extends[${i}])`);
     }
-    const offset = 1 + extendedDirs.length;
+    const packOffset = 1 + extendedDirs.length;
     for (let i = 0; i < packDirs.length; i++) {
-      log(`  [${offset + i}] ${packDirs[i]} (pack)`);
+      log(`  [${packOffset + i}] ${packDirs[i]} (pack)`);
+    }
+    const externalOffset = packOffset + packDirs.length;
+    for (let i = 0; i < externalDirs.length; i++) {
+      log(`  [${externalOffset + i}] ${externalDirs[i]} (external)`);
     }
     log('');
   }
@@ -332,9 +348,16 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
 /** Returns a short label for a resolved source dir path, relative to root. */
 function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   const idx = ctx.sourceDirs.findIndex((d) => sourceDir.startsWith(d));
+  if (idx < 0) return sourceDir;
   if (idx === 0) return 'local';
-  if (idx > 0) return `extends[${idx - 1}]`;
-  return sourceDir;
+
+  const extendsEnd = 1 + ctx.extendedCount;
+  if (idx < extendsEnd) return `extends[${idx - 1}]`;
+
+  const packEnd = extendsEnd + ctx.packCount;
+  if (idx < packEnd) return `pack[${idx - extendsEnd}]`;
+
+  return `external[${idx - packEnd}]`;
 }
 
 function syncRules(ctx: SyncContext): void {

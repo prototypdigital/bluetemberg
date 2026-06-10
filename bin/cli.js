@@ -458,4 +458,114 @@ program
     }
   });
 
+const sourceCmd = program
+  .command('source')
+  .description('Manage external rule sources (GitHub repos, PRPM, cursor.directory)');
+
+sourceCmd
+  .command('add')
+  .description('Add an external source (e.g. "github:PatrickJS/awesome-cursorrules#HEAD:rules")')
+  .argument(
+    '<spec>',
+    'Source spec: github:owner/repo[#ref][:path] | prpm:name[@range] | cursor-directory:slug',
+  )
+  .option('--silent', 'Suppress all output')
+  .action(async (spec, options) => {
+    const { addSource } = await import('../dist/sources/registry.js');
+    try {
+      await addSource(process.cwd(), spec, { silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+sourceCmd
+  .command('remove')
+  .description('Remove an external source by key')
+  .argument('<key>', 'Source key (as shown by "bluetemberg source list")')
+  .option('--silent', 'Suppress all output')
+  .action(async (key, options) => {
+    const { removeSource } = await import('../dist/sources/registry.js');
+    try {
+      removeSource(process.cwd(), key, { silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+sourceCmd
+  .command('list')
+  .description('List configured external sources')
+  .option('--silent', 'Suppress all output')
+  .action(async (options) => {
+    const { listSources } = await import('../dist/sources/registry.js');
+    try {
+      listSources(process.cwd(), { silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+sourceCmd
+  .command('install')
+  .description('Install all external sources from the manifest (like npm ci)')
+  .option('--force', 'Force re-download even if cached')
+  .option('--silent', 'Suppress all output')
+  .action(async (options) => {
+    const { installSources } = await import('../dist/sources/registry.js');
+    try {
+      await installSources(process.cwd(), { force: options.force, silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+sourceCmd
+  .command('update')
+  .description('Re-resolve external sources to the newest ref/version satisfying their spec')
+  .argument('[key]', 'Source key to update (updates all when omitted)')
+  .option('--silent', 'Suppress all output')
+  .action(async (key, options) => {
+    const { updateSources } = await import('../dist/sources/registry.js');
+    try {
+      await updateSources(process.cwd(), key, { silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+sourceCmd
+  .command('search')
+  .description('Search external sources that support discovery (PRPM, cursor.directory)')
+  .argument('<query>', 'Search query')
+  .option('--type <type>', 'Restrict to one backend: prpm | cursor-directory')
+  .option('--limit <n>', 'Max results (default: 20)', (s) => parseInt(s, 10))
+  .option('--silent', 'Suppress all output')
+  .action(async (query, options) => {
+    const { searchSources } = await import('../dist/sources/registry.js');
+    try {
+      await searchSources(query, { type: options.type, limit: options.limit, silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
 program.parse();

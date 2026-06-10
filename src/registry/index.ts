@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { ensureGitignore } from '../utils/fs.js';
 import { fetchPackageMetadata, searchPackages } from './client.js';
 import { readManifest, writeManifest, readLockfile, writeLockfile } from './manifest.js';
 import {
@@ -494,20 +494,4 @@ function parsePackageSpec(spec: string, explicitVersion?: string): { name: strin
     name: spec.slice(0, atIdx),
     range: spec.slice(atIdx + 1),
   };
-}
-
-/** Ensure `.bluetemberg/` is in `.gitignore`. */
-function ensureGitignore(root: string): void {
-  const gitignorePath = `${root}/.gitignore`;
-  const marker = '.bluetemberg/';
-
-  if (!existsSync(gitignorePath)) return;
-
-  const content = readFileSync(gitignorePath, 'utf8');
-
-  if (content.includes(marker)) return;
-
-  const lines = content.split('\n');
-  const newContent = [...lines, '', '# Bluetemberg pack cache', marker, ''].join('\n');
-  writeFileSync(gitignorePath, newContent);
 }
