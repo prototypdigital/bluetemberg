@@ -263,7 +263,7 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
     const unknownProfiles = (pluginDef.profiles ?? []).filter((p) => !VALID_PROFILE_IDS.has(p));
     if (unknownProfiles.length > 0) {
       recordError(
-        `Plugin "${pluginDef.name}" references unknown profile(s): ${unknownProfiles.join(', ')} — valid profiles are: ${[...VALID_PROFILE_IDS].join(', ')}`,
+        `Plugin "${pluginDef.name}" references unknown profile(s): ${unknownProfiles.join(', ')} — valid profiles are: ${[...VALID_PROFILE_IDS].sort().join(', ')}`,
       );
       continue;
     }
@@ -275,6 +275,7 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
       const profileNames = (pluginDef.profiles ?? []).join(', ');
       const note = profileNames ? ` — no source files match profile(s): ${profileNames}` : '';
       recordError(`Plugin "${pluginDef.name}" resolved to 0 files${note}`);
+      continue;
     }
 
     pluginManifests.push(manifest);

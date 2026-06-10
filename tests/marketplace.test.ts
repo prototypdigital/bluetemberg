@@ -325,6 +325,8 @@ describe('syncMarketplace', () => {
       expect(results.errors[0]).toContain('devops-plugin');
       expect(results.errors[0]).toContain('0 files');
       expect(shouldExitWithFailure(results, false)).toBe(true);
+      // Plugin manifest must not be written even though emitPlugin created empty directories
+      expect(existsSync(join(root, 'plugins/devops-plugin/.claude-plugin/plugin.json'))).toBe(false);
     });
   });
 
