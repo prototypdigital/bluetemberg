@@ -12,6 +12,7 @@ import {
   SKILL_PRESETS,
   TEAM_PROFILES,
 } from './init/presets.js';
+import { INIT_RULE_SOURCES } from './init/init-catalog.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -39,7 +40,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
     })),
     packageManagers: PACKAGE_MANAGERS.map((p) => p.id),
     platforms: PLATFORM_CHOICES.map((p) => ({ id: p.id, name: p.name })),
-    ruleSource: ['templates', 'collections'],
+    ruleSource: [...INIT_RULE_SOURCES],
     rules: RULE_PRESETS.map((r) => ({
       id: r.id,
       name: r.name,

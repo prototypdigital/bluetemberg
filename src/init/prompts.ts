@@ -92,6 +92,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     choices: [
       { value: 'collections', name: 'Rule collections (registry packages)' },
       { value: 'templates', name: 'Individual templates (copied locally)' },
+      { value: 'none', name: 'Empty — bring your own rules' },
     ],
     default: 'templates',
   });
@@ -110,7 +111,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
       message: 'Rule collections:',
       choices: collectionChoices,
     });
-  } else {
+  } else if (ruleSource === 'templates') {
     const rulePresets = resolvePresetDefaults(RULE_PRESETS, teamProfile);
     const universalRuleIds = rulePresets
       .filter((r) => r.universal && !r.universalExcludeProfiles?.includes(teamProfile))

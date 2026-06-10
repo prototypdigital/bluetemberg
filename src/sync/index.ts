@@ -205,7 +205,7 @@ function verboseLog(ctx: SyncContext, message: string): void {
  *
  * @example
  * ```ts
- * import { sync, loadConfig } from '@prototypdigital/bluetemberg';
+ * import { sync, loadConfig } from 'bluetemberg';
  *
  * const results = await sync(process.cwd(), { config: loadConfig(process.cwd()) });
  * ```
