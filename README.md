@@ -4,7 +4,7 @@
 
 Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, **GitHub Copilot**, and **Windsurf** — and optional **Claude Code Marketplace** distribution so teammates can install profile-matched rule + skill + agent packs without any local tooling.
 
-> Published on npm as [`bluetemberg`](https://www.npmjs.com/package/bluetemberg) — MIT licensed. No registry config or auth required.
+> Published on npm as [`bluetemberg`](https://www.npmjs.com/package/bluetemberg) — MIT licensed. No registry config or auth required. Requires **Node.js 20+**.
 
 ## Install
 
@@ -47,6 +47,7 @@ The interactive wizard will ask you to pick:
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
 - MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)
+- **External rule sources** (optional) — pull rules from a GitHub repo, PRPM, or cursor.directory, translated to native format and pinned in `llm/rule-sources.json` (`--sources <csv>` in headless runs)
 
 You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/commands/*.md`** (Claude slash commands), **`llm/prompts/*.md`** (Copilot `*.prompt.md`), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
 
@@ -167,7 +168,7 @@ npx bluetemberg source add "github:PatrickJS/awesome-cursorrules#HEAD:rules"
 npx bluetemberg sync
 ```
 
-Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (commit both; run `bluetemberg source install` on a fresh clone) and are the lowest priority during sync, so your local rules always win. GitHub repos are supported today; PRPM and cursor.directory are planned. See [Sources](https://github.com/prototypdigital/bluetemberg/wiki/Sources).
+Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (commit both; run `bluetemberg source install` on a fresh clone) and are the lowest priority during sync, so your local rules always win. GitHub repos, PRPM packages, and cursor.directory plugins are all supported backends. See [Sources](https://github.com/prototypdigital/bluetemberg/wiki/Sources).
 
 ## Platform support
 
