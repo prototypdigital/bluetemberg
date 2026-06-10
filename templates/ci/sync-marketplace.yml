@@ -20,7 +20,7 @@ jobs:
           node-version: '20'
 
       - name: Generate marketplace output
-        run: npx -y @prototypdigital/bluetemberg sync
+        run: npx -y bluetemberg sync
 
       - name: Push to claude-marketplace repo
         env:

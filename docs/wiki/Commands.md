@@ -52,14 +52,14 @@ Universal guardrail rules are always included and shown as non-deselectable in t
 **Example:**
 
 ```bash
-npx @prototypdigital/bluetemberg init
-npx @prototypdigital/bluetemberg init ./my-project
+npx bluetemberg init
+npx bluetemberg init ./my-project
 
 # Headless
-npx @prototypdigital/bluetemberg init --non-interactive --profile devops --omit-mcp
-npx @prototypdigital/bluetemberg init --non-interactive --profile pure-infra --omit-mcp --silent
-npx @prototypdigital/bluetemberg init --non-interactive --profile devops --silent
-npx @prototypdigital/bluetemberg init --config ./bluetemberg.init.json ./my-project
+npx bluetemberg init --non-interactive --profile devops --omit-mcp
+npx bluetemberg init --non-interactive --profile pure-infra --omit-mcp --silent
+npx bluetemberg init --non-interactive --profile devops --silent
+npx bluetemberg init --config ./bluetemberg.init.json ./my-project
 ```
 
 Programmatic callers can keep using `init(root, opts)`/`scaffold(...)`/`sync(...)` exported from the package (`InitRunOptions` describes the programmatic mirror of the CLI knobs).
