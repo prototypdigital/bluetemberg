@@ -57,12 +57,17 @@ describe('cursorDirectoryAdapter.resolve', () => {
     expect(resolved.repository).toBe('https://github.com/acme/next-rules');
   });
 
-  it('throws a clear error when not configured', async () => {
-    delete process.env.BLUETEMBERG_CURSOR_DIRECTORY_URL;
-    delete process.env.BLUETEMBERG_CURSOR_DIRECTORY_KEY;
-    await expect(cursorDirectoryAdapter.resolve({ type: 'cursor-directory', slug: 'x' })).rejects.toThrow(
-      'not configured',
-    );
+  it('throws a clear error when env overrides are explicitly empty', async () => {
+    process.env.BLUETEMBERG_CURSOR_DIRECTORY_URL = '';
+    process.env.BLUETEMBERG_CURSOR_DIRECTORY_KEY = '';
+    try {
+      await expect(cursorDirectoryAdapter.resolve({ type: 'cursor-directory', slug: 'x' })).rejects.toThrow(
+        'not configured',
+      );
+    } finally {
+      delete process.env.BLUETEMBERG_CURSOR_DIRECTORY_URL;
+      delete process.env.BLUETEMBERG_CURSOR_DIRECTORY_KEY;
+    }
   });
 
   it('rejects the "*" wildcard for add', async () => {
