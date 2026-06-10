@@ -41,7 +41,7 @@ Nothing runs your hooks or MCP at sync time: the CLI only writes files. `sync --
 - a **function** `(ctx, recordError) => void | Promise<void>`, or
 - an object with a **`run`** method of that shape.
 
-Use the **`AdapterContext`** type from `@prototypdigital/bluetemberg` (or `@prototypdigital/bluetemberg/sync/adapter-contract`). For drift-safe writes inside an adapter, import **`commitPlannedWrite`** from `@prototypdigital/bluetemberg/sync/pipeline` so `--check` stays accurate.
+Use the **`AdapterContext`** type from `bluetemberg` (or `bluetemberg/sync/adapter-contract`). For drift-safe writes inside an adapter, import **`commitPlannedWrite`** from `bluetemberg/sync/pipeline` so `--check` stays accurate.
 
 **Output paths:** Always pass an **absolute** path, or build one with `join(ctx.root, 'relative', 'path')`. Do **not** pass a bare relative path: `commitPlannedWrite` resolves paths for pruning and drift checks, and a relative path is resolved against the process working directory, not the project root—so `--check` and `sync --prune` can mis-track adapter outputs.
 

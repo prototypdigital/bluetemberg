@@ -275,7 +275,7 @@ import {
   registryUpdate,
   registrySearch,
   resolvePackSourceDirs,
-} from '@prototypdigital/bluetemberg';
+} from 'bluetemberg';
 
 // Add a pack
 await registryAdd('/path/to/project', 'my-rules@^1.0.0');
