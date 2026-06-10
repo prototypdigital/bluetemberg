@@ -2,7 +2,7 @@ import type { BlueprintConfig, Platform, SyncResults } from '../types.js';
 
 /**
  * Context passed to optional npm adapters (see `bluetemberg.config.json` → `adapters`).
- * Use `commitPlannedWrite` from `@prototypdigital/bluetemberg/sync/pipeline` for drift-safe writes.
+ * Use `commitPlannedWrite` from `bluetemberg/sync/pipeline` for drift-safe writes.
  */
 export interface AdapterContext {
   root: string;
@@ -14,7 +14,7 @@ export interface AdapterContext {
   config: BlueprintConfig;
   /**
    * When `sync(..., { prune: true })` runs, pass this on the sink to `commitPlannedWrite` (from
-   * `@prototypdigital/bluetemberg/sync/pipeline`) so adapter outputs are tracked and not removed by prune.
+   * `bluetemberg/sync/pipeline`) so adapter outputs are tracked and not removed by prune.
    */
   expectedOutputPaths?: Set<string>;
 }
