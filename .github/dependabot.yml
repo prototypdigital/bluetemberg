@@ -4,8 +4,25 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    groups:
+      github-actions:
+        patterns:
+          - '*'
 
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
       interval: 'weekly'
+    labels:
+      - 'dependencies'
+    groups:
+      # Batch low-risk dev-dependency minor/patch bumps into a single PR.
+      # Runtime (production) dependencies — and any MAJOR bump — are deliberately
+      # left as their own PR so they get individual review: dependencies are an
+      # "Ask First" area, and a runtime major (e.g. the CLI framework) should never
+      # ride in on autopilot alongside dev-tool noise.
+      dev-dependencies:
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+          - 'patch'
