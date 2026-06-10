@@ -26,7 +26,7 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Architecture](Architecture) — how the sync engine works
 - [Adapters](Adapters) — sync extensions, platform gates, roadmap
 - [Consumer Setup](Consumer-Setup) — set up a downstream project
-- [Registry](Registry) — install community & official rule packs (official packs live in [bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules))
+- [Registry](Registry) — install community & official packs (official packs live in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs))
 - [Sources](Sources) — pull rules from GitHub, PRPM, or cursor.directory and translate them to native format
 - [Contributing](Contributing) — dev setup, adding templates, and release process
 

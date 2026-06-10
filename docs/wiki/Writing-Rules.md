@@ -61,7 +61,7 @@ Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_PRESETS`. S
 
 ## Available rule collections
 
-Rules are grouped into collections. For the full list of individual rules inside each pack, see the [Catalog](https://github.com/prototypdigital/bluetemberg-rules/wiki/Catalog) in the bluetemberg-rules wiki.
+Rules are grouped into collections. For the full list of individual rules inside each pack, see the [Catalog](https://github.com/prototypdigital/bluetemberg-packs/wiki/Catalog) in the bluetemberg-packs wiki.
 
 | Collection | Package | Profiles | Contents |
 | ---------- | ------- | -------- | -------- |
@@ -83,6 +83,6 @@ Rules are grouped into collections. For the full list of individual rules inside
 
 ## Tips
 
-- Rules live in `bluetemberg-rules-*` packages — to add or update a rule, contribute to that repo
+- Rules live in `bluetemberg-rules-*` packages — to add or update a rule, contribute to [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs)
 - If a behavior only matters for certain stacks, it belongs in a collection tagged for those profiles
 - If it requires multi-step reasoning or judgment calls, it might be a [skill](Writing-Skills) instead

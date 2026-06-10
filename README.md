@@ -100,7 +100,7 @@ plugins/
 
 ## Rule collections by profile
 
-Rules are delivered as versioned npm packages from the [bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules) registry. The init wizard pre-selects collections based on your team profile; you can add or remove any collection before confirming.
+Rules are delivered as versioned npm packages from the [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) registry. The init wizard pre-selects collections based on your team profile; you can add or remove any collection before confirming.
 
 | Collection | Package                        | Profiles                                          |
 | ---------- | ------------------------------ | ------------------------------------------------- |

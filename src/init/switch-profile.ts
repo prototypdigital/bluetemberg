@@ -1,13 +1,10 @@
-import { copyFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ensureDir } from '../utils/fs.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
 import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
-import type { TeamProfile } from '../types.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
+import { AGENT_PRESETS, SKILL_PRESETS } from './presets.js';
+import type { PackageManifest, PresetItem, TeamProfile } from '../types.js';
 
 export interface SwitchProfileOptions {
   silent?: boolean;
@@ -16,19 +13,18 @@ export interface SwitchProfileOptions {
 export interface SwitchProfileResult {
   fromProfile: TeamProfile | undefined;
   toProfile: TeamProfile;
+  /** Package names added to the agent/skill manifests. */
   added: string[];
   /**
-   * Paths in `llm/` not belonging to the new profile's defaults.
-   * Rules and agent entries are file paths (`*.md`); skill entries are directory paths.
+   * Package names present in the agent/skill manifests that are not part of
+   * the new profile's defaults. Reported for user review; not auto-removed.
    */
   stale: string[];
 }
 
-interface AssetSpec {
-  /** Subdirectory under `templates/` (also under `llm/`). */
-  kind: 'rules' | 'agents' | 'skills';
-  /** Selected ids for the target profile. */
-  targetIds: string[];
+interface ApplyResult {
+  added: string[];
+  stale: string[];
 }
 
 export function switchProfile(
@@ -60,19 +56,16 @@ export function switchProfile(
     return { fromProfile, toProfile, added: [], stale: [] };
   }
 
-  const specs: AssetSpec[] = [
-    { kind: 'agents', targetIds: agentsForProfile(toProfile) },
-    { kind: 'skills', targetIds: skillsForProfile(toProfile) },
-  ];
-
   const added: string[] = [];
   const stale: string[] = [];
 
-  for (const spec of specs) {
-    const result = applyAssetSpec(root, spec);
-    added.push(...result.added);
-    stale.push(...result.stale);
-  }
+  const agentResult = applyPackageManifest(root, 'agent', agentsForProfile(toProfile), AGENT_PRESETS);
+  added.push(...agentResult.added);
+  stale.push(...agentResult.stale);
+
+  const skillResult = applyPackageManifest(root, 'skill', skillsForProfile(toProfile), SKILL_PRESETS);
+  added.push(...skillResult.added);
+  stale.push(...skillResult.stale);
 
   raw.profile = toProfile;
   writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n');
@@ -84,61 +77,54 @@ export function switchProfile(
   return { fromProfile, toProfile, added, stale };
 }
 
-interface ApplyResult {
-  added: string[];
-  stale: string[];
+function readPackageManifest(manifestPath: string): PackageManifest {
+  if (!existsSync(manifestPath)) return { packages: {} };
+  try {
+    return JSON.parse(readFileSync(manifestPath, 'utf8')) as PackageManifest;
+  } catch {
+    return { packages: {} };
+  }
 }
 
-function applyAssetSpec(root: string, spec: AssetSpec): ApplyResult {
-  const destBase = join(root, 'llm', spec.kind);
+function applyPackageManifest(
+  root: string,
+  kind: 'agent' | 'skill',
+  targetIds: string[],
+  presets: PresetItem[],
+): ApplyResult {
+  const manifestPath = join(root, 'llm', `${kind}-packages.json`);
+  const manifest = readPackageManifest(manifestPath);
   const result: ApplyResult = { added: [], stale: [] };
 
-  for (const id of spec.targetIds) {
-    const { src, dest } = resolveAssetPaths(spec.kind, id, destBase);
-    if (!existsSync(src)) continue;
-    if (existsSync(dest)) continue;
-
-    ensureDir(dirname(dest));
-    copyFileSync(src, dest);
-    result.added.push(dest);
+  const targetPackages = new Set<string>();
+  for (const id of targetIds) {
+    const preset = presets.find((p) => p.id === id);
+    if (preset?.packageName) targetPackages.add(preset.packageName);
   }
 
-  if (existsSync(destBase)) {
-    const present = readPresentIds(spec.kind, destBase);
-    const targetSet = new Set(spec.targetIds);
-    for (const id of present) {
-      if (!targetSet.has(id)) {
-        result.stale.push(join(destBase, spec.kind === 'skills' ? id : `${id}.md`));
-      }
+  let changed = false;
+  for (const id of targetIds) {
+    const preset = presets.find((p) => p.id === id);
+    if (!preset?.packageName) continue;
+    if (manifest.packages[preset.packageName]) continue;
+
+    manifest.packages[preset.packageName] = '^0.1.0';
+    result.added.push(preset.packageName);
+    changed = true;
+  }
+
+  for (const pkgName of Object.keys(manifest.packages)) {
+    if (!targetPackages.has(pkgName)) {
+      result.stale.push(pkgName);
     }
   }
 
+  if (changed) {
+    ensureDir(dirname(manifestPath));
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  }
+
   return result;
-}
-
-function resolveAssetPaths(
-  kind: AssetSpec['kind'],
-  id: string,
-  destBase: string,
-): { src: string; dest: string } {
-  if (kind === 'skills') {
-    return {
-      src: join(TEMPLATES_DIR, 'skills', id, 'SKILL.md'),
-      dest: join(destBase, id, 'SKILL.md'),
-    };
-  }
-  return {
-    src: join(TEMPLATES_DIR, kind, `${id}.md`),
-    dest: join(destBase, `${id}.md`),
-  };
-}
-
-function readPresentIds(kind: AssetSpec['kind'], dir: string): string[] {
-  const entries = readdirSync(dir, { withFileTypes: true });
-  if (kind === 'skills') {
-    return entries.filter((e) => e.isDirectory()).map((e) => e.name);
-  }
-  return entries.filter((e) => e.isFile() && e.name.endsWith('.md')).map((e) => e.name.replace(/\.md$/, ''));
 }
 
 function reportResult(result: SwitchProfileResult): void {
@@ -147,19 +133,19 @@ function reportResult(result: SwitchProfileResult): void {
   console.log(`\n  Profile: ${from} → ${toProfile}\n`);
 
   if (added.length === 0) {
-    console.log('  No new template files needed.');
+    console.log('  No new packages added.');
   } else {
-    console.log(`  Added ${added.length} template file(s):`);
-    for (const f of added) console.log(`    + ${f}`);
+    console.log(`  Added ${added.length} package(s) to manifests:`);
+    for (const pkg of added) console.log(`    + ${pkg}`);
   }
 
   if (stale.length > 0) {
-    console.log(`\n  ${stale.length} file(s) in llm/ are not part of the "${toProfile}" defaults:`);
-    for (const f of stale) console.log(`    ? ${f}`);
+    console.log(`\n  ${stale.length} package(s) in manifests are not part of the "${toProfile}" defaults:`);
+    for (const pkg of stale) console.log(`    ? ${pkg}`);
     if (toProfile === 'custom') {
       console.log('  Note: custom profile has no fixed defaults — this list is informational only.');
     } else {
-      console.log('  Review and delete manually if no longer needed.');
+      console.log('  Review and remove manually if no longer needed.');
     }
   }
 

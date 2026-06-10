@@ -199,6 +199,8 @@ export interface PresetItem {
   universal?: boolean;
   /** Profiles for which this rule is NOT forced even when universal is true. */
   universalExcludeProfiles?: TeamProfile[];
+  /** npm package name in the packs repo (e.g. `bluetemberg-agents-frontend-specialist`). */
+  packageName?: string;
 }
 
 export interface PlatformChoice {
