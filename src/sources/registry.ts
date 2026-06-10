@@ -339,6 +339,7 @@ function resolvedFromLock(spec: SourceSpec, key: string, entry: SourceLockEntry)
     resolved: entry.resolved,
     integrity: entry.integrity,
     repository: entry.repository,
+    subtype: entry.subtype,
   };
 }
 
