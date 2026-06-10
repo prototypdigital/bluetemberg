@@ -113,6 +113,8 @@ export interface InitAnswers {
   marketplacePlugins?: string[];
   includeGuardrails?: boolean;
   guardrails?: string[];
+  /** External source spec strings (e.g. `github:owner/repo#HEAD:rules`). Written to `llm/rule-sources.json`. */
+  externalSources?: string[];
 }
 
 /** Options for `init()` besides the target directory (CLI parity). */

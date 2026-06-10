@@ -86,6 +86,7 @@ export function assertInitAnswers(record: unknown): InitAnswers {
     marketplacePlugins: Array.isArray(record.marketplacePlugins)
       ? (record.marketplacePlugins as string[])
       : [],
+    externalSources: Array.isArray(record.externalSources) ? (record.externalSources as string[]) : [],
   };
 }
 

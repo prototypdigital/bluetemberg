@@ -74,6 +74,7 @@ function strayHeadlessOptsWithoutNiOrConfig(opts) {
   checkCsv(opts.agents, '`--agents`');
   checkCsv(opts.skills, '`--skills`');
   checkCsv(opts.mcpServers, '`--mcp-servers`');
+  checkCsv(opts.sources, '`--sources`');
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
@@ -109,6 +110,7 @@ function assertNoInitFlagsBundledWithConfig(opts) {
   checkBundle(opts.agents, '--agents');
   checkBundle(opts.skills, '--skills');
   checkBundle(opts.mcpServers, '--mcp-servers');
+  checkBundle(opts.sources, '--sources');
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
@@ -184,6 +186,8 @@ function buildNiOverrides(opts) {
 
   if ((opts.mcpServers ?? '') !== '') ov.mcpServers = csvList(String(opts.mcpServers));
 
+  if ((opts.sources ?? '') !== '') ov.externalSources = csvList(String(opts.sources));
+
   if (argvHas('--omit-agents')) ov.includeAgents = false;
   if (argvHas('--omit-skills')) ov.includeSkills = false;
   if (argvHas('--omit-mcp')) ov.includeMcp = false;
@@ -217,6 +221,7 @@ program
   .option('--agents <csv>')
   .option('--skills <csv>')
   .option('--mcp-servers <csv>')
+  .option('--sources <csv>', 'External source specs (comma-separated, e.g. "github:owner/repo#HEAD:rules")')
   .option('--omit-agents')
   .option('--omit-skills')
   .option('--omit-mcp')
