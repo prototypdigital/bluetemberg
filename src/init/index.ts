@@ -81,9 +81,9 @@ export async function init(targetPath?: string, run?: InitRunOptions): Promise<v
   const pm = answers.packageManager === 'npm' ? 'npm run' : answers.packageManager;
   log('\n  Done! Next steps:\n');
   if (answers.ruleSource === 'collections') {
-    log('  1. Run `bluetemberg install` to download rule collections');
+    log('  1. Run `bluetemberg install` to download the selected packs');
     log(`  2. Run \`${pm} sync:llm-config\` to generate platform files`);
-    log('  3. Add project-specific rules in llm/rules/ to override collection rules');
+    log('  3. Add project-specific rules in llm/rules/ to override pack content');
   } else if (answers.ruleSource === 'none') {
     log('  1. Add your own rules to llm/rules/ (or install a pack with `bluetemberg add`)');
     log('  2. Customize agents and skills for your project');

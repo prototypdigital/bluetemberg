@@ -15,6 +15,7 @@ import type {
 } from '../types.js';
 import { parseSourceSpec, sourceKey } from '../sources/spec.js';
 import type { SourceManifest } from '../sources/types.js';
+import { DEFAULT_PACK_VERSION } from '../registry/manifest.js';
 import {
   RULE_COLLECTION_PRESETS,
   AGENT_PRESETS,
@@ -30,19 +31,11 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
 
   scaffoldConfig(targetDir, answers, created);
 
-  if (answers.ruleSource === 'collections') {
-    scaffoldRuleCollections(targetDir, answers, created);
-  } else {
+  if (answers.ruleSource !== 'collections') {
     scaffoldEmptyRules(targetDir, created);
   }
 
-  if (answers.includeAgents) {
-    scaffoldAgentPackages(targetDir, answers, created);
-  }
-
-  if (answers.includeSkills) {
-    scaffoldSkillPackages(targetDir, answers, created);
-  }
+  scaffoldPackageManifest(targetDir, answers, created);
 
   scaffoldRootDocs(targetDir, answers, created);
 
@@ -169,54 +162,37 @@ function scaffoldEmptyRules(targetDir: string, created: string[]): void {
   safeWrite(join(targetDir, 'llm', 'rules', '.gitkeep'), '', created);
 }
 
-function scaffoldRuleCollections(targetDir: string, answers: InitAnswers, created: string[]): void {
-  if (answers.ruleCollections.length === 0) return;
-
+function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, created: string[]): void {
   const packages: Record<string, string> = {};
-  for (const collectionId of answers.ruleCollections) {
-    const preset = RULE_COLLECTION_PRESETS.find((c) => c.id === collectionId);
-    if (!preset) continue;
-    packages[preset.packageName] = '^0.1.0';
+
+  if (answers.ruleSource === 'collections') {
+    for (const collectionId of answers.ruleCollections) {
+      const preset = RULE_COLLECTION_PRESETS.find((c) => c.id === collectionId);
+      if (!preset) continue;
+      packages[preset.packageName] = DEFAULT_PACK_VERSION;
+    }
   }
 
-  const manifest: PackageManifest = { packages };
-  const manifestPath = join(targetDir, 'llm', 'rule-packages.json');
-  ensureDir(dirname(manifestPath));
-  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
-}
-
-function scaffoldAgentPackages(targetDir: string, answers: InitAnswers, created: string[]): void {
-  if (answers.agents.length === 0) return;
-
-  const packages: Record<string, string> = {};
-  for (const agentId of answers.agents) {
-    const preset = AGENT_PRESETS.find((a) => a.id === agentId);
-    if (!preset?.packageName) continue;
-    packages[preset.packageName] = '^0.1.0';
+  if (answers.includeAgents) {
+    for (const agentId of answers.agents) {
+      const preset = AGENT_PRESETS.find((a) => a.id === agentId);
+      if (!preset?.packageName) continue;
+      packages[preset.packageName] = DEFAULT_PACK_VERSION;
+    }
   }
 
-  if (Object.keys(packages).length === 0) return;
-
-  const manifest: PackageManifest = { packages };
-  const manifestPath = join(targetDir, 'llm', 'agent-packages.json');
-  ensureDir(dirname(manifestPath));
-  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
-}
-
-function scaffoldSkillPackages(targetDir: string, answers: InitAnswers, created: string[]): void {
-  if (answers.skills.length === 0) return;
-
-  const packages: Record<string, string> = {};
-  for (const skillId of answers.skills) {
-    const preset = SKILL_PRESETS.find((s) => s.id === skillId);
-    if (!preset?.packageName) continue;
-    packages[preset.packageName] = '^0.1.0';
+  if (answers.includeSkills) {
+    for (const skillId of answers.skills) {
+      const preset = SKILL_PRESETS.find((s) => s.id === skillId);
+      if (!preset?.packageName) continue;
+      packages[preset.packageName] = DEFAULT_PACK_VERSION;
+    }
   }
 
   if (Object.keys(packages).length === 0) return;
 
   const manifest: PackageManifest = { packages };
-  const manifestPath = join(targetDir, 'llm', 'skill-packages.json');
+  const manifestPath = join(targetDir, 'llm', 'packages.json');
   ensureDir(dirname(manifestPath));
   safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }

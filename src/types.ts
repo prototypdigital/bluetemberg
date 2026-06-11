@@ -220,10 +220,10 @@ export interface TeamProfileChoice {
 }
 
 // ---------------------------------------------------------------------------
-// Registry — community rule packs
+// Registry — community packs (rules, agents, skills)
 // ---------------------------------------------------------------------------
 
-/** Manifest file (`llm/rule-packages.json`) — committed to version control. */
+/** Manifest file (`llm/packages.json`) — committed to version control. */
 export interface PackageManifest {
   /** Optional custom registry URL. Defaults to `https://registry.npmjs.org`. */
   registry?: string;
@@ -241,7 +241,7 @@ export interface PackageLockEntry {
   integrity: string;
 }
 
-/** Lockfile (`llm/rule-packages-lock.json`) — committed to version control. */
+/** Lockfile (`llm/packages-lock.json`) — committed to version control. */
 export interface PackageLock {
   lockfileVersion: 1;
   packages: Record<string, PackageLockEntry>;

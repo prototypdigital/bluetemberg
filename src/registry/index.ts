@@ -1,6 +1,13 @@
 import { ensureGitignore } from '../utils/fs.js';
 import { fetchPackageMetadata, searchPackages } from './client.js';
-import { readManifest, writeManifest, readLockfile, writeLockfile } from './manifest.js';
+import {
+  readManifest,
+  writeManifest,
+  readLockfile,
+  writeLockfile,
+  hasLegacyManifestFiles,
+  migrateLegacyManifests,
+} from './manifest.js';
 import {
   resolveVersion,
   installPackVersion,
@@ -25,12 +32,12 @@ import { loadConfig } from '../sync/index.js';
 // ---------------------------------------------------------------------------
 
 /**
- * Add a rule pack to the project.
+ * Add a pack to the project.
  *
  * 1. Fetches metadata from the npm registry.
  * 2. Resolves the best version matching the requested range.
  * 3. Downloads and extracts the pack to `.bluetemberg/packs/`.
- * 4. Updates `llm/rule-packages.json` (manifest) and `llm/rule-packages-lock.json` (lockfile).
+ * 4. Updates `llm/packages.json` (manifest) and `llm/packages-lock.json` (lockfile).
  *
  * @param root - Project root directory.
  * @param packageSpec - Package name, optionally with `@version` (e.g. `my-rules@^1.0.0`).
@@ -45,6 +52,7 @@ export async function add(
 
   const config = loadConfig(root);
   const source = config.source || 'llm';
+  consolidateLegacyManifests(root, source, log);
 
   log(`Resolving ${name}@${range}...`);
 
@@ -84,7 +92,7 @@ export async function add(
 // ---------------------------------------------------------------------------
 
 /**
- * Remove a rule pack from the project.
+ * Remove a pack from the project.
  *
  * Removes from manifest, lockfile, and local cache.
  */
@@ -96,6 +104,7 @@ export async function remove(
   const log = options.silent ? () => {} : console.log;
   const config = loadConfig(root);
   const source = config.source || 'llm';
+  consolidateLegacyManifests(root, source, log);
 
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
@@ -125,7 +134,7 @@ export async function remove(
 // ---------------------------------------------------------------------------
 
 /**
- * List all installed rule packs.
+ * List all installed packs.
  */
 export function list(root: string, options: RegistryListOptions = {}): InstalledPackage[] {
   const log = options.silent ? () => {} : console.log;
@@ -148,7 +157,7 @@ export function list(root: string, options: RegistryListOptions = {}): Installed
   }
 
   if (packages.length === 0) {
-    log('No rule packs installed.');
+    log('No packs installed.');
   } else {
     log(`\n${packages.length} pack(s) installed.`);
   }
@@ -173,6 +182,7 @@ export async function install(
   const log = options.silent ? () => {} : console.log;
   const config = loadConfig(root);
   const source = config.source || 'llm';
+  consolidateLegacyManifests(root, source, log);
 
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
@@ -180,7 +190,7 @@ export async function install(
 
   const names = Object.keys(manifest.packages);
   if (names.length === 0) {
-    log('No rule packs in manifest.');
+    log('No packs in manifest.');
     return [];
   }
 
@@ -255,7 +265,7 @@ export async function install(
 // ---------------------------------------------------------------------------
 
 /**
- * Update rule packs to the best version satisfying their current manifest range.
+ * Update packs to the best version satisfying their current manifest range.
  *
  * For each pack (or just `packageName` if specified):
  * 1. Fetches the latest metadata from the registry.
@@ -277,6 +287,7 @@ export async function update(
   const log = options.silent ? () => {} : console.log;
   const config = loadConfig(root);
   const source = config.source || 'llm';
+  consolidateLegacyManifests(root, source, log);
 
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
@@ -288,7 +299,7 @@ export async function update(
   const names = packageName ? [packageName] : Object.keys(manifest.packages);
 
   if (names.length === 0) {
-    log('No rule packs in manifest.');
+    log('No packs in manifest.');
     return [];
   }
 
@@ -380,7 +391,7 @@ export async function update(
 // ---------------------------------------------------------------------------
 
 /**
- * Search the npm registry for bluetemberg rule packs.
+ * Search the npm registry for bluetemberg packs.
  */
 export async function search(query: string, options: RegistrySearchOptions = {}): Promise<NpmSearchResult[]> {
   const log = options.silent ? () => {} : console.log;
@@ -425,6 +436,14 @@ export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: str
   const dirs: string[] = [];
   const warnings: string[] = [];
 
+  // Sync must stay read-only (it runs with --check in CI), so legacy manifests
+  // are merged in memory here and consolidated on disk by the next write command.
+  if (hasLegacyManifestFiles(root, source)) {
+    warnings.push(
+      `Legacy manifest files detected in ${source}/ (data merged in memory) — run "bluetemberg install" to persist them into packages.json and remove the legacy files.`,
+    );
+  }
+
   for (const name of Object.keys(manifest.packages)) {
     const lockEntry = lock.packages[name];
     if (!lockEntry) {
@@ -460,6 +479,15 @@ export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: str
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Consolidates legacy kind-split manifests on disk, logging what was migrated. */
+function consolidateLegacyManifests(root: string, source: string, log: (msg: string) => void): void {
+  const removed = migrateLegacyManifests(root, source);
+  if (removed.length === 0) return;
+
+  log(`Migrated legacy manifest(s) (${removed.join(', ')}) into ${source}/packages.json.`);
+  log('Commit the updated manifest and the removed legacy files.\n');
+}
 
 /** Parse `name@range` into separate parts. */
 function parsePackageSpec(spec: string, explicitVersion?: string): { name: string; range: string } {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { scaffold } from '../src/init/scaffold.js';
@@ -72,12 +72,12 @@ describe('switchProfile', () => {
     expect(result.stale).toEqual([]);
   });
 
-  it('adds missing agent packages to the manifest when switching profile', () => {
+  it('adds missing agent packages to llm/packages.json when switching profile', () => {
     scaffold(root, baseAnswers);
 
     const result = switchProfile(root, 'backend', { silent: true });
 
-    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'agent-packages.json'), 'utf8'));
+    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
     expect(manifest.packages['bluetemberg-agents-backend-specialist']).toBeDefined();
     expect(result.added).toContain('bluetemberg-agents-backend-specialist');
   });
@@ -87,8 +87,42 @@ describe('switchProfile', () => {
 
     switchProfile(root, 'fullstack', { silent: true });
 
-    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'agent-packages.json'), 'utf8'));
+    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
     expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBeDefined();
+  });
+
+  it('reports official packages outside the new profile defaults as stale', () => {
+    scaffold(root, baseAnswers);
+
+    const result = switchProfile(root, 'pure-infra', { silent: true });
+
+    // frontend-specialist is not part of the pure-infra defaults.
+    expect(result.stale).toContain('bluetemberg-agents-frontend-specialist');
+    // Stale entries are reported, never removed.
+    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+    expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBeDefined();
+  });
+
+  it('never flags rule collections or third-party packs as stale', () => {
+    scaffold(root, baseAnswers);
+
+    const result = switchProfile(root, 'backend', { silent: true });
+
+    expect(result.stale).not.toContain('bluetemberg-rules-typescript');
+  });
+
+  it('migrates legacy kind-split manifests into llm/packages.json', () => {
+    scaffold(root, baseAnswers);
+    writeFileSync(
+      join(root, 'llm', 'agent-packages.json'),
+      JSON.stringify({ packages: { 'bluetemberg-agents-sre-specialist': '^0.1.0' } }),
+    );
+
+    switchProfile(root, 'backend', { silent: true });
+
+    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+    expect(manifest.packages['bluetemberg-agents-sre-specialist']).toBe('^0.1.0');
+    expect(existsSync(join(root, 'llm', 'agent-packages.json'))).toBe(false);
   });
 
   it('exposes the previous profile in the result', () => {

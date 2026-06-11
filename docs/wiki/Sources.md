@@ -74,7 +74,7 @@ export BLUETEMBERG_CURSOR_DIRECTORY_KEY="<publishable-key>"
 
 ## Manifest and lockfile
 
-Two committed files track sources (parallel to the registry's `rule-packages.json`):
+Two committed files track sources (parallel to the registry's `packages.json`):
 
 | File | Purpose |
 | ---- | ------- |

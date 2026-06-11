@@ -111,7 +111,7 @@ Rules are delivered as versioned npm packages from the [bluetemberg-packs](https
 | DevOps     | `bluetemberg-rules-devops`     | DevOps, Pure Infra                                |
 | Next.js    | `bluetemberg-rules-nextjs`     | Frontend, Full-stack                              |
 
-After `init`, run `bluetemberg install` to download the selected packs into `llm/rules/`.
+After `init`, run `bluetemberg install` to download the packs listed in `llm/packages.json` into the local cache (`.bluetemberg/packs/`); `sync` merges them with your local `llm/` content.
 
 Detail: [`docs/wiki/Registry.md`](docs/wiki/Registry.md) and [`docs/wiki/Profiles.md`](docs/wiki/Profiles.md).
 

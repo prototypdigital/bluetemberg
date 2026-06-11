@@ -1,6 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { ensureDir } from '../utils/fs.js';
+import { join } from 'node:path';
+import {
+  DEFAULT_PACK_VERSION,
+  manifestPath,
+  migrateLegacyManifests,
+  readManifest,
+  writeManifest,
+} from '../registry/manifest.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
 import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
 import { AGENT_PRESETS, SKILL_PRESETS } from './presets.js';
@@ -13,11 +19,13 @@ export interface SwitchProfileOptions {
 export interface SwitchProfileResult {
   fromProfile: TeamProfile | undefined;
   toProfile: TeamProfile;
-  /** Package names added to the agent/skill manifests. */
+  /** Agent/skill package names added to `llm/packages.json`. */
   added: string[];
   /**
-   * Package names present in the agent/skill manifests that are not part of
-   * the new profile's defaults. Reported for user review; not auto-removed.
+   * Official agent/skill packages in the manifest that are not part of the new
+   * profile's defaults. Reported for user review; not auto-removed. Rule
+   * collections and third-party packs are never flagged — the profile switch
+   * cannot know which kind they are.
    */
   stale: string[];
 }
@@ -56,16 +64,23 @@ export function switchProfile(
     return { fromProfile, toProfile, added: [], stale: [] };
   }
 
+  migrateLegacyManifests(root);
+  const manifest = readManifestLenient(root);
+
   const added: string[] = [];
   const stale: string[] = [];
 
-  const agentResult = applyPackageManifest(root, 'agent', agentsForProfile(toProfile), AGENT_PRESETS);
+  const agentResult = applyPresets(manifest, agentsForProfile(toProfile), AGENT_PRESETS);
   added.push(...agentResult.added);
   stale.push(...agentResult.stale);
 
-  const skillResult = applyPackageManifest(root, 'skill', skillsForProfile(toProfile), SKILL_PRESETS);
+  const skillResult = applyPresets(manifest, skillsForProfile(toProfile), SKILL_PRESETS);
   added.push(...skillResult.added);
   stale.push(...skillResult.stale);
+
+  if (added.length > 0) {
+    writeManifest(root, manifest);
+  }
 
   raw.profile = toProfile;
   writeFileSync(configPath, JSON.stringify(raw, null, 2) + '\n');
@@ -77,50 +92,41 @@ export function switchProfile(
   return { fromProfile, toProfile, added, stale };
 }
 
-function readPackageManifest(manifestPath: string): PackageManifest {
-  if (!existsSync(manifestPath)) return { packages: {} };
+function readManifestLenient(root: string): PackageManifest {
   try {
-    return JSON.parse(readFileSync(manifestPath, 'utf8')) as PackageManifest;
+    return readManifest(root);
   } catch {
     console.warn(
-      `  Warning: could not parse ${manifestPath} — treating as empty. Check for JSON syntax errors.`,
+      `  Warning: could not parse ${manifestPath(root)} — treating as empty. Check for JSON syntax errors.`,
     );
     return { packages: {} };
   }
 }
 
-function applyPackageManifest(
-  root: string,
-  kind: 'agent' | 'skill',
-  targetIds: string[],
-  presets: PresetItem[],
-): ApplyResult {
-  const manifestPath = join(root, 'llm', `${kind}-packages.json`);
-  const manifest = readPackageManifest(manifestPath);
+/**
+ * Adds the target presets' packages to the manifest and reports stale entries.
+ * Stale detection is scoped to packages known in `presets` — entries the preset
+ * catalog does not recognize (rule collections, third-party packs) are left alone.
+ */
+function applyPresets(manifest: PackageManifest, targetIds: string[], presets: PresetItem[]): ApplyResult {
   const result: ApplyResult = { added: [], stale: [] };
 
   const targetPackages = new Set<string>();
-  let changed = false;
   for (const id of targetIds) {
     const preset = presets.find((p) => p.id === id);
     if (!preset?.packageName) continue;
     targetPackages.add(preset.packageName);
     if (manifest.packages[preset.packageName]) continue;
 
-    manifest.packages[preset.packageName] = '^0.1.0';
+    manifest.packages[preset.packageName] = DEFAULT_PACK_VERSION;
     result.added.push(preset.packageName);
-    changed = true;
   }
 
+  const knownPackages = new Set(presets.map((p) => p.packageName).filter(Boolean));
   for (const pkgName of Object.keys(manifest.packages)) {
-    if (!targetPackages.has(pkgName)) {
+    if (knownPackages.has(pkgName) && !targetPackages.has(pkgName)) {
       result.stale.push(pkgName);
     }
-  }
-
-  if (changed) {
-    ensureDir(dirname(manifestPath));
-    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   }
 
   return result;
@@ -134,12 +140,14 @@ function reportResult(result: SwitchProfileResult): void {
   if (added.length === 0) {
     console.log('  No new packages added.');
   } else {
-    console.log(`  Added ${added.length} package(s) to manifests:`);
+    console.log(`  Added ${added.length} package(s) to llm/packages.json:`);
     for (const pkg of added) console.log(`    + ${pkg}`);
   }
 
   if (stale.length > 0) {
-    console.log(`\n  ${stale.length} package(s) in manifests are not part of the "${toProfile}" defaults:`);
+    console.log(
+      `\n  ${stale.length} package(s) in llm/packages.json are not part of the "${toProfile}" defaults:`,
+    );
     for (const pkg of stale) console.log(`    ? ${pkg}`);
     if (toProfile === 'custom') {
       console.log('  Note: custom profile has no fixed defaults — this list is informational only.');
@@ -149,7 +157,7 @@ function reportResult(result: SwitchProfileResult): void {
   }
 
   console.log(
-    '\n  Note: rule collections are not changed by profile switch — edit `llm/rule-packages.json` manually if needed.',
+    '\n  Note: rule collections are not changed by profile switch — edit `llm/packages.json` manually if needed.',
   );
   console.log('\n  Next: run `bluetemberg sync` to regenerate platform files.\n');
 }
