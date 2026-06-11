@@ -228,8 +228,13 @@ Bluetemberg's official packs live in **[prototypdigital/bluetemberg-packs](https
 | `bluetemberg-agents-test-specialist` | Test specialist |
 | `bluetemberg-agents-docs-maintainer` | Docs maintainer |
 | `bluetemberg-agents-code-reviewer` | Code reviewer |
+| `bluetemberg-agents-a11y-specialist` | Accessibility specialist |
 | `bluetemberg-agents-security-specialist` | Security specialist |
+| `bluetemberg-agents-infrastructure-specialist` | Infrastructure specialist |
 | `bluetemberg-agents-devops-specialist` | DevOps specialist |
+| `bluetemberg-agents-ansible-specialist` | Ansible specialist |
+| `bluetemberg-agents-kubernetes-specialist` | Kubernetes specialist |
+| `bluetemberg-agents-sre-specialist` | SRE specialist |
 
 ### Skill packs
 
@@ -238,10 +243,15 @@ Bluetemberg's official packs live in **[prototypdigital/bluetemberg-packs](https
 | `bluetemberg-skills-patterns` | Patterns |
 | `bluetemberg-skills-docs-upkeep` | Docs upkeep |
 | `bluetemberg-skills-workspace-hygiene` | Workspace hygiene |
+| `bluetemberg-skills-react-patterns` | React patterns |
 | `bluetemberg-skills-code-review` | Code review |
 | `bluetemberg-skills-api-design` | API design |
 | `bluetemberg-skills-security-audit` | Security audit |
 | `bluetemberg-skills-ci-cd-best-practices` | CI/CD best practices |
+| `bluetemberg-skills-migration-safety` | Migration safety |
+| `bluetemberg-skills-stack-change-review` | Stack change review |
+| `bluetemberg-skills-infrastructure-drift-check` | Infrastructure drift check |
+| `bluetemberg-skills-rollback-plan` | Rollback plan |
 
 For the full catalog, see the [bluetemberg-packs wiki](https://github.com/prototypdigital/bluetemberg-packs/wiki/Catalog).
 

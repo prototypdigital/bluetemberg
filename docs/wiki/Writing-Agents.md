@@ -72,6 +72,9 @@ Official agents ship as `bluetemberg-agents-*` packages from [prototypdigital/bl
 | `bluetemberg-agents-security-specialist` | backend, fullstack, devops | Vulnerability audit, dependency scanning, secrets management |
 | `bluetemberg-agents-infrastructure-specialist` | devops | Build, CI, container, deployment config |
 | `bluetemberg-agents-devops-specialist` | devops | CI/CD pipelines, container optimization, IaC review |
+| `bluetemberg-agents-ansible-specialist` | devops | Ansible roles, playbooks, and Jinja2 templates |
+| `bluetemberg-agents-kubernetes-specialist` | devops | Manifests, Helm charts, Kustomize overlays |
+| `bluetemberg-agents-sre-specialist` | devops | SLOs, alerting, runbooks, post-mortems |
 
 You can also write custom local agents directly in `llm/agents/` — local files always take priority over package content.
 

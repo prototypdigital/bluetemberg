@@ -82,6 +82,9 @@ function readPackageManifest(manifestPath: string): PackageManifest {
   try {
     return JSON.parse(readFileSync(manifestPath, 'utf8')) as PackageManifest;
   } catch {
+    console.warn(
+      `  Warning: could not parse ${manifestPath} — treating as empty. Check for JSON syntax errors.`,
+    );
     return { packages: {} };
   }
 }
@@ -97,15 +100,11 @@ function applyPackageManifest(
   const result: ApplyResult = { added: [], stale: [] };
 
   const targetPackages = new Set<string>();
-  for (const id of targetIds) {
-    const preset = presets.find((p) => p.id === id);
-    if (preset?.packageName) targetPackages.add(preset.packageName);
-  }
-
   let changed = false;
   for (const id of targetIds) {
     const preset = presets.find((p) => p.id === id);
     if (!preset?.packageName) continue;
+    targetPackages.add(preset.packageName);
     if (manifest.packages[preset.packageName]) continue;
 
     manifest.packages[preset.packageName] = '^0.1.0';

@@ -79,11 +79,15 @@ Official skills ship as `bluetemberg-skills-*` packages from [prototypdigital/bl
 | `bluetemberg-skills-patterns` | frontend, backend, fullstack | Apply reusable architecture and coding patterns |
 | `bluetemberg-skills-docs-upkeep` | all | Keep docs aligned with implementation changes |
 | `bluetemberg-skills-workspace-hygiene` | all | On-demand workspace audit — review change scope, clean temp artifacts |
+| `bluetemberg-skills-react-patterns` | frontend, fullstack | Component composition, hook extraction, and state co-location for React projects |
 | `bluetemberg-skills-code-review` | frontend, backend, fullstack | Structured review checklist for PRs |
 | `bluetemberg-skills-api-design` | backend, fullstack | RESTful conventions, pagination, versioning |
 | `bluetemberg-skills-security-audit` | backend, fullstack, devops | Dependency audit, secrets scan, OWASP patterns |
 | `bluetemberg-skills-ci-cd-best-practices` | devops | Pipeline optimization, caching strategies |
 | `bluetemberg-skills-migration-safety` | backend, fullstack | Database migration review, rollback plans |
+| `bluetemberg-skills-stack-change-review` | devops | High-blast-radius infrastructure change review |
+| `bluetemberg-skills-infrastructure-drift-check` | devops | Verify declared IaC state matches deployed state before merge |
+| `bluetemberg-skills-rollback-plan` | devops | Require tested rollback steps for every production change |
 
 You can also write custom local skills directly in `llm/skills/` — local files always take priority over package content.
 
