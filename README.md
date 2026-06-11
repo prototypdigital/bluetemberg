@@ -124,12 +124,12 @@ npx bluetemberg switch-profile backend
 
 The command is **non-destructive**:
 
-- Copies any missing template files for the new profile into `llm/`.
-- Never overwrites files you've already edited.
-- Reports rules/agents/skills that are now outside the new profile's defaults so you can review and remove them manually.
+- Adds the new profile's default agent and skill packages to `llm/packages.json` if missing.
+- Never removes packages or touches your local `llm/` files.
+- Reports official agent/skill packages that are outside the new profile's defaults so you can review and remove them manually (rule collections and third-party packs are never flagged).
 - Updates `profile` in `bluetemberg.config.json`.
 
-Run `npx bluetemberg sync` afterwards to regenerate platform files.
+Run `bluetemberg install` and `npx bluetemberg sync` afterwards to download new packs and regenerate platform files.
 
 ## Sync
 
