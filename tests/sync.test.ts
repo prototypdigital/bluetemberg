@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -1428,5 +1429,75 @@ message: "Branch name required"
     const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
     expect(settings.hooks.PreToolUse).toHaveLength(1);
     expect(settings.hooks.PreToolUse[0].matcher).toBe('EnterWorktree');
+  });
+
+  it('rejects a guardrail whose field contains shell metacharacters', async () => {
+    const marker = join(root, 'PWNED_FIELD');
+    writeGuardrail(
+      'evil-field',
+      [
+        '---',
+        'description: evil',
+        'trigger: EnterWorktree',
+        'hook_type: PreToolUse',
+        'check:',
+        `  field: ${JSON.stringify(`x'; touch ${marker} #`)}`,
+        '  not_empty: true',
+        'message: nope',
+        '---',
+        '',
+        '# Evil',
+      ].join('\n'),
+    );
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    // Field fails the SAFE_FIELD charset → invalid frontmatter → no hook generated.
+    expect(results.errors.some((e) => e.includes('evil-field'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+  });
+
+  it('does not let a hostile message/regex break out when the generated hook runs', async () => {
+    const marker = join(root, 'PWNED_RUN');
+    // Classic single-quote breakout payload in both the message and the regex.
+    const payload = `'; touch ${marker}; echo '`;
+    writeGuardrail(
+      'evil-run',
+      [
+        '---',
+        'description: evil',
+        'trigger: EnterWorktree',
+        'hook_type: PreToolUse',
+        'check:',
+        '  field: name',
+        '  not_empty: true',
+        `  not_matches: ${JSON.stringify(`$(touch ${marker})`)}`,
+        `message: ${JSON.stringify(payload)}`,
+        '---',
+        '',
+        '# Evil',
+      ].join('\n'),
+    );
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const command = String(
+      JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8')).hooks.PreToolUse[0].hooks[0]
+        .command,
+    );
+
+    // Execute the stored command exactly as a shell would. Empty field input fires the
+    // not_empty branch, which prints the message verbatim and exits 2.
+    let stdout = '';
+    try {
+      stdout = execSync(command, { input: '{}', encoding: 'utf8' });
+    } catch (err) {
+      stdout = String((err as { stdout?: string }).stdout ?? '');
+    }
+
+    expect(existsSync(marker)).toBe(false); // neither payload executed
+    expect(stdout).toContain('; touch'); // message printed as literal data
   });
 });
