@@ -421,6 +421,13 @@ describe('scaffold', () => {
       const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
       expect(content).toContain('.gemini/context/');
     });
+
+    it('tells the user to regenerate with `npx bluetemberg sync` (works without package.json)', () => {
+      scaffold(root, baseAnswers);
+
+      const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+      expect(content).toContain('Run `npx bluetemberg sync` to generate tool-specific files');
+    });
   });
 
   describe('CLAUDE.md', () => {
@@ -448,6 +455,13 @@ describe('scaffold', () => {
 
       const content = readFileSync(join(root, 'CLAUDE.md'), 'utf8');
       expect(content).toContain('llm/agents/');
+    });
+
+    it('uses the universal `npx bluetemberg sync` regenerate command (works without package.json)', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['claude'] });
+
+      const content = readFileSync(join(root, 'CLAUDE.md'), 'utf8');
+      expect(content).toContain('npx bluetemberg sync');
     });
   });
 

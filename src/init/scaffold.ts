@@ -327,7 +327,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
 
   agentsLines.push(
     '',
-    `Run \`${pm} sync:llm-config\` to generate tool-specific files in ${targetDirs.join(', ')}. These generated files should not be edited directly.`,
+    `Run \`npx bluetemberg sync\` to generate tool-specific files in ${targetDirs.join(', ')}. These generated files should not be edited directly.`,
     '',
     '## Boundaries',
     '',
@@ -351,7 +351,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
   safeWrite(join(targetDir, 'AGENTS.md'), agentsLines.join('\n'), created);
 
   if (answers.platforms.includes('claude')) {
-    const syncCmd = `${pm} sync:llm-config`;
+    const syncCmd = 'npx bluetemberg sync';
     const editDirs = ['`llm/rules/`'];
     if (answers.includeAgents) editDirs.push('`llm/agents/`');
     if (answers.includeSkills) editDirs.push('`llm/skills/`');
