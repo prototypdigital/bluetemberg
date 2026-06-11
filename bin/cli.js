@@ -350,7 +350,7 @@ program
 
 program
   .command('add')
-  .description('Add a rule pack from the npm registry')
+  .description('Add a pack (rules, agents, skills, guardrails) from the npm registry')
   .argument('<package>', 'Package name with optional @version (e.g. my-rules@^1.0.0)')
   .option('--version <range>', 'Semver range (overrides @version in package spec)')
   .option('--silent', 'Suppress all output')
@@ -371,7 +371,7 @@ program
 
 program
   .command('remove')
-  .description('Remove a rule pack from the project')
+  .description('Remove a pack from the project')
   .argument('<package>', 'Package name to remove')
   .option('--silent', 'Suppress all output')
   .action(async (packageName, options) => {
@@ -388,7 +388,7 @@ program
 
 program
   .command('list')
-  .description('List installed rule packs')
+  .description('List installed packs')
   .option('--silent', 'Suppress all output')
   .action(async (options) => {
     const { list } = await import('../dist/registry/index.js');
@@ -404,7 +404,7 @@ program
 
 program
   .command('install')
-  .description('Install all rule packs from the manifest (like npm ci)')
+  .description('Install all packs from llm/packages.json (like npm ci)')
   .option('--force', 'Force re-download even if cached')
   .option('--silent', 'Suppress all output')
   .action(async (options) => {
@@ -424,7 +424,7 @@ program
 
 program
   .command('update')
-  .description('Update rule packs to the latest version satisfying their manifest range')
+  .description('Update packs to the latest version satisfying their manifest range')
   .argument('[package]', 'Package name to update (updates all when omitted)')
   .option('--latest', 'Widen ranges to "latest" in manifest, not just re-resolve current range')
   .option('--silent', 'Suppress all output')
@@ -445,7 +445,7 @@ program
 
 program
   .command('search')
-  .description('Search the npm registry for bluetemberg rule packs')
+  .description('Search the npm registry for bluetemberg packs')
   .argument('<query>', 'Search query')
   .option('--limit <n>', 'Max results (default: 20)', (s) => parseInt(s, 10))
   .option('--silent', 'Suppress all output')

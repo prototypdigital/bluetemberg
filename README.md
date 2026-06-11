@@ -92,11 +92,10 @@ When `claude-marketplace` is in `platforms`, sync also generates:
 .claude-plugin/
 └── marketplace.json            # Root manifest listing all plugins
 plugins/
-├── frontend/                   # Rules + skills + agents for frontend devs
-├── fullstack/                  # Rules + skills + agents for full-stack devs
-├── backend/                    # Rules + skills + agents for backend devs
-└── devops/                     # Rules + skills + agents for DevOps / platform engineers
+└── <plugin-name>/              # One directory per plugin defined in marketplace.plugins
 ```
+
+Official Bluetemberg plugin packs (frontend, fullstack, backend, devops) are served from [prototypdigital/claude-marketplace](https://github.com/prototypdigital/claude-marketplace), generated from [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) content — add them with `/plugin marketplace add prototypdigital/claude-marketplace`. See [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace).
 
 ## Rule collections by profile
 
