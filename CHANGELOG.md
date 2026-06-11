@@ -20,6 +20,50 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.3.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.10...bluetemberg-v0.3.0) (2026-06-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* the package is renamed from @prototypdigital/bluetemberg to bluetemberg and publishes to public npm instead of GitHub Packages. Update install and import references accordingly.
+
+### Features
+
+* **guardrails:** install guardrails as packs, sync from all sources ([6051c1a](https://github.com/prototypdigital/bluetemberg/commit/6051c1aae897382bc579ad709dc687cc18796209))
+* **guardrails:** install guardrails as packs, sync from all sources ([6e93f25](https://github.com/prototypdigital/bluetemberg/commit/6e93f25e13c0922bfb04a6823f7ec59cafca3cdb))
+* **init,sources:** add source commands to --help --json and external sources to init wizard ([af17f5a](https://github.com/prototypdigital/bluetemberg/commit/af17f5a4c58715ee2bf00907f63fde2c07e450a0))
+* **init:** add empty-scaffold rule source for bring-your-own rules ([c5538e4](https://github.com/prototypdigital/bluetemberg/commit/c5538e496bd399442cfe1ef2622835499c03a61e))
+* **init:** empty-scaffold rule source (bring your own rules) ([f72e12b](https://github.com/prototypdigital/bluetemberg/commit/f72e12be352dd6b9ba558126da3f92cd5490ab8d))
+* **init:** retire bundled rule templates in favour of registry packs ([eb677ba](https://github.com/prototypdigital/bluetemberg/commit/eb677ba734cacac14e5feb0557d26e2d5987d0a9))
+* **init:** retire bundled rule templates in favour of registry packs ([f339c5a](https://github.com/prototypdigital/bluetemberg/commit/f339c5ad723415a8b872839c9cb76cb614a0bbc9))
+* publish to public npm as unscoped "bluetemberg" (MIT) ([cf514d1](https://github.com/prototypdigital/bluetemberg/commit/cf514d1d57ce3db5caa4cfeda775a6b8429540e3))
+* **sources:** add cursor.directory adapter (metadata + GitHub delegation) ([b9c93e6](https://github.com/prototypdigital/bluetemberg/commit/b9c93e6594ff90ad0fb61b2324f7d56f2371290a))
+* **sources:** add cursor.directory adapter (metadata + GitHub delegation) ([4eb477c](https://github.com/prototypdigital/bluetemberg/commit/4eb477ce06683c922ad6cb3504076bc1aa50a364)), closes [#45](https://github.com/prototypdigital/bluetemberg/issues/45)
+* **sources:** add PRPM adapter ([1cf7976](https://github.com/prototypdigital/bluetemberg/commit/1cf7976022743142a947b61701652e61e69a22bd))
+* **sources:** add PRPM adapter ([8ce96e0](https://github.com/prototypdigital/bluetemberg/commit/8ce96e0fea9984df99a36c1955ee9b0af2ef87d9)), closes [#45](https://github.com/prototypdigital/bluetemberg/issues/45)
+* **sources:** pluggable external rule source framework + GitHub adapter ([f58537a](https://github.com/prototypdigital/bluetemberg/commit/f58537a7e00d2e8f0d7048e3fad5a61b180f27db))
+* **sources:** pluggable external rule source framework + GitHub adapter ([562943b](https://github.com/prototypdigital/bluetemberg/commit/562943b008bc9426bf3ede79f5def26cddc8aeb2)), closes [#45](https://github.com/prototypdigital/bluetemberg/issues/45)
+* **sources:** warn on cursor-directory use + resilient search ([bf1e031](https://github.com/prototypdigital/bluetemberg/commit/bf1e031ba6b6873265b8f293e9f5047eabf8eceb))
+
+
+### Bug Fixes
+
+* address review findings from PR [#118](https://github.com/prototypdigital/bluetemberg/issues/118) ([5cfa209](https://github.com/prototypdigital/bluetemberg/commit/5cfa209267348a3978df2400c6bd9ab6a5b66187))
+* **cli:** declare --check and --dry-run as distinct sync options ([5df7613](https://github.com/prototypdigital/bluetemberg/commit/5df761344629fb4d15b9d70a41498fb3fb6058af))
+* **deps:** require Node &gt;=20 to match commander 14 ([4664f35](https://github.com/prototypdigital/bluetemberg/commit/4664f356be478b7c641d4acbe4024428b2f82e14))
+* **deps:** resolve npm audit security vulnerabilities ([2fbfe13](https://github.com/prototypdigital/bluetemberg/commit/2fbfe13ff31a830b43167161998a658cea94cab7))
+* **deps:** resolve npm audit security vulnerabilities ([22456ec](https://github.com/prototypdigital/bluetemberg/commit/22456ec8ce877e1ce77574bbe1f205362b73d756)), closes [#103](https://github.com/prototypdigital/bluetemberg/issues/103)
+* **init:** add pure-infra tags to git/security/docs collections; update docs ([d3163c9](https://github.com/prototypdigital/bluetemberg/commit/d3163c947e0475c4e8dfa5bb523be8e238c78874))
+* **init:** persist empty llm/rules/ via .gitkeep for none rule source ([0c4d4ef](https://github.com/prototypdigital/bluetemberg/commit/0c4d4ef8cd330f0478ca14ed860e11565e5db307))
+* **marketplace:** error on unknown profiles and empty plugin bundles ([bcd2a51](https://github.com/prototypdigital/bluetemberg/commit/bcd2a51a6855a8f99abedca93a16e460df339f9e))
+* **marketplace:** error on unknown profiles and empty plugin bundles ([dc95c34](https://github.com/prototypdigital/bluetemberg/commit/dc95c342ecebc277fb78c34c9d50ba20f8d99dbc)), closes [#88](https://github.com/prototypdigital/bluetemberg/issues/88)
+* **marketplace:** skip empty plugin manifests and sort valid-profiles list ([22f5eae](https://github.com/prototypdigital/bluetemberg/commit/22f5eae307d8c66e8f50e3d0b2f4cd956e659a5a))
+* **sources:** bake cursor.directory public credentials into constants ([a5d2171](https://github.com/prototypdigital/bluetemberg/commit/a5d2171433ffa3cb37bf461d79d5f7e5b10a5085))
+* **sources:** harden 0.3.0 external-source framework + doc/lockfile parity ([ffa3209](https://github.com/prototypdigital/bluetemberg/commit/ffa32096478f85dd7df84ad4b52e424e831db349))
+* **sources:** harden external fetch (integrity, size caps, input validation) ([f8a735c](https://github.com/prototypdigital/bluetemberg/commit/f8a735c06f606e1ffac1b87c83587fc9f72d30ba))
+* **sources:** thread net options through the cursor.directory adapter ([5a7d78d](https://github.com/prototypdigital/bluetemberg/commit/5a7d78d6bc0c627f2ee695276127ae6a8170640b))
+* **tests:** update cli.test.ts for removed rules field and collections source ([25c2c89](https://github.com/prototypdigital/bluetemberg/commit/25c2c8942d374f0d956e49da3b069689f5d3409c))
+
 ## [0.2.10](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.9...bluetemberg-v0.2.10) (2026-05-20)
 
 
