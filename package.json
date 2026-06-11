@@ -69,8 +69,5 @@
   "files": [
     "bin/",
     "dist/"
-  ],
-  "workspaces": [
-    "packages/*"
   ]
 }
