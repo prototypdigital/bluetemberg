@@ -33,27 +33,28 @@ export function readManifest(root: string, source = 'llm'): PackageManifest {
   return mergeLegacyManifests(root, source, manifest);
 }
 
-/**
- * Merges any legacy kind-split manifests into the given manifest (in memory).
- * Entries already in the unified manifest win on conflict.
- */
+// Merges any legacy kind-split manifests into the given manifest (in memory).
+// Entries already in the unified manifest win on conflict. Returns a new object.
 function mergeLegacyManifests(root: string, source: string, manifest: PackageManifest): PackageManifest {
+  const packages = { ...manifest.packages };
+  let registry = manifest.registry;
+
   for (const file of LEGACY_MANIFEST_FILES) {
     const p = join(root, source, file);
     if (!existsSync(p)) continue;
 
     const legacy = validateManifest(JSON.parse(readFileSync(p, 'utf8')) as unknown, p);
-    if (manifest.registry === undefined && legacy.registry !== undefined) {
-      manifest.registry = legacy.registry;
+    if (registry === undefined && legacy.registry !== undefined) {
+      registry = legacy.registry;
     }
     for (const [name, range] of Object.entries(legacy.packages)) {
-      if (!(name in manifest.packages)) {
-        manifest.packages[name] = range;
+      if (!(name in packages)) {
+        packages[name] = range;
       }
     }
   }
 
-  return manifest;
+  return { ...(registry !== undefined ? { registry } : {}), packages };
 }
 
 /** Whether any pre-unification manifest or lockfile files exist on disk. */

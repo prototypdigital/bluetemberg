@@ -221,3 +221,17 @@ This profile is scoped to infrastructure-only repos. It defaults to `git`, `secu
 ## Custom
 
 Pick everything individually. No collections are pre-checked. Use this when your project doesn't fit a standard profile or when you want full control.
+
+## Switching profiles
+
+After init, switch the active profile at any time:
+
+```bash
+bluetemberg switch-profile backend
+```
+
+This adds any agent and skill packages belonging to the new profile's defaults that are not yet in `llm/packages.json`. It never removes packages automatically — instead it reports which official agent/skill packages in the manifest are not part of the new profile's defaults so you can decide whether to keep or remove them manually.
+
+Stale detection is scoped to the official agent/skill preset catalog. Rule collections (e.g. `bluetemberg-rules-typescript`) and any third-party packs are never flagged — the switch cannot know which kind they are and should not touch them.
+
+After switching, run `bluetemberg sync` to regenerate platform files.

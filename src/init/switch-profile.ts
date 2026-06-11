@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   DEFAULT_PACK_VERSION,
+  manifestPath,
   migrateLegacyManifests,
   readManifest,
   writeManifest,
@@ -96,7 +97,7 @@ function readManifestLenient(root: string): PackageManifest {
     return readManifest(root);
   } catch {
     console.warn(
-      `  Warning: could not parse ${join(root, 'llm', 'packages.json')} — treating as empty. Check for JSON syntax errors.`,
+      `  Warning: could not parse ${manifestPath(root)} — treating as empty. Check for JSON syntax errors.`,
     );
     return { packages: {} };
   }

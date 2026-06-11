@@ -162,11 +162,6 @@ function scaffoldEmptyRules(targetDir: string, created: string[]): void {
   safeWrite(join(targetDir, 'llm', 'rules', '.gitkeep'), '', created);
 }
 
-/**
- * Writes the unified `llm/packages.json` manifest covering all selected rule
- * collections, agents, and skills. Skipped entirely when nothing resolves to a
- * package — `bluetemberg install` then has nothing to do.
- */
 function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, created: string[]): void {
   const packages: Record<string, string> = {};
 

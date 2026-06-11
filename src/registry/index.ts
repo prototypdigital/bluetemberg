@@ -440,7 +440,7 @@ export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: str
   // are merged in memory here and consolidated on disk by the next write command.
   if (hasLegacyManifestFiles(root, source)) {
     warnings.push(
-      `Legacy manifest files (rule-packages.json / agent-packages.json / skill-packages.json) detected in ${source}/ — run "bluetemberg install" to migrate them to packages.json.`,
+      `Legacy manifest files detected in ${source}/ (data merged in memory) — run "bluetemberg install" to persist them into packages.json and remove the legacy files.`,
     );
   }
 
