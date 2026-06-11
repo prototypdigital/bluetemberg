@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { scaffold } from '../src/init/scaffold.js';
@@ -72,27 +72,23 @@ describe('switchProfile', () => {
     expect(result.stale).toEqual([]);
   });
 
-  it('copies missing template files for the new profile', () => {
+  it('adds missing agent packages to the manifest when switching profile', () => {
     scaffold(root, baseAnswers);
-
-    const backendAgent = join(root, 'llm', 'agents', 'backend-specialist.md');
-    expect(existsSync(backendAgent)).toBe(false);
 
     const result = switchProfile(root, 'backend', { silent: true });
 
-    expect(existsSync(backendAgent)).toBe(true);
-    expect(result.added).toContain(backendAgent);
+    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'agent-packages.json'), 'utf8'));
+    expect(manifest.packages['bluetemberg-agents-backend-specialist']).toBeDefined();
+    expect(result.added).toContain('bluetemberg-agents-backend-specialist');
   });
 
-  it('does not overwrite existing agent files in llm/', () => {
+  it('does not remove existing manifest entries when switching profile', () => {
     scaffold(root, baseAnswers);
-
-    const frontendAgent = join(root, 'llm', 'agents', 'frontend-specialist.md');
-    writeFileSync(frontendAgent, '# Custom override\n');
 
     switchProfile(root, 'fullstack', { silent: true });
 
-    expect(readFileSync(frontendAgent, 'utf8')).toBe('# Custom override\n');
+    const manifest = JSON.parse(readFileSync(join(root, 'llm', 'agent-packages.json'), 'utf8'));
+    expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBeDefined();
   });
 
   it('exposes the previous profile in the result', () => {

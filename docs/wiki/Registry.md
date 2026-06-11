@@ -205,9 +205,11 @@ Downloaded packs are extracted to `.bluetemberg/packs/<name>/<version>/`. This d
 - Can be deleted and restored via `bluetemberg install`.
 - Includes an integrity marker file (`.bluetemberg-integrity`) for cache validation.
 
-## Official rule collections
+## Official packs
 
-Bluetemberg's official rule packs live in their own repository — **[prototypdigital/bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules)** — and publish independently to npm. They group ready-made rules by domain:
+Bluetemberg's official packs live in **[prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs)** and publish independently to npm. They cover rules, agents, and skills grouped by domain.
+
+### Rule packs
 
 | Package | Domain |
 |---------|--------|
@@ -217,7 +219,41 @@ Bluetemberg's official rule packs live in their own repository — **[prototypdi
 | `bluetemberg-rules-docs` | Documentation & diagnostics |
 | `bluetemberg-rules-devops` | Infrastructure |
 
-For the rules inside each pack, see the [Catalog](https://github.com/prototypdigital/bluetemberg-rules/wiki/Catalog) in the bluetemberg-rules wiki.
+### Agent packs
+
+| Package | Agent |
+|---------|-------|
+| `bluetemberg-agents-frontend-specialist` | Frontend specialist |
+| `bluetemberg-agents-backend-specialist` | Backend specialist |
+| `bluetemberg-agents-test-specialist` | Test specialist |
+| `bluetemberg-agents-docs-maintainer` | Docs maintainer |
+| `bluetemberg-agents-code-reviewer` | Code reviewer |
+| `bluetemberg-agents-a11y-specialist` | Accessibility specialist |
+| `bluetemberg-agents-security-specialist` | Security specialist |
+| `bluetemberg-agents-infrastructure-specialist` | Infrastructure specialist |
+| `bluetemberg-agents-devops-specialist` | DevOps specialist |
+| `bluetemberg-agents-ansible-specialist` | Ansible specialist |
+| `bluetemberg-agents-kubernetes-specialist` | Kubernetes specialist |
+| `bluetemberg-agents-sre-specialist` | SRE specialist |
+
+### Skill packs
+
+| Package | Skill |
+|---------|-------|
+| `bluetemberg-skills-patterns` | Patterns |
+| `bluetemberg-skills-docs-upkeep` | Docs upkeep |
+| `bluetemberg-skills-workspace-hygiene` | Workspace hygiene |
+| `bluetemberg-skills-react-patterns` | React patterns |
+| `bluetemberg-skills-code-review` | Code review |
+| `bluetemberg-skills-api-design` | API design |
+| `bluetemberg-skills-security-audit` | Security audit |
+| `bluetemberg-skills-ci-cd-best-practices` | CI/CD best practices |
+| `bluetemberg-skills-migration-safety` | Migration safety |
+| `bluetemberg-skills-stack-change-review` | Stack change review |
+| `bluetemberg-skills-infrastructure-drift-check` | Infrastructure drift check |
+| `bluetemberg-skills-rollback-plan` | Rollback plan |
+
+For the full catalog, see the [bluetemberg-packs wiki](https://github.com/prototypdigital/bluetemberg-packs/wiki/Catalog).
 
 ### Using collections via init
 

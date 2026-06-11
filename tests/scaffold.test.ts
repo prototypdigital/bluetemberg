@@ -245,48 +245,94 @@ describe('scaffold', () => {
   });
 
   describe('agents', () => {
-    it('copies agent templates into llm/agents/ when includeAgents is true', () => {
+    it('writes llm/agent-packages.json with selected agent package names', () => {
       scaffold(root, { ...baseAnswers, includeAgents: true, agents: ['frontend-specialist'] });
 
-      expect(existsSync(join(root, 'llm', 'agents', 'frontend-specialist.md'))).toBe(true);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'agent-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBeDefined();
     });
 
-    it('does not create llm/agents/ when includeAgents is false', () => {
+    it('writes semver ranges, not exact pins', () => {
+      scaffold(root, { ...baseAnswers, includeAgents: true, agents: ['frontend-specialist'] });
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'agent-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBe('^0.1.0');
+    });
+
+    it('does not create llm/agent-packages.json when includeAgents is false', () => {
       scaffold(root, { ...baseAnswers, includeAgents: false, agents: ['frontend-specialist'] });
 
-      expect(existsSync(join(root, 'llm', 'agents'))).toBe(false);
+      expect(existsSync(join(root, 'llm', 'agent-packages.json'))).toBe(false);
     });
 
-    it('skips agents with unknown template IDs', () => {
+    it('does not create llm/agent-packages.json when agents list is empty', () => {
+      scaffold(root, { ...baseAnswers, includeAgents: true, agents: [] });
+
+      expect(existsSync(join(root, 'llm', 'agent-packages.json'))).toBe(false);
+    });
+
+    it('skips agents with unknown IDs gracefully', () => {
       scaffold(root, { ...baseAnswers, includeAgents: true, agents: ['nonexistent-agent'] });
 
-      expect(existsSync(join(root, 'llm', 'agents', 'nonexistent-agent.md'))).toBe(false);
+      expect(existsSync(join(root, 'llm', 'agent-packages.json'))).toBe(false);
+    });
+
+    it('writes multiple agents into a single manifest', () => {
+      scaffold(root, {
+        ...baseAnswers,
+        includeAgents: true,
+        agents: ['frontend-specialist', 'test-specialist'],
+      });
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'agent-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBeDefined();
+      expect(manifest.packages['bluetemberg-agents-test-specialist']).toBeDefined();
     });
   });
 
   describe('skills', () => {
-    it('copies skill templates into llm/skills/ when includeSkills is true', () => {
+    it('writes llm/skill-packages.json with selected skill package names', () => {
       scaffold(root, { ...baseAnswers, includeSkills: true, skills: ['patterns'] });
 
-      expect(existsSync(join(root, 'llm', 'skills', 'patterns', 'SKILL.md'))).toBe(true);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'skill-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-skills-patterns']).toBeDefined();
     });
 
-    it('creates llm/skills/ directory even when skills list is empty', () => {
-      scaffold(root, { ...baseAnswers, includeSkills: true, skills: [] });
+    it('writes semver ranges, not exact pins', () => {
+      scaffold(root, { ...baseAnswers, includeSkills: true, skills: ['patterns'] });
 
-      expect(existsSync(join(root, 'llm', 'skills'))).toBe(true);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'skill-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-skills-patterns']).toBe('^0.1.0');
     });
 
-    it('does not create llm/skills/ when includeSkills is false', () => {
+    it('does not create llm/skill-packages.json when includeSkills is false', () => {
       scaffold(root, { ...baseAnswers, includeSkills: false, skills: ['patterns'] });
 
-      expect(existsSync(join(root, 'llm', 'skills'))).toBe(false);
+      expect(existsSync(join(root, 'llm', 'skill-packages.json'))).toBe(false);
     });
 
-    it('skips skills with unknown template IDs', () => {
+    it('does not create llm/skill-packages.json when skills list is empty', () => {
+      scaffold(root, { ...baseAnswers, includeSkills: true, skills: [] });
+
+      expect(existsSync(join(root, 'llm', 'skill-packages.json'))).toBe(false);
+    });
+
+    it('skips skills with unknown IDs gracefully', () => {
       scaffold(root, { ...baseAnswers, includeSkills: true, skills: ['nonexistent-skill'] });
 
-      expect(existsSync(join(root, 'llm', 'skills', 'nonexistent-skill'))).toBe(false);
+      expect(existsSync(join(root, 'llm', 'skill-packages.json'))).toBe(false);
+    });
+
+    it('writes multiple skills into a single manifest', () => {
+      scaffold(root, {
+        ...baseAnswers,
+        includeSkills: true,
+        skills: ['patterns', 'docs-upkeep'],
+      });
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'skill-packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-skills-patterns']).toBeDefined();
+      expect(manifest.packages['bluetemberg-skills-docs-upkeep']).toBeDefined();
     });
   });
 

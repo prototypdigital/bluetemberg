@@ -89,6 +89,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'UI implementation, design-system, i18n, a11y',
     default: true,
     tags: ['frontend', 'fullstack'],
+    packageName: 'bluetemberg-agents-frontend-specialist',
   },
   {
     id: 'backend-specialist',
@@ -96,6 +97,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'API design, database patterns, error handling, auth',
     default: false,
     tags: ['backend', 'fullstack'],
+    packageName: 'bluetemberg-agents-backend-specialist',
   },
   {
     id: 'test-specialist',
@@ -103,6 +105,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'Test creation, refactoring, stabilization',
     default: true,
     tags: ['frontend', 'backend', 'fullstack'],
+    packageName: 'bluetemberg-agents-test-specialist',
   },
   {
     id: 'docs-maintainer',
@@ -110,6 +113,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'Documentation synchronization with code changes',
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    packageName: 'bluetemberg-agents-docs-maintainer',
   },
   {
     id: 'code-reviewer',
@@ -117,6 +121,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'PR review — patterns, naming, complexity, tests',
     default: false,
     tags: ['frontend', 'backend', 'fullstack'],
+    packageName: 'bluetemberg-agents-code-reviewer',
   },
   {
     id: 'a11y-specialist',
@@ -124,6 +129,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'WCAG 2.2 A/AA audit and remediation',
     default: false,
     tags: ['frontend', 'fullstack'],
+    packageName: 'bluetemberg-agents-a11y-specialist',
   },
   {
     id: 'security-specialist',
@@ -131,6 +137,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'Vulnerability audit, dependency scanning, secrets management',
     default: false,
     tags: ['backend', 'fullstack', 'devops', 'pure-infra'],
+    packageName: 'bluetemberg-agents-security-specialist',
   },
   {
     id: 'infrastructure-specialist',
@@ -138,6 +145,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'Build, CI, container, deployment config',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-agents-infrastructure-specialist',
   },
   {
     id: 'devops-specialist',
@@ -145,6 +153,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'CI/CD pipelines, container optimization, IaC review',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-agents-devops-specialist',
   },
   {
     id: 'ansible-specialist',
@@ -152,6 +161,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'Ansible roles, playbooks, and Jinja2 templates',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-agents-ansible-specialist',
   },
   {
     id: 'kubernetes-specialist',
@@ -159,6 +169,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'Manifests, Helm charts, Kustomize overlays',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-agents-kubernetes-specialist',
   },
   {
     id: 'sre-specialist',
@@ -166,6 +177,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     description: 'SLOs, alerting, runbooks, post-mortems',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-agents-sre-specialist',
   },
 ];
 
@@ -176,6 +188,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Apply reusable architecture and coding patterns',
     default: true,
     tags: ['frontend', 'backend', 'fullstack'],
+    packageName: 'bluetemberg-skills-patterns',
   },
   {
     id: 'docs-upkeep',
@@ -183,6 +196,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Keep docs aligned with implementation changes',
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    packageName: 'bluetemberg-skills-docs-upkeep',
   },
   {
     id: 'workspace-hygiene',
@@ -190,6 +204,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Clean workspace state during edits',
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    packageName: 'bluetemberg-skills-workspace-hygiene',
   },
   {
     id: 'react-patterns',
@@ -197,6 +212,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Component composition, hook extraction, and state co-location for React projects',
     default: false,
     tags: ['frontend', 'fullstack'],
+    packageName: 'bluetemberg-skills-react-patterns',
   },
   {
     id: 'code-review',
@@ -204,6 +220,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Structured review checklist for PRs',
     default: false,
     tags: ['frontend', 'backend', 'fullstack'],
+    packageName: 'bluetemberg-skills-code-review',
   },
   {
     id: 'api-design',
@@ -211,6 +228,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'RESTful conventions, pagination, versioning',
     default: false,
     tags: ['backend', 'fullstack'],
+    packageName: 'bluetemberg-skills-api-design',
   },
   {
     id: 'security-audit',
@@ -218,6 +236,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Dependency audit, secrets scan, OWASP patterns',
     default: false,
     tags: ['backend', 'fullstack', 'devops', 'pure-infra'],
+    packageName: 'bluetemberg-skills-security-audit',
   },
   {
     id: 'ci-cd-best-practices',
@@ -225,6 +244,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Pipeline optimization, caching strategies',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-skills-ci-cd-best-practices',
   },
   {
     id: 'migration-safety',
@@ -232,6 +252,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Database migration review, rollback plans',
     default: false,
     tags: ['backend', 'fullstack'],
+    packageName: 'bluetemberg-skills-migration-safety',
   },
   {
     id: 'stack-change-review',
@@ -239,6 +260,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'High-blast-radius infrastructure change review',
     default: true,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-skills-stack-change-review',
   },
   {
     id: 'infrastructure-drift-check',
@@ -246,6 +268,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Verify declared IaC state matches deployed state before merge',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-skills-infrastructure-drift-check',
   },
   {
     id: 'rollback-plan',
@@ -253,6 +276,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     description: 'Require tested rollback steps for every production change',
     default: false,
     tags: ['devops', 'pure-infra'],
+    packageName: 'bluetemberg-skills-rollback-plan',
   },
 ];
 

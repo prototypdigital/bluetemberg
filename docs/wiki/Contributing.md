@@ -109,13 +109,13 @@ No manual version bumping or tagging is needed.
 
 ## Adding a rule to a collection
 
-Rules ship as part of versioned npm packages in [bluetemberg-rules](https://github.com/prototypdigital/bluetemberg-rules). To add a new rule, open a PR there — not in this repo.
+Rules ship as part of versioned npm packages in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). To add a new rule, open a PR there — not in this repo.
 
 If you need to add a new **collection** (a new `bluetemberg-rules-*` package) to the wizard:
 
 ### 1. Publish the package
 
-Follow the contributing guide in the bluetemberg-rules repo. The package must be live on npm before the wizard can suggest it.
+Follow the contributing guide in the bluetemberg-packs repo. The package must be live on npm before the wizard can suggest it.
 
 ### 2. Add a collection preset
 
@@ -144,33 +144,15 @@ npm run build && npm test
 
 Open a PR with title: `feat: add <name> rule collection`
 
-## Adding an agent template
+## Adding an agent
 
-Agents are specialist AI personas. See [Writing Agents](Writing-Agents) for format details.
+Agents are specialist AI personas. Agent content lives in [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) and ships as `bluetemberg-agents-*` npm packages. To add a new agent, open a PR there — not in this repo.
 
-### 1. Create the template file
+To wire a new agent package into the init wizard:
 
-Add a Markdown file to `templates/agents/`:
+### 1. Publish the package
 
-```markdown
----
-name: my-agent
-description: One-line description.
-tools: ['read', 'search', 'edit']
----
-
-# My Agent
-
-You are a [role] specialist. Your job is to [responsibility].
-
-## Responsibilities
-
-- ...
-
-## Constraints
-
-- ...
-```
+Follow the contributing guide in the bluetemberg-packs repo. The package must be live on npm before the wizard can suggest it.
 
 ### 2. Add a preset entry
 
@@ -183,22 +165,23 @@ In `src/init/presets.ts`, add to `AGENT_PRESETS`:
   description: 'What it does',
   default: false,
   tags: ['backend', 'fullstack'],
+  packageName: 'bluetemberg-agents-my-agent',
 },
 ```
 
 ### 3. Update docs and open a PR
 
-Add the agent to tables in [Writing Agents](Writing-Agents) and [Profiles](Profiles). PR title: `feat: add <name> agent template`
+Add the agent to tables in [Writing Agents](Writing-Agents) and [Profiles](Profiles). PR title: `feat: add <name> agent`
 
-## Adding a skill template
+## Adding a skill
 
-Skills are on-demand, multi-step workflows. See [Writing Skills](Writing-Skills) for format details and when to use a skill vs a rule.
+Skills are on-demand, multi-step workflows. Skill content lives in [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) and ships as `bluetemberg-skills-*` npm packages. To add a new skill, open a PR there — not in this repo.
 
-### 1. Create the template directory
+To wire a new skill package into the init wizard:
 
-```
-templates/skills/my-skill/SKILL.md
-```
+### 1. Publish the package
+
+Follow the contributing guide in the bluetemberg-packs repo. The package must be live on npm before the wizard can suggest it.
 
 ### 2. Add a preset entry
 
@@ -211,12 +194,13 @@ In `src/init/presets.ts`, add to `SKILL_PRESETS`:
   description: 'What it does',
   default: false,
   tags: ['backend', 'fullstack'],
+  packageName: 'bluetemberg-skills-my-skill',
 },
 ```
 
 ### 3. Update docs and open a PR
 
-Add the skill to tables in [Writing Skills](Writing-Skills) and [Profiles](Profiles). PR title: `feat: add <name> skill template`
+Add the skill to tables in [Writing Skills](Writing-Skills) and [Profiles](Profiles). PR title: `feat: add <name> skill`
 
 ## Adding a team profile
 

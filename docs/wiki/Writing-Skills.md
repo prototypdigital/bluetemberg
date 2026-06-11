@@ -70,18 +70,26 @@ Skills are copied **verbatim** to target platforms. The directory structure is p
 - Each skill is a **directory** containing `SKILL.md`
 - Directory name should be **kebab-case**: `docs-upkeep`, `workspace-hygiene`
 
-## Available starter skills
+## Official skill packages
 
-| Skill | Tags | Description |
-| ----- | ---- | ----------- |
-| `patterns` | frontend, backend, fullstack | Apply reusable architecture and coding patterns |
-| `docs-upkeep` | all | Keep docs aligned with implementation changes |
-| `workspace-hygiene` | all | On-demand workspace audit — review change scope, clean temp artifacts |
-| `code-review` | frontend, backend, fullstack | Structured review checklist for PRs |
-| `api-design` | backend, fullstack | RESTful conventions, pagination, versioning |
-| `security-audit` | backend, fullstack, devops | Dependency audit, secrets scan, OWASP patterns |
-| `ci-cd-best-practices` | devops | Pipeline optimization, caching strategies |
-| `migration-safety` | backend, fullstack | Database migration review, rollback plans |
+Official skills ship as `bluetemberg-skills-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes an `llm/skill-packages.json` manifest; run `bluetemberg install` to download them.
+
+| Package | Tags | Description |
+| ------- | ---- | ----------- |
+| `bluetemberg-skills-patterns` | frontend, backend, fullstack | Apply reusable architecture and coding patterns |
+| `bluetemberg-skills-docs-upkeep` | all | Keep docs aligned with implementation changes |
+| `bluetemberg-skills-workspace-hygiene` | all | On-demand workspace audit — review change scope, clean temp artifacts |
+| `bluetemberg-skills-react-patterns` | frontend, fullstack | Component composition, hook extraction, and state co-location for React projects |
+| `bluetemberg-skills-code-review` | frontend, backend, fullstack | Structured review checklist for PRs |
+| `bluetemberg-skills-api-design` | backend, fullstack | RESTful conventions, pagination, versioning |
+| `bluetemberg-skills-security-audit` | backend, fullstack, devops | Dependency audit, secrets scan, OWASP patterns |
+| `bluetemberg-skills-ci-cd-best-practices` | devops | Pipeline optimization, caching strategies |
+| `bluetemberg-skills-migration-safety` | backend, fullstack | Database migration review, rollback plans |
+| `bluetemberg-skills-stack-change-review` | devops | High-blast-radius infrastructure change review |
+| `bluetemberg-skills-infrastructure-drift-check` | devops | Verify declared IaC state matches deployed state before merge |
+| `bluetemberg-skills-rollback-plan` | devops | Require tested rollback steps for every production change |
+
+You can also write custom local skills directly in `llm/skills/` — local files always take priority over package content.
 
 ## Writing a good skill
 

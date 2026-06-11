@@ -15,7 +15,12 @@ import type {
 } from '../types.js';
 import { parseSourceSpec, sourceKey } from '../sources/spec.js';
 import type { SourceManifest } from '../sources/types.js';
-import { RULE_COLLECTION_PRESETS, MARKETPLACE_PLUGIN_PACKS } from './presets.js';
+import {
+  RULE_COLLECTION_PRESETS,
+  AGENT_PRESETS,
+  SKILL_PRESETS,
+  MARKETPLACE_PLUGIN_PACKS,
+} from './presets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
@@ -32,11 +37,11 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   }
 
   if (answers.includeAgents) {
-    scaffoldAgents(targetDir, answers, created);
+    scaffoldAgentPackages(targetDir, answers, created);
   }
 
   if (answers.includeSkills) {
-    scaffoldSkills(targetDir, answers, created);
+    scaffoldSkillPackages(targetDir, answers, created);
   }
 
   scaffoldRootDocs(targetDir, answers, created);
@@ -180,39 +185,40 @@ function scaffoldRuleCollections(targetDir: string, answers: InitAnswers, create
   safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
-function scaffoldAgents(targetDir: string, answers: InitAnswers, created: string[]): void {
-  const destDir = join(targetDir, 'llm', 'agents');
-  ensureDir(destDir);
+function scaffoldAgentPackages(targetDir: string, answers: InitAnswers, created: string[]): void {
+  if (answers.agents.length === 0) return;
 
+  const packages: Record<string, string> = {};
   for (const agentId of answers.agents) {
-    const src = join(TEMPLATES_DIR, 'agents', `${agentId}.md`);
-    if (!existsSync(src)) {
-      console.warn(`  Warning: agent template "${agentId}" not found, skipping`);
-      continue;
-    }
-
-    const dest = join(destDir, `${agentId}.md`);
-    copyFileSync(src, dest);
-    created.push(dest);
+    const preset = AGENT_PRESETS.find((a) => a.id === agentId);
+    if (!preset?.packageName) continue;
+    packages[preset.packageName] = '^0.1.0';
   }
+
+  if (Object.keys(packages).length === 0) return;
+
+  const manifest: PackageManifest = { packages };
+  const manifestPath = join(targetDir, 'llm', 'agent-packages.json');
+  ensureDir(dirname(manifestPath));
+  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
-function scaffoldSkills(targetDir: string, answers: InitAnswers, created: string[]): void {
-  ensureDir(join(targetDir, 'llm', 'skills'));
+function scaffoldSkillPackages(targetDir: string, answers: InitAnswers, created: string[]): void {
+  if (answers.skills.length === 0) return;
 
+  const packages: Record<string, string> = {};
   for (const skillId of answers.skills) {
-    const src = join(TEMPLATES_DIR, 'skills', skillId, 'SKILL.md');
-    if (!existsSync(src)) {
-      console.warn(`  Warning: skill template "${skillId}" not found, skipping`);
-      continue;
-    }
-
-    const destDir = join(targetDir, 'llm', 'skills', skillId);
-    ensureDir(destDir);
-    const dest = join(destDir, 'SKILL.md');
-    copyFileSync(src, dest);
-    created.push(dest);
+    const preset = SKILL_PRESETS.find((s) => s.id === skillId);
+    if (!preset?.packageName) continue;
+    packages[preset.packageName] = '^0.1.0';
   }
+
+  if (Object.keys(packages).length === 0) return;
+
+  const manifest: PackageManifest = { packages };
+  const manifestPath = join(targetDir, 'llm', 'skill-packages.json');
+  ensureDir(dirname(manifestPath));
+  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
 function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: string[]): void {

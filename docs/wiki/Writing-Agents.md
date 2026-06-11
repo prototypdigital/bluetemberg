@@ -57,19 +57,26 @@ On Cursor, these files are **project subagents** (see Cursor documentation for s
 - Use **kebab-case**: `frontend-specialist.md`, `test-specialist.md`
 - `README.md` in `llm/agents/` is excluded from sync (use it for authoring notes)
 
-## Available starter agents
+## Official agent packages
 
-| Agent | Tags | Description |
-| ----- | ---- | ----------- |
-| `frontend-specialist` | frontend, fullstack | UI implementation, design-system, i18n, a11y |
-| `backend-specialist` | backend, fullstack | API design, database patterns, error handling, auth |
-| `test-specialist` | frontend, backend, fullstack | Test creation, refactoring, stabilization |
-| `docs-maintainer` | all | Documentation synchronization with code changes |
-| `code-reviewer` | frontend, backend, fullstack | PR review — patterns, naming, complexity, tests |
-| `a11y-specialist` | frontend, fullstack | WCAG 2.2 A/AA audit and remediation |
-| `security-specialist` | backend, fullstack, devops | Vulnerability audit, dependency scanning, secrets management |
-| `infrastructure-specialist` | devops | Build, CI, container, deployment config |
-| `devops-specialist` | devops | CI/CD pipelines, container optimization, IaC review |
+Official agents ship as `bluetemberg-agents-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes an `llm/agent-packages.json` manifest; run `bluetemberg install` to download them.
+
+| Package | Tags | Description |
+| ------- | ---- | ----------- |
+| `bluetemberg-agents-frontend-specialist` | frontend, fullstack | UI implementation, design-system, i18n, a11y |
+| `bluetemberg-agents-backend-specialist` | backend, fullstack | API design, database patterns, error handling, auth |
+| `bluetemberg-agents-test-specialist` | frontend, backend, fullstack | Test creation, refactoring, stabilization |
+| `bluetemberg-agents-docs-maintainer` | all | Documentation synchronization with code changes |
+| `bluetemberg-agents-code-reviewer` | frontend, backend, fullstack | PR review — patterns, naming, complexity, tests |
+| `bluetemberg-agents-a11y-specialist` | frontend, fullstack | WCAG 2.2 A/AA audit and remediation |
+| `bluetemberg-agents-security-specialist` | backend, fullstack, devops | Vulnerability audit, dependency scanning, secrets management |
+| `bluetemberg-agents-infrastructure-specialist` | devops | Build, CI, container, deployment config |
+| `bluetemberg-agents-devops-specialist` | devops | CI/CD pipelines, container optimization, IaC review |
+| `bluetemberg-agents-ansible-specialist` | devops | Ansible roles, playbooks, and Jinja2 templates |
+| `bluetemberg-agents-kubernetes-specialist` | devops | Manifests, Helm charts, Kustomize overlays |
+| `bluetemberg-agents-sre-specialist` | devops | SLOs, alerting, runbooks, post-mortems |
+
+You can also write custom local agents directly in `llm/agents/` — local files always take priority over package content.
 
 ## Writing a good agent
 
