@@ -358,6 +358,7 @@ export const GUARDRAIL_PRESETS: PresetItem[] = [
     default: true,
     tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
     universal: true,
+    packageName: 'bluetemberg-guardrails-git',
   },
 ];
 

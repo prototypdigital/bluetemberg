@@ -21,6 +21,7 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Writing Agents](Writing-Agents) — agent definition format
 - [Writing Skills](Writing-Skills) — SKILL.md format
 - [Writing Hooks](Writing-Hooks) — Cursor `hooks.json` in `llm/`
+- [Guardrails](Guardrails) — declarative checks enforced as platform-native hooks
 - [Writing Commands](Writing-Commands) — Claude Code slash commands in `llm/commands/`
 - [Writing Prompts](Writing-Prompts) — Copilot prompt files in `llm/prompts/`
 - [Architecture](Architecture) — how the sync engine works

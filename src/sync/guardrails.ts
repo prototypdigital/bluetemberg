@@ -1,12 +1,14 @@
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import matter from 'gray-matter';
 import type { GuardrailFrontmatter, Platform } from '../types.js';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import { mergeSourceFiles } from './extends-loader.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
-  sourceBase: string;
+  /** All source dirs in priority order: local, then `extends`, then packs. */
+  sourceDirs: string[];
   platforms: readonly Platform[];
 }
 
@@ -61,8 +63,9 @@ function readExistingSettings(settingsPath: string): Record<string, unknown> {
 }
 
 /**
- * Reads `llm/guardrails/*.md`, translates each guardrail into platform-specific
- * hook config, and writes the result.
+ * Reads `guardrails/*.md` from all source dirs (local `llm/`, `extends`,
+ * installed packs — same precedence as rules), translates each guardrail into
+ * platform-specific hook config, and writes the result.
  *
  * Claude: merges a `hooks` section into `.claude/settings.json`.
  * Other platforms: no-op (not yet supported).
@@ -71,16 +74,13 @@ function readExistingSettings(settingsPath: string): Record<string, unknown> {
  * All other keys in `settings.json` (e.g. `extraKnownMarketplaces`) are preserved.
  */
 export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message: string) => void): void {
-  const guardrailsDir = join(ctx.sourceBase, 'guardrails');
-  if (!existsSync(guardrailsDir)) return;
-
-  const files = readdirSync(guardrailsDir).filter((f) => f.endsWith('.md'));
-  if (files.length === 0) return;
+  const merged = mergeSourceFiles(ctx.sourceDirs, 'guardrails', (f) => f.endsWith('.md'));
+  if (merged.size === 0) return;
 
   const guardrails: GuardrailFrontmatter[] = [];
-  for (const file of files) {
+  for (const [file, sourceDir] of merged) {
     try {
-      const { data } = matter.read(join(guardrailsDir, file));
+      const { data } = matter.read(join(sourceDir, file));
       if (!isGuardrailFrontmatter(data)) {
         recordError(`guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message`);
         continue;

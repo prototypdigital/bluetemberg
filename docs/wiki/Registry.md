@@ -32,7 +32,7 @@ Two files track installed packs:
 
 Both should be committed so the team pins the same versions.
 
-One manifest covers all pack kinds — rules, agents, and skills. A pack declares what it ships through its `llm/` directory layout, so a single package can mix kinds (e.g. a framework pack with both rules and a skill).
+One manifest covers all pack kinds — rules, agents, skills, and guardrails. A pack declares what it ships through its `llm/` directory layout, so a single package can mix kinds (e.g. a framework pack with both rules and a skill).
 
 > **Migrating from kind-split manifests:** projects scaffolded before the unification may still have `rule-packages.json`, `agent-packages.json`, or `skill-packages.json`. They keep working — `sync` merges them in memory with a warning — and the next `bluetemberg install` (or `add`/`update`/`remove`) consolidates them into `packages.json` and deletes the legacy files. Commit the result.
 
@@ -256,6 +256,14 @@ Bluetemberg's official packs live in **[prototypdigital/bluetemberg-packs](https
 | `bluetemberg-skills-stack-change-review` | Stack change review |
 | `bluetemberg-skills-infrastructure-drift-check` | Infrastructure drift check |
 | `bluetemberg-skills-rollback-plan` | Rollback plan |
+
+### Guardrail packs
+
+| Package | Guardrails |
+|---------|------------|
+| `bluetemberg-guardrails-git` | Conventional branch names for AI-created worktrees |
+
+See [Guardrails](Guardrails) for the format and how they map to platform hooks.
 
 For the full catalog, see the [bluetemberg-packs wiki](https://github.com/prototypdigital/bluetemberg-packs/wiki/Catalog).
 
