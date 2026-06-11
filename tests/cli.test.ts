@@ -151,7 +151,7 @@ cliSuite('cli init headless', () => {
     );
     expect(r.status).toBe(0);
     expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
-    expect(existsSync(join(root, 'llm', 'rule-packages.json'))).toBe(true);
+    expect(existsSync(join(root, 'llm', 'packages.json'))).toBe(true);
   });
 
   it('rejects --config when the path is missing', () => {

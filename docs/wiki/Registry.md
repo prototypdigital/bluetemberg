@@ -27,10 +27,14 @@ Two files track installed packs:
 
 | File | Purpose | Commit? |
 | ---- | ------- | ------- |
-| `llm/rule-packages.json` | Manifest — package names and semver ranges | Yes |
-| `llm/rule-packages-lock.json` | Lockfile — exact versions, tarball URLs, integrity hashes | Yes |
+| `llm/packages.json` | Manifest — package names and semver ranges | Yes |
+| `llm/packages-lock.json` | Lockfile — exact versions, tarball URLs, integrity hashes | Yes |
 
 Both should be committed so the team pins the same versions.
+
+One manifest covers all pack kinds — rules, agents, and skills. A pack declares what it ships through its `llm/` directory layout, so a single package can mix kinds (e.g. a framework pack with both rules and a skill).
+
+> **Migrating from kind-split manifests:** projects scaffolded before the unification may still have `rule-packages.json`, `agent-packages.json`, or `skill-packages.json`. They keep working — `sync` merges them in memory with a warning — and the next `bluetemberg install` (or `add`/`update`/`remove`) consolidates them into `packages.json` and deletes the legacy files. Commit the result.
 
 ### Manifest format
 
@@ -83,7 +87,7 @@ bluetemberg add community-ts-rules --version "~2.0.0"
 2. Resolves the best version matching the requested range.
 3. Downloads and extracts the tarball to `.bluetemberg/packs/<name>/<version>/`.
 4. Verifies the SHA-512 integrity hash.
-5. Updates `llm/rule-packages.json` and `llm/rule-packages-lock.json`.
+5. Updates `llm/packages.json` and `llm/packages-lock.json`.
 6. Adds `.bluetemberg/` to `.gitignore` if not already present.
 
 After adding, run `bluetemberg sync` to generate platform-specific files that include the new rules.
@@ -159,7 +163,7 @@ bluetemberg update --latest         # widens all ranges to "latest" in the manif
 2. Resolves the best version satisfying the current range (or `"latest"` if `--latest`).
 3. Downloads and installs the new version if it differs from the locked one.
 4. Removes the previously cached version when the version changed.
-5. Updates `llm/rule-packages-lock.json` (and `llm/rule-packages.json` when `--latest`).
+5. Updates `llm/packages-lock.json` (and `llm/packages.json` when `--latest`).
 6. Logs what changed (e.g. `@company/rules 1.0.0 → 1.2.3`).
 
 After updating, run `bluetemberg sync` to apply the changes.
@@ -257,7 +261,7 @@ For the full catalog, see the [bluetemberg-packs wiki](https://github.com/protot
 
 ### Using collections via init
 
-When running `bluetemberg init`, select **Rule collections (registry packages)** as the rule source. The wizard will suggest collections based on your team profile and write a `llm/rule-packages.json` manifest. Then run `bluetemberg install` to download the packages.
+When running `bluetemberg init`, select **Rule collections (registry packages)** as the rule source. The wizard will suggest collections based on your team profile and write a `llm/packages.json` manifest. Then run `bluetemberg install` to download the packages.
 
 ### Using collections manually
 
@@ -289,7 +293,7 @@ To publish your own rule pack:
 
 ## Private registries
 
-Set the `registry` field in `llm/rule-packages.json` to use a private npm registry:
+Set the `registry` field in `llm/packages.json` to use a private npm registry:
 
 ```json
 {

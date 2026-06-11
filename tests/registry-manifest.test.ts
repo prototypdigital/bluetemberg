@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -8,6 +8,8 @@ import {
   readLockfile,
   writeLockfile,
   hasPackages,
+  hasLegacyManifestFiles,
+  migrateLegacyManifests,
   manifestPath,
   lockfilePath,
 } from '../src/registry/manifest.js';
@@ -18,7 +20,7 @@ function createTmpDir(): string {
   return dir;
 }
 
-describe('manifest (llm/rule-packages.json)', () => {
+describe('manifest (llm/packages.json)', () => {
   let root: string;
 
   beforeEach(() => {
@@ -84,11 +86,117 @@ describe('manifest (llm/rule-packages.json)', () => {
 
     const m = readManifest(root, 'custom');
     expect(m.packages.foo).toBe('^1.0.0');
-    expect(manifestPath(root, 'custom')).toBe(join(root, 'custom', 'rule-packages.json'));
+    expect(manifestPath(root, 'custom')).toBe(join(root, 'custom', 'packages.json'));
   });
 });
 
-describe('lockfile (llm/rule-packages-lock.json)', () => {
+describe('legacy manifest migration', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+    mkdirSync(join(root, 'llm'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('readManifest merges legacy kind-split manifests in memory', () => {
+    writeFileSync(
+      join(root, 'llm', 'rule-packages.json'),
+      JSON.stringify({ packages: { 'bluetemberg-rules-git': '^0.1.0' } }),
+    );
+    writeFileSync(
+      join(root, 'llm', 'agent-packages.json'),
+      JSON.stringify({ packages: { 'bluetemberg-agents-test-specialist': '^0.1.0' } }),
+    );
+    writeFileSync(
+      join(root, 'llm', 'skill-packages.json'),
+      JSON.stringify({ packages: { 'bluetemberg-skills-patterns': '^0.1.0' } }),
+    );
+
+    const m = readManifest(root);
+    expect(m.packages['bluetemberg-rules-git']).toBe('^0.1.0');
+    expect(m.packages['bluetemberg-agents-test-specialist']).toBe('^0.1.0');
+    expect(m.packages['bluetemberg-skills-patterns']).toBe('^0.1.0');
+    // Read-only: legacy files stay on disk until migration.
+    expect(existsSync(join(root, 'llm', 'rule-packages.json'))).toBe(true);
+  });
+
+  it('unified manifest entries win over legacy entries on conflict', () => {
+    writeManifest(root, { packages: { 'bluetemberg-rules-git': '^2.0.0' } });
+    writeFileSync(
+      join(root, 'llm', 'rule-packages.json'),
+      JSON.stringify({ packages: { 'bluetemberg-rules-git': '^0.1.0' } }),
+    );
+
+    const m = readManifest(root);
+    expect(m.packages['bluetemberg-rules-git']).toBe('^2.0.0');
+  });
+
+  it('readLockfile merges the legacy lockfile in memory', () => {
+    writeFileSync(
+      join(root, 'llm', 'rule-packages-lock.json'),
+      JSON.stringify({
+        lockfileVersion: 1,
+        packages: { 'pack-a': { version: '1.0.0', resolved: 'https://x/a.tgz', integrity: 'sha512-a' } },
+      }),
+    );
+
+    const lock = readLockfile(root);
+    expect(lock.packages['pack-a'].version).toBe('1.0.0');
+  });
+
+  it('migrateLegacyManifests consolidates and deletes legacy files', () => {
+    writeFileSync(
+      join(root, 'llm', 'rule-packages.json'),
+      JSON.stringify({ packages: { 'bluetemberg-rules-git': '^0.1.0' } }),
+    );
+    writeFileSync(
+      join(root, 'llm', 'agent-packages.json'),
+      JSON.stringify({ packages: { 'bluetemberg-agents-test-specialist': '^0.1.0' } }),
+    );
+    writeFileSync(
+      join(root, 'llm', 'rule-packages-lock.json'),
+      JSON.stringify({
+        lockfileVersion: 1,
+        packages: { 'pack-a': { version: '1.0.0', resolved: 'https://x/a.tgz', integrity: 'sha512-a' } },
+      }),
+    );
+
+    const removed = migrateLegacyManifests(root);
+
+    expect(removed).toEqual(['rule-packages.json', 'agent-packages.json', 'rule-packages-lock.json']);
+    expect(existsSync(join(root, 'llm', 'rule-packages.json'))).toBe(false);
+    expect(existsSync(join(root, 'llm', 'agent-packages.json'))).toBe(false);
+    expect(existsSync(join(root, 'llm', 'rule-packages-lock.json'))).toBe(false);
+
+    const m = readManifest(root);
+    expect(m.packages['bluetemberg-rules-git']).toBe('^0.1.0');
+    expect(m.packages['bluetemberg-agents-test-specialist']).toBe('^0.1.0');
+    const lock = readLockfile(root);
+    expect(lock.packages['pack-a'].version).toBe('1.0.0');
+  });
+
+  it('migrateLegacyManifests is a no-op when no legacy files exist', () => {
+    writeManifest(root, { packages: { foo: '^1.0.0' } });
+
+    const removed = migrateLegacyManifests(root);
+
+    expect(removed).toEqual([]);
+    expect(readManifest(root).packages.foo).toBe('^1.0.0');
+  });
+
+  it('hasLegacyManifestFiles detects any legacy file', () => {
+    expect(hasLegacyManifestFiles(root)).toBe(false);
+
+    writeFileSync(join(root, 'llm', 'skill-packages.json'), JSON.stringify({ packages: {} }));
+    expect(hasLegacyManifestFiles(root)).toBe(true);
+  });
+});
+
+describe('lockfile (llm/packages-lock.json)', () => {
   let root: string;
 
   beforeEach(() => {
@@ -198,7 +306,7 @@ describe('lockfile (llm/rule-packages-lock.json)', () => {
 
     const lock = readLockfile(root, 'custom');
     expect(lock.packages.foo.version).toBe('1.0.0');
-    expect(lockfilePath(root, 'custom')).toBe(join(root, 'custom', 'rule-packages-lock.json'));
+    expect(lockfilePath(root, 'custom')).toBe(join(root, 'custom', 'packages-lock.json'));
   });
 });
 

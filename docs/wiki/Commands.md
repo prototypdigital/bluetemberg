@@ -122,7 +122,7 @@ bluetemberg list
 
 ## `bluetemberg install`
 
-Install all packs from the manifest (`llm/rule-packages.json`). Run after cloning a repo.
+Install all packs from the manifest (`llm/packages.json`). Run after cloning a repo.
 
 ```bash
 bluetemberg install

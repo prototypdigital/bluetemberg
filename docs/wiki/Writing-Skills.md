@@ -72,7 +72,7 @@ Skills are copied **verbatim** to target platforms. The directory structure is p
 
 ## Official skill packages
 
-Official skills ship as `bluetemberg-skills-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes an `llm/skill-packages.json` manifest; run `bluetemberg install` to download them.
+Official skills ship as `bluetemberg-skills-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes the `llm/packages.json` manifest; run `bluetemberg install` to download them.
 
 | Package | Tags | Description |
 | ------- | ---- | ----------- |

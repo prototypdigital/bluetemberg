@@ -59,7 +59,7 @@ On Cursor, these files are **project subagents** (see Cursor documentation for s
 
 ## Official agent packages
 
-Official agents ship as `bluetemberg-agents-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes an `llm/agent-packages.json` manifest; run `bluetemberg install` to download them.
+Official agents ship as `bluetemberg-agents-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes the `llm/packages.json` manifest; run `bluetemberg install` to download them.
 
 | Package | Tags | Description |
 | ------- | ---- | ----------- |

@@ -1,12 +1,23 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { PackageManifest, PackageLock, PackageLockEntry } from '../types.js';
 
-const MANIFEST_FILE = 'rule-packages.json';
-const LOCKFILE_FILE = 'rule-packages-lock.json';
+const MANIFEST_FILE = 'packages.json';
+const LOCKFILE_FILE = 'packages-lock.json';
+
+/**
+ * Manifest/lockfile names used before unification (#119). Read-merged into the
+ * unified manifest for backward compatibility; consolidated on disk (and the
+ * legacy files removed) by {@link migrateLegacyManifests}.
+ */
+const LEGACY_MANIFEST_FILES = ['rule-packages.json', 'agent-packages.json', 'skill-packages.json'];
+const LEGACY_LOCKFILE_FILES = ['rule-packages-lock.json'];
+
+/** Semver range written for newly added official packs (init wizard, switch-profile). */
+export const DEFAULT_PACK_VERSION = '^0.1.0';
 
 // ---------------------------------------------------------------------------
-// Manifest (llm/rule-packages.json)
+// Manifest (llm/packages.json)
 // ---------------------------------------------------------------------------
 
 export function manifestPath(root: string, source = 'llm'): string {
@@ -15,12 +26,64 @@ export function manifestPath(root: string, source = 'llm'): string {
 
 export function readManifest(root: string, source = 'llm'): PackageManifest {
   const p = manifestPath(root, source);
-  if (!existsSync(p)) {
-    return { packages: {} };
+  const manifest = existsSync(p)
+    ? validateManifest(JSON.parse(readFileSync(p, 'utf8')) as unknown, p)
+    : { packages: {} as Record<string, string> };
+
+  return mergeLegacyManifests(root, source, manifest);
+}
+
+/**
+ * Merges any legacy kind-split manifests into the given manifest (in memory).
+ * Entries already in the unified manifest win on conflict.
+ */
+function mergeLegacyManifests(root: string, source: string, manifest: PackageManifest): PackageManifest {
+  for (const file of LEGACY_MANIFEST_FILES) {
+    const p = join(root, source, file);
+    if (!existsSync(p)) continue;
+
+    const legacy = validateManifest(JSON.parse(readFileSync(p, 'utf8')) as unknown, p);
+    if (manifest.registry === undefined && legacy.registry !== undefined) {
+      manifest.registry = legacy.registry;
+    }
+    for (const [name, range] of Object.entries(legacy.packages)) {
+      if (!(name in manifest.packages)) {
+        manifest.packages[name] = range;
+      }
+    }
   }
 
-  const raw = JSON.parse(readFileSync(p, 'utf8')) as unknown;
-  return validateManifest(raw, p);
+  return manifest;
+}
+
+/** Whether any pre-unification manifest or lockfile files exist on disk. */
+export function hasLegacyManifestFiles(root: string, source = 'llm'): boolean {
+  return [...LEGACY_MANIFEST_FILES, ...LEGACY_LOCKFILE_FILES].some((f) => existsSync(join(root, source, f)));
+}
+
+/**
+ * Consolidates legacy kind-split manifests (`rule-packages.json`,
+ * `agent-packages.json`, `skill-packages.json`) and their lockfile into the
+ * unified `packages.json` / `packages-lock.json`, then deletes the legacy files.
+ *
+ * @returns The legacy filenames that were removed (empty when nothing to migrate).
+ */
+export function migrateLegacyManifests(root: string, source = 'llm'): string[] {
+  if (!hasLegacyManifestFiles(root, source)) return [];
+
+  // readManifest/readLockfile already merge legacy content in memory.
+  writeManifest(root, readManifest(root, source), source);
+  writeLockfile(root, readLockfile(root, source), source);
+
+  const removed: string[] = [];
+  for (const file of [...LEGACY_MANIFEST_FILES, ...LEGACY_LOCKFILE_FILES]) {
+    const p = join(root, source, file);
+    if (!existsSync(p)) continue;
+    unlinkSync(p);
+    removed.push(file);
+  }
+
+  return removed;
 }
 
 export function writeManifest(root: string, manifest: PackageManifest, source = 'llm'): void {
@@ -75,7 +138,7 @@ function validateManifest(raw: unknown, path: string): PackageManifest {
 }
 
 // ---------------------------------------------------------------------------
-// Lockfile (llm/rule-packages-lock.json)
+// Lockfile (llm/packages-lock.json)
 // ---------------------------------------------------------------------------
 
 export function lockfilePath(root: string, source = 'llm'): string {
@@ -84,12 +147,23 @@ export function lockfilePath(root: string, source = 'llm'): string {
 
 export function readLockfile(root: string, source = 'llm'): PackageLock {
   const p = lockfilePath(root, source);
-  if (!existsSync(p)) {
-    return { lockfileVersion: 1, packages: {} };
+  const lock: PackageLock = existsSync(p)
+    ? validateLockfile(JSON.parse(readFileSync(p, 'utf8')) as unknown, p)
+    : { lockfileVersion: 1, packages: {} };
+
+  for (const file of LEGACY_LOCKFILE_FILES) {
+    const legacyPath = join(root, source, file);
+    if (!existsSync(legacyPath)) continue;
+
+    const legacy = validateLockfile(JSON.parse(readFileSync(legacyPath, 'utf8')) as unknown, legacyPath);
+    for (const [name, entry] of Object.entries(legacy.packages)) {
+      if (!(name in lock.packages)) {
+        lock.packages[name] = entry;
+      }
+    }
   }
 
-  const raw = JSON.parse(readFileSync(p, 'utf8')) as unknown;
-  return validateLockfile(raw, p);
+  return lock;
 }
 
 export function writeLockfile(root: string, lock: PackageLock, source = 'llm'): void {
