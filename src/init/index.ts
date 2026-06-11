@@ -78,20 +78,19 @@ export async function init(targetPath?: string, run?: InitRunOptions): Promise<v
   log('\nRunning initial sync...\n');
   await sync(targetDir, { silent });
 
-  const pm = answers.packageManager === 'npm' ? 'npm run' : answers.packageManager;
   log('\n  Done! Next steps:\n');
   if (answers.ruleSource === 'collections') {
     log('  1. Run `bluetemberg install` to download the selected packs');
-    log(`  2. Run \`${pm} sync:llm-config\` to generate platform files`);
+    log('  2. Run `npx bluetemberg sync` to generate platform files');
     log('  3. Add project-specific rules in llm/rules/ to override pack content');
   } else if (answers.ruleSource === 'none') {
     log('  1. Add your own rules to llm/rules/ (or install a pack with `bluetemberg add`)');
     log('  2. Customize agents and skills for your project');
-    log(`  3. Run \`${pm} sync:llm-config\` after any changes to llm/`);
+    log('  3. Run `npx bluetemberg sync` after any changes to llm/');
   } else {
     log('  1. Review the generated files in llm/');
     log('  2. Customize rules, agents, and skills for your project');
-    log(`  3. Run \`${pm} sync:llm-config\` after any changes to llm/`);
+    log('  3. Run `npx bluetemberg sync` after any changes to llm/');
   }
   log('');
 }

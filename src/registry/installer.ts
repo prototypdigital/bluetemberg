@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
 import { downloadTarball, verifyIntegrity } from './client.js';
@@ -13,9 +13,25 @@ export function packsCacheDir(root: string): string {
   return join(root, PACKS_DIR);
 }
 
-/** Absolute path to a specific pack version in the cache. */
+/**
+ * Absolute path to a specific pack version in the cache.
+ *
+ * The package name and version come from the registry response (`metadata.name`),
+ * which is untrusted when a custom/compromised registry is configured. A name like
+ * `../../../etc` would otherwise escape the cache and cause extraction — and the
+ * `rmSync` cleanup — to operate on arbitrary paths. We enforce containment: the
+ * resolved directory must stay inside the pack cache.
+ */
 export function packVersionDir(root: string, name: string, version: string): string {
-  return join(packsCacheDir(root), name, version);
+  const base = packsCacheDir(root);
+  const dir = join(base, name, version);
+  const rel = relative(base, dir);
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new Error(
+      `Unsafe pack name/version "${name}@${version}" resolves outside the pack cache — refusing.`,
+    );
+  }
+  return dir;
 }
 
 /** Check whether a specific pack version is already extracted in the cache. */
