@@ -24,7 +24,7 @@ See [Configuration](Configuration) for the full `extends` reference.
 
 ## 2. Add sync check to CI
 
-Add to your GitHub Actions workflow to catch drift:
+`bluetemberg init` scaffolds `.github/workflows/sync-check.yml`, which runs `bluetemberg sync --check` on pull requests that touch `llm/` or any generated output. If you set the project up without `init` (e.g. a monorepo child using `extends`), add the step yourself:
 
 ```yaml
 - name: Check AI config sync
@@ -47,7 +47,7 @@ npm run sync:llm-config:check
 
 ## Updating Bluetemberg
 
-To get the latest starter templates and sync engine:
+To get the latest sync engine (pack content updates separately via `bluetemberg update`):
 
 ```bash
 npm update bluetemberg

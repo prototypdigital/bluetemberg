@@ -547,6 +547,26 @@ describe('scaffold', () => {
     });
   });
 
+  describe('CI workflows', () => {
+    it('writes .github/workflows/sync-check.yml on every init', () => {
+      scaffold(root, baseAnswers);
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'sync-check.yml'), 'utf8');
+      expect(content).toContain('bluetemberg sync --check');
+      expect(content).toContain('pull_request');
+    });
+
+    it('writes sync-marketplace.yml only when claude-marketplace is in platforms', () => {
+      scaffold(root, baseAnswers);
+      expect(existsSync(join(root, '.github', 'workflows', 'sync-marketplace.yml'))).toBe(false);
+
+      scaffold(root, { ...baseAnswers, platforms: ['cursor', 'claude-marketplace'] });
+      const content = readFileSync(join(root, '.github', 'workflows', 'sync-marketplace.yml'), 'utf8');
+      expect(content).toContain('MARKETPLACE_PUSH_TOKEN');
+      expect(content).toContain('vars.MARKETPLACE_REPO');
+    });
+  });
+
   describe('claude-marketplace', () => {
     const marketplaceAnswers: InitAnswers = {
       ...baseAnswers,

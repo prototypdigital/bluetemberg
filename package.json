@@ -68,8 +68,7 @@
   },
   "files": [
     "bin/",
-    "dist/",
-    "templates/"
+    "dist/"
   ],
   "workspaces": [
     "packages/*"

@@ -29,12 +29,14 @@ Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/
 
 - `src/init/` — Interactive wizard (prompts, presets, scaffold)
 - `src/sync/` — Sync engine (config loading, frontmatter transforms, file writing)
+- `src/registry/` — Pack install/update against the npm registry
 - `src/utils/` — Shared filesystem helpers
 - `src/types.ts` — All shared TypeScript types
-- `templates/` — Bundled rule, agent, skill templates shipped with the package
 - `bin/cli.js` — CLI entry point (Commander)
 - `tests/` — Vitest tests (sync + transform)
 - `docs/wiki/` — GitHub Wiki source
+
+All user-facing content (rules, agents, skills, guardrails) lives in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) — this repo ships no content, only the engine.
 
 ## Conventions
 

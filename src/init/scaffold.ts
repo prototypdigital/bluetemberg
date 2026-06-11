@@ -1,6 +1,5 @@
-import { readFileSync, existsSync, copyFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ensureDir } from '../utils/fs.js';
 import { DEFAULT_TARGETS } from '../sync/transform.js';
 import { MARKETPLACE_PLATFORM } from '../types.js';
@@ -24,8 +23,95 @@ import {
   MARKETPLACE_PLUGIN_PACKS,
 } from './presets.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const TEMPLATES_DIR = join(__dirname, '..', '..', 'templates');
+/**
+ * CI workflow written into every scaffolded project: fails the PR when
+ * platform outputs drift from the `llm/` source. Inlined (rather than shipped
+ * as a template file) so the npm package stays code-only.
+ */
+const SYNC_CHECK_WORKFLOW = `name: AI Config Sync Check
+
+on:
+  pull_request:
+    paths:
+      - 'llm/**'
+      - '.cursor/rules/**'
+      - '.claude/rules/**'
+      - '.claude/agents/**'
+      - '.claude/skills/**'
+      - '.github/instructions/**'
+      - '.github/agents/**'
+      - '.github/skills/**'
+      - 'AGENTS.md'
+      - 'bluetemberg.config.json'
+
+jobs:
+  sync-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npx -y bluetemberg sync --check
+`;
+
+/**
+ * CI workflow for `claude-marketplace` projects: regenerates the plugin bundle
+ * on pushes to main and mirrors it to the repo named by the MARKETPLACE_REPO
+ * variable using the MARKETPLACE_PUSH_TOKEN secret.
+ */
+const SYNC_MARKETPLACE_WORKFLOW = `name: Sync Claude Marketplace
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'llm/**'
+      - 'bluetemberg.config.json'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate marketplace output
+        run: npx -y bluetemberg sync
+
+      - name: Push to claude-marketplace repo
+        env:
+          MARKETPLACE_PUSH_TOKEN: \${{ secrets.MARKETPLACE_PUSH_TOKEN }}
+        run: |
+          git clone "https://x-access-token:\${MARKETPLACE_PUSH_TOKEN}@github.com/\${{ vars.MARKETPLACE_REPO }}.git" /tmp/marketplace
+
+          # Abort if sync produced no output — do not wipe the marketplace with empty dirs
+          if [ ! -d plugins ] || [ ! -d .claude-plugin ]; then
+            echo "No marketplace output found — skipping push."
+            exit 0
+          fi
+
+          rm -rf /tmp/marketplace/plugins /tmp/marketplace/.claude-plugin
+          cp -r plugins /tmp/marketplace/plugins
+          cp -r .claude-plugin /tmp/marketplace/.claude-plugin
+
+          cd /tmp/marketplace
+          git config user.name "bluetemberg-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to push."
+          else
+            git commit -m "sync: update from \${{ github.repository }}@\${{ github.sha }}"
+            git push
+          fi
+`;
 
 export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   const created: string[] = [];
@@ -43,6 +129,8 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   if (answers.includeMcp) {
     scaffoldMcp(targetDir, answers, created);
   }
+
+  scaffoldSyncCheckWorkflow(targetDir, created);
 
   if (answers.platforms.includes('claude-marketplace')) {
     scaffoldMarketplaceWorkflow(targetDir, created);
@@ -316,14 +404,16 @@ function scaffoldSources(targetDir: string, specStrings: string[], created: stri
   safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
-function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void {
-  const src = join(TEMPLATES_DIR, 'ci', 'sync-marketplace.yml');
-  if (!existsSync(src)) return;
+function scaffoldSyncCheckWorkflow(targetDir: string, created: string[]): void {
+  safeWrite(join(targetDir, '.github', 'workflows', 'sync-check.yml'), SYNC_CHECK_WORKFLOW, created);
+}
 
-  const dest = join(targetDir, '.github', 'workflows', 'sync-marketplace.yml');
-  ensureDir(dirname(dest));
-  copyFileSync(src, dest);
-  created.push(dest);
+function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void {
+  safeWrite(
+    join(targetDir, '.github', 'workflows', 'sync-marketplace.yml'),
+    SYNC_MARKETPLACE_WORKFLOW,
+    created,
+  );
 }
 
 function updatePackageScripts(targetDir: string, created: string[]): void {
