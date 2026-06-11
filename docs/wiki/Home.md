@@ -29,6 +29,6 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Consumer Setup](Consumer-Setup) — set up a downstream project
 - [Registry](Registry) — install community & official packs (official packs live in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs))
 - [Sources](Sources) — pull rules from GitHub, PRPM, or cursor.directory and translate them to native format
-- [Contributing](Contributing) — dev setup, adding templates, and release process
+- [Contributing](Contributing) — dev setup, adding packs, and release process
 
 

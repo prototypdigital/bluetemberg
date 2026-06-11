@@ -248,4 +248,4 @@ When a user picks a profile, every preset tagged for that profile gets pre-check
 
 Bluetemberg enforces a `docs-parity` rule (part of `bluetemberg-rules-docs`): documentation must ship in the same commit as every user-facing change. This applies to the tool itself.
 
-When your PR changes behavior — a new template, a new flag, a config schema change — update the relevant wiki pages in `docs/wiki/` as part of the same commit. CI won't catch a missing doc update, but code reviewers will, and the rule exists to remind you.
+When your PR changes behavior — a new pack, a new flag, a config schema change — update the relevant wiki pages in `docs/wiki/` as part of the same commit. CI won't catch a missing doc update, but code reviewers will, and the rule exists to remind you.
