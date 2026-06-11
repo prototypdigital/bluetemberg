@@ -12,6 +12,13 @@ export interface GuardrailsSyncContext extends SyncSink {
   platforms: readonly Platform[];
 }
 
+/**
+ * `check.field` becomes part of a `jq` filter (`.<field>`). Constrain it to a
+ * dotted JSON-key path so it can never inject jq or shell syntax. Guardrails
+ * are installed from third-party packs, so their content is untrusted.
+ */
+const SAFE_FIELD = /^[A-Za-z0-9_.-]+$/;
+
 function isGuardrailFrontmatter(data: unknown): data is GuardrailFrontmatter {
   if (!data || typeof data !== 'object') return false;
   const d = data as Record<string, unknown>;
@@ -19,34 +26,51 @@ function isGuardrailFrontmatter(data: unknown): data is GuardrailFrontmatter {
   if (typeof d.message !== 'string' || !d.message) return false;
   if (!d.check || typeof d.check !== 'object' || Array.isArray(d.check)) return false;
   const check = d.check as Record<string, unknown>;
-  return typeof check.field === 'string' && check.field.length > 0;
+  return typeof check.field === 'string' && SAFE_FIELD.test(check.field);
 }
+
+/** Wrap an arbitrary string as a single POSIX shell token (`'...'`, with embedded `'` escaped). */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Fixed hook script. Contains NO guardrail-derived content — the field, regexes,
+ * and message arrive as positional parameters ($1..$5), so untrusted pack content
+ * is never parsed as shell or jq code. `$2`/`$3` are used as the right-hand side of
+ * `=~` (bash treats a variable RHS as a regex literal, not as code to evaluate).
+ */
+const CLAUDE_HOOK_SCRIPT = [
+  'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+  'fail=',
+  'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+  'if [ -n "$2" ] && [[ "$v" =~ $2 ]]; then fail=1; fi',
+  'if [ -n "$3" ] && ! [[ "$v" =~ $3 ]]; then fail=1; fi',
+  'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+].join('; ');
 
 /**
  * Builds the bash hook command for a Claude PreToolUse/PostToolUse hook from
  * structured guardrail frontmatter. Returns an empty string if no conditions are defined.
  *
- * Reads the tool input JSON from stdin, extracts `check.field`, then evaluates
- * the declared conditions; on failure it prints `message` and exits 2.
+ * The tool-input field, condition regexes, and message are passed as shell-quoted
+ * positional arguments to a fixed script — never interpolated into the script body —
+ * so hostile pack content cannot achieve shell or jq injection.
  */
 function buildClaudeCommand(guardrail: GuardrailFrontmatter): string {
   const { check, message } = guardrail;
-  const field = check.field;
 
-  const conditions: string[] = [];
-  if (check.not_empty) conditions.push(`-z "$${field}"`);
-  if (check.not_matches) conditions.push(`"$${field}" =~ ${check.not_matches}`);
-  if (check.matches) conditions.push(`! "$${field}" =~ ${check.matches}`);
+  if (!check.not_empty && !check.matches && !check.not_matches) return '';
 
-  if (conditions.length === 0) return '';
+  const args = [
+    check.field,
+    check.not_matches ?? '',
+    check.matches ?? '',
+    message,
+    check.not_empty ? '1' : '',
+  ];
 
-  // Escape double quotes so the message is safe inside a bash double-quoted echo string.
-  const escapedMessage = message.replace(/"/g, '\\"');
-
-  return (
-    `bash -c '${field}=$(cat | jq -r ".${field} // empty" 2>/dev/null); ` +
-    `if [[ ${conditions.join(' || ')} ]]; then echo "${escapedMessage}"; exit 2; fi'`
-  );
+  return `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetemberg ${args.map(shellQuote).join(' ')}`;
 }
 
 function readExistingSettings(settingsPath: string): Record<string, unknown> {
