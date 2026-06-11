@@ -1389,4 +1389,44 @@ message: "Branch name required"
 
     expect(results.errors.some((e) => e.includes('bad-guardrail'))).toBe(true);
   });
+
+  it('syncs guardrails from extended source dirs (pack layout)', async () => {
+    const packDir = join(root, 'shared-pack', 'llm', 'guardrails');
+    mkdirSync(packDir, { recursive: true });
+    writeFileSync(join(packDir, 'pack-guardrail.md'), VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['./shared-pack'],
+      targets: {},
+    };
+    await sync(root, { config, silent: true });
+
+    const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+    expect(settings.hooks?.PreToolUse).toHaveLength(1);
+    expect(settings.hooks.PreToolUse[0].matcher).toBe('EnterWorktree');
+  });
+
+  it('local guardrail overrides an extended one with the same filename', async () => {
+    const packDir = join(root, 'shared-pack', 'llm', 'guardrails');
+    mkdirSync(packDir, { recursive: true });
+    writeFileSync(
+      join(packDir, 'same-name.md'),
+      VALID_GUARDRAIL.replace('trigger: EnterWorktree', 'trigger: PackTool'),
+    );
+    writeGuardrail('same-name', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      extends: ['./shared-pack'],
+      targets: {},
+    };
+    await sync(root, { config, silent: true });
+
+    const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+    expect(settings.hooks.PreToolUse).toHaveLength(1);
+    expect(settings.hooks.PreToolUse[0].matcher).toBe('EnterWorktree');
+  });
 });

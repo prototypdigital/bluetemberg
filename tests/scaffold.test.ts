@@ -451,38 +451,6 @@ describe('scaffold', () => {
     });
   });
 
-  describe('.claude/settings.json', () => {
-    it('creates settings.json with EnterWorktree PreToolUse hook when claude is in platforms', () => {
-      scaffold(root, { ...baseAnswers, platforms: ['claude'] });
-
-      const settingsPath = join(root, '.claude', 'settings.json');
-      expect(existsSync(settingsPath)).toBe(true);
-      const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
-      const preToolUse = settings.hooks?.PreToolUse ?? [];
-      const hook = preToolUse.find((e: Record<string, unknown>) => e.matcher === 'EnterWorktree');
-      expect(hook).toBeDefined();
-      expect(
-        (hook.hooks as Array<Record<string, unknown>>).some((h) => String(h.command).includes('claude/*')),
-      ).toBe(true);
-    });
-
-    it('does not create settings.json when claude is not in platforms', () => {
-      scaffold(root, { ...baseAnswers, platforms: ['cursor', 'copilot'] });
-
-      expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
-    });
-
-    it('does not duplicate the EnterWorktree hook if settings.json already has it', () => {
-      scaffold(root, { ...baseAnswers, platforms: ['claude'] });
-      scaffold(root, { ...baseAnswers, platforms: ['claude'] });
-
-      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
-      const preToolUse = settings.hooks?.PreToolUse ?? [];
-      const worktreeHooks = preToolUse.filter((e: Record<string, unknown>) => e.matcher === 'EnterWorktree');
-      expect(worktreeHooks).toHaveLength(1);
-    });
-  });
-
   describe('MCP', () => {
     it('creates llm/mcp.json when includeMcp is true and servers are selected', () => {
       scaffold(root, { ...baseAnswers, includeMcp: true, mcpServers: ['interactive', 'context7'] });
@@ -647,55 +615,53 @@ describe('scaffold', () => {
   });
 
   describe('guardrails', () => {
-    it('scaffolds llm/guardrails/ when includeGuardrails is true with guardrail ids', () => {
+    it('adds the guardrail package to llm/packages.json when selected', () => {
       scaffold(root, {
         ...baseAnswers,
         includeGuardrails: true,
         guardrails: ['conventional-branch-names'],
       });
 
-      expect(existsSync(join(root, 'llm', 'guardrails', 'conventional-branch-names.md'))).toBe(true);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-guardrails-git']).toBe('^0.1.0');
     });
 
-    it('does not create llm/guardrails/ when includeGuardrails is false', () => {
+    it('does not copy guardrail files into llm/guardrails/', () => {
+      scaffold(root, {
+        ...baseAnswers,
+        includeGuardrails: true,
+        guardrails: ['conventional-branch-names'],
+      });
+
+      expect(existsSync(join(root, 'llm', 'guardrails'))).toBe(false);
+    });
+
+    it('omits the guardrail package when includeGuardrails is false', () => {
       scaffold(root, { ...baseAnswers, includeGuardrails: false, guardrails: ['conventional-branch-names'] });
 
-      expect(existsSync(join(root, 'llm', 'guardrails'))).toBe(false);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-guardrails-git']).toBeUndefined();
     });
 
-    it('does not create llm/guardrails/ when guardrails array is empty', () => {
+    it('omits the guardrail package when guardrails array is empty', () => {
       scaffold(root, { ...baseAnswers, includeGuardrails: true, guardrails: [] });
 
-      expect(existsSync(join(root, 'llm', 'guardrails'))).toBe(false);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-guardrails-git']).toBeUndefined();
     });
 
-    it('does not create llm/guardrails/ when guardrails fields are absent', () => {
+    it('omits the guardrail package when guardrails fields are absent', () => {
       scaffold(root, baseAnswers);
 
-      expect(existsSync(join(root, 'llm', 'guardrails'))).toBe(false);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-guardrails-git']).toBeUndefined();
     });
 
-    it('scaffolded guardrail file has valid frontmatter with trigger and check', () => {
-      scaffold(root, {
-        ...baseAnswers,
-        includeGuardrails: true,
-        guardrails: ['conventional-branch-names'],
-      });
+    it('skips unknown guardrail ids gracefully', () => {
+      scaffold(root, { ...baseAnswers, includeGuardrails: true, guardrails: ['nonexistent-guardrail'] });
 
-      const content = readFileSync(join(root, 'llm', 'guardrails', 'conventional-branch-names.md'), 'utf8');
-      expect(content).toContain('trigger: EnterWorktree');
-      expect(content).toContain('field: name');
-      expect(content).toContain('not_empty: true');
-    });
-
-    it('includes guardrail files in created list', () => {
-      const created = scaffold(root, {
-        ...baseAnswers,
-        includeGuardrails: true,
-        guardrails: ['conventional-branch-names'],
-      });
-
-      expect(created.some((p) => p.includes('guardrails'))).toBe(true);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(manifest.packages['bluetemberg-guardrails-git']).toBeUndefined();
     });
   });
 });

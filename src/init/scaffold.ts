@@ -20,6 +20,7 @@ import {
   RULE_COLLECTION_PRESETS,
   AGENT_PRESETS,
   SKILL_PRESETS,
+  GUARDRAIL_PRESETS,
   MARKETPLACE_PLUGIN_PACKS,
 } from './presets.js';
 
@@ -45,14 +46,6 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
 
   if (answers.platforms.includes('claude-marketplace')) {
     scaffoldMarketplaceWorkflow(targetDir, created);
-  }
-
-  if (answers.platforms.includes('claude')) {
-    scaffoldClaudeSettings(targetDir, created);
-  }
-
-  if (answers.includeGuardrails !== false && (answers.guardrails?.length ?? 0) > 0) {
-    scaffoldGuardrails(targetDir, answers.guardrails!, created);
   }
 
   if ((answers.externalSources?.length ?? 0) > 0) {
@@ -189,6 +182,14 @@ function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, create
     }
   }
 
+  if (answers.includeGuardrails !== false) {
+    for (const guardrailId of answers.guardrails ?? []) {
+      const preset = GUARDRAIL_PRESETS.find((g) => g.id === guardrailId);
+      if (!preset?.packageName) continue;
+      packages[preset.packageName] = DEFAULT_PACK_VERSION;
+    }
+  }
+
   if (Object.keys(packages).length === 0) return;
 
   const manifest: PackageManifest = { packages };
@@ -295,22 +296,6 @@ function scaffoldMcp(targetDir: string, answers: InitAnswers, created: string[])
   safeWrite(join(llmDir, 'mcp.json'), JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
-function scaffoldGuardrails(targetDir: string, guardrailIds: string[], created: string[]): void {
-  const destDir = join(targetDir, 'llm', 'guardrails');
-  ensureDir(destDir);
-
-  for (const id of guardrailIds) {
-    const src = join(TEMPLATES_DIR, 'guardrails', `${id}.md`);
-    if (!existsSync(src)) {
-      console.warn(`  Warning: guardrail template "${id}" not found, skipping`);
-      continue;
-    }
-    const dest = join(destDir, `${id}.md`);
-    copyFileSync(src, dest);
-    created.push(dest);
-  }
-}
-
 function scaffoldSources(targetDir: string, specStrings: string[], created: string[]): void {
   const manifest: SourceManifest = { sources: {} };
 
@@ -339,52 +324,6 @@ function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void
   ensureDir(dirname(dest));
   copyFileSync(src, dest);
   created.push(dest);
-}
-
-const ENTER_WORKTREE_NAMING_HOOK =
-  `bash -c 'name=$(cat | jq -r ".name // empty" 2>/dev/null); ` +
-  `if [[ -z "$name" || "$name" == claude/* ]]; then ` +
-  `echo "EnterWorktree requires a conventional branch name. ` +
-  `Call EnterWorktree again with name=\\"type/description\\" (e.g. feat/my-feature). ` +
-  `Ask the user what the branch should be called if unclear. ` +
-  `Types: feat fix chore refactor docs test"; exit 2; fi'`;
-
-function scaffoldClaudeSettings(targetDir: string, created: string[]): void {
-  const settingsPath = join(targetDir, '.claude', 'settings.json');
-
-  let settings: Record<string, unknown> = {
-    $schema: 'https://json.schemastore.org/claude-code-settings.json',
-  };
-
-  if (existsSync(settingsPath)) {
-    try {
-      settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as Record<string, unknown>;
-    } catch {
-      // corrupt — overwrite
-    }
-  }
-
-  const hooks = (settings.hooks ?? {}) as Record<string, unknown[]>;
-  const preToolUse = (hooks.PreToolUse ?? []) as Array<Record<string, unknown>>;
-
-  const alreadyHasHook = preToolUse.some(
-    (entry) =>
-      entry.matcher === 'EnterWorktree' &&
-      Array.isArray(entry.hooks) &&
-      (entry.hooks as Array<Record<string, unknown>>).some((h) =>
-        String(h.command ?? '').includes('claude/*'),
-      ),
-  );
-
-  if (!alreadyHasHook) {
-    preToolUse.unshift({
-      matcher: 'EnterWorktree',
-      hooks: [{ type: 'command', command: ENTER_WORKTREE_NAMING_HOOK }],
-    });
-    hooks.PreToolUse = preToolUse;
-    settings.hooks = hooks;
-    safeWrite(settingsPath, JSON.stringify(settings, null, 2) + '\n', created);
-  }
 }
 
 function updatePackageScripts(targetDir: string, created: string[]): void {
