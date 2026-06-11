@@ -1,8 +1,5 @@
 dist/
 node_modules/
 CHANGELOG.md
-templates/
 llm/
 docs/
-plugins/
-.claude-plugin/

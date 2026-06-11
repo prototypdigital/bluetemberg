@@ -68,7 +68,7 @@ When `remote` is set, `bluetemberg sync` automatically adds `prototypdigital/cla
 
 **3. Scaffold the workflow:**
 
-`bluetemberg init` copies `.github/workflows/sync-marketplace.yml` automatically when `claude-marketplace` is selected. For existing projects, copy it from `templates/ci/sync-marketplace.yml` in this repo.
+`bluetemberg init` writes `.github/workflows/sync-marketplace.yml` automatically when `claude-marketplace` is selected. For existing projects, re-run `bluetemberg init` (it preserves your config) or add the workflow by hand — the generated file is plain GitHub Actions YAML with no bluetemberg-specific magic.
 
 The workflow triggers on pushes to `main` that touch `llm/**` or `bluetemberg.config.json`, runs `bluetemberg sync`, then commits and pushes `plugins/` and `.claude-plugin/` to the marketplace repo.
 

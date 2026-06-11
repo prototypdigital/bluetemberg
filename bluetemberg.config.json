@@ -1,33 +1,5 @@
 {
-  "platforms": ["cursor", "claude", "copilot", "claude-marketplace"],
-  "marketplace": {
-    "plugins": [
-      {
-        "name": "frontend",
-        "displayName": "Frontend Developer",
-        "description": "Skills and agents for React/TypeScript frontend projects",
-        "profiles": ["frontend"]
-      },
-      {
-        "name": "fullstack",
-        "displayName": "Full-Stack Developer",
-        "description": "Skills and agents for full-stack projects (frontend + backend)",
-        "profiles": ["frontend", "backend", "fullstack"]
-      },
-      {
-        "name": "backend",
-        "displayName": "Backend Developer",
-        "description": "Skills and agents for API, database, and service projects",
-        "profiles": ["backend"]
-      },
-      {
-        "name": "devops",
-        "displayName": "DevOps / Platform Engineer",
-        "description": "Skills and agents for CI/CD, containers, and infrastructure",
-        "profiles": ["devops", "pure-infra"]
-      }
-    ]
-  },
+  "platforms": ["cursor", "claude", "copilot"],
   "source": "llm",
   "targets": {
     "rules": {
