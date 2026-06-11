@@ -55,6 +55,16 @@ describe('packsCacheDir / packVersionDir', () => {
       '/project/.bluetemberg/packs/@scope/rules/2.0.0',
     );
   });
+
+  it('throws when a traversal name would escape the pack cache', () => {
+    expect(() => packVersionDir('/project', '../../../../tmp/evil', '1.0.0')).toThrow(
+      /outside the pack cache/,
+    );
+  });
+
+  it('throws when the version escapes the pack cache', () => {
+    expect(() => packVersionDir('/project', 'my-rules', '../../etc')).toThrow(/outside the pack cache/);
+  });
 });
 
 describe('isPackCached', () => {
