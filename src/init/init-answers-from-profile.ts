@@ -14,7 +14,7 @@ import {
 export function defaultRuleCollections(teamProfile: TeamProfile): string[] {
   if (teamProfile === 'custom') return [];
   return RULE_COLLECTION_PRESETS.filter(
-    (c: RuleCollectionPreset) => c.tags?.includes(teamProfile) ?? false,
+    (c: RuleCollectionPreset) => c.universal === true || (c.tags?.includes(teamProfile) ?? false),
   ).map((c) => c.id);
 }
 

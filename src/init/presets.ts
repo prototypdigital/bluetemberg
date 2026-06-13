@@ -17,6 +17,11 @@ export const TEAM_PROFILES: TeamProfileChoice[] = [
     name: 'Pure Infrastructure',
     description: 'Ansible, Kubernetes, Terraform — no application code',
   },
+  {
+    id: 'agentic',
+    name: 'AI / Agentic Workflow',
+    description: 'Context engineering, agent memory, sub-agent design for LLM-heavy projects',
+  },
   { id: 'custom', name: 'Custom', description: 'Pick everything individually' },
 ];
 
@@ -35,7 +40,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-git',
     description: 'Git workflow, git move, pre-commit checks',
     rules: ['git-workflow', 'git-move', 'pre-commit-checks'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
   },
   {
     id: 'security',
@@ -43,7 +48,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-security',
     description: 'Never read .env, secrets management, API error handling',
     rules: ['never-read-env', 'security-secrets', 'api-error-handling'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
   },
   {
     id: 'docs',
@@ -51,7 +56,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-docs',
     description: 'Docs parity, post-edit diagnostics, Mermaid diagrams',
     rules: ['docs-parity', 'post-edit-diagnostics', 'mermaid-diagrams'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
   },
   {
     id: 'devops',
@@ -356,7 +361,6 @@ export const GUARDRAIL_PRESETS: PresetItem[] = [
     name: 'Conventional branch names',
     description: 'Block auto-generated worktree branch names; require type/description format',
     default: true,
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
     universal: true,
     packageName: 'bluetemberg-guardrails-git',
   },

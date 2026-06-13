@@ -3,7 +3,14 @@ export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
-export type TeamProfile = 'frontend' | 'backend' | 'fullstack' | 'devops' | 'pure-infra' | 'custom';
+export type TeamProfile =
+  | 'frontend'
+  | 'backend'
+  | 'fullstack'
+  | 'devops'
+  | 'pure-infra'
+  | 'agentic'
+  | 'custom';
 
 export interface TargetConfig {
   dir: string;
@@ -89,6 +96,8 @@ export interface RuleCollectionPreset {
   packageName: string;
   description: string;
   rules: string[];
+  /** When true, this collection is included for every non-custom profile without needing explicit tags. */
+  universal?: boolean;
   tags?: TeamProfile[];
 }
 
@@ -301,6 +310,11 @@ export interface RegistryInstallOptions {
   silent?: boolean;
   /** Force re-download even if cached. */
   force?: boolean;
+  /**
+   * Resolve every pack and print the install plan without writing anything to disk.
+   * Exits non-zero if any pack would fail to resolve.
+   */
+  dryRun?: boolean;
 }
 
 /** Options for `registry.search()`. */

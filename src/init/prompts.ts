@@ -25,6 +25,8 @@ function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
     case 'devops':
     case 'pure-infra':
       return ['devops'];
+    case 'agentic':
+      return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
     case 'custom':
       return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
   }
