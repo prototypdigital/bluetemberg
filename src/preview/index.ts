@@ -46,6 +46,19 @@ async function fetchCatalog(): Promise<Catalog> {
   if (!data || typeof data !== 'object' || !Array.isArray((data as Record<string, unknown>).packs)) {
     throw new Error('Invalid catalog format: missing or non-array "packs" field');
   }
+  const packs = (data as Record<string, unknown>).packs as unknown[];
+  for (const pack of packs) {
+    if (
+      !pack ||
+      typeof pack !== 'object' ||
+      typeof (pack as Record<string, unknown>).name !== 'string' ||
+      typeof (pack as Record<string, unknown>).version !== 'string' ||
+      typeof (pack as Record<string, unknown>).kind !== 'string' ||
+      !Array.isArray((pack as Record<string, unknown>).profiles)
+    ) {
+      throw new Error('Invalid catalog format: pack missing required fields (name, version, kind, profiles)');
+    }
+  }
   return data as Catalog;
 }
 
@@ -90,8 +103,8 @@ function printSection(title: string, packs: CatalogPack[], log: (msg: string) =>
     log(`  ${pack.name}  ${pack.version}`);
     log(`    ${pack.description}`);
     if (pack.preview) {
-      const preview = pack.preview.slice(0, 160).replace(/\n/g, ' ');
-      log(`    └─ "${preview}${pack.preview.length > 160 ? '…' : ''}"`);
+      const preview = pack.preview.slice(0, 300).replace(/\n/g, ' ');
+      log(`    └─ "${preview}${pack.preview.length > 300 ? '…' : ''}"`);
     }
     void shortName;
   }

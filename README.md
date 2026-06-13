@@ -118,7 +118,7 @@ Official Bluetemberg plugin packs (frontend, fullstack, backend, devops) are ser
 
 Rules are delivered as versioned npm packages from the [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) registry. The init wizard pre-selects collections based on your team profile; you can add or remove any collection before confirming.
 
-**Core packs (all profiles)** — always included regardless of which profile you pick:
+**Core packs (all standard profiles)** — auto-included for all profiles except Custom (Custom users must opt into these collections manually):
 
 | Collection | Package                      | Content                                                            |
 | ---------- | ---------------------------- | ------------------------------------------------------------------ |

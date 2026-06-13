@@ -177,6 +177,40 @@ export function list(root: string, options: RegistryListOptions = {}): Installed
  * Like `npm ci` — reads the manifest, resolves versions via the lockfile when
  * available, downloads missing packs, and updates the lockfile for new entries.
  */
+async function dryRunInstall(
+  root: string,
+  names: string[],
+  manifest: ReturnType<typeof readManifest>,
+  lock: ReturnType<typeof readLockfile>,
+  options: RegistryInstallOptions,
+  log: (msg: string) => void,
+): Promise<void> {
+  log(`[dry-run] Resolving ${names.length} pack(s)...\n`);
+  const dryFailed: Array<{ name: string; error: Error }> = [];
+  for (const name of names) {
+    const range = manifest.packages[name];
+    const existingLock = lock.packages[name];
+    try {
+      if (existingLock && !options.force && isPackCached(root, name, existingLock.version)) {
+        log(`  ${name}@${existingLock.version} (cached ✓)`);
+        continue;
+      }
+      const metadata = await fetchPackageMetadata(name, manifest.registry);
+      const version = resolveVersion(metadata, existingLock && !options.force ? existingLock.version : range);
+      log(`  ${name}@${version} (would download)`);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      log(`  ✗ ${name}: ${error.message}`);
+      dryFailed.push({ name, error });
+    }
+  }
+  const staleCount = Object.keys(lock.packages).filter((n) => !(n in manifest.packages)).length;
+  if (staleCount > 0)
+    log(`\n[dry-run] Would prune ${staleCount} stale lockfile entr${staleCount === 1 ? 'y' : 'ies'}.`);
+  log('\nNo files written. Run without --dry-run to apply.');
+  if (dryFailed.length > 0) throw new Error(`${dryFailed.length} pack(s) would fail to install.`);
+}
+
 export async function install(
   root: string,
   options: RegistryInstallOptions = {},
@@ -197,33 +231,7 @@ export async function install(
   }
 
   if (options.dryRun) {
-    log(`[dry-run] Resolving ${names.length} pack(s)...\n`);
-    const dryFailed: Array<{ name: string; error: Error }> = [];
-    for (const name of names) {
-      const range = manifest.packages[name];
-      const existingLock = lock.packages[name];
-      try {
-        if (existingLock && !options.force && isPackCached(root, name, existingLock.version)) {
-          log(`  ${name}@${existingLock.version} (cached ✓)`);
-          continue;
-        }
-        const metadata = await fetchPackageMetadata(name, manifest.registry);
-        const version = resolveVersion(
-          metadata,
-          existingLock && !options.force ? existingLock.version : range,
-        );
-        log(`  ${name}@${version} (would download)`);
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        log(`  ✗ ${name}: ${error.message}`);
-        dryFailed.push({ name, error });
-      }
-    }
-    const staleCount = Object.keys(lock.packages).filter((n) => !(n in manifest.packages)).length;
-    if (staleCount > 0)
-      log(`\n[dry-run] Would prune ${staleCount} stale lockfile entr${staleCount === 1 ? 'y' : 'ies'}.`);
-    log('\nNo files written. Run without --dry-run to apply.');
-    if (dryFailed.length > 0) throw new Error(`${dryFailed.length} pack(s) would fail to install.`);
+    await dryRunInstall(root, names, manifest, lock, options, log);
     return [];
   }
 

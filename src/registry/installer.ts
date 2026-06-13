@@ -85,7 +85,7 @@ export async function installPackVersion(
   root: string,
   metadata: NpmPackageMetadata,
   version: string,
-  options: { force?: boolean; registryUrl?: string } = {},
+  options: { force?: boolean; registryUrl?: string; allowExternalTarballHost?: boolean } = {},
 ): Promise<PackageLockEntry> {
   const dest = packVersionDir(root, metadata.name, version);
 
@@ -98,7 +98,12 @@ export async function installPackVersion(
 
   // Validate the tarball host matches the configured registry to prevent a
   // compromised registry response from redirecting downloads to an attacker-controlled host.
-  const registryHost = new URL(options.registryUrl ?? DEFAULT_REGISTRY).hostname;
+  let registryHost: string;
+  try {
+    registryHost = new URL(options.registryUrl ?? DEFAULT_REGISTRY).hostname;
+  } catch {
+    throw new Error(`Invalid registry URL: ${options.registryUrl ?? DEFAULT_REGISTRY}`);
+  }
   let tarballHost: string;
   try {
     tarballHost = new URL(tarballUrl).hostname;
@@ -108,10 +113,17 @@ export async function installPackVersion(
     );
   }
   if (tarballHost !== registryHost) {
-    throw new Error(
-      `Tarball host "${tarballHost}" does not match registry host "${registryHost}" — refusing to download. ` +
-        `If your registry uses an external CDN, configure it to serve tarballs from the same host.`,
-    );
+    if (options.allowExternalTarballHost) {
+      console.warn(
+        `Warning: Tarball host "${tarballHost}" differs from registry host "${registryHost}" for "${metadata.name}@${version}". ` +
+          `Proceeding because allowExternalTarballHost is enabled.`,
+      );
+    } else {
+      throw new Error(
+        `Tarball host "${tarballHost}" does not match registry host "${registryHost}" — refusing to download. ` +
+          `If your registry uses an external CDN, pass allowExternalTarballHost option or configure it to serve tarballs from the same host.`,
+      );
+    }
   }
 
   const expectedIntegrity = versionMeta.dist.integrity;
