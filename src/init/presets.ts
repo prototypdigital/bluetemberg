@@ -149,7 +149,7 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Docs maintainer',
     description: 'Documentation synchronization with code changes',
     default: true,
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
     packageName: 'bluetemberg-agents-docs-maintainer',
   },
   {
@@ -240,7 +240,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Docs upkeep',
     description: 'Keep docs aligned with implementation changes',
     default: true,
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
     packageName: 'bluetemberg-skills-docs-upkeep',
   },
   {
@@ -248,7 +248,7 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Workspace hygiene',
     description: 'Clean workspace state during edits',
     default: true,
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
     packageName: 'bluetemberg-skills-workspace-hygiene',
   },
   {
