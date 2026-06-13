@@ -90,6 +90,43 @@ export interface BlueprintConfig {
 
 export type RuleSource = 'collections' | 'none';
 
+export interface GitHubScaffoldConfig {
+  /** Project CI: typecheck, lint, test on push and PR. */
+  ci: boolean;
+  /** CodeQL static analysis for security vulnerabilities (free for public repos). */
+  codeql: boolean;
+  /** Block PRs that introduce vulnerable or license-incompatible dependencies. */
+  dependencyReview: boolean;
+  /** Auto-update npm and GitHub Actions dependencies weekly. */
+  dependabot: boolean;
+  /** Structured bug report and feature request issue templates. */
+  issueTemplates: boolean;
+  /** Pull request checklist template. */
+  prTemplate: boolean;
+  /** Assign default PR reviewers by file path. */
+  codeowners: boolean;
+  /** Auto-create GitHub Release with generated notes on version tags. */
+  releaseWorkflow: boolean;
+  /** Close stale issues and PRs after 60 days of inactivity. */
+  staleBot: boolean;
+  /** Deploy a docs site to GitHub Pages on push to main. */
+  pagesWorkflow: boolean;
+  /** CONTRIBUTING.md with contribution guidelines. */
+  contributing: boolean;
+  /** MIT LICENSE file in repo root. */
+  license: boolean;
+  /** CODE_OF_CONDUCT.md (Contributor Covenant 2.1). */
+  codeOfConduct: boolean;
+  /** SECURITY.md with vulnerability reporting instructions. */
+  security: boolean;
+  /** Enforce Conventional Commits PR title format via GitHub Actions. */
+  semanticPr: boolean;
+  /** Auto-label PRs by changed file paths. */
+  autoLabeler: boolean;
+  /** Lock closed issues and PRs after inactivity. */
+  lockClosed: boolean;
+}
+
 export interface RuleCollectionPreset {
   id: string;
   name: string;
@@ -124,6 +161,8 @@ export interface InitAnswers {
   guardrails?: string[];
   /** External source spec strings (e.g. `github:owner/repo#HEAD:rules`). Written to `llm/rule-sources.json`. */
   externalSources?: string[];
+  /** GitHub repository file scaffolding (CI, security, templates). Omitted = no GitHub files generated. */
+  github?: GitHubScaffoldConfig;
 }
 
 /** Options for `init()` besides the target directory (CLI parity). */

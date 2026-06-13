@@ -9,6 +9,7 @@ import {
   MCP_SERVER_PRESETS,
   PLATFORM_CHOICES,
   GUARDRAIL_PRESETS,
+  DEFAULT_GITHUB_CONFIG,
 } from './presets.js';
 
 export function defaultRuleCollections(teamProfile: TeamProfile): string[] {
@@ -62,6 +63,7 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     includeGuardrails: true,
     guardrails: defaultGuardrailIds(teamProfile),
     externalSources: [],
+    github: { ...DEFAULT_GITHUB_CONFIG },
   };
 }
 
@@ -123,5 +125,6 @@ export function finalizeNonInteractiveAnswers(
     includeGuardrails: overrides.includeGuardrails ?? base.includeGuardrails,
     guardrails: overrides.guardrails ?? base.guardrails,
     externalSources: overrides.externalSources ?? base.externalSources,
+    github: overrides.github ?? base.github,
   };
 }
