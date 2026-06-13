@@ -433,8 +433,8 @@ export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
   {
     id: 'coderabbit',
     name: 'CodeRabbit',
-    description: 'AI code review bot on every PR — free for public repos, zero infra',
-    default: true,
+    description: 'AI code review bot — requires installing https://github.com/apps/coderabbitai',
+    default: false,
   },
 ];
 
@@ -449,5 +449,5 @@ export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
   releaseWorkflow: true,
   staleBot: false,
   pagesWorkflow: false,
-  coderabbit: true,
+  coderabbit: false,
 };
