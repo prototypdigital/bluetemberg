@@ -5,6 +5,7 @@ import type {
   TeamProfile,
   TeamProfileChoice,
   RuleCollectionPreset,
+  GitHubScaffoldConfig,
 } from '../types.js';
 
 export const TEAM_PROFILES: TeamProfileChoice[] = [
@@ -367,3 +368,79 @@ export const PACKAGE_MANAGERS: PackageManagerChoice[] = [
   { id: 'npm', name: 'npm' },
   { id: 'yarn', name: 'yarn' },
 ];
+
+export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
+  {
+    id: 'ci',
+    name: 'CI workflow',
+    description: 'Typecheck, lint, test on push and PR',
+    default: true,
+  },
+  {
+    id: 'codeql',
+    name: 'CodeQL scanning',
+    description: 'Static analysis for security vulnerabilities (free for public repos)',
+    default: true,
+  },
+  {
+    id: 'dependencyReview',
+    name: 'Dependency review',
+    description: 'Block PRs that introduce vulnerable or license-incompatible dependencies',
+    default: true,
+  },
+  {
+    id: 'dependabot',
+    name: 'Dependabot',
+    description: 'Auto-update npm and GitHub Actions dependencies weekly',
+    default: true,
+  },
+  {
+    id: 'issueTemplates',
+    name: 'Issue templates',
+    description: 'Structured bug report and feature request forms',
+    default: true,
+  },
+  {
+    id: 'prTemplate',
+    name: 'PR template',
+    description: 'Pull request checklist template',
+    default: true,
+  },
+  {
+    id: 'codeowners',
+    name: 'CODEOWNERS',
+    description: 'Assign default PR reviewers by file path',
+    default: true,
+  },
+  {
+    id: 'releaseWorkflow',
+    name: 'Release workflow',
+    description: 'Auto-create GitHub Release with notes on version tags',
+    default: true,
+  },
+  {
+    id: 'staleBot',
+    name: 'Stale bot',
+    description: 'Close stale issues and PRs after 60 days of inactivity',
+    default: false,
+  },
+  {
+    id: 'pagesWorkflow',
+    name: 'GitHub Pages',
+    description: 'Deploy a docs site to GitHub Pages on push to main',
+    default: false,
+  },
+];
+
+export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
+  ci: true,
+  codeql: true,
+  dependencyReview: true,
+  dependabot: true,
+  issueTemplates: true,
+  prTemplate: true,
+  codeowners: true,
+  releaseWorkflow: true,
+  staleBot: false,
+  pagesWorkflow: false,
+};

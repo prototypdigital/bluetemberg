@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import type { InitAnswers, Platform } from '../types.js';
+import type { InitAnswers, Platform, GitHubScaffoldConfig } from '../types.js';
 import {
   INIT_PACKAGE_MANAGERS,
   INIT_PLATFORMS,
@@ -63,6 +63,22 @@ function expectPlatforms(record: Record<string, unknown>, field: string): Platfo
   return vals as Platform[];
 }
 
+function parseGithubConfig(val: unknown): GitHubScaffoldConfig | undefined {
+  if (!isRecord(val)) return undefined;
+  return {
+    ci: expectBoolean(val, 'ci'),
+    codeql: expectBoolean(val, 'codeql'),
+    dependencyReview: expectBoolean(val, 'dependencyReview'),
+    dependabot: expectBoolean(val, 'dependabot'),
+    issueTemplates: expectBoolean(val, 'issueTemplates'),
+    prTemplate: expectBoolean(val, 'prTemplate'),
+    codeowners: expectBoolean(val, 'codeowners'),
+    releaseWorkflow: expectBoolean(val, 'releaseWorkflow'),
+    staleBot: expectBoolean(val, 'staleBot'),
+    pagesWorkflow: expectBoolean(val, 'pagesWorkflow'),
+  };
+}
+
 /** Parse and validate `--config` JSON into `InitAnswers`. */
 export function assertInitAnswers(record: unknown): InitAnswers {
   if (!isRecord(record)) throw new Error('Init answers invalid: expected a JSON object.');
@@ -87,6 +103,7 @@ export function assertInitAnswers(record: unknown): InitAnswers {
       ? (record.marketplacePlugins as string[])
       : [],
     externalSources: Array.isArray(record.externalSources) ? (record.externalSources as string[]) : [],
+    github: parseGithubConfig(record.github),
   };
 }
 
