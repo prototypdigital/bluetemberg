@@ -29,14 +29,15 @@ bluetemberg generates AI tool configuration and writes auto-executing hooks into
 
 When `bluetemberg install` downloads a pack from the npm registry:
 
-| Control                       | Where                                                                                                                                                                  |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SHA-512 integrity**         | Tarball hashed on download and compared against `dist.integrity` from registry metadata. Mismatches abort and clean up the partial extraction.                         |
-| **Registry host pinning**     | `dist.tarball` must resolve to the same hostname as the configured registry. A compromised metadata response cannot redirect downloads to an attacker-controlled host. |
-| **Size cap**                  | Downloads are aborted when they exceed 50 MiB (streamed to temp file; partial temp file is removed by the installer on abort).                                         |
-| **Path traversal protection** | Pack names/versions that would resolve outside `.bluetemberg/packs/` are rejected before any extraction.                                                               |
-| **Symlink rejection**         | The tarball extractor rejects symlinks unconditionally.                                                                                                                |
-| **Integrity cache marker**    | `.bluetemberg-integrity` written per cached version; re-validated on cache hits.                                                                                       |
+| Control                             | Where                                                                                                                                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **SHA-512 integrity**               | Tarball hashed on download and compared against `dist.integrity` from registry metadata. Mismatches abort and clean up the partial extraction.                                       |
+| **Registry host pinning**           | `dist.tarball` must resolve to the same hostname as the configured registry. A compromised metadata response cannot redirect downloads to an attacker-controlled host.               |
+| **Size cap**                        | Downloads are aborted when they exceed 50 MiB (streamed to temp file; partial temp file is removed by the installer on abort).                                                       |
+| **Path traversal protection**       | Pack names/versions that would resolve outside `.bluetemberg/packs/` are rejected before any extraction.                                                                             |
+| **Symlink rejection**               | The tarball extractor rejects symlinks unconditionally.                                                                                                                              |
+| **Integrity cache marker**          | `.bluetemberg-integrity` written per cached version; re-validated on cache hits.                                                                                                     |
+| **Guardrail shell-injection guard** | Guardrail `check.field` and `check.regex` values are validated to a safe character set and passed as positional arguments to a fixed script, never interpolated onto a command line. |
 
 ### Known limitation
 

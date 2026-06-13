@@ -157,6 +157,21 @@ The command is **non-destructive**:
 
 Run `bluetemberg install` and `npx bluetemberg sync` afterwards to download new packs and regenerate platform files.
 
+## Managing packs
+
+After init you can manage packs directly without touching `llm/packages.json` by hand:
+
+```bash
+npx bluetemberg install                          # download all packs listed in llm/packages.json
+npx bluetemberg update                           # update all packs to latest matching semver range
+npx bluetemberg update bluetemberg-rules-nextjs  # update a single pack
+npx bluetemberg add bluetemberg-rules-nextjs     # add a new pack
+npx bluetemberg remove bluetemberg-rules-nextjs  # remove a pack
+npx bluetemberg list                             # show installed packs and resolved versions
+```
+
+Run `bluetemberg sync` after any change to regenerate platform files. See [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry) for the manifest format, lockfile, and pack cache layout.
+
 ## Sync
 
 After editing anything in `llm/`, regenerate platform files:
