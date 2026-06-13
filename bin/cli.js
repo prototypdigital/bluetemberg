@@ -349,6 +349,39 @@ program
   });
 
 program
+  .command('preview')
+  .description('Preview packs for a profile without writing any files')
+  .argument('[profile]', `Profile to preview (one of: ${[...TEAM_PROFILES].join(', ')})`)
+  .option('--list', 'List all available profiles')
+  .option('--force', 'Force re-fetch of the pack catalog')
+  .option('--silent', 'Suppress all output')
+  .action(async (profile, options) => {
+    const { preview, previewList } = await import('../dist/preview/index.js');
+
+    if (options.list || !profile) {
+      await previewList({ silent: options.silent });
+      return;
+    }
+
+    if (!TEAM_PROFILES.has(profile)) {
+      console.error(`Unknown profile "${profile}". Expected one of: ${[...TEAM_PROFILES].join(', ')}`);
+      process.exit(1);
+    }
+
+    try {
+      await preview(process.cwd(), profile, {
+        silent: options.silent,
+        force: options.force,
+      });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
   .command('add')
   .description('Add a pack (rules, agents, skills, guardrails) from the npm registry')
   .argument('<package>', 'Package name with optional @version (e.g. my-rules@^1.0.0)')
@@ -406,6 +439,7 @@ program
   .command('install')
   .description('Install all packs from llm/packages.json (like npm ci)')
   .option('--force', 'Force re-download even if cached')
+  .option('--dry-run', 'Resolve packs and print install plan without writing files')
   .option('--silent', 'Suppress all output')
   .action(async (options) => {
     const { install } = await import('../dist/registry/index.js');
@@ -413,6 +447,7 @@ program
       await install(process.cwd(), {
         force: options.force,
         silent: options.silent,
+        dryRun: options.dryRun,
       });
     } catch (err) {
       if (!options.silent) {
