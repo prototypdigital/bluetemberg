@@ -47,8 +47,8 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     id: 'security',
     name: 'Security',
     packageName: 'bluetemberg-rules-security',
-    description: 'Never read .env, secrets management, API error handling',
-    rules: ['never-read-env', 'security-secrets', 'api-error-handling'],
+    description: 'Never read .env, secrets management, API error handling, LLM package hallucination',
+    rules: ['never-read-env', 'security-secrets', 'api-error-handling', 'llm-package-hallucination'],
     universal: true,
   },
   {
@@ -75,6 +75,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
       'ci-workflow-conventions',
       'idempotency',
       'runbook-discipline',
+      'jinja2-templates',
     ],
     tags: ['devops', 'pure-infra'],
   },
@@ -82,8 +83,14 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     id: 'nextjs',
     name: 'Next.js',
     packageName: 'bluetemberg-rules-nextjs',
-    description: 'Next.js NEXT_PUBLIC_* env var safety — build-time-only vars, never secrets',
-    rules: ['nextjs-public-env-vars'],
+    description: 'Next.js env var safety, data fetching, image optimization, metadata, server components',
+    rules: [
+      'nextjs-public-env-vars',
+      'nextjs-data-fetching',
+      'nextjs-image-optimization',
+      'nextjs-metadata',
+      'nextjs-server-components',
+    ],
     tags: ['frontend', 'fullstack'],
   },
   {
@@ -96,6 +103,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
       'context-positioning',
       'prompt-structure',
       'multi-turn-context-hygiene',
+      'multi-turn-state-management',
       'context-pollution-prevention',
     ],
     tags: ['agentic'],
@@ -106,7 +114,12 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-agent-memory',
     description:
       'Statelessness constraints, memory provenance, promotion through consolidation, authority-ranked recall',
-    rules: ['agent-memory'],
+    rules: [
+      'memory-architecture-checklist',
+      'memory-promotion',
+      'memory-provenance',
+      'memory-recall-authority',
+    ],
     tags: ['agentic'],
   },
   {
