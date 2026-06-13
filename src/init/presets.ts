@@ -86,6 +86,30 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     rules: ['nextjs-public-env-vars'],
     tags: ['frontend', 'fullstack'],
   },
+  {
+    id: 'context-engineering',
+    name: 'Context engineering',
+    packageName: 'bluetemberg-rules-context-engineering',
+    description: 'Token budget management, context positioning, prompt structure, multi-turn hygiene',
+    rules: ['context-window-budget', 'context-positioning', 'prompt-structure', 'multi-turn-context-hygiene', 'context-pollution-prevention'],
+    tags: ['agentic'],
+  },
+  {
+    id: 'agent-memory',
+    name: 'Agent memory',
+    packageName: 'bluetemberg-rules-agent-memory',
+    description: 'Statelessness constraints, memory provenance, promotion through consolidation, authority-ranked recall',
+    rules: ['agent-memory'],
+    tags: ['agentic'],
+  },
+  {
+    id: 'llm-api-product',
+    name: 'LLM API product',
+    packageName: 'bluetemberg-rules-llm-api-product',
+    description: 'Streaming, cost accounting, cost-aware model selection and routing',
+    rules: ['streaming', 'cost-accounting', 'model-selection-and-routing'],
+    tags: ['backend', 'fullstack', 'agentic'],
+  },
 ];
 
 export const AGENT_PRESETS: PresetItem[] = [
@@ -185,6 +209,14 @@ export const AGENT_PRESETS: PresetItem[] = [
     tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-sre-specialist',
   },
+  {
+    id: 'agentic-specialist',
+    name: 'Agentic systems specialist',
+    description: 'Agent memory design, state management, orchestration patterns, tool-use recovery',
+    default: true,
+    tags: ['agentic'],
+    packageName: 'bluetemberg-agents-agentic-specialist',
+  },
 ];
 
 export const SKILL_PRESETS: PresetItem[] = [
@@ -283,6 +315,14 @@ export const SKILL_PRESETS: PresetItem[] = [
     default: false,
     tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-skills-rollback-plan',
+  },
+  {
+    id: 'sub-agent-design',
+    name: 'Sub-agent design',
+    description: 'Plan, scope, and implement sub-agent architectures',
+    default: true,
+    tags: ['agentic'],
+    packageName: 'bluetemberg-skills-sub-agent-design',
   },
 ];
 
