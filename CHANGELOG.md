@@ -20,6 +20,35 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.4.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.3.0...bluetemberg-v0.4.0) (2026-06-13)
+
+
+### Features
+
+* agentic profile, shared/universal presets, dry-run install, e2e CI ([fa62f27](https://github.com/prototypdigital/bluetemberg/commit/fa62f27124ea0be6f93b63dda25589bcd5f44f0a))
+* **cli:** add `bluetemberg preview <profile>` command ([57e4048](https://github.com/prototypdigital/bluetemberg/commit/57e4048f66005e342c2986efec760de454c2e1c9)), closes [#146](https://github.com/prototypdigital/bluetemberg/issues/146)
+* **github:** scaffold community health files and PR quality workflows ([1b0aaa4](https://github.com/prototypdigital/bluetemberg/commit/1b0aaa49c4afda7a578aa2d8796e30537756f9bb))
+* **github:** scaffold community health files and PR quality workflows ([c75bef9](https://github.com/prototypdigital/bluetemberg/commit/c75bef95995fbc1102aa61ef371318b2c8dbb8c1))
+* **init:** add CodeRabbit AI PR review to GitHub scaffolding ([e4703f4](https://github.com/prototypdigital/bluetemberg/commit/e4703f462d8e8d4f839ee54f6a631d9afa0c8dac))
+* **init:** scaffold GitHub open-source best-practice files ([9538467](https://github.com/prototypdigital/bluetemberg/commit/9538467cae2c6b03abddd40b774b68823dc99113))
+* **init:** scaffold GitHub open-source best-practice files ([1a741b7](https://github.com/prototypdigital/bluetemberg/commit/1a741b78f26cc20f7aaf059b8de99681d413d84e))
+* **init:** wire agentic profile to its pack family in presets ([83f8ca5](https://github.com/prototypdigital/bluetemberg/commit/83f8ca52100dd24ae4892d6830dfb57537e2f812))
+* **init:** wire agentic profile to its pack family in presets ([1ee20de](https://github.com/prototypdigital/bluetemberg/commit/1ee20de09bc0492567a5115356ba4a73e1d8202e))
+* security hardening, agentic profile, shared presets, dry-run, preview command, e2e CI ([9c49a08](https://github.com/prototypdigital/bluetemberg/commit/9c49a08be854d2ea8c6f6dd26281a6aa26189323))
+
+
+### Bug Fixes
+
+* address all CodeRabbit review issues from PR [#156](https://github.com/prototypdigital/bluetemberg/issues/156) ([f387fd7](https://github.com/prototypdigital/bluetemberg/commit/f387fd78c90d1cb2c0c56e1d7511bbdca736584b))
+* address CodeRabbit review findings on PR [#150](https://github.com/prototypdigital/bluetemberg/issues/150) ([f0a5126](https://github.com/prototypdigital/bluetemberg/commit/f0a512614ae280d9b179a9f264890b2cdf212044))
+* **ci:** add NODE_AUTH_TOKEN to publish step ([d9a33ea](https://github.com/prototypdigital/bluetemberg/commit/d9a33ea9611e6ff9d3bf2636086451b130d86b24))
+* **ci:** add NODE_AUTH_TOKEN to publish step ([543640f](https://github.com/prototypdigital/bluetemberg/commit/543640fcc916a1af1f53184b05fa76138f6ac011))
+* **github:** add customization placeholders for LICENSE and CODE_OF_CONDUCT ([9e11cc6](https://github.com/prototypdigital/bluetemberg/commit/9e11cc687efe6b5856c2ad761a506b15425a5f89))
+* **init:** bump scaffolded GitHub Actions to current major versions ([4a3e0c0](https://github.com/prototypdigital/bluetemberg/commit/4a3e0c0dfa625f199b38224bc310e7e66d00801e))
+* **init:** correct CodeRabbit app URL and add install instructions ([3092f69](https://github.com/prototypdigital/bluetemberg/commit/3092f693cef3ddcdc267d6b58ba45aa75d690ad6))
+* **init:** validate github config field types in assertInitAnswers ([ea07e3d](https://github.com/prototypdigital/bluetemberg/commit/ea07e3d0131ef4d91852f39bd8f870bb10368dab))
+* **registry:** per-pack install isolation and tarball host pinning ([ebeca30](https://github.com/prototypdigital/bluetemberg/commit/ebeca30ad7521b71f86c477f4315fbaa9c1c8f96))
+
 ## [0.3.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.10...bluetemberg-v0.3.0) (2026-06-11)
 
 
