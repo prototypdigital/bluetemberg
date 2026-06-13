@@ -242,5 +242,6 @@ function buildGithubConfig(selectedIds: string[]): GitHubScaffoldConfig {
     releaseWorkflow: s.has('releaseWorkflow'),
     staleBot: s.has('staleBot'),
     pagesWorkflow: s.has('pagesWorkflow'),
+    coderabbit: s.has('coderabbit'),
   };
 }

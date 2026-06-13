@@ -700,6 +700,20 @@ jobs:
           exempt-pr-labels: 'pinned,security'
 `;
 
+const CODERABBIT_CONFIG = `# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+chat:
+  auto_reply: true
+`;
+
 function buildPagesWorkflow(pm: PackageManager): string {
   const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v4\n` : '';
   return `name: Deploy to GitHub Pages
@@ -796,6 +810,9 @@ function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string
   }
   if (cfg.pagesWorkflow) {
     safeWrite(join(targetDir, '.github', 'workflows', 'pages.yml'), buildPagesWorkflow(pm), created);
+  }
+  if (cfg.coderabbit) {
+    safeWrite(join(targetDir, '.coderabbit.yaml'), CODERABBIT_CONFIG, created);
   }
 }
 

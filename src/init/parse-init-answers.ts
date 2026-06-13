@@ -77,6 +77,7 @@ function parseGithubConfig(val: unknown): GitHubScaffoldConfig | undefined {
     releaseWorkflow: bool('releaseWorkflow'),
     staleBot: bool('staleBot'),
     pagesWorkflow: bool('pagesWorkflow'),
+    coderabbit: bool('coderabbit'),
   };
 }
 
