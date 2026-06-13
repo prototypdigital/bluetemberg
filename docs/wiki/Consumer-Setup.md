@@ -38,7 +38,6 @@ See [Configuration](Configuration) for the full `extends` reference.
 | Release workflow | `.github/workflows/release.yml` | ✓ |
 | Stale bot | `.github/workflows/stale.yml` | — |
 | GitHub Pages | `.github/workflows/pages.yml` | — |
-| CodeRabbit | `.coderabbit.yaml` | ✓ |
 
 **After init, customize these files** — the CI workflow assumes `typecheck`, `lint`, and `test` scripts; the Pages workflow defaults to VitePress output at `docs/.vitepress/dist`. Update paths to match your project. Replace `@owner` in `CODEOWNERS` with your GitHub username or team.
 

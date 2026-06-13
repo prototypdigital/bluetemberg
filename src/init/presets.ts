@@ -430,12 +430,6 @@ export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
     description: 'Deploy a docs site to GitHub Pages on push to main',
     default: false,
   },
-  {
-    id: 'coderabbit',
-    name: 'CodeRabbit',
-    description: 'AI code review bot — requires installing https://github.com/apps/coderabbitai',
-    default: false,
-  },
 ];
 
 export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
@@ -449,5 +443,4 @@ export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
   releaseWorkflow: true,
   staleBot: false,
   pagesWorkflow: false,
-  coderabbit: false,
 };

@@ -711,7 +711,6 @@ describe('scaffold', () => {
       releaseWorkflow: true,
       staleBot: true,
       pagesWorkflow: true,
-      coderabbit: true,
     };
 
     it('does not scaffold any GitHub files when github is undefined', () => {
@@ -887,21 +886,6 @@ describe('scaffold', () => {
       expect(existsSync(join(root, '.github', 'workflows', 'pages.yml'))).toBe(false);
     });
 
-    it('scaffolds .coderabbit.yaml when coderabbit is true', () => {
-      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
-
-      const content = readFileSync(join(root, '.coderabbit.yaml'), 'utf8');
-      expect(content).toContain('coderabbit.ai/integrations/schema.v2.json');
-      expect(content).toContain('profile: "chill"');
-      expect(content).toContain('auto_review:');
-    });
-
-    it('does not scaffold .coderabbit.yaml when coderabbit is false', () => {
-      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, coderabbit: false } });
-
-      expect(existsSync(join(root, '.coderabbit.yaml'))).toBe(false);
-    });
-
     it('includes all GitHub files in the created files list', () => {
       const created = scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
 
@@ -915,7 +899,6 @@ describe('scaffold', () => {
       expect(created.some((p) => p.endsWith('release.yml'))).toBe(true);
       expect(created.some((p) => p.endsWith('stale.yml'))).toBe(true);
       expect(created.some((p) => p.endsWith('pages.yml'))).toBe(true);
-      expect(created.some((p) => p.endsWith('.coderabbit.yaml'))).toBe(true);
     });
   });
 });

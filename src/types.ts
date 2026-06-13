@@ -104,8 +104,6 @@ export interface GitHubScaffoldConfig {
   staleBot: boolean;
   /** Deploy a docs site to GitHub Pages on push to main. */
   pagesWorkflow: boolean;
-  /** CodeRabbit AI code review bot on every PR (free for public repos). */
-  coderabbit: boolean;
 }
 
 export interface RuleCollectionPreset {
