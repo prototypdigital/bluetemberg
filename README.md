@@ -1,6 +1,6 @@
 # Bluetemberg :light_blue_heart:
 
-[![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/bluetemberg.svg)](https://www.npmjs.com/package/bluetemberg) [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
 
 **Publish AI standards once to npm. Every engineer gets version-locked, integrity-verified rules, agents, and skills — matched to their role — with one command.**
 
