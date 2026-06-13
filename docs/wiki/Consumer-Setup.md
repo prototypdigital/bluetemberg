@@ -46,7 +46,7 @@ See [Configuration](Configuration) for the full `extends` reference.
 | Auto-labeler | `.github/workflows/label.yml`, `.github/labeler.yml` | — |
 | Lock closed threads | `.github/workflows/lock-closed.yml` | — |
 
-**After init, customize these files** — the CI workflow assumes `typecheck`, `lint`, and `test` scripts; the Pages workflow defaults to VitePress output at `docs/.vitepress/dist`. Update paths to match your project. Replace `@owner` in `CODEOWNERS` with your GitHub username or team.
+**After init, customize these files** — the CI workflow assumes `typecheck`, `lint`, and `test` scripts; the Pages workflow defaults to VitePress output at `docs/.vitepress/dist`. Update paths to match your project. Replace `@owner` in `CODEOWNERS` with your GitHub username or team. In `LICENSE`, replace `[year]` and `[fullname]` with the current year and your name or organization. In `CODE_OF_CONDUCT.md`, replace the enforcement contact placeholder with an actual email address or link.
 
 ## 3. Add sync check to CI
 

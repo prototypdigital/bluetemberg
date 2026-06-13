@@ -822,9 +822,10 @@ Examples of behavior that contributes to a positive environment:
 ## Enforcement
 
 Instances of abusive, threatening, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at the contact
-address listed in this repository. All complaints will be reviewed and
-investigated promptly and fairly.
+reported to the community leaders responsible for enforcement at:
+**[INSERT ENFORCEMENT CONTACT — e.g. conduct@example.com or a GitHub issue link]**
+
+All complaints will be reviewed and investigated promptly and fairly.
 
 ## Attribution
 
@@ -1006,22 +1007,14 @@ function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string
     safeWrite(join(targetDir, 'SECURITY.md'), SECURITY_TEMPLATE, created);
   }
   if (cfg.semanticPr) {
-    safeWrite(
-      join(targetDir, '.github', 'workflows', 'semantic-pr.yml'),
-      SEMANTIC_PR_WORKFLOW,
-      created,
-    );
+    safeWrite(join(targetDir, '.github', 'workflows', 'semantic-pr.yml'), SEMANTIC_PR_WORKFLOW, created);
   }
   if (cfg.autoLabeler) {
     safeWrite(join(targetDir, '.github', 'workflows', 'label.yml'), LABELER_WORKFLOW, created);
     safeWrite(join(targetDir, '.github', 'labeler.yml'), LABELER_CONFIG, created);
   }
   if (cfg.lockClosed) {
-    safeWrite(
-      join(targetDir, '.github', 'workflows', 'lock-closed.yml'),
-      LOCK_CLOSED_WORKFLOW,
-      created,
-    );
+    safeWrite(join(targetDir, '.github', 'workflows', 'lock-closed.yml'), LOCK_CLOSED_WORKFLOW, created);
   }
 }
 
