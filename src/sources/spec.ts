@@ -111,7 +111,14 @@ function splitNameRange(spec: string): { name: string; range: string } {
 }
 
 function normalizePath(path: string): string {
-  return path.replace(/^\/+/, '').replace(/\/+$/, '');
+  // Trim leading/trailing slashes without a regex. The previous
+  // `/\/+$/` form triggered a polynomial-ReDoS warning (CodeQL js/polynomial-redos);
+  // this O(n) scan is behaviour-identical and preserves internal slashes.
+  let start = 0;
+  let end = path.length;
+  while (start < end && path[start] === '/') start += 1;
+  while (end > start && path[end - 1] === '/') end -= 1;
+  return path.slice(start, end);
 }
 
 function assertNoTraversal(path: string, raw: string): void {
