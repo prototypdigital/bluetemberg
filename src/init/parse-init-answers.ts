@@ -65,18 +65,17 @@ function expectPlatforms(record: Record<string, unknown>, field: string): Platfo
 
 function parseGithubConfig(val: unknown): GitHubScaffoldConfig | undefined {
   if (!isRecord(val)) return undefined;
-  const bool = (key: string): boolean => val[key] === true;
   return {
-    ci: bool('ci'),
-    codeql: bool('codeql'),
-    dependencyReview: bool('dependencyReview'),
-    dependabot: bool('dependabot'),
-    issueTemplates: bool('issueTemplates'),
-    prTemplate: bool('prTemplate'),
-    codeowners: bool('codeowners'),
-    releaseWorkflow: bool('releaseWorkflow'),
-    staleBot: bool('staleBot'),
-    pagesWorkflow: bool('pagesWorkflow'),
+    ci: expectBoolean(val, 'ci'),
+    codeql: expectBoolean(val, 'codeql'),
+    dependencyReview: expectBoolean(val, 'dependencyReview'),
+    dependabot: expectBoolean(val, 'dependabot'),
+    issueTemplates: expectBoolean(val, 'issueTemplates'),
+    prTemplate: expectBoolean(val, 'prTemplate'),
+    codeowners: expectBoolean(val, 'codeowners'),
+    releaseWorkflow: expectBoolean(val, 'releaseWorkflow'),
+    staleBot: expectBoolean(val, 'staleBot'),
+    pagesWorkflow: expectBoolean(val, 'pagesWorkflow'),
   };
 }
 
