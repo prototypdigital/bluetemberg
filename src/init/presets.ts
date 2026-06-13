@@ -91,14 +91,21 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     name: 'Context engineering',
     packageName: 'bluetemberg-rules-context-engineering',
     description: 'Token budget management, context positioning, prompt structure, multi-turn hygiene',
-    rules: ['context-window-budget', 'context-positioning', 'prompt-structure', 'multi-turn-context-hygiene', 'context-pollution-prevention'],
+    rules: [
+      'context-window-budget',
+      'context-positioning',
+      'prompt-structure',
+      'multi-turn-context-hygiene',
+      'context-pollution-prevention',
+    ],
     tags: ['agentic'],
   },
   {
     id: 'agent-memory',
     name: 'Agent memory',
     packageName: 'bluetemberg-rules-agent-memory',
-    description: 'Statelessness constraints, memory provenance, promotion through consolidation, authority-ranked recall',
+    description:
+      'Statelessness constraints, memory provenance, promotion through consolidation, authority-ranked recall',
     rules: ['agent-memory'],
     tags: ['agentic'],
   },
