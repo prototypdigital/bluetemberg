@@ -22,9 +22,14 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
+
+      # OIDC trusted publishing requires npm >= 11.5.1; Node 22 ships npm 10.x.
+      # Removing this step silently breaks token-less publishing.
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@11.5.1
 
       - name: Install dependencies
         run: npm ci
@@ -36,4 +41,6 @@ jobs:
         run: npm test
 
       - name: Publish
+        # Requires npm trusted publisher configured on npmjs.com for this repo + NPM environment.
+        # See: https://github.com/prototypdigital/bluetemberg-packs/issues/21
         run: npm publish --provenance --access public
