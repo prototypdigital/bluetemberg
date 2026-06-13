@@ -698,4 +698,207 @@ describe('scaffold', () => {
       expect(manifest.packages['bluetemberg-guardrails-git']).toBeUndefined();
     });
   });
+
+  describe('GitHub scaffolding', () => {
+    const allOnGithub = {
+      ci: true,
+      codeql: true,
+      dependencyReview: true,
+      dependabot: true,
+      issueTemplates: true,
+      prTemplate: true,
+      codeowners: true,
+      releaseWorkflow: true,
+      staleBot: true,
+      pagesWorkflow: true,
+    };
+
+    it('does not scaffold any GitHub files when github is undefined', () => {
+      scaffold(root, baseAnswers);
+
+      expect(existsSync(join(root, '.github', 'workflows', 'ci.yml'))).toBe(false);
+      expect(existsSync(join(root, '.github', 'dependabot.yml'))).toBe(false);
+      expect(existsSync(join(root, '.github', 'pull_request_template.md'))).toBe(false);
+      expect(existsSync(join(root, '.github', 'CODEOWNERS'))).toBe(false);
+    });
+
+    it('scaffolds ci.yml with npm install and run commands', () => {
+      scaffold(root, { ...baseAnswers, packageManager: 'npm', github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
+      expect(content).toContain('npm ci');
+      expect(content).toContain('npm run typecheck');
+      expect(content).toContain('npm run lint');
+      expect(content).toContain('npm test');
+    });
+
+    it('scaffolds ci.yml with pnpm install and run commands', () => {
+      scaffold(root, { ...baseAnswers, packageManager: 'pnpm', github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
+      expect(content).toContain('pnpm install --frozen-lockfile');
+      expect(content).toContain('pnpm typecheck');
+      expect(content).toContain('pnpm lint');
+      expect(content).toContain('pnpm/action-setup@v4');
+    });
+
+    it('scaffolds ci.yml with yarn install and run commands', () => {
+      scaffold(root, { ...baseAnswers, packageManager: 'yarn', github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
+      expect(content).toContain('yarn install --frozen-lockfile');
+      expect(content).toContain('yarn typecheck');
+      expect(content).toContain('yarn lint');
+    });
+
+    it('does not scaffold ci.yml when ci is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, ci: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'ci.yml'))).toBe(false);
+    });
+
+    it('scaffolds codeql.yml with javascript-typescript language', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'codeql.yml'), 'utf8');
+      expect(content).toContain('javascript-typescript');
+      expect(content).toContain('github/codeql-action/init@v3');
+      expect(content).toContain('github/codeql-action/analyze@v3');
+    });
+
+    it('does not scaffold codeql.yml when codeql is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, codeql: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'codeql.yml'))).toBe(false);
+    });
+
+    it('scaffolds dependency-review.yml', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'dependency-review.yml'), 'utf8');
+      expect(content).toContain('actions/dependency-review-action@v4');
+      expect(content).toContain('pull_request');
+    });
+
+    it('does not scaffold dependency-review.yml when dependencyReview is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, dependencyReview: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'dependency-review.yml'))).toBe(false);
+    });
+
+    it('scaffolds dependabot.yml with npm and github-actions ecosystems', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'dependabot.yml'), 'utf8');
+      expect(content).toContain('package-ecosystem: "npm"');
+      expect(content).toContain('package-ecosystem: "github-actions"');
+      expect(content).toContain('interval: "weekly"');
+    });
+
+    it('does not scaffold dependabot.yml when dependabot is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, dependabot: false } });
+
+      expect(existsSync(join(root, '.github', 'dependabot.yml'))).toBe(false);
+    });
+
+    it('scaffolds bug_report.yml and feature_request.yml issue templates', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      expect(existsSync(join(root, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml'))).toBe(true);
+      expect(existsSync(join(root, '.github', 'ISSUE_TEMPLATE', 'feature_request.yml'))).toBe(true);
+      expect(existsSync(join(root, '.github', 'ISSUE_TEMPLATE', 'config.yml'))).toBe(true);
+    });
+
+    it('does not scaffold issue templates when issueTemplates is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, issueTemplates: false } });
+
+      expect(existsSync(join(root, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml'))).toBe(false);
+    });
+
+    it('scaffolds pull_request_template.md with conventional commits reference', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'pull_request_template.md'), 'utf8');
+      expect(content).toContain('Conventional Commits');
+      expect(content).toContain('## Summary');
+    });
+
+    it('does not scaffold pull_request_template.md when prTemplate is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, prTemplate: false } });
+
+      expect(existsSync(join(root, '.github', 'pull_request_template.md'))).toBe(false);
+    });
+
+    it('scaffolds CODEOWNERS with placeholder', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'CODEOWNERS'), 'utf8');
+      expect(content).toContain('CODEOWNERS');
+      expect(content).toContain('@owner');
+    });
+
+    it('does not scaffold CODEOWNERS when codeowners is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, codeowners: false } });
+
+      expect(existsSync(join(root, '.github', 'CODEOWNERS'))).toBe(false);
+    });
+
+    it('scaffolds release.yml triggered on version tags', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+      expect(content).toContain("tags:\n      - 'v*'");
+      expect(content).toContain('softprops/action-gh-release@v2');
+      expect(content).toContain('generate_release_notes: true');
+    });
+
+    it('does not scaffold release.yml when releaseWorkflow is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, releaseWorkflow: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'release.yml'))).toBe(false);
+    });
+
+    it('scaffolds stale.yml when staleBot is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'stale.yml'), 'utf8');
+      expect(content).toContain('actions/stale@v9');
+      expect(content).toContain('days-before-stale: 60');
+    });
+
+    it('does not scaffold stale.yml when staleBot is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, staleBot: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'stale.yml'))).toBe(false);
+    });
+
+    it('scaffolds pages.yml when pagesWorkflow is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'pages.yml'), 'utf8');
+      expect(content).toContain('actions/deploy-pages@v4');
+      expect(content).toContain('github-pages');
+    });
+
+    it('does not scaffold pages.yml when pagesWorkflow is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, pagesWorkflow: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'pages.yml'))).toBe(false);
+    });
+
+    it('includes all GitHub files in the created files list', () => {
+      const created = scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      expect(created.some((p) => p.endsWith('ci.yml'))).toBe(true);
+      expect(created.some((p) => p.endsWith('codeql.yml'))).toBe(true);
+      expect(created.some((p) => p.endsWith('dependency-review.yml'))).toBe(true);
+      expect(created.some((p) => p.endsWith('dependabot.yml'))).toBe(true);
+      expect(created.some((p) => p.endsWith('bug_report.yml'))).toBe(true);
+      expect(created.some((p) => p.endsWith('pull_request_template.md'))).toBe(true);
+      expect(created.some((p) => p.endsWith('CODEOWNERS'))).toBe(true);
+      expect(created.some((p) => p.endsWith('release.yml'))).toBe(true);
+      expect(created.some((p) => p.endsWith('stale.yml'))).toBe(true);
+      expect(created.some((p) => p.endsWith('pages.yml'))).toBe(true);
+    });
+  });
 });

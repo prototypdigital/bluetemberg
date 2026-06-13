@@ -11,6 +11,7 @@ import type {
   TargetConfig,
   SkillTargetConfig,
   PackageManifest,
+  PackageManager,
 } from '../types.js';
 import { parseSourceSpec, sourceKey } from '../sources/spec.js';
 import type { SourceManifest } from '../sources/types.js';
@@ -138,6 +139,10 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
 
   if ((answers.externalSources?.length ?? 0) > 0) {
     scaffoldSources(targetDir, answers.externalSources!, created);
+  }
+
+  if (answers.github) {
+    scaffoldGitHub(targetDir, answers, created);
   }
 
   updatePackageScripts(targetDir, created);
@@ -430,6 +435,367 @@ function updatePackageScripts(targetDir: string, created: string[]): void {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`  Warning: could not update package.json scripts: ${message}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GitHub scaffolding
+// ---------------------------------------------------------------------------
+
+function ciInstallCmd(pm: PackageManager): string {
+  if (pm === 'npm') return 'npm ci';
+  if (pm === 'yarn') return 'yarn install --frozen-lockfile';
+  return 'pnpm install --frozen-lockfile';
+}
+
+function ciRunCmd(pm: PackageManager, script: string): string {
+  if (pm === 'npm') return script === 'test' ? 'npm test' : `npm run ${script}`;
+  return `${pm} ${script}`;
+}
+
+function buildCiWorkflow(pm: PackageManager): string {
+  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v4\n` : '';
+  return `name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+${pnpmStep}      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: '${pm}'
+      - run: ${ciInstallCmd(pm)}
+      - run: ${ciRunCmd(pm, 'typecheck')}
+      - run: ${ciRunCmd(pm, 'lint')}
+      - run: ${ciRunCmd(pm, 'test')}
+`;
+}
+
+const CODEQL_WORKFLOW = `name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  analyze:
+    name: Analyze ($\{{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: $\{{ matrix.language }}
+          build-mode: $\{{ matrix.build-mode }}
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:$\{{ matrix.language }}"
+`;
+
+const DEPENDENCY_REVIEW_WORKFLOW = `name: Dependency review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+`;
+
+const DEPENDABOT_CONFIG = `version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+`;
+
+const BUG_REPORT_TEMPLATE = `name: Bug report
+description: Report a reproducible bug
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run '...'
+        2. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, OS, package manager version, etc.
+    validations:
+      required: false
+`;
+
+const FEATURE_REQUEST_TEMPLATE = `name: Feature request
+description: Suggest an idea or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for suggesting an improvement!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      placeholder: I'm always frustrated when...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+`;
+
+const ISSUE_TEMPLATE_CONFIG = `blank_issues_enabled: false
+contact_links: []
+`;
+
+const PR_TEMPLATE = `## Summary
+
+<!-- Describe what this PR does and why. -->
+
+## Changes
+
+<!-- Bullet list of the main changes. -->
+
+## Testing
+
+- [ ] Tests pass
+- [ ] Types check
+- [ ] Lint passes
+- [ ] Tested locally (for functional changes)
+
+## Checklist
+
+- [ ] PR title follows [Conventional Commits](https://www.conventionalcommits.org/) (\`type(scope): description\`)
+- [ ] Documentation updated if behavior changed
+- [ ] No secrets or credentials committed
+`;
+
+const CODEOWNERS_TEMPLATE = `# CODEOWNERS
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Replace @owner with your GitHub username or team (e.g. @myorg/team-name).
+# Patterns are matched in order — last matching rule wins.
+
+* @owner
+`;
+
+const RELEASE_WORKFLOW = `name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+`;
+
+const STALE_WORKFLOW = `name: Mark stale
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark stale issues and PRs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 60
+          days-before-close: 14
+          stale-issue-message: >
+            This issue has been automatically marked as stale due to inactivity.
+            It will be closed in 14 days unless there is new activity.
+          stale-pr-message: >
+            This PR has been automatically marked as stale due to inactivity.
+            It will be closed in 14 days unless there is new activity.
+          exempt-issue-labels: 'pinned,security'
+          exempt-pr-labels: 'pinned,security'
+`;
+
+function buildPagesWorkflow(pm: PackageManager): string {
+  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v4\n` : '';
+  return `name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+${pnpmStep}      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: '${pm}'
+      - run: ${ciInstallCmd(pm)}
+      # Adjust the build command and output path for your docs framework:
+      # VitePress: docs:build → docs/.vitepress/dist
+      # Docusaurus: build → build/
+      # Astro Starlight: build → dist/
+      - run: ${ciRunCmd(pm, 'docs:build')}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Deploy
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
+`;
+}
+
+function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string[]): void {
+  const cfg = answers.github;
+  if (!cfg) return;
+
+  const pm = answers.packageManager;
+
+  if (cfg.ci) {
+    safeWrite(join(targetDir, '.github', 'workflows', 'ci.yml'), buildCiWorkflow(pm), created);
+  }
+  if (cfg.codeql) {
+    safeWrite(join(targetDir, '.github', 'workflows', 'codeql.yml'), CODEQL_WORKFLOW, created);
+  }
+  if (cfg.dependencyReview) {
+    safeWrite(
+      join(targetDir, '.github', 'workflows', 'dependency-review.yml'),
+      DEPENDENCY_REVIEW_WORKFLOW,
+      created,
+    );
+  }
+  if (cfg.dependabot) {
+    safeWrite(join(targetDir, '.github', 'dependabot.yml'), DEPENDABOT_CONFIG, created);
+  }
+  if (cfg.issueTemplates) {
+    safeWrite(join(targetDir, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml'), BUG_REPORT_TEMPLATE, created);
+    safeWrite(
+      join(targetDir, '.github', 'ISSUE_TEMPLATE', 'feature_request.yml'),
+      FEATURE_REQUEST_TEMPLATE,
+      created,
+    );
+    safeWrite(join(targetDir, '.github', 'ISSUE_TEMPLATE', 'config.yml'), ISSUE_TEMPLATE_CONFIG, created);
+  }
+  if (cfg.prTemplate) {
+    safeWrite(join(targetDir, '.github', 'pull_request_template.md'), PR_TEMPLATE, created);
+  }
+  if (cfg.codeowners) {
+    safeWrite(join(targetDir, '.github', 'CODEOWNERS'), CODEOWNERS_TEMPLATE, created);
+  }
+  if (cfg.releaseWorkflow) {
+    safeWrite(join(targetDir, '.github', 'workflows', 'release.yml'), RELEASE_WORKFLOW, created);
+  }
+  if (cfg.staleBot) {
+    safeWrite(join(targetDir, '.github', 'workflows', 'stale.yml'), STALE_WORKFLOW, created);
+  }
+  if (cfg.pagesWorkflow) {
+    safeWrite(join(targetDir, '.github', 'workflows', 'pages.yml'), buildPagesWorkflow(pm), created);
   }
 }
 
