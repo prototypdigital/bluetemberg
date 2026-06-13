@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync
 import { join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
-import { downloadTarball, verifyIntegrity } from './client.js';
+import { downloadTarball, verifyIntegrity, DEFAULT_REGISTRY } from './client.js';
 import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -85,7 +85,7 @@ export async function installPackVersion(
   root: string,
   metadata: NpmPackageMetadata,
   version: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; registryUrl?: string; allowExternalTarballHost?: boolean } = {},
 ): Promise<PackageLockEntry> {
   const dest = packVersionDir(root, metadata.name, version);
 
@@ -95,6 +95,37 @@ export async function installPackVersion(
   }
 
   const tarballUrl = versionMeta.dist.tarball;
+
+  // Validate the tarball host matches the configured registry to prevent a
+  // compromised registry response from redirecting downloads to an attacker-controlled host.
+  let registryHost: string;
+  try {
+    registryHost = new URL(options.registryUrl ?? DEFAULT_REGISTRY).hostname;
+  } catch {
+    throw new Error(`Invalid registry URL: ${options.registryUrl ?? DEFAULT_REGISTRY}`);
+  }
+  let tarballHost: string;
+  try {
+    tarballHost = new URL(tarballUrl).hostname;
+  } catch {
+    throw new Error(
+      `Invalid tarball URL in registry metadata for "${metadata.name}@${version}": ${tarballUrl}`,
+    );
+  }
+  if (tarballHost !== registryHost) {
+    if (options.allowExternalTarballHost) {
+      console.warn(
+        `Warning: Tarball host "${tarballHost}" differs from registry host "${registryHost}" for "${metadata.name}@${version}". ` +
+          `Proceeding because allowExternalTarballHost is enabled.`,
+      );
+    } else {
+      throw new Error(
+        `Tarball host "${tarballHost}" does not match registry host "${registryHost}" — refusing to download. ` +
+          `If your registry uses an external CDN, pass allowExternalTarballHost option or configure it to serve tarballs from the same host.`,
+      );
+    }
+  }
+
   const expectedIntegrity = versionMeta.dist.integrity;
 
   if (!expectedIntegrity) {

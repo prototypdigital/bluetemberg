@@ -2,9 +2,26 @@
 
 [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
 
-Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for **Cursor**, **Claude Code**, **GitHub Copilot**, and **Windsurf** — and optional **Claude Code Marketplace** distribution so teammates can install profile-matched rule + skill + agent packs without any local tooling.
+**Publish AI standards once to npm. Every engineer gets version-locked, integrity-verified rules, agents, and skills — matched to their role — with one command.**
 
-> Published on npm as [`bluetemberg`](https://www.npmjs.com/package/bluetemberg) — MIT licensed. No registry config or auth required. Requires **Node.js 20+**.
+A platform team maintains packs in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). Developers run `bluetemberg init --profile frontend` + `bluetemberg install`. Teammates with no local tooling install a Claude Code Marketplace plugin with one click. Everyone stays in sync.
+
+> Published on npm as [`bluetemberg`](https://www.npmjs.com/package/bluetemberg) — MIT licensed. Requires **Node.js 20+**.
+
+**Supply-chain controls:** SHA-512 integrity verified against npm registry metadata. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
+
+## Why not a shared AGENTS.md?
+
+|                         | Shared `AGENTS.md` | bluetemberg                       |
+| ----------------------- | ------------------ | --------------------------------- |
+| Versioning              | git history        | semver ranges + lockfile          |
+| Integrity verification  | none               | SHA-512 per pack                  |
+| Per-role filtering      | manual copy-paste  | profiles (role-matched defaults)  |
+| Teammate onboarding     | clone + copy files | `init --profile X` + `install`    |
+| Zero-install onboarding | no                 | Claude Marketplace plugin         |
+| Multi-platform          | no                 | Cursor, Claude, Copilot, Windsurf |
+
+Profiles are **role-matched default selections** — not bundles. The wizard pre-selects the collections, agents, and skills most relevant to your role. You can add or remove anything. The value is that the content behind those selections is versioned, integrity-verified, and fetched from npm like an ESLint plugin.
 
 ## Install
 
@@ -40,7 +57,7 @@ Developing from a clone: run `npm run build` before `bin/cli.js` — the CLI imp
 
 The interactive wizard will ask you to pick:
 
-- **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), or Custom — sets defaults for rules, agents, and skills (`--profile pure-infra` in headless runs)
+- **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), **agentic** (LLM-heavy / AI workflow projects), or Custom — sets defaults for rules, agents, and skills (`--profile agentic` in headless runs)
 - Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf)
 - **Rule source** — versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
 - Rule collections pre-selected by profile — defaults depend on team type (see wiki **Profiles**)
@@ -101,16 +118,25 @@ Official Bluetemberg plugin packs (frontend, fullstack, backend, devops) are ser
 
 Rules are delivered as versioned npm packages from the [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) registry. The init wizard pre-selects collections based on your team profile; you can add or remove any collection before confirming.
 
-| Collection | Package                        | Profiles                                          |
-| ---------- | ------------------------------ | ------------------------------------------------- |
-| TypeScript | `bluetemberg-rules-typescript` | Frontend, Backend, Full-stack                     |
-| Git        | `bluetemberg-rules-git`        | Frontend, Backend, Full-stack, DevOps, Pure Infra |
-| Security   | `bluetemberg-rules-security`   | Frontend, Backend, Full-stack, DevOps, Pure Infra |
-| Docs       | `bluetemberg-rules-docs`       | Frontend, Backend, Full-stack, DevOps, Pure Infra |
-| DevOps     | `bluetemberg-rules-devops`     | DevOps, Pure Infra                                |
-| Next.js    | `bluetemberg-rules-nextjs`     | Frontend, Full-stack                              |
+**Core packs (all standard profiles)** — auto-included for all profiles except Custom (Custom users must opt into these collections manually):
+
+| Collection | Package                      | Content                                                            |
+| ---------- | ---------------------------- | ------------------------------------------------------------------ |
+| Git        | `bluetemberg-rules-git`      | Branch protection, commit conventions, git move, pre-commit checks |
+| Security   | `bluetemberg-rules-security` | Never read .env, secrets management, API error handling            |
+| Docs       | `bluetemberg-rules-docs`     | Docs parity, post-edit diagnostics, Mermaid diagrams               |
+
+**Profile-specific packs:**
+
+| Collection | Package                        | Profiles                      |
+| ---------- | ------------------------------ | ----------------------------- |
+| TypeScript | `bluetemberg-rules-typescript` | Frontend, Backend, Full-stack |
+| DevOps     | `bluetemberg-rules-devops`     | DevOps, Pure Infra            |
+| Next.js    | `bluetemberg-rules-nextjs`     | Frontend, Full-stack          |
 
 After `init`, run `bluetemberg install` to download the packs listed in `llm/packages.json` into the local cache (`.bluetemberg/packs/`); `sync` merges them with your local `llm/` content.
+
+Use `bluetemberg install --dry-run` to preview what would be installed without writing anything to disk.
 
 Detail: [`docs/wiki/Registry.md`](docs/wiki/Registry.md) and [`docs/wiki/Profiles.md`](docs/wiki/Profiles.md).
 

@@ -1,0 +1,70 @@
+name: E2E
+
+# Runs the full documented happy path against the live npm registry.
+# A failure here means the published CLI + published packs are broken for real users.
+
+on:
+  schedule:
+    # Nightly at 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  e2e:
+    name: init + install + sync (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [frontend, backend, fullstack, devops]
+
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Create temp project dir
+        run: mkdir /tmp/e2e-project
+
+      - name: Run bluetemberg init
+        working-directory: /tmp/e2e-project
+        run: |
+          npx --yes bluetemberg@latest init \
+            --non-interactive \
+            --profile ${{ matrix.profile }} \
+            --silent
+
+      - name: Verify init output
+        working-directory: /tmp/e2e-project
+        run: |
+          test -f bluetemberg.config.json || (echo "missing bluetemberg.config.json" && exit 1)
+          test -f llm/packages.json       || (echo "missing llm/packages.json" && exit 1)
+          echo "Init output verified"
+
+      - name: Run bluetemberg install
+        working-directory: /tmp/e2e-project
+        run: npx bluetemberg@latest install
+
+      - name: Verify install output
+        working-directory: /tmp/e2e-project
+        run: |
+          test -f llm/packages-lock.json || (echo "missing llm/packages-lock.json" && exit 1)
+          PACK_COUNT=$(( $(find .bluetemberg/packs -mindepth 2 -maxdepth 2 -type d | wc -l) + $(find .bluetemberg/packs -mindepth 3 -maxdepth 3 -type d | wc -l) ))
+          echo "Installed pack directories: $PACK_COUNT"
+          test "$PACK_COUNT" -gt 0 || (echo "no packs installed in .bluetemberg/packs/" && exit 1)
+
+      - name: Run bluetemberg sync
+        working-directory: /tmp/e2e-project
+        run: npx bluetemberg@latest sync
+
+      - name: Verify sync output
+        working-directory: /tmp/e2e-project
+        run: |
+          test -d .claude/rules || (echo "missing .claude/rules/" && exit 1)
+          RULE_COUNT=$(find .claude/rules -name "*.md" | wc -l)
+          echo "Synced rules: $RULE_COUNT"
+          test "$RULE_COUNT" -gt 0 || (echo "no rules synced to .claude/rules/" && exit 1)
+          echo "Sync output verified"

@@ -4,8 +4,10 @@ import type { PresetItem, TeamProfile } from '../types.js';
 export function resolvePresetDefaults(presets: PresetItem[], profile: TeamProfile): PresetItem[] {
   if (profile === 'custom') return presets;
 
-  return presets.map((p) => ({
-    ...p,
-    default: p.tags?.includes(profile) ?? p.default,
-  }));
+  return presets.map((p) => {
+    if (p.universal && !p.universalExcludeProfiles?.includes(profile)) {
+      return { ...p, default: true };
+    }
+    return { ...p, default: p.tags?.includes(profile) ?? p.default };
+  });
 }

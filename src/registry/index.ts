@@ -63,7 +63,9 @@ export async function add(
 
   log(`Installing ${name}@${version}...`);
 
-  const lockEntry = await installPackVersion(root, metadata, version);
+  const lockEntry = await installPackVersion(root, metadata, version, {
+    registryUrl: manifest.registry,
+  });
 
   // Update manifest and lockfile.
   manifest.packages[name] = range;
@@ -175,6 +177,40 @@ export function list(root: string, options: RegistryListOptions = {}): Installed
  * Like `npm ci` — reads the manifest, resolves versions via the lockfile when
  * available, downloads missing packs, and updates the lockfile for new entries.
  */
+async function dryRunInstall(
+  root: string,
+  names: string[],
+  manifest: ReturnType<typeof readManifest>,
+  lock: ReturnType<typeof readLockfile>,
+  options: RegistryInstallOptions,
+  log: (msg: string) => void,
+): Promise<void> {
+  log(`[dry-run] Resolving ${names.length} pack(s)...\n`);
+  const dryFailed: Array<{ name: string; error: Error }> = [];
+  for (const name of names) {
+    const range = manifest.packages[name];
+    const existingLock = lock.packages[name];
+    try {
+      if (existingLock && !options.force && isPackCached(root, name, existingLock.version)) {
+        log(`  ${name}@${existingLock.version} (cached ✓)`);
+        continue;
+      }
+      const metadata = await fetchPackageMetadata(name, manifest.registry);
+      const version = resolveVersion(metadata, existingLock && !options.force ? existingLock.version : range);
+      log(`  ${name}@${version} (would download)`);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      log(`  ✗ ${name}: ${error.message}`);
+      dryFailed.push({ name, error });
+    }
+  }
+  const staleCount = Object.keys(lock.packages).filter((n) => !(n in manifest.packages)).length;
+  if (staleCount > 0)
+    log(`\n[dry-run] Would prune ${staleCount} stale lockfile entr${staleCount === 1 ? 'y' : 'ies'}.`);
+  log('\nNo files written. Run without --dry-run to apply.');
+  if (dryFailed.length > 0) throw new Error(`${dryFailed.length} pack(s) would fail to install.`);
+}
+
 export async function install(
   root: string,
   options: RegistryInstallOptions = {},
@@ -194,53 +230,68 @@ export async function install(
     return [];
   }
 
+  if (options.dryRun) {
+    await dryRunInstall(root, names, manifest, lock, options, log);
+    return [];
+  }
+
   log(`Installing ${names.length} pack(s)...\n`);
+
+  const failed: Array<{ name: string; error: Error }> = [];
 
   for (const name of names) {
     const range = manifest.packages[name];
     const existingLock = lock.packages[name];
 
-    // Use locked version if it satisfies the range, otherwise re-resolve.
-    let version: string;
-    let metadata;
+    try {
+      // Use locked version if it satisfies the range, otherwise re-resolve.
+      let version: string;
+      let metadata;
 
-    if (existingLock && !options.force) {
-      // Check if the cached version is still available.
-      if (isPackCached(root, name, existingLock.version)) {
-        log(`  ${name}@${existingLock.version} (cached)`);
-        installed.push({
-          name,
-          range,
-          version: existingLock.version,
-          path: resolvePackSourceDir(root, name, existingLock.version) || '',
-        });
-        continue;
+      if (existingLock && !options.force) {
+        // Check if the cached version is still available.
+        if (isPackCached(root, name, existingLock.version)) {
+          log(`  ${name}@${existingLock.version} (cached)`);
+          installed.push({
+            name,
+            range,
+            version: existingLock.version,
+            path: resolvePackSourceDir(root, name, existingLock.version) || '',
+          });
+          continue;
+        }
+        // Cached files missing — re-download the locked version.
+        metadata = await fetchPackageMetadata(name, manifest.registry);
+        version = existingLock.version;
+      } else {
+        // No lock entry or force mode — resolve from registry.
+        metadata = await fetchPackageMetadata(name, manifest.registry);
+        version = resolveVersion(metadata, range);
       }
-      // Cached files missing — re-download the locked version.
-      metadata = await fetchPackageMetadata(name, manifest.registry);
-      version = existingLock.version;
-    } else {
-      // No lock entry or force mode — resolve from registry.
-      metadata = await fetchPackageMetadata(name, manifest.registry);
-      version = resolveVersion(metadata, range);
+
+      log(`  ${name}@${version} (downloading...)`);
+
+      const lockEntry = await installPackVersion(root, metadata, version, {
+        force: options.force,
+        registryUrl: manifest.registry,
+      });
+
+      lock.packages[name] = lockEntry;
+      installed.push({
+        name,
+        range,
+        version,
+        path: resolvePackSourceDir(root, name, version) || '',
+      });
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      log(`  ✗ ${name}: ${error.message}`);
+      failed.push({ name, error });
     }
-
-    log(`  ${name}@${version} (downloading...)`);
-
-    const lockEntry = await installPackVersion(root, metadata, version, {
-      force: options.force,
-    });
-
-    lock.packages[name] = lockEntry;
-    installed.push({
-      name,
-      range,
-      version,
-      path: resolvePackSourceDir(root, name, version) || '',
-    });
   }
 
   // Prune stale lockfile entries that are no longer in the manifest.
+  // Runs regardless of failures so a partial install doesn't accumulate stale entries.
   const staleNames = Object.keys(lock.packages).filter((n) => !(n in manifest.packages));
   for (const name of staleNames) {
     const entry = lock.packages[name];
@@ -249,13 +300,24 @@ export async function install(
     log(`  Pruned stale lockfile entry: ${name}@${entry.version}`);
   }
 
+  // Write the lockfile with whatever succeeded — partial install is better than none.
   writeLockfile(root, lock, source);
   ensureGitignore(root);
 
   const pruned = staleNames.length;
   const summary = [`\nInstalled ${installed.length} pack(s).`];
   if (pruned > 0) summary.push(`Pruned ${pruned} stale lockfile entr${pruned === 1 ? 'y' : 'ies'}.`);
+  if (failed.length > 0) summary.push(`${failed.length} pack(s) failed.`);
   log(summary.join(' '));
+
+  if (failed.length > 0) {
+    log('\nFailed packs:');
+    for (const { name, error } of failed) {
+      log(`  ✗ ${name}: ${error.message}`);
+    }
+    log('\nRun "bluetemberg install" again after resolving the errors above.');
+    throw new Error(`${failed.length} pack(s) failed to install.`);
+  }
 
   return installed;
 }
@@ -306,6 +368,7 @@ export async function update(
   log(`Updating ${names.length} pack(s)...\n`);
 
   const results: InstalledPackage[] = [];
+  const failed: Array<{ name: string; error: Error }> = [];
   let changedCount = 0;
 
   for (const name of names) {
@@ -314,48 +377,62 @@ export async function update(
     const currentLock = lock.packages[name];
     const previousVersion = currentLock?.version;
 
-    log(`  Resolving ${name}@${range}...`);
+    try {
+      log(`  Resolving ${name}@${range}...`);
 
-    const metadata = await fetchPackageMetadata(name, manifest.registry);
-    const version = resolveVersion(metadata, range);
+      const metadata = await fetchPackageMetadata(name, manifest.registry);
+      const version = resolveVersion(metadata, range);
 
-    if (previousVersion === version && isPackCached(root, name, version)) {
-      log(`  ${name}@${version} (up to date)`);
+      if (previousVersion === version && isPackCached(root, name, version)) {
+        log(`  ${name}@${version} (up to date)`);
+        results.push({
+          name,
+          range: manifest.packages[name],
+          version,
+          path: resolvePackSourceDir(root, name, version) || '',
+        });
+        continue;
+      }
+
+      const arrow = previousVersion ? ` ${previousVersion} →` : '';
+      log(`  ${name}${arrow} ${version} (downloading...)`);
+
+      const lockEntry = await installPackVersion(root, metadata, version, {
+        registryUrl: manifest.registry,
+      });
+
+      lock.packages[name] = lockEntry;
+
+      // Remove the old cached version after a successful install.
+      if (previousVersion && previousVersion !== version) {
+        try {
+          removePackVersion(root, name, previousVersion);
+        } catch (cleanupErr) {
+          log(
+            `  Warning: failed to remove old cached version ${name}@${previousVersion}: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`,
+          );
+        }
+      }
+
+      if (options.latest) {
+        manifest.packages[name] = 'latest';
+      }
+
+      const finalRange = manifest.packages[name];
       results.push({
         name,
-        range: manifest.packages[name],
+        range: finalRange,
         version,
         path: resolvePackSourceDir(root, name, version) || '',
       });
-      continue;
+
+      log(`  Updated ${name}${arrow} ${version}`);
+      changedCount++;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      log(`  ✗ ${name}: ${error.message}`);
+      failed.push({ name, error });
     }
-
-    const arrow = previousVersion ? ` ${previousVersion} →` : '';
-    log(`  ${name}${arrow} ${version} (downloading...)`);
-
-    const lockEntry = await installPackVersion(root, metadata, version);
-
-    // Remove the old cached version after a successful install.
-    if (previousVersion && previousVersion !== version) {
-      removePackVersion(root, name, previousVersion);
-    }
-
-    lock.packages[name] = lockEntry;
-
-    if (options.latest) {
-      manifest.packages[name] = 'latest';
-    }
-
-    const finalRange = manifest.packages[name];
-    results.push({
-      name,
-      range: finalRange,
-      version,
-      path: resolvePackSourceDir(root, name, version) || '',
-    });
-
-    log(`  Updated ${name}${arrow} ${version}`);
-    changedCount++;
   }
 
   // Prune stale lockfile entries (only on full update, not single-package targeting).
@@ -380,8 +457,18 @@ export async function update(
 
   const summary = [`\n${changedCount} pack(s) updated.`];
   if (prunedCount > 0) summary.push(`${prunedCount} stale lockfile entry(s) pruned.`);
+  if (failed.length > 0) summary.push(`${failed.length} pack(s) failed.`);
   if (changedCount > 0 || prunedCount > 0) summary.push(`Run "bluetemberg sync" to apply the changes.`);
   log(summary.join(' '));
+
+  if (failed.length > 0) {
+    log('\nFailed packs:');
+    for (const { name, error } of failed) {
+      log(`  ✗ ${name}: ${error.message}`);
+    }
+    log('\nRun "bluetemberg update" again after resolving the errors above.');
+    throw new Error(`${failed.length} pack(s) failed to update.`);
+  }
 
   return results;
 }
