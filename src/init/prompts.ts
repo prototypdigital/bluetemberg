@@ -242,5 +242,12 @@ function buildGithubConfig(selectedIds: string[]): GitHubScaffoldConfig {
     releaseWorkflow: s.has('releaseWorkflow'),
     staleBot: s.has('staleBot'),
     pagesWorkflow: s.has('pagesWorkflow'),
+    contributing: s.has('contributing'),
+    license: s.has('license'),
+    codeOfConduct: s.has('codeOfConduct'),
+    security: s.has('security'),
+    semanticPr: s.has('semanticPr'),
+    autoLabeler: s.has('autoLabeler'),
+    lockClosed: s.has('lockClosed'),
   };
 }

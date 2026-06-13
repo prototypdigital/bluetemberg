@@ -36,8 +36,15 @@ See [Configuration](Configuration) for the full `extends` reference.
 | PR template | `.github/pull_request_template.md` | ✓ |
 | CODEOWNERS | `.github/CODEOWNERS` | ✓ |
 | Release workflow | `.github/workflows/release.yml` | ✓ |
+| CONTRIBUTING.md | `CONTRIBUTING.md` | ✓ |
+| LICENSE | `LICENSE` | ✓ |
+| CODE_OF_CONDUCT.md | `CODE_OF_CONDUCT.md` | ✓ |
+| SECURITY.md | `SECURITY.md` | ✓ |
+| Semantic PR check | `.github/workflows/semantic-pr.yml` | ✓ |
 | Stale bot | `.github/workflows/stale.yml` | — |
 | GitHub Pages | `.github/workflows/pages.yml` | — |
+| Auto-labeler | `.github/workflows/label.yml`, `.github/labeler.yml` | — |
+| Lock closed threads | `.github/workflows/lock-closed.yml` | — |
 
 **After init, customize these files** — the CI workflow assumes `typecheck`, `lint`, and `test` scripts; the Pages workflow defaults to VitePress output at `docs/.vitepress/dist`. Update paths to match your project. Replace `@owner` in `CODEOWNERS` with your GitHub username or team.
 

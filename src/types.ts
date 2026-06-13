@@ -104,6 +104,20 @@ export interface GitHubScaffoldConfig {
   staleBot: boolean;
   /** Deploy a docs site to GitHub Pages on push to main. */
   pagesWorkflow: boolean;
+  /** CONTRIBUTING.md with contribution guidelines. */
+  contributing: boolean;
+  /** MIT LICENSE file in repo root. */
+  license: boolean;
+  /** CODE_OF_CONDUCT.md (Contributor Covenant 2.1). */
+  codeOfConduct: boolean;
+  /** SECURITY.md with vulnerability reporting instructions. */
+  security: boolean;
+  /** Enforce Conventional Commits PR title format via GitHub Actions. */
+  semanticPr: boolean;
+  /** Auto-label PRs by changed file paths. */
+  autoLabeler: boolean;
+  /** Lock closed issues and PRs after inactivity. */
+  lockClosed: boolean;
 }
 
 export interface RuleCollectionPreset {

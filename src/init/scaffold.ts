@@ -751,6 +751,202 @@ ${pnpmStep}      - uses: actions/setup-node@v6
 `;
 }
 
+const CONTRIBUTING_TEMPLATE = `# Contributing
+
+Thank you for your interest in contributing!
+
+## Getting started
+
+1. Fork the repository and clone it locally.
+2. Install dependencies and run the test suite to verify your setup.
+3. Create a branch following the \`type/short-description\` convention (e.g. \`feat/add-feature\`).
+
+## Pull requests
+
+- Keep changes focused — one concern per PR.
+- PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/): \`type(scope): description\`.
+- All checks must pass before merge.
+
+## Reporting issues
+
+Use the issue templates in this repository. Include steps to reproduce, expected behaviour, and actual behaviour.
+`;
+
+const LICENSE_TEMPLATE = `MIT License
+
+Copyright (c) [year] [fullname]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`;
+
+const CODE_OF_CONDUCT_TEMPLATE = `# Contributor Covenant Code of Conduct
+
+## Our Pledge
+
+We as members, contributors, and leaders pledge to make participation in our
+community a welcoming experience for everyone, regardless of age, body size,
+visible or invisible disability, ethnicity, sex characteristics, gender identity
+and expression, level of experience, education, socio-economic status,
+nationality, personal appearance, race, caste, color, religion, or sexual
+identity and orientation.
+
+We pledge to act and interact in ways that contribute to an open, welcoming,
+diverse, inclusive, and healthy community.
+
+## Our Standards
+
+Examples of behavior that contributes to a positive environment:
+
+* Demonstrating empathy and kindness toward other people
+* Being respectful of differing opinions, viewpoints, and experiences
+* Giving and gracefully accepting constructive feedback
+* Accepting responsibility and apologizing to those affected by our mistakes
+* Focusing on what is best not just for us as individuals, but for the community
+
+## Enforcement
+
+Instances of abusive, threatening, or otherwise unacceptable behavior may be
+reported to the community leaders responsible for enforcement at the contact
+address listed in this repository. All complaints will be reviewed and
+investigated promptly and fairly.
+
+## Attribution
+
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org),
+version 2.1, available at https://www.contributor-covenant.org/version/2/1/code_of_conduct.html.
+`;
+
+const SECURITY_TEMPLATE = `# Security Policy
+
+## Reporting a Vulnerability
+
+Please do **not** open a public GitHub issue for security vulnerabilities.
+
+Report vulnerabilities privately via [GitHub Security Advisories](../../security/advisories/new).
+You will receive a response within 7 days. If the issue is confirmed, a patch will be released
+as soon as possible.
+
+## Supported Versions
+
+| Version | Supported |
+|---------|-----------|
+| latest  | ✓         |
+`;
+
+const SEMANTIC_PR_WORKFLOW = `name: Semantic PR
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  pull-requests: read
+
+jobs:
+  semantic-pr:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            chore
+            refactor
+            docs
+            test
+            ci
+            build
+            perf
+            revert
+            style
+          requireScope: false
+`;
+
+const LABELER_WORKFLOW = `name: Label PR
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Label
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: \${{ secrets.GITHUB_TOKEN }}
+`;
+
+const LABELER_CONFIG = `documentation:
+  - changed-files:
+      - any-glob-to-any-file: ['docs/**', '*.md', 'CHANGELOG*']
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['tests/**', '**/*.test.*', '**/*.spec.*']
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**']
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: ['package.json', 'pnpm-lock.yaml', 'yarn.lock', 'package-lock.json']
+`;
+
+const LOCK_CLOSED_WORKFLOW = `name: Lock closed threads
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  lock:
+    name: Lock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dessant/lock-threads@v5
+        with:
+          issue-inactive-days: 30
+          pr-inactive-days: 30
+`;
+
 function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string[]): void {
   const cfg = answers.github;
   if (!cfg) return;
@@ -796,6 +992,36 @@ function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string
   }
   if (cfg.pagesWorkflow) {
     safeWrite(join(targetDir, '.github', 'workflows', 'pages.yml'), buildPagesWorkflow(pm), created);
+  }
+  if (cfg.contributing) {
+    safeWrite(join(targetDir, 'CONTRIBUTING.md'), CONTRIBUTING_TEMPLATE, created);
+  }
+  if (cfg.license) {
+    safeWrite(join(targetDir, 'LICENSE'), LICENSE_TEMPLATE, created);
+  }
+  if (cfg.codeOfConduct) {
+    safeWrite(join(targetDir, 'CODE_OF_CONDUCT.md'), CODE_OF_CONDUCT_TEMPLATE, created);
+  }
+  if (cfg.security) {
+    safeWrite(join(targetDir, 'SECURITY.md'), SECURITY_TEMPLATE, created);
+  }
+  if (cfg.semanticPr) {
+    safeWrite(
+      join(targetDir, '.github', 'workflows', 'semantic-pr.yml'),
+      SEMANTIC_PR_WORKFLOW,
+      created,
+    );
+  }
+  if (cfg.autoLabeler) {
+    safeWrite(join(targetDir, '.github', 'workflows', 'label.yml'), LABELER_WORKFLOW, created);
+    safeWrite(join(targetDir, '.github', 'labeler.yml'), LABELER_CONFIG, created);
+  }
+  if (cfg.lockClosed) {
+    safeWrite(
+      join(targetDir, '.github', 'workflows', 'lock-closed.yml'),
+      LOCK_CLOSED_WORKFLOW,
+      created,
+    );
   }
 }
 
