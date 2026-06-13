@@ -52,7 +52,7 @@ jobs:
         working-directory: /tmp/e2e-project
         run: |
           test -f llm/packages-lock.json || (echo "missing llm/packages-lock.json" && exit 1)
-          PACK_COUNT=$(find .bluetemberg/packs -maxdepth 2 -mindepth 2 -type d | wc -l)
+          PACK_COUNT=$(( $(find .bluetemberg/packs -mindepth 2 -maxdepth 2 -type d | wc -l) + $(find .bluetemberg/packs -mindepth 3 -maxdepth 3 -type d | wc -l) ))
           echo "Installed pack directories: $PACK_COUNT"
           test "$PACK_COUNT" -gt 0 || (echo "no packs installed in .bluetemberg/packs/" && exit 1)
 

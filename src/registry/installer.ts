@@ -99,7 +99,14 @@ export async function installPackVersion(
   // Validate the tarball host matches the configured registry to prevent a
   // compromised registry response from redirecting downloads to an attacker-controlled host.
   const registryHost = new URL(options.registryUrl ?? DEFAULT_REGISTRY).hostname;
-  const tarballHost = new URL(tarballUrl).hostname;
+  let tarballHost: string;
+  try {
+    tarballHost = new URL(tarballUrl).hostname;
+  } catch {
+    throw new Error(
+      `Invalid tarball URL in registry metadata for "${metadata.name}@${version}": ${tarballUrl}`,
+    );
+  }
   if (tarballHost !== registryHost) {
     throw new Error(
       `Tarball host "${tarballHost}" does not match registry host "${registryHost}" — refusing to download. ` +

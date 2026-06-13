@@ -33,7 +33,7 @@ When `bluetemberg install` downloads a pack from the npm registry:
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **SHA-512 integrity**         | Tarball hashed on download and compared against `dist.integrity` from registry metadata. Mismatches abort and clean up the partial extraction.                         |
 | **Registry host pinning**     | `dist.tarball` must resolve to the same hostname as the configured registry. A compromised metadata response cannot redirect downloads to an attacker-controlled host. |
-| **Size cap**                  | Tarballs above 50 MB are rejected before writing to disk.                                                                                                              |
+| **Size cap**                  | Downloads are aborted when they exceed 50 MiB (streamed to temp file; partial temp file is removed by the installer on abort).                                         |
 | **Path traversal protection** | Pack names/versions that would resolve outside `.bluetemberg/packs/` are rejected before any extraction.                                                               |
 | **Symlink rejection**         | The tarball extractor rejects symlinks unconditionally.                                                                                                                |
 | **Integrity cache marker**    | `.bluetemberg-integrity` written per cached version; re-validated on cache hits.                                                                                       |

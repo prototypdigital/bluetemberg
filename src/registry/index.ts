@@ -393,12 +393,18 @@ export async function update(
         registryUrl: manifest.registry,
       });
 
+      lock.packages[name] = lockEntry;
+
       // Remove the old cached version after a successful install.
       if (previousVersion && previousVersion !== version) {
-        removePackVersion(root, name, previousVersion);
+        try {
+          removePackVersion(root, name, previousVersion);
+        } catch (cleanupErr) {
+          log(
+            `  Warning: failed to remove old cached version ${name}@${previousVersion}: ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`,
+          );
+        }
       }
-
-      lock.packages[name] = lockEntry;
 
       if (options.latest) {
         manifest.packages[name] = 'latest';
