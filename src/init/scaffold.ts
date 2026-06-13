@@ -701,6 +701,8 @@ jobs:
 `;
 
 const CODERABBIT_CONFIG = `# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Install the GitHub App first: https://github.com/apps/coderabbitai
+# Free for public repositories — https://coderabbit.ai/oss
 language: "en-US"
 reviews:
   profile: "chill"
