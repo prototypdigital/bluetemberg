@@ -711,6 +711,13 @@ describe('scaffold', () => {
       releaseWorkflow: true,
       staleBot: true,
       pagesWorkflow: true,
+      contributing: true,
+      license: true,
+      codeOfConduct: true,
+      security: true,
+      semanticPr: true,
+      autoLabeler: true,
+      lockClosed: true,
     };
 
     it('does not scaffold any GitHub files when github is undefined', () => {
@@ -899,6 +906,114 @@ describe('scaffold', () => {
       expect(created.some((p) => p.endsWith('release.yml'))).toBe(true);
       expect(created.some((p) => p.endsWith('stale.yml'))).toBe(true);
       expect(created.some((p) => p.endsWith('pages.yml'))).toBe(true);
+    });
+
+    it('scaffolds CONTRIBUTING.md when contributing is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, 'CONTRIBUTING.md'), 'utf8');
+      expect(content).toContain('Contributing');
+      expect(content).toContain('Conventional Commits');
+    });
+
+    it('does not scaffold CONTRIBUTING.md when contributing is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, contributing: false } });
+
+      expect(existsSync(join(root, 'CONTRIBUTING.md'))).toBe(false);
+    });
+
+    it('scaffolds LICENSE with MIT text when license is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, 'LICENSE'), 'utf8');
+      expect(content).toContain('MIT License');
+      expect(content).toContain('[year]');
+      expect(content).toContain('[fullname]');
+    });
+
+    it('does not scaffold LICENSE when license is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, license: false } });
+
+      expect(existsSync(join(root, 'LICENSE'))).toBe(false);
+    });
+
+    it('scaffolds CODE_OF_CONDUCT.md when codeOfConduct is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, 'CODE_OF_CONDUCT.md'), 'utf8');
+      expect(content).toContain('Contributor Covenant');
+      expect(content).toContain('Our Pledge');
+    });
+
+    it('does not scaffold CODE_OF_CONDUCT.md when codeOfConduct is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, codeOfConduct: false } });
+
+      expect(existsSync(join(root, 'CODE_OF_CONDUCT.md'))).toBe(false);
+    });
+
+    it('scaffolds SECURITY.md when security is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, 'SECURITY.md'), 'utf8');
+      expect(content).toContain('Security Policy');
+      expect(content).toContain('Security Advisories');
+    });
+
+    it('does not scaffold SECURITY.md when security is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, security: false } });
+
+      expect(existsSync(join(root, 'SECURITY.md'))).toBe(false);
+    });
+
+    it('scaffolds semantic-pr.yml with Conventional Commits types', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'semantic-pr.yml'), 'utf8');
+      expect(content).toContain('amannn/action-semantic-pull-request@v5');
+      expect(content).toContain('feat');
+      expect(content).toContain('fix');
+      expect(content).toContain('chore');
+      expect(content).toContain('refactor');
+      expect(content).toContain('docs');
+      expect(content).toContain('test');
+    });
+
+    it('does not scaffold semantic-pr.yml when semanticPr is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, semanticPr: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'semantic-pr.yml'))).toBe(false);
+    });
+
+    it('scaffolds label.yml and labeler.yml when autoLabeler is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const workflow = readFileSync(join(root, '.github', 'workflows', 'label.yml'), 'utf8');
+      expect(workflow).toContain('actions/labeler@v5');
+
+      const config = readFileSync(join(root, '.github', 'labeler.yml'), 'utf8');
+      expect(config).toContain('documentation');
+      expect(config).toContain('tests');
+    });
+
+    it('does not scaffold label.yml when autoLabeler is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, autoLabeler: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'label.yml'))).toBe(false);
+      expect(existsSync(join(root, '.github', 'labeler.yml'))).toBe(false);
+    });
+
+    it('scaffolds lock-closed.yml when lockClosed is true', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
+
+      const content = readFileSync(join(root, '.github', 'workflows', 'lock-closed.yml'), 'utf8');
+      expect(content).toContain('dessant/lock-threads@v5');
+      expect(content).toContain('issue-inactive-days');
+    });
+
+    it('does not scaffold lock-closed.yml when lockClosed is false', () => {
+      scaffold(root, { ...baseAnswers, github: { ...allOnGithub, lockClosed: false } });
+
+      expect(existsSync(join(root, '.github', 'workflows', 'lock-closed.yml'))).toBe(false);
     });
   });
 });

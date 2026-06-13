@@ -430,6 +430,48 @@ export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
     description: 'Deploy a docs site to GitHub Pages on push to main',
     default: false,
   },
+  {
+    id: 'contributing',
+    name: 'CONTRIBUTING.md',
+    description: 'Contribution guidelines for new contributors',
+    default: true,
+  },
+  {
+    id: 'license',
+    name: 'LICENSE',
+    description: 'MIT license file in repo root',
+    default: true,
+  },
+  {
+    id: 'codeOfConduct',
+    name: 'CODE_OF_CONDUCT.md',
+    description: 'Contributor Covenant 2.1 code of conduct',
+    default: true,
+  },
+  {
+    id: 'security',
+    name: 'SECURITY.md',
+    description: 'Vulnerability reporting instructions',
+    default: true,
+  },
+  {
+    id: 'semanticPr',
+    name: 'Semantic PR check',
+    description: 'Enforce Conventional Commits PR title format (feat/fix/chore/…)',
+    default: true,
+  },
+  {
+    id: 'autoLabeler',
+    name: 'Auto-labeler',
+    description: 'Label PRs automatically by changed file paths',
+    default: false,
+  },
+  {
+    id: 'lockClosed',
+    name: 'Lock closed threads',
+    description: 'Lock closed issues and PRs after inactivity to reduce noise',
+    default: false,
+  },
 ];
 
 export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
@@ -443,4 +485,11 @@ export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
   releaseWorkflow: true,
   staleBot: false,
   pagesWorkflow: false,
+  contributing: true,
+  license: true,
+  codeOfConduct: true,
+  security: true,
+  semanticPr: true,
+  autoLabeler: false,
+  lockClosed: false,
 };
