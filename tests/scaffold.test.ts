@@ -739,7 +739,7 @@ describe('scaffold', () => {
       expect(content).toContain('pnpm install --frozen-lockfile');
       expect(content).toContain('pnpm typecheck');
       expect(content).toContain('pnpm lint');
-      expect(content).toContain('pnpm/action-setup@v4');
+      expect(content).toContain('pnpm/action-setup@v6');
     });
 
     it('scaffolds ci.yml with yarn install and run commands', () => {
@@ -762,8 +762,8 @@ describe('scaffold', () => {
 
       const content = readFileSync(join(root, '.github', 'workflows', 'codeql.yml'), 'utf8');
       expect(content).toContain('javascript-typescript');
-      expect(content).toContain('github/codeql-action/init@v3');
-      expect(content).toContain('github/codeql-action/analyze@v3');
+      expect(content).toContain('github/codeql-action/init@v4');
+      expect(content).toContain('github/codeql-action/analyze@v4');
     });
 
     it('does not scaffold codeql.yml when codeql is false', () => {
@@ -776,7 +776,7 @@ describe('scaffold', () => {
       scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
 
       const content = readFileSync(join(root, '.github', 'workflows', 'dependency-review.yml'), 'utf8');
-      expect(content).toContain('actions/dependency-review-action@v4');
+      expect(content).toContain('actions/dependency-review-action@v5');
       expect(content).toContain('pull_request');
     });
 
@@ -848,7 +848,7 @@ describe('scaffold', () => {
 
       const content = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
       expect(content).toContain("tags:\n      - 'v*'");
-      expect(content).toContain('softprops/action-gh-release@v2');
+      expect(content).toContain('softprops/action-gh-release@v3');
       expect(content).toContain('generate_release_notes: true');
     });
 
@@ -862,7 +862,7 @@ describe('scaffold', () => {
       scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
 
       const content = readFileSync(join(root, '.github', 'workflows', 'stale.yml'), 'utf8');
-      expect(content).toContain('actions/stale@v9');
+      expect(content).toContain('actions/stale@v10');
       expect(content).toContain('days-before-stale: 60');
     });
 
@@ -876,7 +876,7 @@ describe('scaffold', () => {
       scaffold(root, { ...baseAnswers, github: { ...allOnGithub } });
 
       const content = readFileSync(join(root, '.github', 'workflows', 'pages.yml'), 'utf8');
-      expect(content).toContain('actions/deploy-pages@v4');
+      expect(content).toContain('actions/deploy-pages@v5');
       expect(content).toContain('github-pages');
     });
 

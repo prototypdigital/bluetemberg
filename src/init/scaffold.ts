@@ -454,7 +454,7 @@ function ciRunCmd(pm: PackageManager, script: string): string {
 }
 
 function buildCiWorkflow(pm: PackageManager): string {
-  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v4\n` : '';
+  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v6\n` : '';
   return `name: CI
 
 on:
@@ -467,8 +467,8 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-${pnpmStep}      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+${pnpmStep}      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: '${pm}'
@@ -504,12 +504,12 @@ jobs:
           - language: javascript-typescript
             build-mode: none
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: actions/checkout@v6
+      - uses: github/codeql-action/init@v4
         with:
           languages: $\{{ matrix.language }}
           build-mode: $\{{ matrix.build-mode }}
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:$\{{ matrix.language }}"
 `;
@@ -528,8 +528,8 @@ jobs:
     name: Dependency review
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/checkout@v6
+      - uses: actions/dependency-review-action@v5
 `;
 
 const DEPENDABOT_CONFIG = `version: 2
@@ -662,10 +662,10 @@ jobs:
     name: Create release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
 `;
@@ -686,7 +686,7 @@ jobs:
     name: Mark stale issues and PRs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/stale@v9
+      - uses: actions/stale@v10
         with:
           days-before-stale: 60
           days-before-close: 14
@@ -701,7 +701,7 @@ jobs:
 `;
 
 function buildPagesWorkflow(pm: PackageManager): string {
-  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v4\n` : '';
+  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v6\n` : '';
   return `name: Deploy to GitHub Pages
 
 on:
@@ -723,8 +723,8 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-${pnpmStep}      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+${pnpmStep}      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: '${pm}'
@@ -746,7 +746,7 @@ ${pnpmStep}      - uses: actions/setup-node@v4
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v5
         id: deployment
 `;
 }
