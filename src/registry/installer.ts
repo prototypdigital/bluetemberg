@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync
 import { join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
-import { downloadTarball, verifyIntegrity } from './client.js';
+import { downloadTarball, verifyIntegrity, DEFAULT_REGISTRY } from './client.js';
 import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -85,7 +85,7 @@ export async function installPackVersion(
   root: string,
   metadata: NpmPackageMetadata,
   version: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; registryUrl?: string } = {},
 ): Promise<PackageLockEntry> {
   const dest = packVersionDir(root, metadata.name, version);
 
@@ -95,6 +95,18 @@ export async function installPackVersion(
   }
 
   const tarballUrl = versionMeta.dist.tarball;
+
+  // Validate the tarball host matches the configured registry to prevent a
+  // compromised registry response from redirecting downloads to an attacker-controlled host.
+  const registryHost = new URL(options.registryUrl ?? DEFAULT_REGISTRY).hostname;
+  const tarballHost = new URL(tarballUrl).hostname;
+  if (tarballHost !== registryHost) {
+    throw new Error(
+      `Tarball host "${tarballHost}" does not match registry host "${registryHost}" — refusing to download. ` +
+        `If your registry uses an external CDN, configure it to serve tarballs from the same host.`,
+    );
+  }
+
   const expectedIntegrity = versionMeta.dist.integrity;
 
   if (!expectedIntegrity) {
