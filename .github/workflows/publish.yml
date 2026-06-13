@@ -35,9 +35,7 @@ jobs:
       - name: Test
         run: npm test
 
-      # Trusted Publishing (OIDC) needs a recent npm; the runner's bundled npm may predate it.
-      - name: Update npm to Trusted-Publisher-capable version
-        run: npm install -g npm@latest
-
       - name: Publish
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

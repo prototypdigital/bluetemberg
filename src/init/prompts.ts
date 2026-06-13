@@ -10,8 +10,16 @@ import {
   PACKAGE_MANAGERS,
   TEAM_PROFILES,
   MARKETPLACE_PLUGIN_PACKS,
+  GITHUB_FEATURE_PRESETS,
 } from './presets.js';
-import type { InitAnswers, Platform, PackageManager, TeamProfile, RuleSource } from '../types.js';
+import type {
+  InitAnswers,
+  Platform,
+  PackageManager,
+  TeamProfile,
+  RuleSource,
+  GitHubScaffoldConfig,
+} from '../types.js';
 import { resolvePresetDefaults } from './preset-resolution.js';
 
 function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
@@ -183,6 +191,24 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
       .filter(Boolean);
   }
 
+  const includeGithub = await confirm({
+    message: 'Scaffold GitHub repository files (CI, security scanning, templates)?',
+    default: true,
+  });
+
+  let github: GitHubScaffoldConfig | undefined;
+  if (includeGithub) {
+    const selectedIds = await checkbox<string>({
+      message: 'GitHub features to scaffold:',
+      choices: GITHUB_FEATURE_PRESETS.map((f) => ({
+        value: f.id,
+        name: `${f.name} — ${f.description}`,
+        checked: f.default,
+      })),
+    });
+    github = buildGithubConfig(selectedIds);
+  }
+
   return {
     teamProfile,
     projectName,
@@ -201,5 +227,29 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     marketplaceRemote,
     marketplacePlugins,
     externalSources,
+    github,
+  };
+}
+
+function buildGithubConfig(selectedIds: string[]): GitHubScaffoldConfig {
+  const s = new Set(selectedIds);
+  return {
+    ci: s.has('ci'),
+    codeql: s.has('codeql'),
+    dependencyReview: s.has('dependencyReview'),
+    dependabot: s.has('dependabot'),
+    issueTemplates: s.has('issueTemplates'),
+    prTemplate: s.has('prTemplate'),
+    codeowners: s.has('codeowners'),
+    releaseWorkflow: s.has('releaseWorkflow'),
+    staleBot: s.has('staleBot'),
+    pagesWorkflow: s.has('pagesWorkflow'),
+    contributing: s.has('contributing'),
+    license: s.has('license'),
+    codeOfConduct: s.has('codeOfConduct'),
+    security: s.has('security'),
+    semanticPr: s.has('semanticPr'),
+    autoLabeler: s.has('autoLabeler'),
+    lockClosed: s.has('lockClosed'),
   };
 }
