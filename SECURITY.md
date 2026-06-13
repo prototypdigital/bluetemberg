@@ -4,8 +4,8 @@
 
 | Version   | Supported |
 | --------- | --------- |
-| `0.3.x`   | Current   |
-| `< 0.3.0` | No        |
+| `0.4.x`   | Current   |
+| `< 0.4.0` | No        |
 
 ## Reporting a vulnerability
 
@@ -41,4 +41,4 @@ When `bluetemberg install` downloads a pack from the npm registry:
 
 ### Known limitation
 
-Registry metadata is fetched over HTTPS but is not signed at the application layer (no Subresource Integrity on the metadata fetch itself). This is mitigated by using the official npm registry (`registry.npmjs.org`) by default, and by the host-pinning check which prevents redirects even if metadata is compromised. OIDC provenance attestation (`npm publish --provenance`), planned for 0.4.0, will provide attestations for published package versions to improve provenance verification, but does not sign install-time registry metadata — the application-layer integrity risk for metadata fetches remains.
+Registry metadata is fetched over HTTPS but is not signed at the application layer (no Subresource Integrity on the metadata fetch itself). This is mitigated by using the official npm registry (`registry.npmjs.org`) by default, and by the host-pinning check which prevents redirects even if metadata is compromised. The publish workflow is configured to emit OIDC provenance attestations (`npm publish --provenance`); these attest the source commit and CI build for each published version and become verifiable via `npm audit signatures` once a release reaches the registry. Provenance does not sign install-time registry metadata — the application-layer integrity risk for metadata fetches remains, and verifying the npm signing key against `dist.integrity` at install time is tracked as future hardening.
