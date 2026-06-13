@@ -18,6 +18,11 @@ export const TEAM_PROFILES: TeamProfileChoice[] = [
     name: 'Pure Infrastructure',
     description: 'Ansible, Kubernetes, Terraform — no application code',
   },
+  {
+    id: 'agentic',
+    name: 'AI / Agentic Workflow',
+    description: 'Context engineering, agent memory, sub-agent design for LLM-heavy projects',
+  },
   { id: 'custom', name: 'Custom', description: 'Pick everything individually' },
 ];
 
@@ -36,7 +41,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-git',
     description: 'Git workflow, git move, pre-commit checks',
     rules: ['git-workflow', 'git-move', 'pre-commit-checks'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
   },
   {
     id: 'security',
@@ -44,7 +49,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-security',
     description: 'Never read .env, secrets management, API error handling',
     rules: ['never-read-env', 'security-secrets', 'api-error-handling'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
   },
   {
     id: 'docs',
@@ -52,7 +57,7 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-docs',
     description: 'Docs parity, post-edit diagnostics, Mermaid diagrams',
     rules: ['docs-parity', 'post-edit-diagnostics', 'mermaid-diagrams'],
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
+    universal: true,
   },
   {
     id: 'devops',
@@ -80,6 +85,37 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     description: 'Next.js NEXT_PUBLIC_* env var safety — build-time-only vars, never secrets',
     rules: ['nextjs-public-env-vars'],
     tags: ['frontend', 'fullstack'],
+  },
+  {
+    id: 'context-engineering',
+    name: 'Context engineering',
+    packageName: 'bluetemberg-rules-context-engineering',
+    description: 'Token budget management, context positioning, prompt structure, multi-turn hygiene',
+    rules: [
+      'context-window-budget',
+      'context-positioning',
+      'prompt-structure',
+      'multi-turn-context-hygiene',
+      'context-pollution-prevention',
+    ],
+    tags: ['agentic'],
+  },
+  {
+    id: 'agent-memory',
+    name: 'Agent memory',
+    packageName: 'bluetemberg-rules-agent-memory',
+    description:
+      'Statelessness constraints, memory provenance, promotion through consolidation, authority-ranked recall',
+    rules: ['agent-memory'],
+    tags: ['agentic'],
+  },
+  {
+    id: 'llm-api-product',
+    name: 'LLM API product',
+    packageName: 'bluetemberg-rules-llm-api-product',
+    description: 'Streaming, cost accounting, cost-aware model selection and routing',
+    rules: ['streaming', 'cost-accounting', 'model-selection-and-routing'],
+    tags: ['backend', 'fullstack', 'agentic'],
   },
 ];
 
@@ -180,6 +216,14 @@ export const AGENT_PRESETS: PresetItem[] = [
     tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-sre-specialist',
   },
+  {
+    id: 'agentic-specialist',
+    name: 'Agentic systems specialist',
+    description: 'Agent memory design, state management, orchestration patterns, tool-use recovery',
+    default: true,
+    tags: ['agentic'],
+    packageName: 'bluetemberg-agents-agentic-specialist',
+  },
 ];
 
 export const SKILL_PRESETS: PresetItem[] = [
@@ -279,6 +323,14 @@ export const SKILL_PRESETS: PresetItem[] = [
     tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-skills-rollback-plan',
   },
+  {
+    id: 'sub-agent-design',
+    name: 'Sub-agent design',
+    description: 'Plan, scope, and implement sub-agent architectures',
+    default: true,
+    tags: ['agentic'],
+    packageName: 'bluetemberg-skills-sub-agent-design',
+  },
 ];
 
 export const MCP_SERVER_PRESETS: PresetItem[] = [
@@ -357,7 +409,6 @@ export const GUARDRAIL_PRESETS: PresetItem[] = [
     name: 'Conventional branch names',
     description: 'Block auto-generated worktree branch names; require type/description format',
     default: true,
-    tags: ['frontend', 'backend', 'fullstack', 'devops', 'pure-infra'],
     universal: true,
     packageName: 'bluetemberg-guardrails-git',
   },
@@ -430,6 +481,48 @@ export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
     description: 'Deploy a docs site to GitHub Pages on push to main',
     default: false,
   },
+  {
+    id: 'contributing',
+    name: 'CONTRIBUTING.md',
+    description: 'Contribution guidelines for new contributors',
+    default: true,
+  },
+  {
+    id: 'license',
+    name: 'LICENSE',
+    description: 'MIT license file in repo root',
+    default: true,
+  },
+  {
+    id: 'codeOfConduct',
+    name: 'CODE_OF_CONDUCT.md',
+    description: 'Contributor Covenant 2.1 code of conduct',
+    default: true,
+  },
+  {
+    id: 'security',
+    name: 'SECURITY.md',
+    description: 'Vulnerability reporting instructions',
+    default: true,
+  },
+  {
+    id: 'semanticPr',
+    name: 'Semantic PR check',
+    description: 'Enforce Conventional Commits PR title format (feat/fix/chore/…)',
+    default: true,
+  },
+  {
+    id: 'autoLabeler',
+    name: 'Auto-labeler',
+    description: 'Label PRs automatically by changed file paths',
+    default: false,
+  },
+  {
+    id: 'lockClosed',
+    name: 'Lock closed threads',
+    description: 'Lock closed issues and PRs after inactivity to reduce noise',
+    default: false,
+  },
 ];
 
 export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
@@ -443,4 +536,11 @@ export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
   releaseWorkflow: true,
   staleBot: false,
   pagesWorkflow: false,
+  contributing: true,
+  license: true,
+  codeOfConduct: true,
+  security: true,
+  semanticPr: true,
+  autoLabeler: false,
+  lockClosed: false,
 };

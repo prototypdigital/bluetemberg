@@ -33,6 +33,8 @@ function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
     case 'devops':
     case 'pure-infra':
       return ['devops'];
+    case 'agentic':
+      return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
     case 'custom':
       return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
   }
@@ -110,7 +112,8 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     const collectionChoices = RULE_COLLECTION_PRESETS.map((c) => ({
       value: c.id,
       name: `${c.name} — ${c.description}`,
-      checked: teamProfile === 'custom' ? false : (c.tags?.includes(teamProfile) ?? false),
+      checked:
+        teamProfile === 'custom' ? false : c.universal === true || (c.tags?.includes(teamProfile) ?? false),
     }));
 
     ruleCollections = await checkbox<string>({
@@ -242,5 +245,12 @@ function buildGithubConfig(selectedIds: string[]): GitHubScaffoldConfig {
     releaseWorkflow: s.has('releaseWorkflow'),
     staleBot: s.has('staleBot'),
     pagesWorkflow: s.has('pagesWorkflow'),
+    contributing: s.has('contributing'),
+    license: s.has('license'),
+    codeOfConduct: s.has('codeOfConduct'),
+    security: s.has('security'),
+    semanticPr: s.has('semanticPr'),
+    autoLabeler: s.has('autoLabeler'),
+    lockClosed: s.has('lockClosed'),
   };
 }

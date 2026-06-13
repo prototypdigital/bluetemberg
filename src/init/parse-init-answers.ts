@@ -76,6 +76,13 @@ function parseGithubConfig(val: unknown): GitHubScaffoldConfig | undefined {
     releaseWorkflow: expectBoolean(val, 'releaseWorkflow'),
     staleBot: expectBoolean(val, 'staleBot'),
     pagesWorkflow: expectBoolean(val, 'pagesWorkflow'),
+    contributing: expectBoolean(val, 'contributing'),
+    license: expectBoolean(val, 'license'),
+    codeOfConduct: expectBoolean(val, 'codeOfConduct'),
+    security: expectBoolean(val, 'security'),
+    semanticPr: expectBoolean(val, 'semanticPr'),
+    autoLabeler: expectBoolean(val, 'autoLabeler'),
+    lockClosed: expectBoolean(val, 'lockClosed'),
   };
 }
 

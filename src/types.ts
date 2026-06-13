@@ -3,7 +3,14 @@ export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
-export type TeamProfile = 'frontend' | 'backend' | 'fullstack' | 'devops' | 'pure-infra' | 'custom';
+export type TeamProfile =
+  | 'frontend'
+  | 'backend'
+  | 'fullstack'
+  | 'devops'
+  | 'pure-infra'
+  | 'agentic'
+  | 'custom';
 
 export interface TargetConfig {
   dir: string;
@@ -104,6 +111,20 @@ export interface GitHubScaffoldConfig {
   staleBot: boolean;
   /** Deploy a docs site to GitHub Pages on push to main. */
   pagesWorkflow: boolean;
+  /** CONTRIBUTING.md with contribution guidelines. */
+  contributing: boolean;
+  /** MIT LICENSE file in repo root. */
+  license: boolean;
+  /** CODE_OF_CONDUCT.md (Contributor Covenant 2.1). */
+  codeOfConduct: boolean;
+  /** SECURITY.md with vulnerability reporting instructions. */
+  security: boolean;
+  /** Enforce Conventional Commits PR title format via GitHub Actions. */
+  semanticPr: boolean;
+  /** Auto-label PRs by changed file paths. */
+  autoLabeler: boolean;
+  /** Lock closed issues and PRs after inactivity. */
+  lockClosed: boolean;
 }
 
 export interface RuleCollectionPreset {
@@ -112,6 +133,8 @@ export interface RuleCollectionPreset {
   packageName: string;
   description: string;
   rules: string[];
+  /** When true, this collection is included for every non-custom profile without needing explicit tags. */
+  universal?: boolean;
   tags?: TeamProfile[];
 }
 
@@ -326,6 +349,11 @@ export interface RegistryInstallOptions {
   silent?: boolean;
   /** Force re-download even if cached. */
   force?: boolean;
+  /**
+   * Resolve every pack and print the install plan without writing anything to disk.
+   * Exits non-zero if any pack would fail to resolve.
+   */
+  dryRun?: boolean;
 }
 
 /** Options for `registry.search()`. */
