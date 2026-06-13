@@ -1,6 +1,6 @@
 {
   "name": "bluetemberg",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Scaffold vendor-neutral AI tooling (rules, agents, skills) with cross-platform sync for Cursor, Claude, and GitHub Copilot.",
   "type": "module",
   "bin": {
