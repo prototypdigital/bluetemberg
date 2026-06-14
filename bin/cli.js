@@ -394,6 +394,13 @@ program
         version: options.version,
         silent: options.silent,
       });
+      const { refreshCatalogCache } = await import('../dist/catalog/index.js');
+      const refreshed = await refreshCatalogCache(process.cwd());
+      if (!refreshed && !options.silent) {
+        console.error(
+          'Warning: failed to refresh .bluetemberg/catalog.json; later catalog-based commands may use stale pack metadata.',
+        );
+      }
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -449,6 +456,15 @@ program
         silent: options.silent,
         dryRun: options.dryRun,
       });
+      if (!options.dryRun) {
+        const { refreshCatalogCache } = await import('../dist/catalog/index.js');
+        const refreshed = await refreshCatalogCache(process.cwd());
+        if (!refreshed && !options.silent) {
+          console.error(
+            'Warning: failed to refresh .bluetemberg/catalog.json; later catalog-based commands may use stale pack metadata.',
+          );
+        }
+      }
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -470,6 +486,13 @@ program
         latest: options.latest,
         silent: options.silent,
       });
+      const { refreshCatalogCache } = await import('../dist/catalog/index.js');
+      const refreshed = await refreshCatalogCache(process.cwd());
+      if (!refreshed && !options.silent) {
+        console.error(
+          'Warning: failed to refresh .bluetemberg/catalog.json; later catalog-based commands may use stale pack metadata.',
+        );
+      }
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

@@ -9,8 +9,9 @@ import {
 } from '../registry/manifest.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
 import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
-import { AGENT_PRESETS, SKILL_PRESETS } from './presets.js';
-import type { PackageManifest, PresetItem, TeamProfile } from '../types.js';
+import { AGENT_OVERLAYS, SKILL_OVERLAYS } from './presets.js';
+import { loadCatalogSync } from '../catalog/index.js';
+import type { PackageManifest, PresetOverlay, TeamProfile } from '../types.js';
 
 export interface SwitchProfileOptions {
   silent?: boolean;
@@ -66,15 +67,16 @@ export function switchProfile(
 
   migrateLegacyManifests(root);
   const manifest = readManifestLenient(root);
+  const catalog = loadCatalogSync(root);
 
   const added: string[] = [];
   const stale: string[] = [];
 
-  const agentResult = applyPresets(manifest, agentsForProfile(toProfile), AGENT_PRESETS);
+  const agentResult = applyPresets(manifest, agentsForProfile(toProfile, catalog), AGENT_OVERLAYS);
   added.push(...agentResult.added);
   stale.push(...agentResult.stale);
 
-  const skillResult = applyPresets(manifest, skillsForProfile(toProfile), SKILL_PRESETS);
+  const skillResult = applyPresets(manifest, skillsForProfile(toProfile, catalog), SKILL_OVERLAYS);
   added.push(...skillResult.added);
   stale.push(...skillResult.stale);
 
@@ -108,7 +110,7 @@ function readManifestLenient(root: string): PackageManifest {
  * Stale detection is scoped to packages known in `presets` — entries the preset
  * catalog does not recognize (rule collections, third-party packs) are left alone.
  */
-function applyPresets(manifest: PackageManifest, targetIds: string[], presets: PresetItem[]): ApplyResult {
+function applyPresets(manifest: PackageManifest, targetIds: string[], presets: PresetOverlay[]): ApplyResult {
   const result: ApplyResult = { added: [], stale: [] };
 
   const targetPackages = new Set<string>();

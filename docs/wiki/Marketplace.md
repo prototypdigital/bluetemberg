@@ -138,8 +138,10 @@ When a plugin definition includes a `profiles` array, only `llm/` files matching
 
 **Resolution order:**
 1. If the file has a `profiles:` frontmatter field, that value is used.
-2. If no frontmatter field is present but the file's directory/basename matches a known bluetemberg preset ID, the preset's `tags` are used.
-3. If neither applies, the file is treated as **universal** — included in every plugin regardless of profile filters.
+2. If no frontmatter field is present but the file's id (directory/basename) appears in the **catalog** (`catalog.json`), the owning pack's profiles are used (a `universal` pack contributes no profiles → universal).
+3. If neither applies (e.g. a local project rule not shipped by any pack), the file is treated as **universal** — included in every plugin regardless of profile filters.
+
+The catalog is the single source of truth for this mapping — the engine no longer hand-maintains a preset→profile table, so a pack file can never silently leak into the wrong plugin because its id was missing from the engine.
 
 ```yaml
 # llm/rules/type-safety.md

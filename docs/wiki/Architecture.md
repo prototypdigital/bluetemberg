@@ -89,7 +89,7 @@ Rules have three intent levels, not just on/off:
 | **Collection default** | Pre-checked for a given team profile; the whole collection is toggled | `git`, `security`, `docs` (all profiles); `typescript` (frontend/backend/fullstack) |
 | **Collection optional** | Available but not pre-checked for the profile | `nextjs` (backend), `devops` (frontend) |
 
-Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_PRESETS`. Each has a `tags` array listing which profiles default-select it. See [Profiles](Profiles) for the full matrix.
+Collections are curated in `src/init/presets.ts` as `RULE_COLLECTION_OVERLAYS` (id, display name, package name, description). Their **rule ids and profile tags are resolved from the catalog** (`catalog.json`) at load time via `resolveRuleCollections` — the engine does not hand-declare them, so they can never drift from the published packs. Agents and skills resolve the same way (`AGENT_OVERLAYS` / `SKILL_OVERLAYS` + `resolveAgents` / `resolveSkills`). The catalog is read from the project cache (`.bluetemberg/catalog.json`, refreshed on `install`/`update`/`add`) and falls back to a snapshot committed at `src/catalog/catalog.json` (run `npm run sync:catalog` to refresh it). See [Profiles](Profiles) for the full matrix.
 
 ## Config resolution
 

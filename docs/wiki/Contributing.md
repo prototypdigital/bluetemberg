@@ -25,6 +25,9 @@ npm test
 | `npm run format`       | Prettier format               |
 | `npm run format:check` | Prettier check                |
 | `npm run typecheck`    | TypeScript type check         |
+| `npm run sync:catalog` | Refresh the committed catalog snapshot (`src/catalog/catalog.json`) from the packs repo |
+
+**Catalog snapshot:** pack ids and profile tags are resolved from `catalog.json` (published by the packs repo), not hand-maintained in the engine. A snapshot is committed at `src/catalog/catalog.json` as the offline floor and copied into `dist/` at build. When packs change in a way the engine should ship by default, run `npm run sync:catalog` and commit the updated snapshot.
 
 ## Sync CLI and CI (downstream consumers)
 

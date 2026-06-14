@@ -127,11 +127,16 @@ export interface GitHubScaffoldConfig {
   lockClosed: boolean;
 }
 
-export interface RuleCollectionPreset {
+/** Curated metadata the engine layers on top of a catalog rule pack (display + ordering + package). */
+export interface RuleCollectionOverlay {
   id: string;
   name: string;
   packageName: string;
   description: string;
+}
+
+/** A rule collection resolved against the catalog: overlay + catalog-derived rule ids and profiles. */
+export interface RuleCollectionPreset extends RuleCollectionOverlay {
   rules: string[];
   /** When true, this collection is included for every non-custom profile without needing explicit tags. */
   universal?: boolean;
@@ -250,6 +255,12 @@ export interface PresetItem {
   /** npm package name in the packs repo (e.g. `bluetemberg-agents-frontend-specialist`). */
   packageName?: string;
 }
+
+/**
+ * Curated agent/skill metadata. `tags`/`universal` are omitted here and resolved from the
+ * catalog at load time — the engine never hand-declares profile mappings for catalog packs.
+ */
+export type PresetOverlay = Omit<PresetItem, 'tags' | 'universal'>;
 
 export interface PlatformChoice {
   id: Platform;

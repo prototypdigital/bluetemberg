@@ -1,31 +1,32 @@
 import { basename } from 'node:path';
 import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { InitAnswers, Platform, RuleCollectionPreset, TeamProfile } from '../types.js';
+import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { resolvePresetDefaults } from './preset-resolution.js';
 import {
-  RULE_COLLECTION_PRESETS,
-  AGENT_PRESETS,
-  SKILL_PRESETS,
+  resolveRuleCollections,
+  resolveAgents,
+  resolveSkills,
   MCP_SERVER_PRESETS,
   PLATFORM_CHOICES,
   GUARDRAIL_PRESETS,
   DEFAULT_GITHUB_CONFIG,
 } from './presets.js';
 
-export function defaultRuleCollections(teamProfile: TeamProfile): string[] {
+export function defaultRuleCollections(teamProfile: TeamProfile, catalog: Catalog): string[] {
   if (teamProfile === 'custom') return [];
-  return RULE_COLLECTION_PRESETS.filter(
-    (c: RuleCollectionPreset) => c.universal === true || (c.tags?.includes(teamProfile) ?? false),
-  ).map((c) => c.id);
+  return resolveRuleCollections(catalog)
+    .filter((c: RuleCollectionPreset) => c.universal === true || (c.tags?.includes(teamProfile) ?? false))
+    .map((c) => c.id);
 }
 
-export function agentsForProfile(teamProfile: TeamProfile): string[] {
-  const resolved = resolvePresetDefaults(AGENT_PRESETS, teamProfile);
+export function agentsForProfile(teamProfile: TeamProfile, catalog: Catalog): string[] {
+  const resolved = resolvePresetDefaults(resolveAgents(catalog), teamProfile);
   return resolved.filter((a) => a.default).map((a) => a.id);
 }
 
-export function skillsForProfile(teamProfile: TeamProfile): string[] {
-  const resolved = resolvePresetDefaults(SKILL_PRESETS, teamProfile);
+export function skillsForProfile(teamProfile: TeamProfile, catalog: Catalog): string[] {
+  const resolved = resolvePresetDefaults(resolveSkills(catalog), teamProfile);
   return resolved.filter((s) => s.default).map((s) => s.id);
 }
 
@@ -42,7 +43,12 @@ function defaultGuardrailIds(teamProfile: TeamProfile): string[] {
  * Baseline identical to submitting the wizard with only profile-based checkbox defaults:
  * collections source, all platforms checked, agents/skills/MCP inclusion with wizard defaults.
  */
-export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir: string): InitAnswers {
+export function buildInitAnswersFromProfile(
+  teamProfile: TeamProfile,
+  targetDir: string,
+  catalog?: Catalog,
+): InitAnswers {
+  const resolvedCatalog = catalog ?? loadCatalogSync(targetDir);
   return {
     teamProfile,
     projectName: basename(targetDir),
@@ -51,11 +57,11 @@ export function buildInitAnswersFromProfile(teamProfile: TeamProfile, targetDir:
     platforms: PLATFORM_CHOICES.filter((p) => p.id !== MARKETPLACE_PLATFORM).map((p) => p.id) as Platform[],
     ruleSource: 'collections',
     rules: [],
-    ruleCollections: defaultRuleCollections(teamProfile),
+    ruleCollections: defaultRuleCollections(teamProfile, resolvedCatalog),
     includeAgents: true,
-    agents: agentsForProfile(teamProfile),
+    agents: agentsForProfile(teamProfile, resolvedCatalog),
     includeSkills: true,
-    skills: skillsForProfile(teamProfile),
+    skills: skillsForProfile(teamProfile, resolvedCatalog),
     includeMcp: true,
     mcpServers: defaultMcpServerIds(),
     marketplaceRemote: '',
@@ -74,7 +80,8 @@ export function finalizeNonInteractiveAnswers(
   overrides: Partial<InitAnswers>,
 ): InitAnswers {
   const teamProfile = overrides.teamProfile ?? profile;
-  const base = buildInitAnswersFromProfile(teamProfile, targetDir);
+  const catalog = loadCatalogSync(targetDir);
+  const base = buildInitAnswersFromProfile(teamProfile, targetDir, catalog);
 
   let ruleSource = base.ruleSource;
   if (overrides.ruleSource !== undefined) ruleSource = overrides.ruleSource;
@@ -92,7 +99,7 @@ export function finalizeNonInteractiveAnswers(
     ruleCollections =
       overrides.ruleCollections !== undefined && overrides.ruleCollections.length > 0
         ? overrides.ruleCollections
-        : defaultRuleCollections(teamProfile);
+        : base.ruleCollections;
   }
 
   const includeAgents = overrides.includeAgents ?? base.includeAgents;
