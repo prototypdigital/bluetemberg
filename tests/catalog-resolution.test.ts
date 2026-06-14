@@ -105,6 +105,7 @@ describe('catalog-derived preset resolution', () => {
   });
 
   it('resolvers skip overlays when their pack is missing from a partial catalog', () => {
+    // Catalog has git pack but not typescript pack
     const catalog = catalogWith([
       {
         name: 'bluetemberg-rules-git',
