@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="t d">
+  <title id="t">Bluetemberg</title>
+  <desc id="d">Bluetemberg mark on paper: an indigo forme of type, the letter B knocked out to the page, keystone in gold.</desc>
+  <rect width="64" height="64" fill="#f2efe6"/>
+  <rect x="18" y="13" width="8" height="8" fill="#4343e1"/>
+  <rect x="28" y="13" width="8" height="8" fill="#4343e1"/>
+  <rect x="38" y="13" width="8" height="8" fill="#4343e1"/>
+  <rect x="8" y="23" width="8" height="8" fill="#efcf69"/>
+  <rect x="48" y="23" width="8" height="8" fill="#4343e1"/>
+  <rect x="18" y="33" width="8" height="8" fill="#4343e1"/>
+  <rect x="28" y="33" width="8" height="8" fill="#4343e1"/>
+  <rect x="38" y="33" width="8" height="8" fill="#4343e1"/>
+  <rect x="18" y="43" width="8" height="8" fill="#4343e1"/>
+  <rect x="28" y="43" width="8" height="8" fill="#4343e1"/>
+  <rect x="38" y="43" width="8" height="8" fill="#4343e1"/>
+</svg>
