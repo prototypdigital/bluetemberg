@@ -20,6 +20,40 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.5.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.4.0...bluetemberg-v0.5.0) (2026-06-14)
+
+
+### Features
+
+* **presets:** derive pack ids and profiles from the catalog (single source) ([a98c056](https://github.com/prototypdigital/bluetemberg/commit/a98c05604d7b1d54f21ffc924fac251bc839a4fc))
+* **presets:** derive pack ids and profiles from the catalog (single source) ([b821b86](https://github.com/prototypdigital/bluetemberg/commit/b821b86092a9752467f227e749f3425ad7872494))
+* **site:** add humans + agents section — the dual-audience story ([becf9d5](https://github.com/prototypdigital/bluetemberg/commit/becf9d5f26f62dd1d407ba076fe8b44bf8320822))
+* **site:** holistic mobile layout — replace tables with native mobile components ([ed6eb5e](https://github.com/prototypdigital/bluetemberg/commit/ed6eb5ee6e75bae12439225dbc9730643646dffe))
+* **site:** rewrite landing pitch around verified differentiators ([953d5e9](https://github.com/prototypdigital/bluetemberg/commit/953d5e9736b0d6d8002bf2cf1e11da784d7e6f1a))
+* **site:** show profile picker as faux terminal below install command ([2284eac](https://github.com/prototypdigital/bluetemberg/commit/2284eacec82242038483395ccbf946b6c11b5d5b))
+* **site:** static GitHub Pages landing page ([fccf010](https://github.com/prototypdigital/bluetemberg/commit/fccf01020c9cd8095a7baf681b6b720aedabd8f1))
+* **site:** static GitHub Pages landing page ([48fc821](https://github.com/prototypdigital/bluetemberg/commit/48fc821b177b45ca0ffa0d895a1bde51dda9d1d4))
+* **site:** transpose platform matrix and drop verbose footnote ([2ed3a52](https://github.com/prototypdigital/bluetemberg/commit/2ed3a52bf3d3b5ede0ce58f36fb8486477d0d2d9))
+
+
+### Bug Fixes
+
+* add agentic to INIT_TEAM_PROFILES so headless and config paths accept it ([7f50b8c](https://github.com/prototypdigital/bluetemberg/commit/7f50b8c64fe5a7a8598f35540d42f2f36a7cf8c9)), closes [#172](https://github.com/prototypdigital/bluetemberg/issues/172)
+* address CodeRabbit review findings ([e9fc699](https://github.com/prototypdigital/bluetemberg/commit/e9fc699478dfa1aa95a78537bb29b2a591460b9c))
+* **catalog:** address CodeRabbit review findings ([3af6bea](https://github.com/prototypdigital/bluetemberg/commit/3af6bea7ce97d667bae0446dadcbccc5d9691590))
+* **catalog:** eliminate redundant catalog load and fix dev snapshot gap ([25ae3f6](https://github.com/prototypdigital/bluetemberg/commit/25ae3f6b540f62296ca0f7d83325895a13821d26))
+* **ci:** add catalog schema guard and build-missing error for check-overlays ([19cfc2c](https://github.com/prototypdigital/bluetemberg/commit/19cfc2cde131bfd24ae645b4f5bfb6e76175d24d))
+* **init:** add agentic to INIT_TEAM_PROFILES ([7c56c60](https://github.com/prototypdigital/bluetemberg/commit/7c56c608329062659edf8b3f63def0bac049173c))
+* **init:** align rule-collection rule ids with actual pack files ([7af85f5](https://github.com/prototypdigital/bluetemberg/commit/7af85f5097a948e581d5a163b7612c5670fa581d))
+* **init:** align rule-collection rule ids with actual pack files ([806509c](https://github.com/prototypdigital/bluetemberg/commit/806509c092057dd58f4750f699d5cecdeb40a773))
+* **init:** replace 5-tag arrays with universal:true ([#152](https://github.com/prototypdigital/bluetemberg/issues/152)) ([423cec5](https://github.com/prototypdigital/bluetemberg/commit/423cec50b8562aa4c2142a7bf75cc9360a12c0f2))
+* **init:** replace 5-tag arrays with universal:true for docs-maintainer, docs-upkeep, workspace-hygiene ([7fc8d43](https://github.com/prototypdigital/bluetemberg/commit/7fc8d43ece87162e4fe5dac8f0d7cbba0ac54d9b)), closes [#152](https://github.com/prototypdigital/bluetemberg/issues/152)
+* **marketplace:** distinguish absent profiles key from explicit empty override ([5f1784e](https://github.com/prototypdigital/bluetemberg/commit/5f1784e974ce6de32289f2baccd958f3fdf368a5))
+* **presets:** filter overlays with no catalog match instead of emitting empty metadata ([8eb4449](https://github.com/prototypdigital/bluetemberg/commit/8eb44492b635022759fde52c1aab756f25040ba8))
+* **security:** remove ReDoS in normalizePath + refresh SECURITY.md ([faafad9](https://github.com/prototypdigital/bluetemberg/commit/faafad985f6f6bed4282dc5f2bf9ecdbb870efb7))
+* **security:** remove ReDoS in normalizePath; refresh SECURITY.md ([27c0126](https://github.com/prototypdigital/bluetemberg/commit/27c01266ff53c30357561e7d8fbd156cee98c1d9))
+* **site:** consistent emphasis + code styling in security section ([6f113cf](https://github.com/prototypdigital/bluetemberg/commit/6f113cf9bdc98c5fd76449451e8e477aff1b0a91))
+
 ## [0.4.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.3.0...bluetemberg-v0.4.0) (2026-06-13)
 
 
