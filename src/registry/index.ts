@@ -1,5 +1,7 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ensureGitignore } from '../utils/fs.js';
-import { fetchPackageMetadata, searchPackages } from './client.js';
+import { fetchPackageMetadata, fetchRegistryKeys, verifyRegistrySignature, searchPackages, DEFAULT_REGISTRY } from './client.js';
 import {
   readManifest,
   writeManifest,
@@ -14,16 +16,20 @@ import {
   removePackVersion,
   resolvePackSourceDir,
   isPackCached,
+  packVersionDir,
 } from './installer.js';
 import type {
   InstalledPackage,
   NpmSearchResult,
+  PackVerifyResult,
   RegistryAddOptions,
   RegistryInstallOptions,
   RegistryListOptions,
   RegistryRemoveOptions,
   RegistrySearchOptions,
   RegistryUpdateOptions,
+  RegistryVerifyOptions,
+  VerifyStatus,
 } from '../types.js';
 import { loadConfig } from '../sync/index.js';
 
@@ -498,6 +504,130 @@ export async function search(query: string, options: RegistrySearchOptions = {})
   }
 
   log(`\n${results.length} pack(s) found.`);
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// verify
+// ---------------------------------------------------------------------------
+
+/**
+ * Verify integrity and ECDSA registry signatures of all installed packs.
+ *
+ * For each pack in the lockfile:
+ * 1. Checks that the pack directory and integrity marker exist.
+ * 2. Confirms the marker hash matches the lockfile entry.
+ * 3. Fetches fresh registry metadata and verifies the ECDSA signature.
+ *
+ * @returns A result per pack with `status: 'ok'` or a failure reason.
+ */
+export async function verify(root: string, options: RegistryVerifyOptions = {}): Promise<PackVerifyResult[]> {
+  const log = options.silent ? () => {} : console.log;
+  const config = loadConfig(root);
+  const source = config.source || 'llm';
+  const manifest = readManifest(root, source);
+  const lock = readLockfile(root, source);
+
+  const names = Object.keys(lock.packages);
+  if (names.length === 0) {
+    log('No packs in lockfile.');
+    return [];
+  }
+
+  log(`Verifying ${names.length} pack(s)...\n`);
+
+  const results: PackVerifyResult[] = [];
+  const registryUrl = manifest.registry ?? DEFAULT_REGISTRY;
+  const isDefaultRegistry = registryUrl.replace(/\/$/, '') === DEFAULT_REGISTRY;
+  const skipSig = !isDefaultRegistry && options.skipSignatureVerification === true;
+
+  for (const name of names) {
+    const lockEntry = lock.packages[name];
+    const { version, integrity, keyid } = lockEntry;
+
+    const dest = packVersionDir(root, name, version);
+    if (!existsSync(dest)) {
+      results.push({ name, version, status: 'missing', message: 'Pack directory not found in cache' });
+      log(`  ✗ ${name}@${version} — missing`);
+      continue;
+    }
+
+    const markerPath = join(dest, '.bluetemberg-integrity');
+    if (!existsSync(markerPath)) {
+      results.push({ name, version, status: 'missing', message: 'Integrity marker missing from cache' });
+      log(`  ✗ ${name}@${version} — integrity marker missing`);
+      continue;
+    }
+
+    const markerIntegrity = readFileSync(markerPath, 'utf8').trim();
+    if (markerIntegrity !== integrity) {
+      results.push({
+        name,
+        version,
+        status: 'integrity-mismatch',
+        message: `Expected ${integrity}, found ${markerIntegrity}`,
+      });
+      log(`  ✗ ${name}@${version} — integrity mismatch`);
+      continue;
+    }
+
+    if (skipSig) {
+      results.push({ name, version, status: 'ok' });
+      log(`  ✓ ${name}@${version} — ok (signature check skipped)`);
+      continue;
+    }
+
+    if (!keyid && isDefaultRegistry) {
+      results.push({
+        name,
+        version,
+        status: 'unsigned',
+        message: 'No keyid in lockfile — re-install to record signature',
+      });
+      log(`  ✗ ${name}@${version} — unsigned (no keyid in lockfile)`);
+      continue;
+    }
+
+    try {
+      const metadata = await fetchPackageMetadata(name, manifest.registry);
+      const versionMeta = metadata.versions[version];
+      if (!versionMeta) {
+        results.push({ name, version, status: 'signature-mismatch', message: `Version ${version} not found in registry` });
+        log(`  ✗ ${name}@${version} — version not in registry`);
+        continue;
+      }
+
+      const signatures = versionMeta.dist.signatures ?? [];
+      if (signatures.length === 0) {
+        const status: VerifyStatus = 'unsigned';
+        results.push({ name, version, status, message: 'No registry signature found' });
+        log(`  ✗ ${name}@${version} — unsigned`);
+        continue;
+      }
+
+      const keys = await fetchRegistryKeys(manifest.registry);
+      const { verified } = verifyRegistrySignature(name, version, integrity, signatures, keys);
+
+      if (!verified) {
+        results.push({ name, version, status: 'signature-mismatch', message: 'Registry signature does not match' });
+        log(`  ✗ ${name}@${version} — signature mismatch`);
+        continue;
+      }
+
+      results.push({ name, version, status: 'ok' });
+      log(`  ✓ ${name}@${version} — ok`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      results.push({ name, version, status: 'signature-mismatch', message: msg });
+      log(`  ✗ ${name}@${version} — ${msg}`);
+    }
+  }
+
+  const failedCount = results.filter((r) => r.status !== 'ok').length;
+  log(
+    `\n${results.length - failedCount} pack(s) verified ok.${failedCount > 0 ? ` ${failedCount} failed.` : ''}`,
+  );
 
   return results;
 }

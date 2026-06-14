@@ -522,6 +522,32 @@ program
     }
   });
 
+program
+  .command('verify')
+  .description('Verify integrity and registry signatures of all installed packs')
+  .argument('[directory]', 'Project root directory', '.')
+  .option(
+    '--skip-signature-verification',
+    'Skip ECDSA signature check (for self-hosted registries without signing)',
+  )
+  .option('--silent', 'Suppress all output')
+  .action(async (directory, options) => {
+    const { verify } = await import('../dist/registry/index.js');
+    try {
+      const results = await verify(resolve(directory), {
+        silent: options.silent,
+        skipSignatureVerification: options.skipSignatureVerification,
+      });
+      const hasFailures = results.some((r) => r.status !== 'ok');
+      if (hasFailures) process.exit(1);
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
 const sourceCmd = program
   .command('source')
   .description('Manage external rule sources (GitHub repos, PRPM, cursor.directory)');

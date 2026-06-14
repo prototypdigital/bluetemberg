@@ -306,6 +306,8 @@ export interface PackageLockEntry {
   resolved: string;
   /** Subresource integrity hash (`sha512-…`). */
   integrity: string;
+  /** Registry signing key id that verified this package (e.g. `"SHA256:…"`). */
+  keyid?: string;
 }
 
 /** Lockfile (`llm/packages-lock.json`) — committed to version control. */
@@ -332,6 +334,7 @@ export interface NpmVersionMetadata {
     tarball: string;
     integrity?: string;
     shasum: string;
+    signatures?: Array<{ keyid: string; sig: string }>;
   };
 }
 
@@ -341,6 +344,35 @@ export interface NpmSearchResult {
   version: string;
   description?: string;
   keywords?: string[];
+}
+
+/** A public key entry from the npm registry keys endpoint (`/-/npm/v1/keys`). */
+export interface NpmRegistryKey {
+  expires: string | null;
+  keyid: string;
+  keytype: string;
+  scheme: string;
+  /** Base64-encoded SPKI DER public key. */
+  key: string;
+}
+
+/** Result status from verifying a single pack. */
+export type VerifyStatus = 'ok' | 'integrity-mismatch' | 'signature-mismatch' | 'missing' | 'unsigned';
+
+/** Result of verifying one installed pack. */
+export interface PackVerifyResult {
+  name: string;
+  version: string;
+  status: VerifyStatus;
+  message?: string;
+}
+
+/** Options for `registry.verify()`. */
+export interface RegistryVerifyOptions {
+  /** Suppress all output. */
+  silent?: boolean;
+  /** Skip ECDSA signature check (for self-hosted registries without signing). */
+  skipSignatureVerification?: boolean;
 }
 
 /** Describes a locally installed rule pack. */

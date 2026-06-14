@@ -62,11 +62,14 @@ One manifest covers all pack kinds — rules, agents, skills, and guardrails. A 
     "@company/rules-frontend": {
       "version": "1.2.3",
       "resolved": "https://registry.npmjs.org/@company/rules-frontend/-/rules-frontend-1.2.3.tgz",
-      "integrity": "sha512-abc123..."
+      "integrity": "sha512-abc123...",
+      "keyid": "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj4th9nn4"
     }
   }
 }
 ```
+
+The `keyid` field is recorded when the package is installed and holds the registry signing key id used to verify the ECDSA signature. It is present for all packages installed from the default npm registry and used by `bluetemberg verify` to confirm the signature is still valid.
 
 ## Commands
 
@@ -87,8 +90,9 @@ bluetemberg add community-ts-rules --version "~2.0.0"
 2. Resolves the best version matching the requested range.
 3. Downloads and extracts the tarball to `.bluetemberg/packs/<name>/<version>/`.
 4. Verifies the SHA-512 integrity hash.
-5. Updates `llm/packages.json` and `llm/packages-lock.json`.
-6. Adds `.bluetemberg/` to `.gitignore` if not already present.
+5. Verifies the ECDSA registry signature against the npm public keys endpoint.
+6. Updates `llm/packages.json` and `llm/packages-lock.json` (recording the signing `keyid`).
+7. Adds `.bluetemberg/` to `.gitignore` if not already present.
 
 After adding, run `bluetemberg sync` to generate platform-specific files that include the new rules.
 
@@ -175,6 +179,32 @@ After updating, run `bluetemberg sync` to apply the changes.
 | `--latest` | Widen each pack's range to `"latest"` in the manifest, not just re-resolve the current range |
 | `--silent` | Suppress all output |
 
+### `bluetemberg verify`
+
+Verify the integrity and ECDSA registry signatures of all installed packs.
+
+```bash
+bluetemberg verify
+bluetemberg verify /path/to/project
+bluetemberg verify --skip-signature-verification   # for self-hosted registries
+```
+
+**What it does:**
+
+For each pack in the lockfile:
+1. Checks that the pack directory and `.bluetemberg-integrity` marker exist in the cache.
+2. Confirms the marker hash matches the lockfile entry.
+3. Fetches fresh registry metadata and verifies the ECDSA P-256 signature.
+
+Exits with code `1` if any pack fails verification.
+
+**Options:**
+
+| Option | Description |
+| ------ | ----------- |
+| `--skip-signature-verification` | Skip the ECDSA check (for self-hosted registries that do not sign packages) |
+| `--silent` | Suppress all output |
+
 ### `bluetemberg search <query>`
 
 Search the npm registry for rule packs. By default only returns packages with the `bluetemberg-pack` keyword.
@@ -200,6 +230,20 @@ During sync, source directories are resolved in this priority (highest first):
 3. **Registry packs** (in manifest order)
 
 When the same rule filename appears in multiple sources, the higher-priority source wins. This means local rules always override pack rules, and you can selectively override individual rules from a pack.
+
+## Security
+
+Every pack install goes through two layers of verification:
+
+1. **SHA-512 integrity** — the downloaded tarball is hashed and compared against the value recorded in the npm registry metadata. A mismatch aborts installation immediately.
+
+2. **ECDSA registry signature** — npm signs each package with a P-256 private key. Bluetemberg fetches the corresponding public keys from `/-/npm/v1/keys`, verifies the signature over `${name}@${version}:${integrity}`, and records the matching `keyid` in the lockfile.
+
+The default npm registry (`registry.npmjs.org`) always signs packages. Bluetemberg enforces this: an unsigned package from the default registry is rejected as a potential supply-chain attack, even if the integrity hash matches.
+
+For **self-hosted or private registries** that do not produce signatures, pass `--skip-signature-verification` to `bluetemberg install`/`bluetemberg add`, or set `skipSignatureVerification: true` in the programmatic API. This flag has no effect against the default registry.
+
+Run `bluetemberg verify` at any time to re-check all installed packs without re-downloading them.
 
 ## Cache directory
 

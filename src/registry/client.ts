@@ -1,13 +1,20 @@
-import { createHash } from 'node:crypto';
+import { createHash, createVerify } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Readable, Transform } from 'node:stream';
 import type { TransformCallback } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
-import type { NpmPackageMetadata, NpmSearchResult } from '../types.js';
+import type { NpmPackageMetadata, NpmRegistryKey, NpmSearchResult } from '../types.js';
 
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
 const FETCH_TIMEOUT_MS = 30_000;
+
+interface CachedKeys {
+  keys: NpmRegistryKey[];
+  expiresAt: number;
+}
+const REGISTRY_KEYS_CACHE = new Map<string, CachedKeys>();
+const KEYS_CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Hard cap on a downloaded tarball's compressed size. Rule/agent/skill packs are
@@ -133,6 +140,71 @@ export async function downloadTarball(
  */
 export function verifyIntegrity(integrity: string, actualIntegrity: string): boolean {
   return integrity === actualIntegrity;
+}
+
+/**
+ * Fetch the ECDSA public keys from the npm registry keys endpoint.
+ * Results are cached in memory for one hour.
+ */
+export async function fetchRegistryKeys(registryUrl?: string): Promise<NpmRegistryKey[]> {
+  const base = (registryUrl || DEFAULT_REGISTRY).replace(/\/$/, '');
+  const cached = REGISTRY_KEYS_CACHE.get(base);
+  if (cached && Date.now() < cached.expiresAt) return cached.keys;
+
+  const url = `${base}/-/npm/v1/keys`;
+  const res = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch registry keys: ${res.status} ${res.statusText} (${url})`);
+  }
+
+  const data = (await res.json()) as { keys: NpmRegistryKey[] };
+  const keys = data.keys ?? [];
+  REGISTRY_KEYS_CACHE.set(base, { keys, expiresAt: Date.now() + KEYS_CACHE_TTL_MS });
+  return keys;
+}
+
+/**
+ * Verify the ECDSA P-256 registry signature for a pack.
+ *
+ * The signed payload is `${name}@${version}:${integrity}`. Each signature entry is
+ * matched against the registry public keys by keyid. Returns the first key that passes.
+ */
+export function verifyRegistrySignature(
+  name: string,
+  version: string,
+  integrity: string,
+  signatures: Array<{ keyid: string; sig: string }>,
+  keys: NpmRegistryKey[],
+): { verified: boolean; keyid: string } {
+  const payload = `${name}@${version}:${integrity}`;
+
+  for (const { keyid, sig } of signatures) {
+    const registryKey = keys.find((k) => k.keyid === keyid);
+    if (!registryKey) continue;
+
+    try {
+      const verifier = createVerify('SHA256');
+      verifier.update(payload, 'utf8');
+      const ok = verifier.verify(
+        { key: Buffer.from(registryKey.key, 'base64'), format: 'der', type: 'spki' },
+        Buffer.from(sig, 'base64'),
+      );
+      if (ok) return { verified: true, keyid };
+    } catch {
+      // Key format issue or invalid signature — continue to next signature.
+    }
+  }
+
+  return { verified: false, keyid: signatures[0]?.keyid ?? '' };
+}
+
+/** Clear the in-memory registry keys cache (for testing only). */
+export function clearRegistryKeysCache(): void {
+  REGISTRY_KEYS_CACHE.clear();
 }
 
 /** Encode scoped package names for URL usage: `@scope/name` → `@scope%2fname`. */

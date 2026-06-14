@@ -10,14 +10,14 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 **[prototypdigital.github.io/bluetemberg →](https://prototypdigital.github.io/bluetemberg/)** — install guide, pack browser, and docs.
 
-**Supply-chain controls:** SHA-512 integrity verified against npm registry metadata. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
+**Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
 
 ## Why not a shared AGENTS.md?
 
 |                         | Shared `AGENTS.md` | bluetemberg                                      |
 | ----------------------- | ------------------ | ------------------------------------------------ |
 | Versioning              | git history        | semver ranges + lockfile                         |
-| Integrity verification  | none               | SHA-512 per pack                                 |
+| Integrity verification  | none               | SHA-512 + ECDSA registry signature per pack      |
 | Per-role filtering      | manual copy-paste  | profiles (role-matched defaults)                 |
 | Teammate onboarding     | clone + copy files | `init --profile X` + `install`                   |
 | Zero-install onboarding | no                 | Claude Marketplace plugin                        |
