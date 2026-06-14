@@ -2,9 +2,9 @@ import { input, select, checkbox, confirm } from '@inquirer/prompts';
 import { basename } from 'node:path';
 import { MARKETPLACE_PLATFORM } from '../types.js';
 import {
-  RULE_COLLECTION_PRESETS,
-  AGENT_PRESETS,
-  SKILL_PRESETS,
+  resolveRuleCollections,
+  resolveAgents,
+  resolveSkills,
   MCP_SERVER_PRESETS,
   PLATFORM_CHOICES,
   PACKAGE_MANAGERS,
@@ -12,6 +12,7 @@ import {
   MARKETPLACE_PLUGIN_PACKS,
   GITHUB_FEATURE_PRESETS,
 } from './presets.js';
+import { loadCatalogSync } from '../catalog/index.js';
 import type {
   InitAnswers,
   Platform,
@@ -41,6 +42,8 @@ function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
 }
 
 export async function runPrompts(targetDir: string): Promise<InitAnswers> {
+  const catalog = loadCatalogSync(targetDir);
+
   const teamProfile = await select<TeamProfile>({
     message: 'Team profile:',
     choices: TEAM_PROFILES.map((t) => ({
@@ -109,7 +112,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
   let ruleCollections: string[] = [];
 
   if (ruleSource === 'collections') {
-    const collectionChoices = RULE_COLLECTION_PRESETS.map((c) => ({
+    const collectionChoices = resolveRuleCollections(catalog).map((c) => ({
       value: c.id,
       name: `${c.name} — ${c.description}`,
       checked:
@@ -129,7 +132,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let agents: string[] = [];
   if (includeAgents) {
-    const agentPresets = resolvePresetDefaults(AGENT_PRESETS, teamProfile);
+    const agentPresets = resolvePresetDefaults(resolveAgents(catalog), teamProfile);
     agents = await checkbox<string>({
       message: 'Specialist agents:',
       choices: agentPresets.map((a) => ({
@@ -147,7 +150,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let skills: string[] = [];
   if (includeSkills) {
-    const skillPresets = resolvePresetDefaults(SKILL_PRESETS, teamProfile);
+    const skillPresets = resolvePresetDefaults(resolveSkills(catalog), teamProfile);
     skills = await checkbox<string>({
       message: 'Starter skills:',
       choices: skillPresets.map((s) => ({

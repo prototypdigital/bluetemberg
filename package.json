@@ -21,7 +21,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-assets.mjs",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -33,6 +33,7 @@
     "sync:llm-config": "node bin/cli.js sync",
     "sync:llm-config:check": "node bin/cli.js sync --check",
     "build:site": "node scripts/build-site.js",
+    "sync:catalog": "node scripts/sync-catalog.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

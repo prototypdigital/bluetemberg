@@ -1,12 +1,15 @@
 import type {
   PresetItem,
+  PresetOverlay,
   PlatformChoice,
   PackageManagerChoice,
   TeamProfile,
   TeamProfileChoice,
+  RuleCollectionOverlay,
   RuleCollectionPreset,
   GitHubScaffoldConfig,
 } from '../types.js';
+import type { Catalog, CatalogPack } from '../catalog/index.js';
 
 export const TEAM_PROFILES: TeamProfileChoice[] = [
   { id: 'frontend', name: 'Frontend', description: 'UI, design systems, accessibility' },
@@ -26,87 +29,53 @@ export const TEAM_PROFILES: TeamProfileChoice[] = [
   { id: 'custom', name: 'Custom', description: 'Pick everything individually' },
 ];
 
-export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
+/**
+ * Curated rule-collection overlays. Rule ids and profile tags are NOT declared here — they
+ * are resolved from the catalog by `packageName` via `resolveRuleCollections`. This list only
+ * fixes which collections the wizard offers, their display text, and their order.
+ */
+export const RULE_COLLECTION_OVERLAYS: RuleCollectionOverlay[] = [
   {
     id: 'typescript',
     name: 'TypeScript',
     packageName: 'bluetemberg-rules-typescript',
     description: 'Type safety, coding standards, early returns, no console.log, design system reuse',
-    rules: ['type-safety', 'coding-standards', 'early-returns', 'no-console-log', 'design-system-reuse'],
-    tags: ['frontend', 'backend', 'fullstack'],
   },
   {
     id: 'git',
     name: 'Git',
     packageName: 'bluetemberg-rules-git',
     description: 'Git workflow, git move, pre-commit checks',
-    rules: ['git-workflow', 'git-move', 'pre-commit-checks'],
-    universal: true,
   },
   {
     id: 'security',
     name: 'Security',
     packageName: 'bluetemberg-rules-security',
     description: 'Never read .env, secrets management, API error handling, LLM package hallucination',
-    rules: ['never-read-env', 'security-secrets', 'api-error-handling', 'llm-package-hallucination'],
-    universal: true,
   },
   {
     id: 'docs',
     name: 'Docs',
     packageName: 'bluetemberg-rules-docs',
     description: 'Docs parity, post-edit diagnostics, Mermaid diagrams',
-    rules: ['docs-parity', 'post-edit-diagnostics', 'mermaid-diagrams'],
-    universal: true,
   },
   {
     id: 'devops',
     name: 'DevOps',
     packageName: 'bluetemberg-rules-devops',
     description: 'Docker, Ansible, Kubernetes, Terraform, CI/CD workflows, idempotency',
-    rules: [
-      'docker-best-practices',
-      'container-image-pinning',
-      'ansible-conventions',
-      'kubernetes-manifests',
-      'helm-conventions',
-      'terraform-conventions',
-      'shell-script-standards',
-      'ci-workflow-conventions',
-      'idempotency',
-      'runbook-discipline',
-      'jinja2-templates',
-    ],
-    tags: ['devops', 'pure-infra'],
   },
   {
     id: 'nextjs',
     name: 'Next.js',
     packageName: 'bluetemberg-rules-nextjs',
     description: 'Next.js env var safety, data fetching, image optimization, metadata, server components',
-    rules: [
-      'nextjs-public-env-vars',
-      'nextjs-data-fetching',
-      'nextjs-image-optimization',
-      'nextjs-metadata',
-      'nextjs-server-components',
-    ],
-    tags: ['frontend', 'fullstack'],
   },
   {
     id: 'context-engineering',
     name: 'Context engineering',
     packageName: 'bluetemberg-rules-context-engineering',
     description: 'Token budget management, context positioning, prompt structure, multi-turn hygiene',
-    rules: [
-      'context-window-budget',
-      'context-positioning',
-      'prompt-structure',
-      'multi-turn-context-hygiene',
-      'multi-turn-state-management',
-      'context-pollution-prevention',
-    ],
-    tags: ['agentic'],
   },
   {
     id: 'agent-memory',
@@ -114,31 +83,25 @@ export const RULE_COLLECTION_PRESETS: RuleCollectionPreset[] = [
     packageName: 'bluetemberg-rules-agent-memory',
     description:
       'Statelessness constraints, memory provenance, promotion through consolidation, authority-ranked recall',
-    rules: [
-      'memory-architecture-checklist',
-      'memory-promotion',
-      'memory-provenance',
-      'memory-recall-authority',
-    ],
-    tags: ['agentic'],
   },
   {
     id: 'llm-api-product',
     name: 'LLM API product',
     packageName: 'bluetemberg-rules-llm-api-product',
     description: 'Streaming, cost accounting, cost-aware model selection and routing',
-    rules: ['streaming', 'cost-accounting', 'model-selection-and-routing'],
-    tags: ['backend', 'fullstack', 'agentic'],
   },
 ];
 
-export const AGENT_PRESETS: PresetItem[] = [
+/**
+ * Curated agent overlays. Profile tags/universal are resolved from the catalog by `packageName`
+ * via `resolveAgents`; this list fixes which agents the wizard offers, display text, defaults, and order.
+ */
+export const AGENT_OVERLAYS: PresetOverlay[] = [
   {
     id: 'frontend-specialist',
     name: 'Frontend specialist',
     description: 'UI implementation, design-system, i18n, a11y',
     default: true,
-    tags: ['frontend', 'fullstack'],
     packageName: 'bluetemberg-agents-frontend-specialist',
   },
   {
@@ -146,7 +109,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Backend specialist',
     description: 'API design, database patterns, error handling, auth',
     default: false,
-    tags: ['backend', 'fullstack'],
     packageName: 'bluetemberg-agents-backend-specialist',
   },
   {
@@ -154,7 +116,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Test specialist',
     description: 'Test creation, refactoring, stabilization',
     default: true,
-    tags: ['frontend', 'backend', 'fullstack'],
     packageName: 'bluetemberg-agents-test-specialist',
   },
   {
@@ -162,7 +123,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Docs maintainer',
     description: 'Documentation synchronization with code changes',
     default: true,
-    universal: true,
     packageName: 'bluetemberg-agents-docs-maintainer',
   },
   {
@@ -170,7 +130,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Code reviewer',
     description: 'PR review — patterns, naming, complexity, tests',
     default: false,
-    tags: ['frontend', 'backend', 'fullstack'],
     packageName: 'bluetemberg-agents-code-reviewer',
   },
   {
@@ -178,7 +137,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Accessibility specialist',
     description: 'WCAG 2.2 A/AA audit and remediation',
     default: false,
-    tags: ['frontend', 'fullstack'],
     packageName: 'bluetemberg-agents-a11y-specialist',
   },
   {
@@ -186,7 +144,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Security specialist',
     description: 'Vulnerability audit, dependency scanning, secrets management',
     default: false,
-    tags: ['backend', 'fullstack', 'devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-security-specialist',
   },
   {
@@ -194,7 +151,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Infrastructure specialist',
     description: 'Build, CI, container, deployment config',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-infrastructure-specialist',
   },
   {
@@ -202,7 +158,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'DevOps specialist',
     description: 'CI/CD pipelines, container optimization, IaC review',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-devops-specialist',
   },
   {
@@ -210,7 +165,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Ansible specialist',
     description: 'Ansible roles, playbooks, and Jinja2 templates',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-ansible-specialist',
   },
   {
@@ -218,7 +172,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Kubernetes specialist',
     description: 'Manifests, Helm charts, Kustomize overlays',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-kubernetes-specialist',
   },
   {
@@ -226,7 +179,6 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'SRE specialist',
     description: 'SLOs, alerting, runbooks, post-mortems',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-agents-sre-specialist',
   },
   {
@@ -234,18 +186,20 @@ export const AGENT_PRESETS: PresetItem[] = [
     name: 'Agentic systems specialist',
     description: 'Agent memory design, state management, orchestration patterns, tool-use recovery',
     default: true,
-    tags: ['agentic'],
     packageName: 'bluetemberg-agents-agentic-specialist',
   },
 ];
 
-export const SKILL_PRESETS: PresetItem[] = [
+/**
+ * Curated skill overlays. Profile tags/universal are resolved from the catalog by `packageName`
+ * via `resolveSkills`; this list fixes which skills the wizard offers, display text, defaults, and order.
+ */
+export const SKILL_OVERLAYS: PresetOverlay[] = [
   {
     id: 'patterns',
     name: 'Patterns',
     description: 'Apply reusable architecture and coding patterns',
     default: true,
-    tags: ['frontend', 'backend', 'fullstack'],
     packageName: 'bluetemberg-skills-patterns',
   },
   {
@@ -253,7 +207,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Docs upkeep',
     description: 'Keep docs aligned with implementation changes',
     default: true,
-    universal: true,
     packageName: 'bluetemberg-skills-docs-upkeep',
   },
   {
@@ -261,7 +214,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Workspace hygiene',
     description: 'Clean workspace state during edits',
     default: true,
-    universal: true,
     packageName: 'bluetemberg-skills-workspace-hygiene',
   },
   {
@@ -269,7 +221,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'React patterns',
     description: 'Component composition, hook extraction, and state co-location for React projects',
     default: false,
-    tags: ['frontend', 'fullstack'],
     packageName: 'bluetemberg-skills-react-patterns',
   },
   {
@@ -277,7 +228,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Code review',
     description: 'Structured review checklist for PRs',
     default: false,
-    tags: ['frontend', 'backend', 'fullstack'],
     packageName: 'bluetemberg-skills-code-review',
   },
   {
@@ -285,7 +235,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'API design',
     description: 'RESTful conventions, pagination, versioning',
     default: false,
-    tags: ['backend', 'fullstack'],
     packageName: 'bluetemberg-skills-api-design',
   },
   {
@@ -293,7 +242,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Security audit',
     description: 'Dependency audit, secrets scan, OWASP patterns',
     default: false,
-    tags: ['backend', 'fullstack', 'devops', 'pure-infra'],
     packageName: 'bluetemberg-skills-security-audit',
   },
   {
@@ -301,7 +249,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'CI/CD best practices',
     description: 'Pipeline optimization, caching strategies',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-skills-ci-cd-best-practices',
   },
   {
@@ -309,7 +256,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Migration safety',
     description: 'Database migration review, rollback plans',
     default: false,
-    tags: ['backend', 'fullstack'],
     packageName: 'bluetemberg-skills-migration-safety',
   },
   {
@@ -317,7 +263,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Stack change review',
     description: 'High-blast-radius infrastructure change review',
     default: true,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-skills-stack-change-review',
   },
   {
@@ -325,7 +270,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Infrastructure drift check',
     description: 'Verify declared IaC state matches deployed state before merge',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-skills-infrastructure-drift-check',
   },
   {
@@ -333,7 +277,6 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Rollback plan',
     description: 'Require tested rollback steps for every production change',
     default: false,
-    tags: ['devops', 'pure-infra'],
     packageName: 'bluetemberg-skills-rollback-plan',
   },
   {
@@ -341,10 +284,53 @@ export const SKILL_PRESETS: PresetItem[] = [
     name: 'Sub-agent design',
     description: 'Plan, scope, and implement sub-agent architectures',
     default: true,
-    tags: ['agentic'],
     packageName: 'bluetemberg-skills-sub-agent-design',
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Catalog resolution — join curated overlays with catalog-derived ids/profiles.
+// ---------------------------------------------------------------------------
+
+function indexByPackage(catalog: Catalog): Map<string, CatalogPack> {
+  return new Map(catalog.packs.map((p) => [p.name, p]));
+}
+
+/** Catalog-derived profile fields for a pack (universal packs carry no tags). */
+function profileFields(pack: CatalogPack | undefined): { universal?: boolean; tags?: TeamProfile[] } {
+  const universal = pack?.universal ?? false;
+  return {
+    universal: universal || undefined,
+    tags: universal ? undefined : (pack?.profiles ?? []),
+  };
+}
+
+/** Resolve rule-collection overlays against the catalog — rule ids and profile tags come from the matching pack. */
+export function resolveRuleCollections(catalog: Catalog): RuleCollectionPreset[] {
+  const byPackage = indexByPackage(catalog);
+  return RULE_COLLECTION_OVERLAYS.map((overlay) => {
+    const pack = byPackage.get(overlay.packageName);
+    return { ...overlay, rules: pack?.rules ?? [], ...profileFields(pack) };
+  });
+}
+
+function resolvePresetOverlays(overlays: PresetOverlay[], catalog: Catalog): PresetItem[] {
+  const byPackage = indexByPackage(catalog);
+  return overlays.map((overlay) => {
+    const pack = overlay.packageName ? byPackage.get(overlay.packageName) : undefined;
+    return { ...overlay, ...profileFields(pack) };
+  });
+}
+
+/** Resolve agent overlays against the catalog (profile tags from the matching pack). */
+export function resolveAgents(catalog: Catalog): PresetItem[] {
+  return resolvePresetOverlays(AGENT_OVERLAYS, catalog);
+}
+
+/** Resolve skill overlays against the catalog (profile tags from the matching pack). */
+export function resolveSkills(catalog: Catalog): PresetItem[] {
+  return resolvePresetOverlays(SKILL_OVERLAYS, catalog);
+}
 
 export const MCP_SERVER_PRESETS: PresetItem[] = [
   {

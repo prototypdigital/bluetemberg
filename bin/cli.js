@@ -394,6 +394,8 @@ program
         version: options.version,
         silent: options.silent,
       });
+      const { refreshCatalogCache } = await import('../dist/catalog/index.js');
+      await refreshCatalogCache(process.cwd());
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -449,6 +451,10 @@ program
         silent: options.silent,
         dryRun: options.dryRun,
       });
+      if (!options.dryRun) {
+        const { refreshCatalogCache } = await import('../dist/catalog/index.js');
+        await refreshCatalogCache(process.cwd());
+      }
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -470,6 +476,8 @@ program
         latest: options.latest,
         silent: options.silent,
       });
+      const { refreshCatalogCache } = await import('../dist/catalog/index.js');
+      await refreshCatalogCache(process.cwd());
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

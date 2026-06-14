@@ -1,28 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { TeamProfile } from '../types.js';
-
-const CATALOG_URL = 'https://raw.githubusercontent.com/prototypdigital/bluetemberg-packs/main/catalog.json';
-const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 h
-
-interface CatalogPack {
-  name: string;
-  version: string;
-  description: string;
-  profiles: TeamProfile[];
-  universal: boolean;
-  kind: 'rules' | 'agents' | 'skills' | 'guardrails';
-  rules?: string[];
-  agents?: string[];
-  skills?: string[];
-  guardrails?: string[];
-  preview: string;
-}
-
-interface Catalog {
-  generated: string;
-  packs: CatalogPack[];
-}
+import { type Catalog, type CatalogPack, loadCatalog } from '../catalog/index.js';
 
 export interface PreviewOptions {
   /** Suppress output (still returns data). */
@@ -31,60 +8,6 @@ export interface PreviewOptions {
   force?: boolean;
   /** Output channel — defaults to no-op when silent, process.stdout otherwise. */
   log?: (msg: string) => void;
-}
-
-function getCachePath(root: string): string {
-  return join(root, '.bluetemberg', 'catalog.json');
-}
-
-async function fetchCatalog(): Promise<Catalog> {
-  const res = await fetch(CATALOG_URL);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch catalog: ${res.status} ${res.statusText}`);
-  }
-  const data = (await res.json()) as unknown;
-  if (!data || typeof data !== 'object' || !Array.isArray((data as Record<string, unknown>).packs)) {
-    throw new Error('Invalid catalog format: missing or non-array "packs" field');
-  }
-  const packs = (data as Record<string, unknown>).packs as unknown[];
-  for (const pack of packs) {
-    if (
-      !pack ||
-      typeof pack !== 'object' ||
-      typeof (pack as Record<string, unknown>).name !== 'string' ||
-      typeof (pack as Record<string, unknown>).version !== 'string' ||
-      typeof (pack as Record<string, unknown>).kind !== 'string' ||
-      !Array.isArray((pack as Record<string, unknown>).profiles)
-    ) {
-      throw new Error('Invalid catalog format: pack missing required fields (name, version, kind, profiles)');
-    }
-  }
-  return data as Catalog;
-}
-
-function loadCachedCatalog(cachePath: string, force: boolean): Catalog | null {
-  if (!existsSync(cachePath)) return null;
-  try {
-    const raw = readFileSync(cachePath, 'utf8');
-    const cached = JSON.parse(raw) as Catalog;
-    if (force) return null;
-    const generatedTime = new Date(cached.generated).getTime();
-    if (Number.isNaN(generatedTime)) return null;
-    const age = Date.now() - generatedTime;
-    if (age > CACHE_MAX_AGE_MS) return null;
-    return cached;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedCatalog(cachePath: string, catalog: Catalog): void {
-  try {
-    mkdirSync(join(cachePath, '..'), { recursive: true });
-    writeFileSync(cachePath, JSON.stringify(catalog, null, 2) + '\n');
-  } catch {
-    // cache write failure is non-fatal
-  }
 }
 
 function packsForProfile(catalog: Catalog, profile: TeamProfile): CatalogPack[] {
@@ -118,14 +41,7 @@ export async function preview(
   const { silent = false, force = false, log: logFn } = options;
   const log = silent ? () => {} : (logFn ?? ((msg: string) => process.stdout.write(msg + '\n')));
 
-  const cachePath = getCachePath(root);
-  let catalog = loadCachedCatalog(cachePath, force);
-  const fromCache = catalog !== null;
-
-  if (!catalog) {
-    catalog = await fetchCatalog();
-    writeCachedCatalog(cachePath, catalog);
-  }
+  const { catalog, fromCache } = await loadCatalog(root, force);
 
   const packs = packsForProfile(catalog, profile);
 

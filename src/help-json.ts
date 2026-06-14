@@ -3,14 +3,15 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  AGENT_PRESETS,
+  AGENT_OVERLAYS,
   MCP_SERVER_PRESETS,
   PACKAGE_MANAGERS,
   PLATFORM_CHOICES,
-  RULE_COLLECTION_PRESETS,
-  SKILL_PRESETS,
+  resolveRuleCollections,
+  SKILL_OVERLAYS,
   TEAM_PROFILES,
 } from './init/presets.js';
+import { loadCatalogSync } from './catalog/index.js';
 import { INIT_RULE_SOURCES } from './init/init-catalog.js';
 import { SOURCE_TYPES } from './sources/types.js';
 
@@ -31,6 +32,7 @@ function readCliVersion(): string {
  * Shape is semver-stable-ish: additive fields preferred.
  */
 export function getMachineReadableHelp(): Record<string, unknown> {
+  const catalog = loadCatalogSync(process.cwd());
   return {
     cliVersion: readCliVersion(),
     teamProfiles: TEAM_PROFILES.map((t) => ({
@@ -41,15 +43,15 @@ export function getMachineReadableHelp(): Record<string, unknown> {
     packageManagers: PACKAGE_MANAGERS.map((p) => p.id),
     platforms: PLATFORM_CHOICES.map((p) => ({ id: p.id, name: p.name })),
     ruleSource: [...INIT_RULE_SOURCES],
-    ruleCollections: RULE_COLLECTION_PRESETS.map((c) => ({
+    ruleCollections: resolveRuleCollections(catalog).map((c) => ({
       id: c.id,
       name: c.name,
       description: c.description,
       packageName: c.packageName,
       tags: c.tags ?? [],
     })),
-    agents: AGENT_PRESETS.map((a) => ({ id: a.id, name: a.name, description: a.description })),
-    skills: SKILL_PRESETS.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+    agents: AGENT_OVERLAYS.map((a) => ({ id: a.id, name: a.name, description: a.description })),
+    skills: SKILL_OVERLAYS.map((s) => ({ id: s.id, name: s.name, description: s.description })),
     mcpServers: MCP_SERVER_PRESETS.map((m) => ({ id: m.id, name: m.name, description: m.description })),
     init: {
       options: [

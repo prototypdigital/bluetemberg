@@ -13,6 +13,7 @@ npm run lint:fix     # ESLint auto-fix
 npm run format       # Prettier format
 npm run typecheck    # Type-check without emit
 npm run sync:llm-config   # Sync rules -> all AI tool directories
+npm run sync:catalog      # Refresh the committed catalog snapshot from the packs repo
 ```
 
 ## AI Config Architecture
@@ -30,6 +31,7 @@ Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/
 - `src/init/` — Interactive wizard (prompts, presets, scaffold)
 - `src/sync/` — Sync engine (config loading, frontmatter transforms, file writing)
 - `src/registry/` — Pack install/update against the npm registry
+- `src/catalog/` — Catalog loader + committed snapshot (single source for pack ids/profiles)
 - `src/utils/` — Shared filesystem helpers
 - `src/types.ts` — All shared TypeScript types
 - `bin/cli.js` — CLI entry point (Commander)

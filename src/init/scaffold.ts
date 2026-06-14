@@ -17,9 +17,9 @@ import { parseSourceSpec, sourceKey } from '../sources/spec.js';
 import type { SourceManifest } from '../sources/types.js';
 import { DEFAULT_PACK_VERSION } from '../registry/manifest.js';
 import {
-  RULE_COLLECTION_PRESETS,
-  AGENT_PRESETS,
-  SKILL_PRESETS,
+  RULE_COLLECTION_OVERLAYS,
+  AGENT_OVERLAYS,
+  SKILL_OVERLAYS,
   GUARDRAIL_PRESETS,
   MARKETPLACE_PLUGIN_PACKS,
 } from './presets.js';
@@ -253,7 +253,7 @@ function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, create
 
   if (answers.ruleSource === 'collections') {
     for (const collectionId of answers.ruleCollections) {
-      const preset = RULE_COLLECTION_PRESETS.find((c) => c.id === collectionId);
+      const preset = RULE_COLLECTION_OVERLAYS.find((c) => c.id === collectionId);
       if (!preset) continue;
       packages[preset.packageName] = DEFAULT_PACK_VERSION;
     }
@@ -261,7 +261,7 @@ function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, create
 
   if (answers.includeAgents) {
     for (const agentId of answers.agents) {
-      const preset = AGENT_PRESETS.find((a) => a.id === agentId);
+      const preset = AGENT_OVERLAYS.find((a) => a.id === agentId);
       if (!preset?.packageName) continue;
       packages[preset.packageName] = DEFAULT_PACK_VERSION;
     }
@@ -269,7 +269,7 @@ function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, create
 
   if (answers.includeSkills) {
     for (const skillId of answers.skills) {
-      const preset = SKILL_PRESETS.find((s) => s.id === skillId);
+      const preset = SKILL_OVERLAYS.find((s) => s.id === skillId);
       if (!preset?.packageName) continue;
       packages[preset.packageName] = DEFAULT_PACK_VERSION;
     }
