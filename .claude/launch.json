@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "site", "--listen", "3456"],
+      "port": 3456
+    },
+    {
       "name": "dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
