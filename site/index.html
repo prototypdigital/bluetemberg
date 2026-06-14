@@ -248,6 +248,51 @@
       .install-note a:hover {
         color: var(--text);
       }
+      /* Profile picker — faux terminal continuation below install command */
+      .profile-picker {
+        background: var(--bg-code);
+        border: 1px solid var(--border);
+        border-top: none;
+        padding: 14px 20px 18px;
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .profile-prompt {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+      }
+      .pp-q {
+        color: var(--accent-soft);
+        margin-right: 6px;
+      }
+      .pp-arrow {
+        color: var(--accent-soft);
+        margin-left: 4px;
+      }
+      .profile-option {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        padding: 2px 0;
+        font-size: 12px;
+      }
+      .pp-cursor {
+        display: inline-block;
+        width: 10px;
+        color: var(--accent-soft);
+        flex-shrink: 0;
+      }
+      .pp-name {
+        color: var(--text);
+        min-width: 82px;
+        flex-shrink: 0;
+      }
+      .pp-desc {
+        color: var(--text-faint);
+      }
+      .profile-option--active .pp-name {
+        color: var(--accent-soft);
+      }
 
       /* How it works — steps */
       .steps {
@@ -624,10 +669,49 @@
             <div class="install-cmd"><span class="prompt">$</span>npx bluetemberg init</div>
             <button class="copy-btn" id="copyBtn" aria-label="Copy install command">Copy</button>
           </div>
+          <div class="profile-picker">
+            <p class="profile-prompt">
+              <span class="pp-q">?</span>Team profile<span class="pp-arrow">›</span>
+            </p>
+            <div class="profile-option profile-option--active">
+              <span class="pp-cursor" aria-hidden="true">›</span>
+              <span class="pp-name">Frontend</span>
+              <span class="pp-desc">UI, design systems, accessibility</span>
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-name">Backend</span>
+              <span class="pp-desc">APIs, databases, auth, services</span>
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-name">Full-stack</span>
+              <span class="pp-desc">Frontend + backend combined</span>
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-name">DevOps</span>
+              <span class="pp-desc">CI/CD, containers, infrastructure</span>
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-name">Pure infra</span>
+              <span class="pp-desc">Kubernetes, Terraform, Ansible</span>
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-name">Agentic</span>
+              <span class="pp-desc">Context engineering, sub-agents</span>
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-name">Custom</span>
+              <span class="pp-desc">Pick everything individually</span>
+            </div>
+          </div>
           <p class="install-note">
-            Requires Node.js 20+. Pick a profile — frontend · backend · full-stack · devops · pure-infra ·
-            agentic — or go custom.<br />
-            Headless: <code>--non-interactive --profile backend</code>. &nbsp;<a
+            Requires Node.js 20+. &nbsp;Headless:
+            <code>--non-interactive --profile backend</code>. &nbsp;<a
               href="https://github.com/prototypdigital/bluetemberg/wiki/Commands"
               >All commands &amp; flags →</a
             >
