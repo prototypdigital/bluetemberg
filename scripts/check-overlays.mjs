@@ -13,9 +13,19 @@ import { fileURLToPath } from 'url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const catalog = JSON.parse(readFileSync(join(root, 'src', 'catalog', 'catalog.json'), 'utf8'));
+if (!catalog || !Array.isArray(catalog.packs)) {
+  console.error('Invalid catalog format: missing "packs" array in src/catalog/catalog.json');
+  process.exit(1);
+}
 const packByName = new Map(catalog.packs.map((p) => [p.name, p]));
 
-const { RULE_COLLECTION_OVERLAYS, AGENT_OVERLAYS, SKILL_OVERLAYS } = await import('../dist/init/presets.js');
+let RULE_COLLECTION_OVERLAYS, AGENT_OVERLAYS, SKILL_OVERLAYS;
+try {
+  ({ RULE_COLLECTION_OVERLAYS, AGENT_OVERLAYS, SKILL_OVERLAYS } = await import('../dist/init/presets.js'));
+} catch {
+  console.error('Failed to import dist/init/presets.js — run "npm run build" first.');
+  process.exit(1);
+}
 
 const errors = [];
 
