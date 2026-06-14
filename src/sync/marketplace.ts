@@ -65,17 +65,25 @@ interface FileMeta {
   profiles: TeamProfile[];
 }
 
-function readFrontmatterProfiles(value: unknown): TeamProfile[] {
+/**
+ * Returns the validated profiles array when the `profiles` key is present in frontmatter,
+ * or `undefined` when the key is absent entirely. This lets `resolveProfiles` distinguish
+ * "explicit empty override" (`profiles: []` → universal) from "no frontmatter" (fall back
+ * to the catalog map).
+ */
+function readFrontmatterProfiles(data: Record<string, unknown>): TeamProfile[] | undefined {
+  if (!Object.prototype.hasOwnProperty.call(data, 'profiles')) return undefined;
+  const value = data.profiles;
   if (!Array.isArray(value)) return [];
   return value.filter((p): p is TeamProfile => typeof p === 'string' && VALID_PROFILE_IDS.has(p));
 }
 
 function resolveProfiles(
   id: string,
-  frontmatterProfiles: TeamProfile[],
+  frontmatterProfiles: TeamProfile[] | undefined,
   profileMap: Map<string, TeamProfile[]>,
 ): TeamProfile[] {
-  if (frontmatterProfiles.length > 0) return frontmatterProfiles;
+  if (frontmatterProfiles !== undefined) return frontmatterProfiles;
   return profileMap.get(id) ?? [];
 }
 
@@ -87,10 +95,10 @@ function readRuleMeta(ruleFile: string, sourceDir: string, profileMap: Map<strin
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, readFrontmatterProfiles(data.profiles), profileMap),
+      profiles: resolveProfiles(id, readFrontmatterProfiles(data as Record<string, unknown>), profileMap),
     };
   } catch {
-    return { name: id, description: '', profiles: resolveProfiles(id, [], profileMap) };
+    return { name: id, description: '', profiles: resolveProfiles(id, undefined, profileMap) };
   }
 }
 
@@ -105,10 +113,14 @@ function readSkillMeta(
     return {
       name: (data.name as string) || skillDir,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(skillDir, readFrontmatterProfiles(data.profiles), profileMap),
+      profiles: resolveProfiles(
+        skillDir,
+        readFrontmatterProfiles(data as Record<string, unknown>),
+        profileMap,
+      ),
     };
   } catch {
-    return { name: skillDir, description: '', profiles: resolveProfiles(skillDir, [], profileMap) };
+    return { name: skillDir, description: '', profiles: resolveProfiles(skillDir, undefined, profileMap) };
   }
 }
 
@@ -124,10 +136,10 @@ function readAgentMeta(
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, readFrontmatterProfiles(data.profiles), profileMap),
+      profiles: resolveProfiles(id, readFrontmatterProfiles(data as Record<string, unknown>), profileMap),
     };
   } catch {
-    return { name: id, description: '', profiles: resolveProfiles(id, [], profileMap) };
+    return { name: id, description: '', profiles: resolveProfiles(id, undefined, profileMap) };
   }
 }
 

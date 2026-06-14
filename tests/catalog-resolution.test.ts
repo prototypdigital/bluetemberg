@@ -100,5 +100,26 @@ describe('catalog-derived preset resolution', () => {
 
   it('an overlay with no matching pack is excluded from the resolved list', () => {
     expect(resolveRuleCollections(catalogWith([]))).toHaveLength(0);
+    expect(resolveAgents(catalogWith([]))).toHaveLength(0);
+    expect(resolveSkills(catalogWith([]))).toHaveLength(0);
+  });
+
+  it('resolvers skip overlays when their pack is missing from a partial catalog', () => {
+    const catalog = catalogWith([
+      {
+        name: 'bluetemberg-rules-git',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: true,
+        profiles: [],
+        rules: ['git-workflow'],
+        preview: '',
+      },
+    ]);
+
+    const resolved = resolveRuleCollections(catalog);
+    expect(resolved.find((c) => c.id === 'git')).toBeDefined();
+    expect(resolved.find((c) => c.id === 'typescript')).toBeUndefined();
   });
 });
