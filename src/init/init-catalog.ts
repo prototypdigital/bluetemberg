@@ -10,6 +10,7 @@ export const INIT_TEAM_PROFILES: readonly TeamProfile[] = [
   'fullstack',
   'devops',
   'pure-infra',
+  'agentic',
   'custom',
 ];
 
