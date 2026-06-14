@@ -31,21 +31,32 @@ function getCachePath(root: string): string {
   return join(root, '.bluetemberg', 'catalog.json');
 }
 
+const VALID_KINDS = new Set<string>(['rules', 'agents', 'skills', 'guardrails']);
+
 /** Narrow parsed JSON to a Catalog, throwing on malformed input. */
 function assertCatalog(data: unknown): asserts data is Catalog {
-  if (!data || typeof data !== 'object' || !Array.isArray((data as Record<string, unknown>).packs)) {
-    throw new Error('Invalid catalog format: missing or non-array "packs" field');
+  if (
+    !data ||
+    typeof data !== 'object' ||
+    typeof (data as Record<string, unknown>).generated !== 'string' ||
+    !Array.isArray((data as Record<string, unknown>).packs)
+  ) {
+    throw new Error('Invalid catalog format: missing "generated", or "packs" is not an array');
   }
   for (const pack of (data as Record<string, unknown>).packs as unknown[]) {
+    const p = pack as Record<string, unknown>;
     if (
       !pack ||
       typeof pack !== 'object' ||
-      typeof (pack as Record<string, unknown>).name !== 'string' ||
-      typeof (pack as Record<string, unknown>).version !== 'string' ||
-      typeof (pack as Record<string, unknown>).kind !== 'string' ||
-      !Array.isArray((pack as Record<string, unknown>).profiles)
+      typeof p.name !== 'string' ||
+      typeof p.version !== 'string' ||
+      !VALID_KINDS.has(p.kind as string) ||
+      !Array.isArray(p.profiles) ||
+      !(p.profiles as unknown[]).every((x) => typeof x === 'string')
     ) {
-      throw new Error('Invalid catalog format: pack missing required fields (name, version, kind, profiles)');
+      throw new Error(
+        'Invalid catalog format: pack missing required fields (name, version, kind, profiles) or has invalid kind/profile values',
+      );
     }
   }
 }
@@ -87,7 +98,7 @@ function writeCache(root: string, catalog: Catalog): void {
 
 /** Fetch the live catalog from the packs repo. Throws on network or format errors. */
 export async function fetchCatalog(): Promise<Catalog> {
-  const res = await fetch(CATALOG_URL);
+  const res = await fetch(CATALOG_URL, { signal: AbortSignal.timeout(30_000) });
   if (!res.ok) {
     throw new Error(`Failed to fetch catalog: ${res.status} ${res.statusText}`);
   }

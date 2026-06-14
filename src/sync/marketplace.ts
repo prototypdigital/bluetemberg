@@ -65,6 +65,11 @@ interface FileMeta {
   profiles: TeamProfile[];
 }
 
+function readFrontmatterProfiles(value: unknown): TeamProfile[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((p): p is TeamProfile => typeof p === 'string' && VALID_PROFILE_IDS.has(p));
+}
+
 function resolveProfiles(
   id: string,
   frontmatterProfiles: TeamProfile[],
@@ -82,7 +87,7 @@ function readRuleMeta(ruleFile: string, sourceDir: string, profileMap: Map<strin
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, (data.profiles as TeamProfile[]) || [], profileMap),
+      profiles: resolveProfiles(id, readFrontmatterProfiles(data.profiles), profileMap),
     };
   } catch {
     return { name: id, description: '', profiles: resolveProfiles(id, [], profileMap) };
@@ -100,7 +105,7 @@ function readSkillMeta(
     return {
       name: (data.name as string) || skillDir,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(skillDir, (data.profiles as TeamProfile[]) || [], profileMap),
+      profiles: resolveProfiles(skillDir, readFrontmatterProfiles(data.profiles), profileMap),
     };
   } catch {
     return { name: skillDir, description: '', profiles: resolveProfiles(skillDir, [], profileMap) };
@@ -119,7 +124,7 @@ function readAgentMeta(
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, (data.profiles as TeamProfile[]) || [], profileMap),
+      profiles: resolveProfiles(id, readFrontmatterProfiles(data.profiles), profileMap),
     };
   } catch {
     return { name: id, description: '', profiles: resolveProfiles(id, [], profileMap) };
