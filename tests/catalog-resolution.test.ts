@@ -98,13 +98,7 @@ describe('catalog-derived preset resolution', () => {
     expect(patterns?.default).toBe(true); // curated overlay default is preserved
   });
 
-  it('an overlay id with no matching pack resolves to empty rules/tags without crashing', () => {
-    const collections = resolveRuleCollections(catalogWith([]));
-    expect(collections.length).toBeGreaterThan(0);
-    for (const c of collections) {
-      expect(c.rules).toEqual([]);
-      expect(c.universal).toBeUndefined();
-      expect(c.tags).toEqual([]);
-    }
+  it('an overlay with no matching pack is excluded from the resolved list', () => {
+    expect(resolveRuleCollections(catalogWith([]))).toHaveLength(0);
   });
 });

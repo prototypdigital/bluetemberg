@@ -308,17 +308,19 @@ function profileFields(pack: CatalogPack | undefined): { universal?: boolean; ta
 /** Resolve rule-collection overlays against the catalog — rule ids and profile tags come from the matching pack. */
 export function resolveRuleCollections(catalog: Catalog): RuleCollectionPreset[] {
   const byPackage = indexByPackage(catalog);
-  return RULE_COLLECTION_OVERLAYS.map((overlay) => {
+  return RULE_COLLECTION_OVERLAYS.flatMap((overlay) => {
     const pack = byPackage.get(overlay.packageName);
-    return { ...overlay, rules: pack?.rules ?? [], ...profileFields(pack) };
+    if (!pack) return [];
+    return [{ ...overlay, rules: pack.rules ?? [], ...profileFields(pack) }];
   });
 }
 
 function resolvePresetOverlays(overlays: PresetOverlay[], catalog: Catalog): PresetItem[] {
   const byPackage = indexByPackage(catalog);
-  return overlays.map((overlay) => {
+  return overlays.flatMap((overlay) => {
     const pack = overlay.packageName ? byPackage.get(overlay.packageName) : undefined;
-    return { ...overlay, ...profileFields(pack) };
+    if (overlay.packageName && !pack) return [];
+    return [{ ...overlay, ...profileFields(pack) }];
   });
 }
 
