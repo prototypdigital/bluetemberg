@@ -32,6 +32,7 @@
     "typecheck": "tsc --noEmit",
     "sync:llm-config": "node bin/cli.js sync",
     "sync:llm-config:check": "node bin/cli.js sync --check",
+    "build:site": "node scripts/build-site.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

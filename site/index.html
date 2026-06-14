@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Publish AI standards once to npm. Every engineer gets version-locked, integrity-verified rules, agents, and skills with one command."
+    />
+    <title>Bluetemberg</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #272729;
+        --bg-surface: #1e1e20;
+        --bg-code: #1a1a1c;
+        --text: #f2f2f2;
+        --text-muted: #9a9a9e;
+        --accent: #4343e1;
+        --border: rgba(255, 255, 255, 0.08);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        font-size: 16px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Newsreader', Georgia, serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .container {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 0 24px;
+        width: 100%;
+      }
+
+      /* Nav */
+      nav {
+        border-bottom: 1px solid var(--border);
+        padding: 16px 0;
+      }
+      nav .container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .nav-brand {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+        text-decoration: none;
+        letter-spacing: 0.02em;
+      }
+      .nav-links {
+        display: flex;
+        gap: 20px;
+        list-style: none;
+      }
+      .nav-links a {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+      .nav-links a:hover {
+        color: var(--text);
+      }
+
+      /* Hero */
+      .hero {
+        padding: 80px 0 64px;
+        border-bottom: 1px solid var(--border);
+      }
+      .hero-eyebrow {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 24px;
+      }
+      .hero-headline {
+        font-size: clamp(30px, 5vw, 50px);
+        font-weight: 400;
+        line-height: 1.12;
+        letter-spacing: -0.01em;
+        margin-bottom: 24px;
+        max-width: 620px;
+      }
+      .hero-headline em {
+        font-style: italic;
+        color: var(--text-muted);
+      }
+      .hero-sub {
+        font-size: 18px;
+        line-height: 1.65;
+        color: var(--text-muted);
+        max-width: 540px;
+        margin-bottom: 36px;
+      }
+      .badges {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .badges img {
+        height: 20px;
+        display: block;
+      }
+
+      /* Install */
+      .install {
+        padding: 48px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .section-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 14px;
+      }
+      .install-block {
+        display: flex;
+        align-items: stretch;
+        background: var(--bg-code);
+        border: 1px solid var(--border);
+      }
+      .install-cmd {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--text);
+        padding: 18px 20px;
+        flex: 1;
+        letter-spacing: 0.01em;
+      }
+      .install-cmd .prompt {
+        color: var(--accent);
+        user-select: none;
+        margin-right: 10px;
+      }
+      .copy-btn {
+        background: none;
+        border: none;
+        border-left: 1px solid var(--border);
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 18px 20px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        transition:
+          color 0.15s,
+          background 0.15s;
+        white-space: nowrap;
+        border-radius: 0;
+      }
+      .copy-btn:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .copy-btn.copied {
+        color: var(--accent);
+      }
+      .install-note {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 14px;
+        line-height: 1.75;
+      }
+      .install-note a {
+        color: var(--text-muted);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .install-note a:hover {
+        color: var(--text);
+      }
+
+      /* Cards */
+      .cards {
+        padding: 48px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+      }
+      .card {
+        background: var(--bg);
+        padding: 28px 24px;
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transition: background 0.15s;
+      }
+      .card:hover {
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .card-title {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .card-title .arrow {
+        color: var(--accent);
+      }
+      .card-desc {
+        font-size: 14px;
+        line-height: 1.65;
+        color: var(--text-muted);
+      }
+
+      /* Features */
+      .features {
+        padding: 48px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .features-list {
+        list-style: none;
+        border: 1px solid var(--border);
+      }
+      .feature-item {
+        display: flex;
+        align-items: baseline;
+        gap: 24px;
+        padding: 18px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .feature-item:last-child {
+        border-bottom: none;
+      }
+      .feature-key {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--accent);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        min-width: 110px;
+        flex-shrink: 0;
+      }
+      .feature-val {
+        font-size: 15px;
+        line-height: 1.6;
+        color: var(--text-muted);
+      }
+
+      /* Footer */
+      footer {
+        margin-top: auto;
+        padding: 24px 0;
+        border-top: 1px solid var(--border);
+      }
+      footer .container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .footer-text {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: var(--text-muted);
+        letter-spacing: 0.02em;
+      }
+      .footer-text a {
+        color: var(--text-muted);
+        text-decoration: none;
+      }
+      .footer-text a:hover {
+        color: var(--text);
+      }
+
+      @media (max-width: 600px) {
+        .hero {
+          padding: 48px 0 40px;
+        }
+        .cards-grid {
+          grid-template-columns: 1fr;
+        }
+        .nav-links {
+          display: none;
+        }
+        .feature-item {
+          flex-direction: column;
+          gap: 6px;
+        }
+        footer .container {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="container">
+        <a href="/" class="nav-brand">bluetemberg</a>
+        <ul class="nav-links">
+          <li><a href="https://prototypdigital.github.io/bluetemberg-packs/">packs</a></li>
+          <li><a href="https://github.com/prototypdigital/bluetemberg/wiki">docs</a></li>
+          <li><a href="https://github.com/prototypdigital/bluetemberg">github</a></li>
+          <li><a href="https://www.npmjs.com/package/bluetemberg">npm</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <main>
+      <section class="hero">
+        <div class="container">
+          <p class="hero-eyebrow">AI tooling engine</p>
+          <h1 class="hero-headline">
+            Publish AI standards once to npm.<br /><em>Every engineer stays in sync.</em>
+          </h1>
+          <p class="hero-sub">
+            Version-locked, integrity-verified rules, agents, and skills — matched to role — across Cursor,
+            Claude Code, GitHub Copilot, and Windsurf.
+          </p>
+          <div class="badges">
+            <a href="https://www.npmjs.com/package/bluetemberg">
+              <img
+                src="https://img.shields.io/npm/v/bluetemberg.svg?style=flat-square&colorA=272729&colorB=4343e1"
+                alt="npm version"
+              />
+            </a>
+            <a href="https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml">
+              <img
+                src="https://img.shields.io/github/actions/workflow/status/prototypdigital/bluetemberg/ci.yml?branch=main&style=flat-square&colorA=272729&colorB=4343e1&label=CI"
+                alt="CI"
+              />
+            </a>
+            <img
+              src="https://img.shields.io/npm/l/bluetemberg.svg?style=flat-square&colorA=272729&colorB=272729"
+              alt="MIT"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="install">
+        <div class="container">
+          <p class="section-label">Get started</p>
+          <div class="install-block">
+            <div class="install-cmd"><span class="prompt">$</span>npx bluetemberg init</div>
+            <button class="copy-btn" id="copyBtn">Copy</button>
+          </div>
+          <p class="install-note">
+            Requires Node.js 20+. Profiles: frontend · backend · full-stack · devops · agentic · infra.<br />
+            Non-interactive: <code>--non-interactive --profile frontend</code> &mdash;
+            <a href="https://github.com/prototypdigital/bluetemberg/wiki/Commands">all flags →</a>
+          </p>
+        </div>
+      </section>
+
+      <section class="cards">
+        <div class="container">
+          <p class="section-label">Explore</p>
+          <div class="cards-grid">
+            <a href="https://prototypdigital.github.io/bluetemberg-packs/" class="card">
+              <div class="card-title">Browse packs <span class="arrow">↗</span></div>
+              <p class="card-desc">
+                All available rules, agents, skills, and guardrails — searchable and filterable.
+              </p>
+            </a>
+            <a href="https://github.com/prototypdigital/bluetemberg/wiki" class="card">
+              <div class="card-title">Read the docs <span class="arrow">↗</span></div>
+              <p class="card-desc">Installation, commands, configuration, and writing custom packs.</p>
+            </a>
+            <a href="https://github.com/prototypdigital/bluetemberg" class="card">
+              <div class="card-title">View on GitHub <span class="arrow">↗</span></div>
+              <p class="card-desc">Source code, issues, and contribution guide. MIT licensed.</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="features">
+        <div class="container">
+          <p class="section-label">Under the hood</p>
+          <ul class="features-list">
+            <li class="feature-item">
+              <span class="feature-key">Integrity</span>
+              <span class="feature-val"
+                >SHA-512 verified against npm registry metadata. Registry host is pinned — tarballs can't be
+                swapped in transit.</span
+              >
+            </li>
+            <li class="feature-item">
+              <span class="feature-key">Versioning</span>
+              <span class="feature-val"
+                >Semver ranges and a lockfile. Pin exact versions or accept patch updates — same model as
+                ESLint configs.</span
+              >
+            </li>
+            <li class="feature-item">
+              <span class="feature-key">Multi-platform</span>
+              <span class="feature-val"
+                >One source of truth, synced simultaneously to Cursor, Claude Code, GitHub Copilot, and
+                Windsurf.</span
+              >
+            </li>
+            <li class="feature-item">
+              <span class="feature-key">Profiles</span>
+              <span class="feature-val"
+                >Role-matched defaults — frontend, backend, devops, agentic. Pre-selected, not locked. Add or
+                remove anything.</span
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container">
+        <span class="footer-text"
+          >MIT &mdash; <a href="https://prototypdigital.com">Prototyp Digital</a></span
+        >
+        <span class="footer-text"
+          ><a href="https://github.com/prototypdigital/bluetemberg"
+            >github.com/prototypdigital/bluetemberg</a
+          ></span
+        >
+      </div>
+    </footer>
+
+    <script type="module">
+      const btn = document.getElementById('copyBtn');
+      btn.addEventListener('click', async () => {
+        await navigator.clipboard.writeText('npx bluetemberg init');
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    </script>
+  </body>
+</html>

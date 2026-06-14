@@ -8,6 +8,8 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 > Published on npm as [`bluetemberg`](https://www.npmjs.com/package/bluetemberg) — MIT licensed. Requires **Node.js 20+**.
 
+**[prototypdigital.github.io/bluetemberg →](https://prototypdigital.github.io/bluetemberg/)** — install guide, pack browser, and docs.
+
 **Supply-chain controls:** SHA-512 integrity verified against npm registry metadata. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
 
 ## Why not a shared AGENTS.md?
