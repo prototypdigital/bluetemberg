@@ -10,15 +10,7 @@ import { BUILTIN_MCP_SERVERS, parseLlmMcpServerList } from '../mcp/registry.js';
 import type { McpServerConfig } from '../mcp/registry.js';
 import { AGENTS_RULES_MARKERS, CODEX_MCP_MARKERS, injectManagedBlock } from './managed-block.js';
 
-/**
- * Codex consumes config differently from every other target:
- * - **Instructions** come from the root `AGENTS.md` (read natively — no derivation needed).
- * - **Scoped rules** have no per-rule home, so we fold `llm/rules/` into a managed block in `AGENTS.md`.
- * - **Subagents** are one TOML file each under `.codex/agents/` (markdown body → `developer_instructions`).
- * - **MCP servers** live as a managed `[mcp_servers.*]` block in `.codex/config.toml`.
- *
- * Skills are vendor-neutral (`.agents/skills/`) and flow through the generic skill pipeline.
- */
+// Codex has no per-file rule API; see Architecture.md "Special sync" for the full design.
 export interface CodexSyncContext extends SyncSink {
   sourceBase: string;
   sourceDirs: string[];
@@ -57,9 +49,18 @@ function buildRulesBlock(ctx: CodexSyncContext): string {
   return sections.join('\n\n');
 }
 
+function getSafeRulesBlock(ctx: CodexSyncContext, recordError: (message: string) => void): string | null {
+  try {
+    return buildRulesBlock(ctx);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordError(`codex rules -> AGENTS.md: ${message}`);
+    return null;
+  }
+}
+
 /**
  * Folds `llm/rules/` into a managed block in the root `AGENTS.md`, preserving hand-authored content.
- * Codex (and any other tool that reads `AGENTS.md`) then picks the rules up natively.
  */
 export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: string) => void): void {
   if (!ctx.platforms.includes('codex')) return;
@@ -67,16 +68,9 @@ export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: str
   const agentsPath = join(ctx.root, 'AGENTS.md');
   const existing = readIfExists(agentsPath);
 
-  let block: string;
-  try {
-    block = buildRulesBlock(ctx);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    recordError(`codex rules -> AGENTS.md: ${message}`);
-    return;
-  }
+  const block = getSafeRulesBlock(ctx, recordError);
+  if (block === null) return;
 
-  // No rules to inject and no stale block to clean up.
   if (block.length === 0 && (existing === null || !existing.includes(AGENTS_RULES_MARKERS.begin))) {
     return;
   }
@@ -88,6 +82,37 @@ export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: str
   if (!ctx.checkMode) ctx.log('Codex rules: merged into AGENTS.md');
 }
 
+function processAgentFile(
+  file: string,
+  sourceDir: string,
+  outDir: string,
+  ctx: CodexSyncContext,
+  recordError: (message: string) => void,
+): boolean {
+  try {
+    const parsed = matter.read(join(sourceDir, file));
+    const fallbackName = basename(file, '.md');
+    const name =
+      typeof parsed.data.name === 'string' && parsed.data.name.trim().length > 0
+        ? parsed.data.name.trim()
+        : fallbackName;
+
+    const agent: Record<string, unknown> = {
+      name,
+      description: typeof parsed.data.description === 'string' ? parsed.data.description : '',
+      developer_instructions: parsed.content.trim(),
+    };
+
+    const body = tomlStringify(agent) + '\n';
+    commitPlannedWrite(ctx, join(outDir, `${fallbackName}.toml`), body);
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordError(`codex agent ${file}: ${message}`);
+    return false;
+  }
+}
+
 /** Emits one `.codex/agents/<name>.toml` per source agent, mapping the body to `developer_instructions`. */
 export function syncCodexAgents(ctx: CodexSyncContext, recordError: (message: string) => void): void {
   if (!ctx.platforms.includes('codex')) return;
@@ -96,45 +121,29 @@ export function syncCodexAgents(ctx: CodexSyncContext, recordError: (message: st
   if (merged.size === 0) return;
 
   const outDir = join(ctx.root, '.codex', 'agents');
-  ensureDir(outDir);
+  if (!ctx.checkMode) ensureDir(outDir);
 
-  let count = 0;
-  for (const [file, sourceDir] of [...merged].sort(byFilename)) {
-    try {
-      const parsed = matter.read(join(sourceDir, file));
-      const fallbackName = basename(file, '.md');
-      const name =
-        typeof parsed.data.name === 'string' && parsed.data.name.trim().length > 0
-          ? parsed.data.name.trim()
-          : fallbackName;
-
-      const agent: Record<string, unknown> = {
-        name,
-        description: typeof parsed.data.description === 'string' ? parsed.data.description : '',
-        developer_instructions: parsed.content.trim(),
-      };
-
-      const body = tomlStringify(agent) + '\n';
-      commitPlannedWrite(ctx, join(outDir, `${fallbackName}.toml`), body);
-      count++;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      recordError(`codex agent ${file}: ${message}`);
-    }
-  }
+  const count = [...merged]
+    .sort(byFilename)
+    .filter(([file, sourceDir]) => processAgentFile(file, sourceDir, outDir, ctx, recordError)).length;
 
   if (count > 0 && !ctx.checkMode) ctx.log(`Codex agents: ${count} -> .codex/agents/`);
 }
 
-/** Reads `llm/mcp.json` into resolved server configs. Manifest errors are surfaced by {@link syncMcp}. */
-function readMcpConfigs(sourceBase: string): Record<string, McpServerConfig> {
+/** Reads `llm/mcp.json` into resolved server configs, surfacing parse errors via `recordError`. */
+function readMcpConfigs(
+  sourceBase: string,
+  recordError: (message: string) => void,
+): Record<string, McpServerConfig> {
   const raw = readIfExists(join(sourceBase, 'mcp.json'));
   if (raw === null) return {};
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordError(`codex mcp: failed to parse llm/mcp.json: ${message}`);
     return {};
   }
 
@@ -161,9 +170,21 @@ function toCodexMcpServers(
       entry.command = cfg.command;
       if (cfg.args && cfg.args.length > 0) entry.args = cfg.args;
     }
-    out[id] = entry;
+    // Skip entries with no transport — neither url nor command were set.
+    if (Object.keys(entry).length > 0) out[id] = entry;
   }
   return out;
+}
+
+function buildMcpInner(sourceBase: string, recordError: (message: string) => void): string | null {
+  try {
+    const servers = toCodexMcpServers(readMcpConfigs(sourceBase, recordError));
+    return Object.keys(servers).length > 0 ? tomlStringify({ mcp_servers: servers }).trim() : '';
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordError(`codex mcp -> .codex/config.toml: ${message}`);
+    return null;
+  }
 }
 
 /** Injects a managed `[mcp_servers.*]` block into `.codex/config.toml`, preserving hand-authored config. */
@@ -173,17 +194,9 @@ export function syncCodexConfig(ctx: CodexSyncContext, recordError: (message: st
   const configPath = join(ctx.root, '.codex', 'config.toml');
   const existing = readIfExists(configPath);
 
-  let inner = '';
-  try {
-    const servers = toCodexMcpServers(readMcpConfigs(ctx.sourceBase));
-    inner = Object.keys(servers).length > 0 ? tomlStringify({ mcp_servers: servers }).trim() : '';
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    recordError(`codex mcp -> .codex/config.toml: ${message}`);
-    return;
-  }
+  const inner = buildMcpInner(ctx.sourceBase, recordError);
+  if (inner === null) return;
 
-  // No servers to write and no stale block to clean up.
   if (inner.length === 0 && (existing === null || !existing.includes(CODEX_MCP_MARKERS.begin))) {
     return;
   }
@@ -191,7 +204,7 @@ export function syncCodexConfig(ctx: CodexSyncContext, recordError: (message: st
   const output = injectManagedBlock(existing, inner, CODEX_MCP_MARKERS);
   if (output.length === 0 && existing === null) return;
 
-  ensureDir(join(ctx.root, '.codex'));
+  if (!ctx.checkMode) ensureDir(join(ctx.root, '.codex'));
   commitPlannedWrite(ctx, configPath, output);
   if (!ctx.checkMode) ctx.log('Codex MCP: merged into .codex/config.toml');
 }

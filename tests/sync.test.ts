@@ -1735,4 +1735,15 @@ describe('codex sync', () => {
     expect(existsSync(join(root, '.codex', 'agents', 'keep.toml'))).toBe(true);
     expect(existsSync(join(root, '.codex', 'agents', 'drop.toml'))).toBe(false);
   });
+
+  it('check mode does not create .codex/ directories on disk', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'a.md'), '---\nname: a\ndescription: A\n---\n\nBody\n');
+    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { check: true, config, silent: true });
+
+    expect(existsSync(join(root, '.codex'))).toBe(false);
+  });
 });
