@@ -1083,6 +1083,15 @@ describe('loadConfig', () => {
     expect(() => loadConfig(root)).not.toThrow();
   });
 
+  it('accepts agentic as a valid profile field', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['claude'], source: 'llm', profile: 'agentic', targets: {} }),
+    );
+
+    expect(() => loadConfig(root)).not.toThrow();
+  });
+
   it('throws on an unknown profile value', () => {
     writeFileSync(
       join(root, 'bluetemberg.config.json'),
