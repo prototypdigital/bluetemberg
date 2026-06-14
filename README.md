@@ -8,18 +8,20 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 > Published on npm as [`bluetemberg`](https://www.npmjs.com/package/bluetemberg) — MIT licensed. Requires **Node.js 20+**.
 
+**[prototypdigital.github.io/bluetemberg →](https://prototypdigital.github.io/bluetemberg/)** — install guide, pack browser, and docs.
+
 **Supply-chain controls:** SHA-512 integrity verified against npm registry metadata. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
 
 ## Why not a shared AGENTS.md?
 
-|                         | Shared `AGENTS.md` | bluetemberg                       |
-| ----------------------- | ------------------ | --------------------------------- |
-| Versioning              | git history        | semver ranges + lockfile          |
-| Integrity verification  | none               | SHA-512 per pack                  |
-| Per-role filtering      | manual copy-paste  | profiles (role-matched defaults)  |
-| Teammate onboarding     | clone + copy files | `init --profile X` + `install`    |
-| Zero-install onboarding | no                 | Claude Marketplace plugin         |
-| Multi-platform          | no                 | Cursor, Claude, Copilot, Windsurf |
+|                         | Shared `AGENTS.md` | bluetemberg                               |
+| ----------------------- | ------------------ | ----------------------------------------- |
+| Versioning              | git history        | semver ranges + lockfile                  |
+| Integrity verification  | none               | SHA-512 per pack                          |
+| Per-role filtering      | manual copy-paste  | profiles (role-matched defaults)          |
+| Teammate onboarding     | clone + copy files | `init --profile X` + `install`            |
+| Zero-install onboarding | no                 | Claude Marketplace plugin                 |
+| Multi-platform          | no                 | Cursor, Claude, Copilot, Gemini, Windsurf |
 
 Profiles are **role-matched default selections** — not bundles. The wizard pre-selects the collections, agents, and skills most relevant to your role. You can add or remove anything. The value is that the content behind those selections is versioned, integrity-verified, and fetched from npm like an ESLint plugin.
 
