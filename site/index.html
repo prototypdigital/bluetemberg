@@ -333,52 +333,6 @@
       .no {
         color: var(--text-faint);
       }
-      .matrix-note {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
-        color: var(--text-faint);
-        margin-top: 14px;
-        line-height: 1.7;
-      }
-
-      /* Platform list — mobile alternative to matrix */
-      .platform-list {
-        display: none;
-        flex-direction: column;
-        border: 1px solid var(--border);
-      }
-      .platform-row {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        padding: 14px 18px;
-        border-bottom: 1px solid var(--border-soft);
-      }
-      .platform-row:last-child {
-        border-bottom: none;
-      }
-      .platform-row-name {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--text);
-      }
-      .platform-row-features {
-        display: flex;
-        gap: 14px;
-        flex-wrap: wrap;
-      }
-      .feat-yes {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 12px;
-        color: var(--accent-soft);
-      }
-      .feat-no {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 12px;
-        color: var(--text-faint);
-      }
-
       /* Security controls */
       .security {
         padding: 56px 0;
@@ -582,12 +536,10 @@
           gap: 16px;
         }
 
-        /* Platform matrix: hide table, show stacked cards */
-        .matrix {
-          display: none;
-        }
-        .platform-list {
-          display: flex;
+        /* Platform matrix: reduce padding on mobile */
+        .matrix th,
+        .matrix td {
+          padding: 12px 10px;
         }
 
         /* Comparison: hide table, show stacked list */
@@ -727,89 +679,44 @@
             <thead>
               <tr>
                 <th class="row-corner"></th>
-                <th>Cursor</th>
-                <th>Claude&nbsp;Code</th>
-                <th>Copilot</th>
-                <th>Gemini&nbsp;CLI</th>
-                <th>Windsurf</th>
+                <th>Rules</th>
+                <th>Agents</th>
+                <th>Skills</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <th>Rules</th>
-                <td><span class="yes">●</span></td>
-                <td><span class="yes">●</span></td>
+                <th>Cursor</th>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
               </tr>
               <tr>
-                <th>Agents</th>
+                <th>Claude&nbsp;Code</th>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+              </tr>
+              <tr>
+                <th>Copilot</th>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+              </tr>
+              <tr>
+                <th>Gemini&nbsp;CLI</th>
                 <td><span class="yes">●</span></td>
                 <td><span class="no">–</span></td>
                 <td><span class="no">–</span></td>
               </tr>
               <tr>
-                <th>Skills</th>
-                <td><span class="yes">●</span></td>
-                <td><span class="yes">●</span></td>
+                <th>Windsurf</th>
                 <td><span class="yes">●</span></td>
                 <td><span class="no">–</span></td>
                 <td><span class="yes">●</span></td>
               </tr>
             </tbody>
           </table>
-          <!-- Mobile: per-platform cards (replaces the table on small screens) -->
-          <div class="platform-list">
-            <div class="platform-row">
-              <span class="platform-row-name">Cursor</span>
-              <div class="platform-row-features">
-                <span class="feat-yes">Rules</span>
-                <span class="feat-yes">Agents</span>
-                <span class="feat-yes">Skills</span>
-              </div>
-            </div>
-            <div class="platform-row">
-              <span class="platform-row-name">Claude Code</span>
-              <div class="platform-row-features">
-                <span class="feat-yes">Rules</span>
-                <span class="feat-yes">Agents</span>
-                <span class="feat-yes">Skills</span>
-              </div>
-            </div>
-            <div class="platform-row">
-              <span class="platform-row-name">Copilot</span>
-              <div class="platform-row-features">
-                <span class="feat-yes">Rules</span>
-                <span class="feat-yes">Agents</span>
-                <span class="feat-yes">Skills</span>
-              </div>
-            </div>
-            <div class="platform-row">
-              <span class="platform-row-name">Gemini CLI</span>
-              <div class="platform-row-features">
-                <span class="feat-yes">Rules</span>
-                <span class="feat-no">Agents</span>
-                <span class="feat-no">Skills</span>
-              </div>
-            </div>
-            <div class="platform-row">
-              <span class="platform-row-name">Windsurf</span>
-              <div class="platform-row-features">
-                <span class="feat-yes">Rules</span>
-                <span class="feat-no">Agents</span>
-                <span class="feat-yes">Skills</span>
-              </div>
-            </div>
-          </div>
-          <p class="matrix-note">
-            Each cell maps to that tool's real config surface — <code>.cursor/rules</code>,
-            <code>.claude/agents</code>, <code>.github/instructions</code>, <code>.gemini/context</code>,
-            <code>.windsurf/skills</code>. Gaps reflect what a tool natively supports, not what's planned.
-            Plus MCP servers, Cursor hooks, Claude commands, and Copilot prompts.
-          </p>
         </div>
       </section>
 
