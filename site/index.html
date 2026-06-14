@@ -460,6 +460,13 @@
         color: var(--text);
         font-weight: 500;
       }
+      .control-val code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--accent-soft);
+        background: var(--bg-code);
+        padding: 1px 5px;
+      }
 
       /* Comparison table — desktop */
       .compare {
@@ -912,22 +919,24 @@
             <li class="control">
               <span class="control-key">Size caps</span>
               <span class="control-val"
-                >50&nbsp;MB compressed, 100&nbsp;MB uncompressed. Stops disk-fill and decompression-bomb
-                archives during download and extraction.</span
+                >50&nbsp;MB compressed, 100&nbsp;MB uncompressed.
+                <strong>A malicious pack can't fill your disk or bomb the extractor.</strong></span
               >
             </li>
             <li class="control">
               <span class="control-key">Path-traversal &amp; symlinks</span>
               <span class="control-val"
-                >Every tarball entry is filtered — <code>..</code> segments, symlinks, and hardlinks that
-                could escape the target directory are rejected.</span
+                >Every tarball entry is filtered — <code>..</code> segments, symlinks, and hardlinks.
+                <strong>Nothing can write outside the pack's own directory.</strong></span
               >
             </li>
             <li class="control">
               <span class="control-key">Lockfile</span>
               <span class="control-val"
                 >Exact versions, resolved URLs, and integrity hashes pinned in
-                <code>llm/packages-lock.json</code> — the same model as <code>package-lock.json</code>.</span
+                <code>llm/packages-lock.json</code>.
+                <strong>Every install resolves to the same bytes</strong> — the same model npm uses for
+                package-lock.json.</span
               >
             </li>
           </ul>
