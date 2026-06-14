@@ -291,7 +291,7 @@
         padding: 1px 5px;
       }
 
-      /* Platform matrix */
+      /* Platform matrix — desktop table */
       .platforms {
         padding: 56px 0;
       }
@@ -341,6 +341,44 @@
         line-height: 1.7;
       }
 
+      /* Platform list — mobile alternative to matrix */
+      .platform-list {
+        display: none;
+        flex-direction: column;
+        border: 1px solid var(--border);
+      }
+      .platform-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .platform-row:last-child {
+        border-bottom: none;
+      }
+      .platform-row-name {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text);
+      }
+      .platform-row-features {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .feat-yes {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--accent-soft);
+      }
+      .feat-no {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--text-faint);
+      }
+
       /* Security controls */
       .security {
         padding: 56px 0;
@@ -379,7 +417,7 @@
         font-weight: 500;
       }
 
-      /* Comparison table */
+      /* Comparison table — desktop */
       .compare {
         padding: 56px 0;
       }
@@ -420,6 +458,43 @@
       }
       .compare-table .win {
         color: var(--text);
+      }
+
+      /* Comparison list — mobile alternative to compare-table */
+      .compare-list {
+        display: none;
+        flex-direction: column;
+        border: 1px solid var(--border);
+      }
+      .compare-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .compare-row:last-child {
+        border-bottom: none;
+      }
+      .compare-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        color: var(--text-faint);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .compare-old {
+        font-size: 14px;
+        color: var(--text-faint);
+      }
+      .compare-new {
+        font-size: 14px;
+        color: var(--text);
+      }
+      .compare-new::before {
+        content: '◆ ';
+        color: var(--accent-soft);
+        font-size: 10px;
       }
 
       /* Explore cards */
@@ -490,6 +565,7 @@
       }
 
       @media (max-width: 640px) {
+        /* Layout */
         .hero {
           padding: 52px 0 44px;
         }
@@ -497,23 +573,41 @@
         .cards-grid {
           grid-template-columns: 1fr;
         }
+
+        /* Nav: hide in-page anchor links to prevent overflow */
+        .nav-anchor {
+          display: none;
+        }
         .nav-links {
-          gap: 14px;
+          gap: 16px;
         }
-        .nav-links a {
-          font-size: 11px;
+
+        /* Platform matrix: hide table, show stacked cards */
+        .matrix {
+          display: none;
         }
+        .platform-list {
+          display: flex;
+        }
+
+        /* Comparison: hide table, show stacked list */
+        .compare-table {
+          display: none;
+        }
+        .compare-list {
+          display: flex;
+        }
+
+        /* Security controls: stack key + value vertically */
         .control {
           flex-direction: column;
           gap: 6px;
         }
-        .matrix {
-          font-size: 11px;
+        .control-key {
+          min-width: auto;
         }
-        .matrix th,
-        .matrix td {
-          padding: 10px 6px;
-        }
+
+        /* Footer */
         footer .container {
           flex-direction: column;
           align-items: flex-start;
@@ -527,8 +621,8 @@
       <div class="container">
         <a href="/" class="nav-brand">bluetemberg</a>
         <ul class="nav-links">
-          <li><a href="#how">how</a></li>
-          <li><a href="#security">security</a></li>
+          <li class="nav-anchor"><a href="#how">how</a></li>
+          <li class="nav-anchor"><a href="#security">security</a></li>
           <li><a href="https://prototypdigital.github.io/bluetemberg-packs/">packs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg/wiki">docs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg">github</a></li>
@@ -628,6 +722,7 @@
         <div class="container">
           <p class="section-label">Coverage</p>
           <h2 class="section-title">Five tools, native formats.</h2>
+          <!-- Desktop: feature matrix table -->
           <table class="matrix">
             <thead>
               <tr>
@@ -666,6 +761,49 @@
               </tr>
             </tbody>
           </table>
+          <!-- Mobile: per-platform cards (replaces the table on small screens) -->
+          <div class="platform-list">
+            <div class="platform-row">
+              <span class="platform-row-name">Cursor</span>
+              <div class="platform-row-features">
+                <span class="feat-yes">Rules</span>
+                <span class="feat-yes">Agents</span>
+                <span class="feat-yes">Skills</span>
+              </div>
+            </div>
+            <div class="platform-row">
+              <span class="platform-row-name">Claude Code</span>
+              <div class="platform-row-features">
+                <span class="feat-yes">Rules</span>
+                <span class="feat-yes">Agents</span>
+                <span class="feat-yes">Skills</span>
+              </div>
+            </div>
+            <div class="platform-row">
+              <span class="platform-row-name">Copilot</span>
+              <div class="platform-row-features">
+                <span class="feat-yes">Rules</span>
+                <span class="feat-yes">Agents</span>
+                <span class="feat-yes">Skills</span>
+              </div>
+            </div>
+            <div class="platform-row">
+              <span class="platform-row-name">Gemini CLI</span>
+              <div class="platform-row-features">
+                <span class="feat-yes">Rules</span>
+                <span class="feat-no">Agents</span>
+                <span class="feat-no">Skills</span>
+              </div>
+            </div>
+            <div class="platform-row">
+              <span class="platform-row-name">Windsurf</span>
+              <div class="platform-row-features">
+                <span class="feat-yes">Rules</span>
+                <span class="feat-no">Agents</span>
+                <span class="feat-yes">Skills</span>
+              </div>
+            </div>
+          </div>
           <p class="matrix-note">
             Each cell maps to that tool's real config surface — <code>.cursor/rules</code>,
             <code>.claude/agents</code>, <code>.github/instructions</code>, <code>.gemini/context</code>,
@@ -729,6 +867,7 @@
         <div class="container">
           <p class="section-label">vs. a shared AGENTS.md</p>
           <h2 class="section-title">A file in a repo isn't infrastructure.</h2>
+          <!-- Desktop: side-by-side comparison table -->
           <table class="compare-table">
             <thead>
               <tr>
@@ -765,6 +904,34 @@
               </tr>
             </tbody>
           </table>
+          <!-- Mobile: stacked before/after list (replaces the table on small screens) -->
+          <div class="compare-list">
+            <div class="compare-row">
+              <span class="compare-label">Versioning</span>
+              <span class="compare-old">git history</span>
+              <span class="compare-new">semver ranges + lockfile</span>
+            </div>
+            <div class="compare-row">
+              <span class="compare-label">Integrity</span>
+              <span class="compare-old">none</span>
+              <span class="compare-new">SHA-512, host-pinned</span>
+            </div>
+            <div class="compare-row">
+              <span class="compare-label">Per-role config</span>
+              <span class="compare-old">manual copy-paste</span>
+              <span class="compare-new">profiles, role-matched defaults</span>
+            </div>
+            <div class="compare-row">
+              <span class="compare-label">Multi-tool</span>
+              <span class="compare-old">one file, one format</span>
+              <span class="compare-new">5 tools, native formats</span>
+            </div>
+            <div class="compare-row">
+              <span class="compare-label">Onboarding</span>
+              <span class="compare-old">clone &amp; copy files</span>
+              <span class="compare-new">install, or zero-setup plugin</span>
+            </div>
+          </div>
         </div>
       </section>
 
