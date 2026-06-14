@@ -5,13 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Publish AI standards once to npm. Every engineer gets version-locked, integrity-verified rules, agents, and skills with one command."
+      content="AI coding standards, delivered like a real dependency. Author rules, agents, and skills once — synced to Cursor, Claude Code, Copilot, Gemini CLI, and Windsurf, version-locked and integrity-verified."
     />
-    <title>Bluetemberg</title>
+    <meta property="og:title" content="Bluetemberg — AI standards, shipped like a dependency" />
+    <meta
+      property="og:description"
+      content="Author rules, agents, and skills once. Sync to five AI tools, version-locked and SHA-512 verified."
+    />
+    <meta property="og:type" content="website" />
+    <title>Bluetemberg — AI standards, shipped like a dependency</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -21,8 +27,11 @@
         --bg-code: #1a1a1c;
         --text: #f2f2f2;
         --text-muted: #9a9a9e;
+        --text-faint: #6a6a6e;
         --accent: #4343e1;
+        --accent-soft: #6b6bff;
         --border: rgba(255, 255, 255, 0.08);
+        --border-soft: rgba(255, 255, 255, 0.05);
       }
 
       *,
@@ -35,6 +44,7 @@
       html {
         font-size: 16px;
         -webkit-font-smoothing: antialiased;
+        scroll-behavior: smooth;
       }
 
       body {
@@ -44,19 +54,29 @@
         min-height: 100vh;
         display: flex;
         flex-direction: column;
+        line-height: 1.5;
       }
 
       .container {
-        max-width: 760px;
+        max-width: 820px;
         margin: 0 auto;
         padding: 0 24px;
         width: 100%;
+      }
+
+      .mono {
+        font-family: 'JetBrains Mono', monospace;
       }
 
       /* Nav */
       nav {
         border-bottom: 1px solid var(--border);
         padding: 16px 0;
+        position: sticky;
+        top: 0;
+        background: rgba(39, 39, 41, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 10;
       }
       nav .container {
         display: flex;
@@ -70,6 +90,10 @@
         color: var(--text);
         text-decoration: none;
         letter-spacing: 0.02em;
+      }
+      .nav-brand::before {
+        content: '◆ ';
+        color: var(--accent);
       }
       .nav-links {
         display: flex;
@@ -87,38 +111,66 @@
         color: var(--text);
       }
 
+      /* Section scaffolding */
+      section {
+        border-bottom: 1px solid var(--border);
+      }
+      .section-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-faint);
+        margin-bottom: 18px;
+      }
+      .section-title {
+        font-size: clamp(22px, 3.5vw, 30px);
+        font-weight: 400;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+        margin-bottom: 28px;
+        max-width: 620px;
+      }
+      .section-title em {
+        font-style: italic;
+        color: var(--text-muted);
+      }
+
       /* Hero */
       .hero {
-        padding: 80px 0 64px;
-        border-bottom: 1px solid var(--border);
+        padding: 88px 0 68px;
       }
       .hero-eyebrow {
         font-family: 'JetBrains Mono', monospace;
         font-size: 11px;
         font-weight: 500;
-        letter-spacing: 0.12em;
+        letter-spacing: 0.14em;
         text-transform: uppercase;
-        color: var(--accent);
-        margin-bottom: 24px;
+        color: var(--accent-soft);
+        margin-bottom: 26px;
       }
       .hero-headline {
-        font-size: clamp(30px, 5vw, 50px);
+        font-size: clamp(34px, 6vw, 60px);
         font-weight: 400;
-        line-height: 1.12;
-        letter-spacing: -0.01em;
-        margin-bottom: 24px;
-        max-width: 620px;
+        line-height: 1.08;
+        letter-spacing: -0.015em;
+        margin-bottom: 28px;
+        max-width: 700px;
       }
       .hero-headline em {
         font-style: italic;
-        color: var(--text-muted);
+        color: var(--accent-soft);
       }
       .hero-sub {
-        font-size: 18px;
-        line-height: 1.65;
+        font-size: clamp(17px, 2.4vw, 20px);
+        line-height: 1.6;
         color: var(--text-muted);
-        max-width: 540px;
-        margin-bottom: 36px;
+        max-width: 600px;
+        margin-bottom: 38px;
+      }
+      .hero-sub strong {
+        color: var(--text);
+        font-weight: 500;
       }
       .badges {
         display: flex;
@@ -133,16 +185,7 @@
 
       /* Install */
       .install {
-        padding: 48px 0;
-        border-bottom: 1px solid var(--border);
-      }
-      .section-label {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
-        color: var(--text-muted);
-        margin-bottom: 14px;
+        padding: 44px 0;
       }
       .install-block {
         display: flex;
@@ -152,15 +195,17 @@
       }
       .install-cmd {
         font-family: 'JetBrains Mono', monospace;
-        font-size: 16px;
+        font-size: clamp(14px, 2.2vw, 16px);
         font-weight: 500;
         color: var(--text);
         padding: 18px 20px;
         flex: 1;
         letter-spacing: 0.01em;
+        overflow-x: auto;
+        white-space: nowrap;
       }
       .install-cmd .prompt {
-        color: var(--accent);
+        color: var(--accent-soft);
         user-select: none;
         margin-right: 10px;
       }
@@ -186,14 +231,14 @@
         background: rgba(255, 255, 255, 0.04);
       }
       .copy-btn.copied {
-        color: var(--accent);
+        color: var(--accent-soft);
       }
       .install-note {
         font-family: 'JetBrains Mono', monospace;
         font-size: 12px;
-        color: var(--text-muted);
+        color: var(--text-faint);
         margin-top: 14px;
-        line-height: 1.75;
+        line-height: 1.8;
       }
       .install-note a {
         color: var(--text-muted);
@@ -204,10 +249,182 @@
         color: var(--text);
       }
 
-      /* Cards */
-      .cards {
-        padding: 48px 0;
+      /* How it works — steps */
+      .steps {
+        padding: 56px 0;
+      }
+      .steps-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+      }
+      .step {
+        background: var(--bg);
+        padding: 26px 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .step-num {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: var(--accent-soft);
+        letter-spacing: 0.08em;
+      }
+      .step-title {
+        font-size: 19px;
+        font-weight: 500;
+        color: var(--text);
+      }
+      .step-desc {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--text-muted);
+      }
+      .step-desc code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--accent-soft);
+        background: var(--bg-code);
+        padding: 1px 5px;
+      }
+
+      /* Platform matrix */
+      .platforms {
+        padding: 56px 0;
+      }
+      .matrix {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid var(--border);
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .matrix th,
+      .matrix td {
+        padding: 14px 12px;
+        text-align: center;
+        border: 1px solid var(--border-soft);
+        font-size: 13px;
+      }
+      .matrix thead th {
+        color: var(--text);
+        font-weight: 500;
+        font-size: 12px;
+        letter-spacing: 0.01em;
+        background: var(--bg-surface);
+      }
+      .matrix tbody th {
+        text-align: left;
+        color: var(--text-muted);
+        font-weight: 400;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .matrix .row-corner {
+        background: var(--bg-surface);
+      }
+      .yes {
+        color: var(--accent-soft);
+        font-size: 15px;
+      }
+      .no {
+        color: var(--text-faint);
+      }
+      .matrix-note {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: var(--text-faint);
+        margin-top: 14px;
+        line-height: 1.7;
+      }
+
+      /* Security controls */
+      .security {
+        padding: 56px 0;
+      }
+      .controls {
+        list-style: none;
+        border: 1px solid var(--border);
+      }
+      .control {
+        display: flex;
+        gap: 20px;
+        padding: 20px;
         border-bottom: 1px solid var(--border);
+      }
+      .control:last-child {
+        border-bottom: none;
+      }
+      .control-key {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--accent-soft);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        min-width: 150px;
+        flex-shrink: 0;
+        padding-top: 2px;
+      }
+      .control-val {
+        font-size: 15px;
+        line-height: 1.6;
+        color: var(--text-muted);
+      }
+      .control-val strong {
+        color: var(--text);
+        font-weight: 500;
+      }
+
+      /* Comparison table */
+      .compare {
+        padding: 56px 0;
+      }
+      .compare-table {
+        width: 100%;
+        border-collapse: collapse;
+        border: 1px solid var(--border);
+      }
+      .compare-table th,
+      .compare-table td {
+        padding: 15px 18px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-soft);
+        font-size: 15px;
+        vertical-align: top;
+      }
+      .compare-table thead th {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-faint);
+        font-weight: 500;
+      }
+      .compare-table thead th:last-child {
+        color: var(--accent-soft);
+      }
+      .compare-table tbody tr:last-child td {
+        border-bottom: none;
+      }
+      .compare-table .dim {
+        color: var(--text-faint);
+      }
+      .compare-table .row-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+      .compare-table .win {
+        color: var(--text);
+      }
+
+      /* Explore cards */
+      .explore {
+        padding: 56px 0;
       }
       .cards-grid {
         display: grid;
@@ -239,45 +456,10 @@
         justify-content: space-between;
       }
       .card-title .arrow {
-        color: var(--accent);
+        color: var(--accent-soft);
       }
       .card-desc {
         font-size: 14px;
-        line-height: 1.65;
-        color: var(--text-muted);
-      }
-
-      /* Features */
-      .features {
-        padding: 48px 0;
-        border-bottom: 1px solid var(--border);
-      }
-      .features-list {
-        list-style: none;
-        border: 1px solid var(--border);
-      }
-      .feature-item {
-        display: flex;
-        align-items: baseline;
-        gap: 24px;
-        padding: 18px 20px;
-        border-bottom: 1px solid var(--border);
-      }
-      .feature-item:last-child {
-        border-bottom: none;
-      }
-      .feature-key {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
-        font-weight: 500;
-        color: var(--accent);
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        min-width: 110px;
-        flex-shrink: 0;
-      }
-      .feature-val {
-        font-size: 15px;
         line-height: 1.6;
         color: var(--text-muted);
       }
@@ -285,8 +467,7 @@
       /* Footer */
       footer {
         margin-top: auto;
-        padding: 24px 0;
-        border-top: 1px solid var(--border);
+        padding: 28px 0;
       }
       footer .container {
         display: flex;
@@ -297,7 +478,7 @@
       .footer-text {
         font-family: 'JetBrains Mono', monospace;
         font-size: 11px;
-        color: var(--text-muted);
+        color: var(--text-faint);
         letter-spacing: 0.02em;
       }
       .footer-text a {
@@ -308,19 +489,30 @@
         color: var(--text);
       }
 
-      @media (max-width: 600px) {
+      @media (max-width: 640px) {
         .hero {
-          padding: 48px 0 40px;
+          padding: 52px 0 44px;
         }
+        .steps-grid,
         .cards-grid {
           grid-template-columns: 1fr;
         }
         .nav-links {
-          display: none;
+          gap: 14px;
         }
-        .feature-item {
+        .nav-links a {
+          font-size: 11px;
+        }
+        .control {
           flex-direction: column;
           gap: 6px;
+        }
+        .matrix {
+          font-size: 11px;
+        }
+        .matrix th,
+        .matrix td {
+          padding: 10px 6px;
         }
         footer .container {
           flex-direction: column;
@@ -335,46 +527,50 @@
       <div class="container">
         <a href="/" class="nav-brand">bluetemberg</a>
         <ul class="nav-links">
+          <li><a href="#how">how</a></li>
+          <li><a href="#security">security</a></li>
           <li><a href="https://prototypdigital.github.io/bluetemberg-packs/">packs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg/wiki">docs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg">github</a></li>
-          <li><a href="https://www.npmjs.com/package/bluetemberg">npm</a></li>
         </ul>
       </div>
     </nav>
 
     <main>
+      <!-- HERO -->
       <section class="hero">
         <div class="container">
-          <p class="hero-eyebrow">AI tooling engine</p>
-          <h1 class="hero-headline">
-            Publish AI standards once to npm.<br /><em>Every engineer stays in sync.</em>
-          </h1>
+          <p class="hero-eyebrow">Vendor-neutral AI tooling engine</p>
+          <h1 class="hero-headline">AI coding standards,<br /><em>shipped like a dependency.</em></h1>
           <p class="hero-sub">
-            Version-locked, integrity-verified rules, agents, and skills — matched to role — across Cursor,
-            Claude Code, GitHub Copilot, and Windsurf.
+            Author rules, agents, and skills <strong>once</strong>. Bluetemberg compiles them into native
+            config for five AI tools —
+            <strong>version-locked, integrity-verified, and matched to each engineer's role.</strong>
           </p>
           <div class="badges">
             <a href="https://www.npmjs.com/package/bluetemberg">
               <img
-                src="https://img.shields.io/npm/v/bluetemberg.svg?style=flat-square&colorA=272729&colorB=4343e1"
+                src="https://img.shields.io/npm/v/bluetemberg.svg?style=flat-square&colorA=272729&colorB=4343e1&label=npm"
                 alt="npm version"
               />
             </a>
-            <a href="https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml">
-              <img
-                src="https://img.shields.io/github/actions/workflow/status/prototypdigital/bluetemberg/ci.yml?branch=main&style=flat-square&colorA=272729&colorB=4343e1&label=CI"
-                alt="CI"
-              />
-            </a>
             <img
-              src="https://img.shields.io/npm/l/bluetemberg.svg?style=flat-square&colorA=272729&colorB=272729"
-              alt="MIT"
+              src="https://img.shields.io/npm/l/bluetemberg.svg?style=flat-square&colorA=272729&colorB=3a3a3c"
+              alt="MIT license"
+            />
+            <img
+              src="https://img.shields.io/badge/node-%E2%89%A520-272729?style=flat-square&labelColor=272729&color=3a3a3c"
+              alt="Node 20+"
+            />
+            <img
+              src="https://img.shields.io/badge/integrity-SHA--512-4343e1?style=flat-square&labelColor=272729"
+              alt="SHA-512 verified"
             />
           </div>
         </div>
       </section>
 
+      <!-- INSTALL -->
       <section class="install">
         <div class="container">
           <p class="section-label">Get started</p>
@@ -383,68 +579,217 @@
             <button class="copy-btn" id="copyBtn">Copy</button>
           </div>
           <p class="install-note">
-            Requires Node.js 20+. Profiles: frontend · backend · full-stack · devops · agentic · infra.<br />
-            Non-interactive: <code>--non-interactive --profile frontend</code> &mdash;
-            <a href="https://github.com/prototypdigital/bluetemberg/wiki/Commands">all flags →</a>
+            Requires Node.js 20+. Pick a profile — frontend · backend · full-stack · devops · pure-infra ·
+            agentic — or go custom.<br />
+            Headless: <code>--non-interactive --profile backend</code>. &nbsp;<a
+              href="https://github.com/prototypdigital/bluetemberg/wiki/Commands"
+              >All commands &amp; flags →</a
+            >
           </p>
         </div>
       </section>
 
-      <section class="cards">
+      <!-- HOW IT WORKS -->
+      <section class="steps" id="how">
+        <div class="container">
+          <p class="section-label">How it works</p>
+          <h2 class="section-title">One source of truth. <em>No copy-paste between tools.</em></h2>
+          <div class="steps-grid">
+            <div class="step">
+              <span class="step-num">01 / AUTHOR</span>
+              <span class="step-title">Write once</span>
+              <span class="step-desc"
+                >Rules, agents, and skills as plain Markdown in <code>llm/</code>. Vendor-neutral — no
+                tool-specific frontmatter.</span
+              >
+            </div>
+            <div class="step">
+              <span class="step-num">02 / SYNC</span>
+              <span class="step-title">Compile everywhere</span>
+              <span class="step-desc"
+                ><code>bluetemberg sync</code> emits native config for every tool — correct frontmatter,
+                correct paths, per platform.</span
+              >
+            </div>
+            <div class="step">
+              <span class="step-num">03 / SHIP</span>
+              <span class="step-title">Onboard instantly</span>
+              <span class="step-desc"
+                >Publish packs to npm with semver + SHA-512. Teammates run <code>install</code> — or get them
+                zero-setup via a Claude Code plugin.</span
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PLATFORM MATRIX -->
+      <section class="platforms">
+        <div class="container">
+          <p class="section-label">Coverage</p>
+          <h2 class="section-title">Five tools, native formats.</h2>
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th class="row-corner"></th>
+                <th>Cursor</th>
+                <th>Claude&nbsp;Code</th>
+                <th>Copilot</th>
+                <th>Gemini&nbsp;CLI</th>
+                <th>Windsurf</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>Rules</th>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+              </tr>
+              <tr>
+                <th>Agents</th>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="no">–</span></td>
+                <td><span class="no">–</span></td>
+              </tr>
+              <tr>
+                <th>Skills</th>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="no">–</span></td>
+                <td><span class="yes">●</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="matrix-note">
+            Each cell maps to that tool's real config surface — <code>.cursor/rules</code>,
+            <code>.claude/agents</code>, <code>.github/instructions</code>, <code>.gemini/context</code>,
+            <code>.windsurf/skills</code>. Gaps reflect what a tool natively supports, not what's planned.
+            Plus MCP servers, Cursor hooks, Claude commands, and Copilot prompts.
+          </p>
+        </div>
+      </section>
+
+      <!-- SECURITY -->
+      <section class="security" id="security">
+        <div class="container">
+          <p class="section-label">Supply chain</p>
+          <h2 class="section-title">
+            Packs are dependencies. <em>So they're verified like dependencies.</em>
+          </h2>
+          <ul class="controls">
+            <li class="control">
+              <span class="control-key">SHA-512 integrity</span>
+              <span class="control-val"
+                >Every pack is hashed and checked against npm registry metadata.
+                <strong>Install is refused if the hash is missing or doesn't match.</strong></span
+              >
+            </li>
+            <li class="control">
+              <span class="control-key">Registry host pinning</span>
+              <span class="control-val"
+                >Tarballs must download from the same host as the registry.
+                <strong
+                  >A compromised registry response can't redirect a download to an attacker's host.</strong
+                ></span
+              >
+            </li>
+            <li class="control">
+              <span class="control-key">Size caps</span>
+              <span class="control-val"
+                >50&nbsp;MB compressed, 100&nbsp;MB uncompressed. Stops disk-fill and decompression-bomb
+                archives during download and extraction.</span
+              >
+            </li>
+            <li class="control">
+              <span class="control-key">Path-traversal &amp; symlinks</span>
+              <span class="control-val"
+                >Every tarball entry is filtered — <code>..</code> segments, symlinks, and hardlinks that
+                could escape the target directory are rejected.</span
+              >
+            </li>
+            <li class="control">
+              <span class="control-key">Lockfile</span>
+              <span class="control-val"
+                >Exact versions, resolved URLs, and integrity hashes pinned in
+                <code>llm/packages-lock.json</code> — the same model as <code>package-lock.json</code>.</span
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- COMPARISON -->
+      <section class="compare">
+        <div class="container">
+          <p class="section-label">vs. a shared AGENTS.md</p>
+          <h2 class="section-title">A file in a repo isn't infrastructure.</h2>
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>&nbsp;</th>
+                <th>Shared AGENTS.md</th>
+                <th>Bluetemberg</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="row-label">Versioning</td>
+                <td class="dim">git history</td>
+                <td class="win">semver ranges + lockfile</td>
+              </tr>
+              <tr>
+                <td class="row-label">Integrity</td>
+                <td class="dim">none</td>
+                <td class="win">SHA-512, host-pinned</td>
+              </tr>
+              <tr>
+                <td class="row-label">Per-role config</td>
+                <td class="dim">manual copy-paste</td>
+                <td class="win">profiles, role-matched defaults</td>
+              </tr>
+              <tr>
+                <td class="row-label">Multi-tool</td>
+                <td class="dim">one file, one format</td>
+                <td class="win">5 tools, native formats</td>
+              </tr>
+              <tr>
+                <td class="row-label">Onboarding</td>
+                <td class="dim">clone &amp; copy files</td>
+                <td class="win">install, or zero-setup plugin</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- EXPLORE -->
+      <section class="explore">
         <div class="container">
           <p class="section-label">Explore</p>
           <div class="cards-grid">
             <a href="https://prototypdigital.github.io/bluetemberg-packs/" class="card">
               <div class="card-title">Browse packs <span class="arrow">↗</span></div>
               <p class="card-desc">
-                All available rules, agents, skills, and guardrails — searchable and filterable.
+                Every published rule, agent, skill, and guardrail — searchable and filterable by role.
               </p>
             </a>
             <a href="https://github.com/prototypdigital/bluetemberg/wiki" class="card">
               <div class="card-title">Read the docs <span class="arrow">↗</span></div>
-              <p class="card-desc">Installation, commands, configuration, and writing custom packs.</p>
+              <p class="card-desc">
+                Installation, commands, configuration, the security model, and writing your own packs.
+              </p>
             </a>
             <a href="https://github.com/prototypdigital/bluetemberg" class="card">
               <div class="card-title">View on GitHub <span class="arrow">↗</span></div>
-              <p class="card-desc">Source code, issues, and contribution guide. MIT licensed.</p>
+              <p class="card-desc">Source, issues, and contribution guide. MIT licensed, Node 20+.</p>
             </a>
           </div>
-        </div>
-      </section>
-
-      <section class="features">
-        <div class="container">
-          <p class="section-label">Under the hood</p>
-          <ul class="features-list">
-            <li class="feature-item">
-              <span class="feature-key">Integrity</span>
-              <span class="feature-val"
-                >SHA-512 verified against npm registry metadata. Registry host is pinned — tarballs can't be
-                swapped in transit.</span
-              >
-            </li>
-            <li class="feature-item">
-              <span class="feature-key">Versioning</span>
-              <span class="feature-val"
-                >Semver ranges and a lockfile. Pin exact versions or accept patch updates — same model as
-                ESLint configs.</span
-              >
-            </li>
-            <li class="feature-item">
-              <span class="feature-key">Multi-platform</span>
-              <span class="feature-val"
-                >One source of truth, synced simultaneously to Cursor, Claude Code, GitHub Copilot, and
-                Windsurf.</span
-              >
-            </li>
-            <li class="feature-item">
-              <span class="feature-key">Profiles</span>
-              <span class="feature-val"
-                >Role-matched defaults — frontend, backend, devops, agentic. Pre-selected, not locked. Add or
-                remove anything.</span
-              >
-            </li>
-          </ul>
         </div>
       </section>
     </main>
@@ -452,7 +797,7 @@
     <footer>
       <div class="container">
         <span class="footer-text"
-          >MIT &mdash; <a href="https://prototypdigital.com">Prototyp Digital</a></span
+          >MIT &mdash; built by <a href="https://prototyp.digital">Prototyp Digital</a></span
         >
         <span class="footer-text"
           ><a href="https://github.com/prototypdigital/bluetemberg"
@@ -465,13 +810,20 @@
     <script type="module">
       const btn = document.getElementById('copyBtn');
       btn.addEventListener('click', async () => {
-        await navigator.clipboard.writeText('npx bluetemberg init');
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = 'Copy';
-          btn.classList.remove('copied');
-        }, 2000);
+        try {
+          await navigator.clipboard.writeText('npx bluetemberg init');
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+          }, 2000);
+        } catch {
+          btn.textContent = 'Copy failed';
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+          }, 2000);
+        }
       });
     </script>
   </body>

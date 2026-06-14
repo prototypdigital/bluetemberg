@@ -1,7 +1,7 @@
 {
   "name": "bluetemberg",
   "version": "0.4.0",
-  "description": "Scaffold vendor-neutral AI tooling (rules, agents, skills) with cross-platform sync for Cursor, Claude, and GitHub Copilot.",
+  "description": "Author AI coding rules, agents, and skills once — sync version-locked, integrity-verified config to Cursor, Claude Code, GitHub Copilot, Gemini CLI, and Windsurf.",
   "type": "module",
   "bin": {
     "bluetemberg": "./bin/cli.js"
@@ -41,6 +41,10 @@
     "cursor",
     "claude",
     "copilot",
+    "gemini",
+    "windsurf",
+    "agents",
+    "skills",
     "scaffolding",
     "cli"
   ],
