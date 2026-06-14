@@ -34,6 +34,7 @@
     "sync:llm-config:check": "node bin/cli.js sync --check",
     "build:site": "node scripts/build-site.js",
     "sync:catalog": "node scripts/sync-catalog.mjs",
+    "check:overlays": "node scripts/check-overlays.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
