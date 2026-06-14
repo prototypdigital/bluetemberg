@@ -42,6 +42,8 @@ on:
       - '.github/instructions/**'
       - '.github/agents/**'
       - '.github/skills/**'
+      - '.agents/skills/**'
+      - '.codex/**'
       - 'AGENTS.md'
       - 'bluetemberg.config.json'
 
@@ -328,6 +330,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
   if (answers.platforms.includes('claude')) targetDirs.push('`.claude/rules/`');
   if (answers.platforms.includes('copilot')) targetDirs.push('`.github/instructions/`');
   if (answers.platforms.includes('gemini')) targetDirs.push('`.gemini/context/`');
+  if (answers.platforms.includes('codex')) targetDirs.push('`AGENTS.md` + `.codex/`');
   if (answers.platforms.includes(MARKETPLACE_PLATFORM)) targetDirs.push('`plugins/`');
 
   agentsLines.push(

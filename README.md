@@ -14,14 +14,14 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 ## Why not a shared AGENTS.md?
 
-|                         | Shared `AGENTS.md` | bluetemberg                               |
-| ----------------------- | ------------------ | ----------------------------------------- |
-| Versioning              | git history        | semver ranges + lockfile                  |
-| Integrity verification  | none               | SHA-512 per pack                          |
-| Per-role filtering      | manual copy-paste  | profiles (role-matched defaults)          |
-| Teammate onboarding     | clone + copy files | `init --profile X` + `install`            |
-| Zero-install onboarding | no                 | Claude Marketplace plugin                 |
-| Multi-platform          | no                 | Cursor, Claude, Copilot, Gemini, Windsurf |
+|                         | Shared `AGENTS.md` | bluetemberg                                      |
+| ----------------------- | ------------------ | ------------------------------------------------ |
+| Versioning              | git history        | semver ranges + lockfile                         |
+| Integrity verification  | none               | SHA-512 per pack                                 |
+| Per-role filtering      | manual copy-paste  | profiles (role-matched defaults)                 |
+| Teammate onboarding     | clone + copy files | `init --profile X` + `install`                   |
+| Zero-install onboarding | no                 | Claude Marketplace plugin                        |
+| Multi-platform          | no                 | Cursor, Claude, Copilot, Gemini, Windsurf, Codex |
 
 Profiles are **role-matched default selections** — not bundles. The wizard pre-selects the collections, agents, and skills most relevant to your role. You can add or remove anything. The value is that the content behind those selections is versioned, integrity-verified, and fetched from npm like an ESLint plugin.
 
@@ -60,7 +60,7 @@ Developing from a clone: run `npm run build` before `bin/cli.js` — the CLI imp
 The interactive wizard will ask you to pick:
 
 - **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), **agentic** (LLM-heavy / AI workflow projects), or Custom — sets defaults for rules, agents, and skills (`--profile agentic` in headless runs)
-- Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf)
+- Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf / OpenAI Codex)
 - **Rule source** — versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
 - Rule collections pre-selected by profile — defaults depend on team type (see wiki **Profiles**)
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
@@ -77,7 +77,7 @@ It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-sp
 ```
 your-project/
 ├── bluetemberg.config.json     # Platforms, targets, source dir
-├── AGENTS.md                   # Project context for AI tools
+├── AGENTS.md                   # Project context for AI tools (Codex rules block appended if Codex selected)
 ├── CLAUDE.md                   # Claude-specific pointer (if Claude selected)
 ├── GEMINI.md                   # Gemini CLI pointer (if Gemini selected) — do not edit
 ├── llm/
@@ -102,7 +102,10 @@ your-project/
 ├── .gemini/context/            # Generated — do not edit
 ├── .windsurf/rules/            # Generated — do not edit
 ├── .windsurf/skills/           # Generated — do not edit
-└── .windsurf/workflows/        # Generated — do not edit
+├── .windsurf/workflows/        # Generated — do not edit
+├── .agents/skills/             # Generated (Codex skills, vendor-neutral) — do not edit
+├── .codex/agents/              # Generated (Codex subagents, TOML) — do not edit
+└── .codex/config.toml          # Generated MCP block (Codex) — managed section only
 ```
 
 When `claude-marketplace` is in `platforms`, sync also generates:
@@ -218,8 +221,11 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 | GitHub Copilot | ✓     | ✓      | ✓      |
 | Gemini CLI     | ✓ ¹   | —      | —      |
 | Windsurf       | ✓     | —      | ✓      |
+| OpenAI Codex   | ✓ ²   | ✓ ²    | ✓      |
 
 ¹ Gemini CLI has no native rules API — rules are emitted as plain context files under `.gemini/context/` and prepended to the model context on each request. Agents and skills are not supported by the Gemini CLI extension at this time.
+
+² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
 
 ## How sync works
 
@@ -241,8 +247,20 @@ Rules get platform-specific frontmatter transforms:
 - **Copilot**: `applyTo: scope`
 - **Gemini CLI**: `glob: scope`
 - **Windsurf**: `scope: '**'` -> `trigger: always_on`; otherwise `trigger: glob`, `glob: scope`
+- **OpenAI Codex**: none — Codex rules are plain markdown folded into `AGENTS.md` (see below)
 
 Agents and skills are copied verbatim (only the filename extension changes).
+
+**OpenAI Codex** consumes config differently from the table above — it reads `AGENTS.md` natively and uses TOML config rather than per-file rule directories:
+
+| Source                  | Codex output                                                      |
+| ----------------------- | ----------------------------------------------------------------- |
+| `llm/rules/*.md`        | managed block in `AGENTS.md` (read natively — no per-rule files)  |
+| `llm/agents/*.md`       | `.codex/agents/*.toml` (markdown body → `developer_instructions`) |
+| `llm/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md` (vendor-neutral; format unchanged)    |
+| `llm/mcp.json`          | `[mcp_servers.*]` managed block in `.codex/config.toml`           |
+
+`AGENTS.md` and `.codex/config.toml` are edited in place via fenced managed blocks, so hand-authored content outside the markers is preserved. When Copilot or Gemini are also enabled, the Codex rules block is stripped from their derived `copilot-instructions.md` / `GEMINI.md` (they receive scoped rules through their own directories). Codex subagents are limited to `name`, `description`, and `developer_instructions`; source-only fields like `tools` and `profiles` are not mapped.
 
 **Monorepo and shared rule packs:** Add an `extends` field to `bluetemberg.config.json` to merge rules/agents/skills from additional source directories — relative paths (e.g. `"../../"` for the monorepo root) or npm package names (e.g. `"@company/ai-rules"`). Local files always take priority. See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration) for details.
 

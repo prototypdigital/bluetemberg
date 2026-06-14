@@ -87,6 +87,25 @@ function pruneCommandsDir(root: string, expected: Set<string>): number {
   return removed;
 }
 
+function pruneCodexAgentsDir(root: string, expected: Set<string>): number {
+  const dir = join(root, '.codex', 'agents');
+  if (!existsSync(dir)) {
+    return 0;
+  }
+  let removed = 0;
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.toml')) {
+      continue;
+    }
+    const abs = resolve(join(dir, name));
+    if (!expected.has(abs)) {
+      unlinkSync(abs);
+      removed++;
+    }
+  }
+  return removed;
+}
+
 function prunePromptsDir(root: string, expected: Set<string>): number {
   const dir = join(root, '.github', 'prompts');
   if (!existsSync(dir)) {
@@ -246,6 +265,10 @@ export function pruneStaleOutputs(args: {
 
   if (platforms.includes('copilot')) {
     total += prunePromptsDir(root, expectedPaths);
+  }
+
+  if (platforms.includes('codex')) {
+    total += pruneCodexAgentsDir(root, expectedPaths);
   }
 
   if (platforms.includes('copilot')) {
