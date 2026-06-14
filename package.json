@@ -22,7 +22,7 @@
   },
   "scripts": {
     "build": "tsc && node scripts/copy-assets.mjs",
-    "dev": "tsc --watch",
+    "dev": "node scripts/copy-assets.mjs && tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/ tests/",
