@@ -336,6 +336,51 @@
         padding: 1px 5px;
       }
 
+      /* Audiences — humans + agents loop */
+      .audiences {
+        padding: 56px 0;
+      }
+      .lanes {
+        list-style: none;
+        border: 1px solid var(--border);
+      }
+      .lane {
+        display: flex;
+        gap: 20px;
+        padding: 22px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .lane:last-child {
+        border-bottom: none;
+      }
+      .lane-key {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--accent-soft);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        min-width: 150px;
+        flex-shrink: 0;
+        padding-top: 3px;
+      }
+      .lane-val {
+        font-size: 15px;
+        line-height: 1.6;
+        color: var(--text-muted);
+      }
+      .lane-val strong {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .lane-val code {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--accent-soft);
+        background: var(--bg-code);
+        padding: 1px 5px;
+      }
+
       /* Platform matrix — desktop table */
       .platforms {
         padding: 56px 0;
@@ -595,12 +640,14 @@
           display: flex;
         }
 
-        /* Security controls: stack key + value vertically */
-        .control {
+        /* Security controls + audience lanes: stack key + value vertically */
+        .control,
+        .lane {
           flex-direction: column;
           gap: 6px;
         }
-        .control-key {
+        .control-key,
+        .lane-key {
           min-width: auto;
         }
 
@@ -750,6 +797,40 @@
               >
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- AUDIENCES — humans + agents -->
+      <section class="audiences" id="audiences">
+        <div class="container">
+          <p class="section-label">Humans + agents</p>
+          <h2 class="section-title">Your team writes the standards. <em>So can their agents.</em></h2>
+          <ul class="lanes">
+            <li class="lane">
+              <span class="lane-key">Humans author</span>
+              <span class="lane-val"
+                >Rules, agents, and skills are plain Markdown in <code>llm/</code> —
+                <strong>owned by the team, reviewed in PRs, versioned with your code.</strong> Run the wizard,
+                pick a profile, done.</span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">Agents operate</span>
+              <span class="lane-val"
+                >Every command has a headless twin. <code>init --non-interactive</code> skips the wizard,
+                <code>sync --check</code> fails CI on drift, and <code>--help --json</code> exposes the whole
+                catalog. <strong>No keyboard required.</strong></span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">Agents author too</span>
+              <span class="lane-val"
+                >Skills like <code>create-rule</code>, <code>create-skill</code>, and
+                <code>create-pack</code> teach your AI to write new standards in the exact format — then
+                <code>sync</code> ships them to every tool. <strong>AI config, authored by AI.</strong></span
+              >
+            </li>
+          </ul>
         </div>
       </section>
 
