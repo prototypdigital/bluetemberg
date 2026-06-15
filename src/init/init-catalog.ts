@@ -23,6 +23,7 @@ export const INIT_PLATFORMS: readonly Platform[] = [
   'copilot',
   'gemini',
   'windsurf',
+  'codex',
   'claude-marketplace',
 ];
 

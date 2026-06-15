@@ -14,6 +14,7 @@
     />
     <meta property="og:type" content="website" />
     <title>Bluetemberg — AI standards, shipped like a dependency</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -84,6 +85,9 @@
         justify-content: space-between;
       }
       .nav-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
         font-family: 'JetBrains Mono', monospace;
         font-size: 13px;
         font-weight: 500;
@@ -91,9 +95,9 @@
         text-decoration: none;
         letter-spacing: 0.02em;
       }
-      .nav-brand::before {
-        content: '◆ ';
-        color: var(--accent);
+      .nav-mark {
+        display: block;
+        flex: none;
       }
       .nav-links {
         display: flex;
@@ -447,7 +451,7 @@
         color: var(--accent-soft);
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        min-width: 150px;
+        min-width: 200px;
         flex-shrink: 0;
         padding-top: 2px;
       }
@@ -670,7 +674,52 @@
   <body>
     <nav>
       <div class="container">
-        <a href="./" class="nav-brand">bluetemberg</a>
+        <a href="./" class="nav-brand" aria-label="Bluetemberg home">
+          <svg
+            class="nav-mark"
+            viewBox="0 0 64 64"
+            width="20"
+            height="20"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <g fill="#e8e8ef">
+              <rect x="8" y="3" width="8" height="8" />
+              <rect x="18" y="3" width="8" height="8" />
+              <rect x="28" y="3" width="8" height="8" />
+              <rect x="38" y="3" width="8" height="8" />
+              <rect x="48" y="3" width="8" height="8" />
+              <rect x="8" y="13" width="8" height="8" />
+              <rect x="48" y="13" width="8" height="8" />
+              <rect x="18" y="23" width="8" height="8" />
+              <rect x="28" y="23" width="8" height="8" />
+              <rect x="38" y="23" width="8" height="8" />
+              <rect x="8" y="33" width="8" height="8" />
+              <rect x="48" y="33" width="8" height="8" />
+              <rect x="8" y="43" width="8" height="8" />
+              <rect x="48" y="43" width="8" height="8" />
+              <rect x="8" y="53" width="8" height="8" />
+              <rect x="18" y="53" width="8" height="8" />
+              <rect x="28" y="53" width="8" height="8" />
+              <rect x="38" y="53" width="8" height="8" />
+              <rect x="48" y="53" width="8" height="8" />
+            </g>
+            <g fill="#4343e1">
+              <rect x="18" y="13" width="8" height="8" />
+              <rect x="28" y="13" width="8" height="8" />
+              <rect x="38" y="13" width="8" height="8" />
+              <rect x="48" y="23" width="8" height="8" />
+              <rect x="18" y="33" width="8" height="8" />
+              <rect x="28" y="33" width="8" height="8" />
+              <rect x="38" y="33" width="8" height="8" />
+              <rect x="18" y="43" width="8" height="8" />
+              <rect x="28" y="43" width="8" height="8" />
+              <rect x="38" y="43" width="8" height="8" />
+            </g>
+            <rect x="8" y="23" width="8" height="8" fill="#efcf69" />
+          </svg>
+          bluetemberg
+        </a>
         <ul class="nav-links">
           <li class="nav-anchor"><a href="#how">how</a></li>
           <li class="nav-anchor"><a href="#security">security</a></li>
@@ -946,7 +995,7 @@
       <!-- COMPARISON -->
       <section class="compare">
         <div class="container">
-          <p class="section-label">vs. a shared AGENTS.md</p>
+          <p class="section-label">bluetemberg vs. a shared AGENTS.md</p>
           <h2 class="section-title">A file in a repo isn't infrastructure.</h2>
           <!-- Desktop: side-by-side comparison table -->
           <table class="compare-table">

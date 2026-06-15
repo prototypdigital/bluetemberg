@@ -407,6 +407,7 @@ export const PLATFORM_CHOICES: PlatformChoice[] = [
   { id: 'copilot', name: 'GitHub Copilot' },
   { id: 'gemini', name: 'Gemini CLI' },
   { id: 'windsurf', name: 'Windsurf' },
+  { id: 'codex', name: 'OpenAI Codex' },
   { id: 'claude-marketplace', name: 'Claude Code Marketplace (plugin distribution)' },
 ];
 

@@ -39,3 +39,6 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Check overlays
+        run: npm run check:overlays

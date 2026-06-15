@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
+import { parse as tomlParse } from 'smol-toml';
 import { sync, loadConfig, shouldExitWithFailure } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
 
@@ -1508,5 +1509,241 @@ message: "Branch name required"
 
     expect(existsSync(marker)).toBe(false); // neither payload executed
     expect(stdout).toContain('; touch'); // message printed as literal data
+  });
+});
+
+describe('codex sync', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('syncs skills to .agents/skills (vendor-neutral)', async () => {
+    mkdirSync(join(root, 'llm', 'skills', 'my-skill'), { recursive: true });
+    const skill = '---\nname: my-skill\ndescription: Does things\n---\n\n# My Skill\n';
+    writeFileSync(join(root, 'llm', 'skills', 'my-skill', 'SKILL.md'), skill);
+
+    const config: BlueprintConfig = {
+      platforms: ['codex'],
+      source: 'llm',
+      targets: { skills: { codex: { dir: '.agents/skills' } } },
+    };
+
+    await sync(root, { config, silent: true });
+    expect(readFileSync(join(root, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(skill);
+  });
+
+  it('folds rules into a managed block in AGENTS.md, preserving hand-authored content', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# My Project\n\nHand-authored guidance.\n');
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'global.md'),
+      '---\ndescription: G\nscope: "**"\n---\n\n# Global Rule\n\nAlways do X.\n',
+    );
+    writeFileSync(
+      join(root, 'llm', 'rules', 'scoped.md'),
+      '---\ndescription: S\nscope: "src/**"\n---\n\n# Scoped Rule\n',
+    );
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+    expect(agents).toContain('# My Project');
+    expect(agents).toContain('Hand-authored guidance.');
+    expect(agents).toContain('BEGIN BLUETEMBERG MANAGED RULES');
+    expect(agents).toContain('# Global Rule');
+    expect(agents).toContain('Always do X.');
+    expect(agents).toContain('Applies to: `src/**`');
+    expect(agents.indexOf('Hand-authored')).toBeLessThan(agents.indexOf('BEGIN BLUETEMBERG'));
+  });
+
+  it('creates AGENTS.md from scratch when none exists', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, 'AGENTS.md'))).toBe(true);
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('# R');
+  });
+
+  it('rules block is idempotent (check mode clean after sync)', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const results = await sync(root, { check: true, config, silent: true });
+    expect(results.outOfSync).toBe(0);
+  });
+
+  it('removes the rules block when all rules are deleted, keeping hand-authored content', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# Project\n\nKeep me.\n');
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('BEGIN BLUETEMBERG MANAGED RULES');
+
+    rmSync(join(root, 'llm', 'rules', 'r.md'));
+    await sync(root, { config, silent: true });
+
+    const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+    expect(agents).toContain('Keep me.');
+    expect(agents).not.toContain('BEGIN BLUETEMBERG MANAGED RULES');
+  });
+
+  it('emits one .codex/agents/<name>.toml per agent with developer_instructions', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'agents', 'reviewer.md'),
+      '---\nname: reviewer\ndescription: Reviews PRs\n---\n\nReview like an owner.\nNever modify files.\n',
+    );
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const parsed = tomlParse(readFileSync(join(root, '.codex', 'agents', 'reviewer.toml'), 'utf8')) as {
+      name: string;
+      description: string;
+      developer_instructions: string;
+    };
+    expect(parsed.name).toBe('reviewer');
+    expect(parsed.description).toBe('Reviews PRs');
+    expect(parsed.developer_instructions).toContain('Review like an owner.');
+    expect(parsed.developer_instructions).toContain('Never modify files.');
+  });
+
+  it('falls back to the filename when an agent omits a name', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'helper.md'), '---\ndescription: H\n---\n\nBody.\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const parsed = tomlParse(readFileSync(join(root, '.codex', 'agents', 'helper.toml'), 'utf8')) as {
+      name: string;
+    };
+    expect(parsed.name).toBe('helper');
+  });
+
+  it('writes MCP servers as a [mcp_servers.*] block in .codex/config.toml', async () => {
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'mcp.json'),
+      JSON.stringify({
+        servers: ['interactive', { id: 'docs', type: 'http', url: 'https://docs.example/mcp' }],
+      }),
+    );
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const raw = readFileSync(join(root, '.codex', 'config.toml'), 'utf8');
+    expect(raw).toContain('BEGIN BLUETEMBERG MANAGED MCP SERVERS');
+    const parsed = tomlParse(raw) as {
+      mcp_servers: Record<string, { command?: string; args?: string[]; url?: string }>;
+    };
+    expect(parsed.mcp_servers.interactive.command).toBe('npx');
+    expect(parsed.mcp_servers.interactive.args).toContain('-y');
+    expect(parsed.mcp_servers.docs.url).toBe('https://docs.example/mcp');
+  });
+
+  it('preserves hand-authored content in .codex/config.toml', async () => {
+    mkdirSync(join(root, '.codex'), { recursive: true });
+    writeFileSync(join(root, '.codex', 'config.toml'), 'model = "gpt-5.3-codex"\n');
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const parsed = tomlParse(readFileSync(join(root, '.codex', 'config.toml'), 'utf8')) as {
+      model: string;
+      mcp_servers: Record<string, unknown>;
+    };
+    expect(parsed.model).toBe('gpt-5.3-codex');
+    expect(parsed.mcp_servers.interactive).toBeDefined();
+  });
+
+  it('keeps the Codex rules block out of copilot-instructions.md and GEMINI.md', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'r.md'),
+      '---\ndescription: R\nscope: "**"\n---\n\n# R rule body\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['codex', 'copilot', 'gemini'],
+      source: 'llm',
+      targets: {
+        rules: {
+          copilot: { dir: '.github/instructions', ext: '.instructions.md' },
+          gemini: { dir: '.gemini/context', ext: '.md' },
+        },
+      },
+    };
+    await sync(root, { config, silent: true });
+
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('BEGIN BLUETEMBERG MANAGED RULES');
+    expect(readFileSync(join(root, '.github', 'copilot-instructions.md'), 'utf8')).not.toContain(
+      'BEGIN BLUETEMBERG MANAGED RULES',
+    );
+    expect(readFileSync(join(root, 'GEMINI.md'), 'utf8')).not.toContain('BEGIN BLUETEMBERG MANAGED RULES');
+  });
+
+  it('does not write Codex outputs when codex is not in platforms', async () => {
+    writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'a.md'), '---\nname: a\ndescription: A\n---\n\nBody\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: { rules: { claude: { dir: '.claude/rules', ext: '.md' } } },
+    };
+    await sync(root, { config, silent: true });
+
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).not.toContain('BEGIN BLUETEMBERG MANAGED RULES');
+    expect(existsSync(join(root, '.codex', 'agents', 'a.toml'))).toBe(false);
+  });
+
+  it('prunes stale .codex/agents/*.toml when a source agent is removed', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'keep.md'), '---\nname: keep\ndescription: K\n---\n\nKeep\n');
+    writeFileSync(join(root, 'llm', 'agents', 'drop.md'), '---\nname: drop\ndescription: D\n---\n\nDrop\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    expect(existsSync(join(root, '.codex', 'agents', 'keep.toml'))).toBe(true);
+    expect(existsSync(join(root, '.codex', 'agents', 'drop.toml'))).toBe(true);
+
+    rmSync(join(root, 'llm', 'agents', 'drop.md'));
+    await sync(root, { config, silent: true, prune: true });
+    expect(existsSync(join(root, '.codex', 'agents', 'keep.toml'))).toBe(true);
+    expect(existsSync(join(root, '.codex', 'agents', 'drop.toml'))).toBe(false);
+  });
+
+  it('check mode does not create .codex/ directories on disk', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'agents', 'a.md'), '---\nname: a\ndescription: A\n---\n\nBody\n');
+    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    await sync(root, { check: true, config, silent: true });
+
+    expect(existsSync(join(root, '.codex'))).toBe(false);
   });
 });

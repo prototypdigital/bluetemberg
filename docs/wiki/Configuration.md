@@ -36,7 +36,7 @@ The `extends` and `adapters` fields are optional.
 
 ### `platforms`
 
-Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"windsurf"`, `"claude-marketplace"`.
+Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"windsurf"`, `"codex"`, `"claude-marketplace"`.
 
 Only selected platforms get generated output during sync.
 
@@ -177,8 +177,13 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 | claude   | `.claude/skills`   |
 | copilot  | `.github/skills`   |
 | windsurf | `.windsurf/skills` |
+| codex    | `.agents/skills`   |
 
 Skills are synced as `<skill-name>/SKILL.md` within the target directory.
+
+> Codex rules, agents, and MCP do **not** use the `targets` tables above — they have fixed,
+> non-per-file outputs. See [OpenAI Codex](#openai-codex-codex) below. Only `targets.skills.codex`
+> is configurable.
 
 ## MCP manifest (`llm/mcp.json`)
 
@@ -224,6 +229,19 @@ Markdown files in this directory (except `README.md`) are copied to **`.claude/c
 ## Copilot prompt files (`llm/prompts/`)
 
 Markdown files here are copied to **`.github/prompts/`** with the `*.prompt.md` suffix Copilot expects when **`copilot`** is in `platforms`. See [Writing Prompts](Writing-Prompts).
+
+## OpenAI Codex (`codex`)
+
+Codex reads `AGENTS.md` natively and uses TOML configuration, so it does not follow the per-file rule/agent target tables above. When `"codex"` is in `platforms`, sync produces:
+
+| Source                  | Output                                  | Notes                                                                                       |
+| ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `llm/rules/*.md`        | managed block in `AGENTS.md`            | Plain markdown — **no** frontmatter transform. Fenced between markers; hand-authored content is preserved. |
+| `llm/agents/*.md`       | `.codex/agents/<name>.toml`             | Markdown body → `developer_instructions`; only `name` + `description` carry over.            |
+| `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`        | Vendor-neutral path; format unchanged. Configurable via `targets.skills.codex`.             |
+| `llm/mcp.json`          | `[mcp_servers.*]` in `.codex/config.toml` | Fenced managed block; hand-authored config preserved.                                       |
+
+`AGENTS.md` and `.codex/config.toml` are edited in place via managed blocks, so they are **not** removed by `--prune` (the generated `.codex/agents/*.toml` files **are** pruned). If `copilot` or `gemini` are also enabled, the Codex rules block is stripped from their derived `copilot-instructions.md` / `GEMINI.md`, since those platforms receive scoped rules through their own directories.
 
 ## Default behavior
 

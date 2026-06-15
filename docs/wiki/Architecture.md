@@ -55,7 +55,7 @@ For optional sync extensions, MCP/hooks details, and roadmap, see [Adapters](Ada
 
 ## Frontmatter transform
 
-The core of the sync engine. Rules get platform-specific frontmatter; agents and skills are copied as-is.
+The core of the sync engine. Rules get platform-specific frontmatter; agents and skills are copied as-is. (OpenAI Codex is the exception — its rules are folded into `AGENTS.md` as plain markdown with no transform; see [Special sync](#special-sync-agentsmd-and-openai-codex).)
 
 ```mermaid
 flowchart LR
@@ -102,9 +102,11 @@ flowchart TD
     D --> E
 ```
 
-## Special sync: AGENTS.md
+## Special sync: AGENTS.md and OpenAI Codex
 
-`AGENTS.md` at the repo root is copied to `.github/copilot-instructions.md` — this is how GitHub Copilot reads project-level context.
+`AGENTS.md` at the repo root is copied to `.github/copilot-instructions.md` (GitHub Copilot) and `GEMINI.md` (Gemini CLI) — this is how those tools read project-level context.
+
+**OpenAI Codex** reads `AGENTS.md` natively, so the monolithic instructions need no derivation. Codex is also the one target whose rules do **not** go through the frontmatter transform: scoped rules from `llm/rules/` are folded into a fenced *managed block* in `AGENTS.md`, agents become per-file TOML under `.codex/agents/`, and MCP servers become a `[mcp_servers.*]` managed block in `.codex/config.toml`. Skills use the vendor-neutral `.agents/skills/`. Managed blocks (`src/sync/managed-block.ts`) preserve hand-authored content outside the markers and keep `sync --check` idempotent; the Codex rules block is stripped from the derived Copilot/Gemini instruction files.
 
 ## Check mode
 

@@ -10,6 +10,8 @@ import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
 import { syncWindsurfWorkflows } from './windsurf-workflows.js';
 import { syncCopilotPrompts } from './prompts.js';
+import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
+import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
 import { syncClaudeSettings } from './settings.js';
@@ -35,6 +37,7 @@ const VALID_PLATFORMS: readonly Platform[] = [
   'copilot',
   'gemini',
   'windsurf',
+  'codex',
   'claude-marketplace',
 ];
 
@@ -285,6 +288,9 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncWindsurfWorkflows(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
+  syncCodexRules(ctx, (msg) => recordError(ctx, msg));
+  syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
+  syncCodexConfig(ctx, (msg) => recordError(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {
     const projectName = basename(root);
@@ -490,7 +496,8 @@ function syncCopilotInstructions(ctx: SyncContext): void {
   try {
     const target = join(ctx.root, '.github', 'copilot-instructions.md');
     ensureDir(join(ctx.root, '.github'));
-    const content = readFileSync(agentsMd, 'utf8');
+    // Strip the Codex rules block — Copilot gets scoped rules via .github/instructions/ already.
+    const content = stripManagedBlock(readFileSync(agentsMd, 'utf8'), AGENTS_RULES_MARKERS);
 
     commitPlannedWrite(ctx, target, content);
 
@@ -511,7 +518,8 @@ function syncGeminiInstructions(ctx: SyncContext): void {
 
   try {
     const target = join(ctx.root, 'GEMINI.md');
-    const content = readFileSync(agentsMd, 'utf8');
+    // Strip the Codex rules block — Gemini gets scoped rules via .gemini/context/ already.
+    const content = stripManagedBlock(readFileSync(agentsMd, 'utf8'), AGENTS_RULES_MARKERS);
 
     commitPlannedWrite(ctx, target, content);
 

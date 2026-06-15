@@ -95,5 +95,8 @@ export const DEFAULT_TARGETS: {
     claude: { dir: '.claude/skills' },
     copilot: { dir: '.github/skills' },
     windsurf: { dir: '.windsurf/skills' },
+    // Codex scans `.agents/skills/` (vendor-neutral) for project-level skills; the
+    // SKILL.md + name/description frontmatter shape already matches our source.
+    codex: { dir: '.agents/skills' },
   },
 };
