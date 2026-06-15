@@ -35,7 +35,7 @@ From the repo root, `npm run build` must have produced `dist/` first — otherwi
 - **Interactive (default)** — Steps 1–3 are prompts:
   1. Pick a **team profile** (sets smart defaults for everything below).
   2. Enter project name, description, and package manager.
-  3. Pick platforms; **confirm detected stacks** (auto-detected from the project and pre-checked — drive which rules apply by version, written to config `stacks`; add undetected ones free-text); rules/agents/skills/MCP, and (optionally) external rule sources.
+  3. Pick platforms; **confirm detected stacks** (auto-detected from the project and pre-checked — drive which rules apply by version, written to config `stacks`; add undetected ones free-text, or skip the step entirely when nothing is detected); rules/agents/skills/MCP, and (optionally) external rule sources.
 - **`--non-interactive`** — Skips prompts 1–3; defaults come from **`--profile`** (default `fullstack`) plus any override flags you pass.
 - **`--config <file>`** — Skips prompts 1–3; answers come entirely from validated JSON (`InitAnswers`).
 

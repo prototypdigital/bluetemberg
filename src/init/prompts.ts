@@ -60,7 +60,9 @@ async function promptStacks(targetDir: string): Promise<Record<string, string>> 
       message: 'Stacks to manage (drive which RULES apply, by version):',
       choices: detectedNames.map((name) => {
         const det = detected.get(name)!;
-        const lowConfidence = det.confidence === 'coerced' || det.confidence === 'unknown';
+        // `exact` (installed) and `declared` (config-pinned) versions are precise; anything
+        // fuzzier — a coerced range today, or any future fuzzy source — is worth flagging.
+        const lowConfidence = det.confidence !== 'exact' && det.confidence !== 'declared';
         return {
           value: name,
           name: `${name} ${det.version}${lowConfidence ? '  (low confidence — pin to be sure)' : ''}`,
@@ -69,6 +71,14 @@ async function promptStacks(targetDir: string): Promise<Record<string, string>> 
       }),
     });
     for (const name of selected) stacks[name] = detected.get(name)!.version;
+  } else {
+    // Nothing detected (e.g. a non-npm or not-yet-installed project): don't force a free-text
+    // prompt on every init — offer it behind a single opt-in that defaults to "no".
+    const manageManually = await confirm({
+      message: 'Add technology stacks manually? (drive which RULES apply, by version)',
+      default: false,
+    });
+    if (!manageManually) return stacks;
   }
 
   const extra = await input({
