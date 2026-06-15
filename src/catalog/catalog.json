@@ -5,7 +5,7 @@
       "name": "bluetemberg-agents-a11y-specialist",
       "version": "0.1.0",
       "description": "Accessibility specialist agent for Bluetemberg — WCAG 2.2 A/AA audit and remediation.",
-      "profiles": ["frontend", "fullstack"],
+      "profiles": ["frontend", "fullstack", "design-engineer"],
       "universal": false,
       "kind": "agents",
       "agents": ["a11y-specialist"],
@@ -52,6 +52,16 @@
       "preview": "You are a code review specialist. Your job is to review changes for quality, correctness, and adherence to project standards. - Check for logical errors, edge cases, and off-by-one mistakes - Verify naming consistency and adherence to project conventions - Identify unnecessary complexity and suggest"
     },
     {
+      "name": "bluetemberg-agents-design-engineer",
+      "version": "0.1.0",
+      "description": "Design engineer agent for Bluetemberg — builds UI to a reference section-by-section, holds tokens and banned moves, catches stock drift.",
+      "profiles": ["design-engineer"],
+      "universal": false,
+      "kind": "agents",
+      "agents": ["design-engineer"],
+      "preview": "You are a design engineer. You translate a design reference (a Figma comp, a screenshot, or a written visual direction) into working UI that keeps the designer's character intact — and you refuse to let it drift toward generic SaaS output. The designer directs; you build. - Build UI from a design re"
+    },
+    {
       "name": "bluetemberg-agents-devops-specialist",
       "version": "0.1.0",
       "description": "DevOps specialist agent for Bluetemberg — CI/CD pipelines, container optimization, IaC review.",
@@ -75,7 +85,7 @@
       "name": "bluetemberg-agents-frontend-specialist",
       "version": "0.1.0",
       "description": "Frontend specialist agent for Bluetemberg — UI implementation, design-system, i18n, accessibility.",
-      "profiles": ["frontend", "fullstack"],
+      "profiles": ["frontend", "fullstack", "design-engineer"],
       "universal": false,
       "kind": "agents",
       "agents": ["frontend-specialist"],
@@ -172,6 +182,22 @@
         "prompt-structure"
       ],
       "preview": "Context pollution is when irrelevant, contradictory, or duplicate information crowds out the signal needed for accurate reasoning. This is not a soft concern: adding even a **single distractor** — plausibly-related but irrelevant content — measurably lowers accuracy, and across frontier models a con"
+    },
+    {
+      "name": "bluetemberg-rules-design-craft",
+      "version": "0.1.0",
+      "description": "Anti-stock design-craft principles for building UI with AI — banned moves, real references, tokens-first, every state.",
+      "profiles": ["design-engineer"],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "anti-stock-defaults",
+        "banned-moves-first",
+        "design-every-state",
+        "references-not-moods",
+        "tokens-before-components"
+      ],
+      "preview": "Vague prompts make the model average across everything it has seen — rounded corners, a neutral palette, system fonts, a subtle gradient. The output is fine. It is also instantly forgettable. The fix is not a better tool: decide what you want before you ask, and say no when the result plays it safe."
     },
     {
       "name": "bluetemberg-rules-devops",
@@ -342,6 +368,16 @@
       "preview": "Use this skill when asked to add, create, or write a new skill for the project. - \"add a skill that...\" - \"create a skill for...\" - \"write a skill to...\" - Any request to scaffold a new on-demand workflow for the AI tooling 1. The agent MUST check `llm/skills/` for an existing skill with the same na"
     },
     {
+      "name": "bluetemberg-skills-design-critique",
+      "version": "0.1.0",
+      "description": "Design critique skill for Bluetemberg — multi-lens review, hostile QA, and an impact-ranked fix list for built UI.",
+      "profiles": ["design-engineer"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["design-critique"],
+      "preview": "Use this skill when a view or flow is built and needs an honest, multi-angle review before it ships — the pass that finds what is wrong, where, and what to fix first. - A view or flow is functionally built and ready for a quality pass - Before shipping, deploying, or presenting a design - The work \""
+    },
+    {
       "name": "bluetemberg-skills-docs-upkeep",
       "version": "0.2.0",
       "description": "Docs upkeep skill for Bluetemberg — keep docs aligned with implementation changes.",
@@ -350,6 +386,16 @@
       "kind": "skills",
       "skills": ["docs-upkeep"],
       "preview": "Use this skill when code or workflow changes affect documented behavior. - Code change that alters documented behavior or public API - New feature, endpoint, or configuration option that needs documentation - Workflow, CI, or deployment process change 1. The agent MUST update affected docs in the sa"
+    },
+    {
+      "name": "bluetemberg-skills-figma-to-code",
+      "version": "0.1.0",
+      "description": "Figma-to-code skill for Bluetemberg — the section-by-section design-to-code loop with prompt stacking, drift checks, and surgical refinement.",
+      "profiles": ["design-engineer"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["figma-to-code"],
+      "preview": "Use this skill when translating a design reference — a Figma comp, an exported screenshot, or an approved mockup — into working HTML/CSS/component code while keeping the designer's character intact. - A Figma frame or screenshot needs to become real UI - A design reference exists and the build must"
     },
     {
       "name": "bluetemberg-skills-infrastructure-drift-check",
@@ -385,7 +431,7 @@
       "name": "bluetemberg-skills-react-patterns",
       "version": "0.1.0",
       "description": "React patterns skill for Bluetemberg — component composition, hook extraction, state co-location.",
-      "profiles": ["frontend", "fullstack"],
+      "profiles": ["frontend", "fullstack", "design-engineer"],
       "universal": false,
       "kind": "skills",
       "skills": ["react-patterns"],
@@ -430,6 +476,16 @@
       "kind": "skills",
       "skills": ["sub-agent-design"],
       "preview": "Use this skill when you need to break a complex agentic task into a coordinated set of sub-agents with defined responsibilities and communication contracts. - A single agent is doing too many things (context overloads, inconsistent outputs, hard-to-test) - A workflow has parallelizable phases that r"
+    },
+    {
+      "name": "bluetemberg-skills-visual-direction",
+      "version": "0.1.0",
+      "description": "Visual direction skill for Bluetemberg — explore distinct directions, lock one, and produce a banned-moves list and Design System Document.",
+      "profiles": ["design-engineer"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["visual-direction"],
+      "preview": "Use this skill at the start of a design build, before any component is written, to lock the personality so everything built afterward inherits it. This is what stops the build from drifting to stock — the constraint layer the rest of the work references. - A new project or screen is starting and the"
     },
     {
       "name": "bluetemberg-skills-workspace-hygiene",

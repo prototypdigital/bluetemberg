@@ -17,6 +17,7 @@ export type TeamProfile =
   | 'devops'
   | 'pure-infra'
   | 'agentic'
+  | 'design-engineer'
   | 'custom';
 
 export interface TargetConfig {
