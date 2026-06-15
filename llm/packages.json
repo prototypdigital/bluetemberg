@@ -2,15 +2,21 @@
   "packages": {
     "bluetemberg-rules-agent-memory": "^0.1.0",
     "bluetemberg-rules-context-engineering": "^0.2.0",
+    "bluetemberg-guardrails-git": "^0.1.0",
     "bluetemberg-rules-git": "^0.1.0",
     "bluetemberg-rules-typescript": "^0.1.0",
     "bluetemberg-rules-docs": "^0.2.0",
+    "bluetemberg-rules-security": "^0.1.0",
     "bluetemberg-agents-code-reviewer": "^0.1.0",
     "bluetemberg-agents-docs-maintainer": "^0.1.0",
     "bluetemberg-agents-test-specialist": "^0.1.0",
     "bluetemberg-skills-code-review": "^0.1.0",
     "bluetemberg-skills-docs-upkeep": "^0.1.0",
     "bluetemberg-skills-patterns": "^0.1.0",
+    "bluetemberg-skills-create-agent": "^0.1.0",
+    "bluetemberg-skills-create-pack": "^0.1.0",
+    "bluetemberg-skills-create-rule": "^0.1.0",
+    "bluetemberg-skills-create-skill": "^0.1.0",
     "bluetemberg-skills-workspace-hygiene": "^0.1.0"
   }
 }

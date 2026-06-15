@@ -72,6 +72,42 @@
       "resolved": "https://registry.npmjs.org/bluetemberg-rules-context-engineering/-/bluetemberg-rules-context-engineering-0.2.0.tgz",
       "integrity": "sha512-VKG7vIYGfq8Aje9JoZAszwnllLzMplih4xOql30vlb3L0X/L9j2hj9iEoKtGm3gF0z27AncgJWqAWoP3iQ3R5Q==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-guardrails-git": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-guardrails-git/-/bluetemberg-guardrails-git-0.1.0.tgz",
+      "integrity": "sha512-hloCNbWcDRoDosBqxxe3XFPGmYk+8ZLCD8WeLEMIZUTiCUA8DrGuE8bWUTYUDwXo+JcfwQ2kQz5MqjYOxeMZRg==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-rules-security": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-security/-/bluetemberg-rules-security-0.1.0.tgz",
+      "integrity": "sha512-DAqjNkU6qCpYUVCXEBXgw3Ld8siDt+rRMovAiDgX+OLHJTyEud1mOmfroK/xhFJxytx8ez+8NDMCj81wX5TVnA==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-skills-create-agent": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-agent/-/bluetemberg-skills-create-agent-0.1.0.tgz",
+      "integrity": "sha512-c6Kx7buHCkRs9S60ySFZLtjwc5w0KnwXgDLGduwNba/tYIFbd/1pH8Yvp2ZvT0CfPQ+dk4s0t+ZtN2SpiazJRA==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-skills-create-pack": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-pack/-/bluetemberg-skills-create-pack-0.1.0.tgz",
+      "integrity": "sha512-OCZarvIi83JTTUCmlkOxND+DJwHd4PE5D9ROKCTsN1jM+akWMXBG63SPx1bkF1sxHoEC0aPJ3z+WEROv8OlqWw==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-skills-create-rule": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-rule/-/bluetemberg-skills-create-rule-0.1.0.tgz",
+      "integrity": "sha512-U4gOkCzOIkPM5NgrRPjDcfCvm13kQag6nrgvztz/6nmk/4Tw4Ila76EVJdVVGTKEMoAcVfyjF220aITS3dpWXg==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-skills-create-skill": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-skill/-/bluetemberg-skills-create-skill-0.1.0.tgz",
+      "integrity": "sha512-znnX/dLDG0fO2mUbyykXuCLlox++AiDXyMCNsxsuYlIz/nVYdrKYbFc/aULR1TgZ39wAjgY/RMPG8XlLVbk2qA==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     }
   }
 }
