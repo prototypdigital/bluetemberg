@@ -21,6 +21,7 @@ if (wantsJsonHelp) {
 
 const { INIT_TEAM_PROFILES, INIT_PACKAGE_MANAGERS, INIT_PLATFORMS, INIT_RULE_SOURCES } =
   await import('../dist/init/init-catalog.js');
+const { parseStacksCsv } = await import('../dist/init/stacks-csv.js');
 
 const TEAM_PROFILES = new Set(INIT_TEAM_PROFILES);
 const PLATFORMS = new Set(INIT_PLATFORMS);
@@ -36,22 +37,6 @@ function csvList(value) {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-/**
- * Parse a `--stacks` CSV into a stack → version map. Each token is `name` (→ `"auto"`) or
- * `name@version` (e.g. `payload@3.4.1`, `nextjs@auto`).
- */
-function csvStacks(value) {
-  /** @type {Record<string, string>} */
-  const out = {};
-  for (const token of csvList(value)) {
-    const at = token.indexOf('@');
-    const name = at === -1 ? token : token.slice(0, at);
-    const version = at === -1 ? 'auto' : token.slice(at + 1) || 'auto';
-    if (name) out[name] = version;
-  }
-  return out;
 }
 
 /** @typedef {Record<string, unknown>} InitPartial */
@@ -206,7 +191,16 @@ function buildNiOverrides(opts) {
 
   if ((opts.sources ?? '') !== '') ov.externalSources = csvList(String(opts.sources));
 
-  if ((opts.stacks ?? '') !== '') ov.stacks = csvStacks(String(opts.stacks));
+  if ((opts.stacks ?? '') !== '') {
+    const { stacks, skipped } = parseStacksCsv(String(opts.stacks));
+    ov.stacks = stacks;
+    if (skipped.length > 0 && !opts.silent) {
+      console.error(
+        `Warning: --stacks ignored ${skipped.length} token(s) with no stack name: ${skipped.join(', ')}. ` +
+          'Use a short stack name like "angular", not a package name.',
+      );
+    }
+  }
 
   if (argvHas('--omit-agents')) ov.includeAgents = false;
   if (argvHas('--omit-skills')) ov.includeSkills = false;
