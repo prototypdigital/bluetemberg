@@ -6,9 +6,34 @@ import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
-import type { MarketplacePluginDefinition, TeamProfile } from '../types.js';
+import type { MarketplacePluginDefinition, Stack, StackConstraint, TeamProfile } from '../types.js';
+import { isValidStackRange } from '../stacks/match.js';
 
 const VALID_PROFILE_IDS: ReadonlySet<string> = new Set(TEAM_PROFILES.map((p) => p.id));
+
+/**
+ * Build an id → stack-constraint map from the catalog. Pack-level `stacks` are coarse, name-only
+ * (`["payload"]`), so each maps to a wildcard range (`{ payload: "*" }`). A rule's own
+ * `stacks:` frontmatter (with version ranges) overrides this. Files with no stacks anywhere are
+ * stack-agnostic and belong in every bundle.
+ */
+function buildStackMap(catalog: Catalog): Map<string, StackConstraint> {
+  const map = new Map<string, StackConstraint>();
+  for (const pack of catalog.packs) {
+    const stacks = pack.stacks ?? [];
+    if (stacks.length === 0) continue;
+    const constraint: StackConstraint = {};
+    for (const s of stacks) constraint[s] = '*';
+    const ids = [
+      ...(pack.rules ?? []),
+      ...(pack.agents ?? []),
+      ...(pack.skills ?? []),
+      ...(pack.guardrails ?? []),
+    ];
+    for (const id of ids) map.set(id, constraint);
+  }
+  return map;
+}
 
 /**
  * Build an id → profiles map from the catalog: every rule/agent/skill/guardrail id a pack ships
@@ -63,6 +88,8 @@ interface FileMeta {
   description: string;
   /** Profiles this file belongs to. Empty = universal (included in all plugins). */
   profiles: TeamProfile[];
+  /** Stack constraint (name → range). Empty = stack-agnostic (included in all plugins). */
+  stacks: StackConstraint;
 }
 
 /**
@@ -87,18 +114,63 @@ function resolveProfiles(
   return profileMap.get(id) ?? [];
 }
 
-function readRuleMeta(ruleFile: string, sourceDir: string, profileMap: Map<string, TeamProfile[]>): FileMeta {
+/**
+ * Returns the validated stack constraint when the `stacks` key is present in frontmatter, or
+ * `undefined` when absent (fall back to the catalog map). Invalid ranges are dropped so a
+ * malformed range never silently matches. Mirrors `readFrontmatterProfiles`.
+ */
+function readFrontmatterStacks(data: Record<string, unknown>): StackConstraint | undefined {
+  if (!Object.prototype.hasOwnProperty.call(data, 'stacks')) return undefined;
+  const value = data.stacks;
+  // Malformed (non-object) frontmatter falls back to catalog gating rather than widening the file
+  // to stack-agnostic — otherwise a typo'd `stacks:` would re-leak a pack rule into every bundle.
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value as Record<string, unknown>);
+  const out: StackConstraint = {};
+  for (const [name, range] of entries) {
+    if (typeof name !== 'string' || typeof range !== 'string') continue;
+    if (!isValidStackRange(range)) continue;
+    out[name] = range;
+  }
+  // Entries were declared but every one was invalid → don't silently widen to agnostic; fall back
+  // to catalog gating. An intentionally empty `stacks: {}` (no entries) stays explicitly agnostic.
+  if (entries.length > 0 && Object.keys(out).length === 0) return undefined;
+  return out;
+}
+
+function resolveStacks(
+  id: string,
+  frontmatterStacks: StackConstraint | undefined,
+  stackMap: Map<string, StackConstraint>,
+): StackConstraint {
+  if (frontmatterStacks !== undefined) return frontmatterStacks;
+  return stackMap.get(id) ?? {};
+}
+
+function readRuleMeta(
+  ruleFile: string,
+  sourceDir: string,
+  profileMap: Map<string, TeamProfile[]>,
+  stackMap: Map<string, StackConstraint>,
+): FileMeta {
   const rulePath = join(sourceDir, ruleFile);
   const id = basename(ruleFile, '.md');
   try {
     const { data } = matter.read(rulePath);
+    const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, readFrontmatterProfiles(data as Record<string, unknown>), profileMap),
+      profiles: resolveProfiles(id, readFrontmatterProfiles(record), profileMap),
+      stacks: resolveStacks(id, readFrontmatterStacks(record), stackMap),
     };
   } catch {
-    return { name: id, description: '', profiles: resolveProfiles(id, undefined, profileMap) };
+    return {
+      name: id,
+      description: '',
+      profiles: resolveProfiles(id, undefined, profileMap),
+      stacks: resolveStacks(id, undefined, stackMap),
+    };
   }
 }
 
@@ -106,21 +178,25 @@ function readSkillMeta(
   skillDir: string,
   sourceParent: string,
   profileMap: Map<string, TeamProfile[]>,
+  stackMap: Map<string, StackConstraint>,
 ): FileMeta {
   const skillPath = join(sourceParent, skillDir, 'SKILL.md');
   try {
     const { data } = matter.read(skillPath);
+    const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || skillDir,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(
-        skillDir,
-        readFrontmatterProfiles(data as Record<string, unknown>),
-        profileMap,
-      ),
+      profiles: resolveProfiles(skillDir, readFrontmatterProfiles(record), profileMap),
+      stacks: resolveStacks(skillDir, readFrontmatterStacks(record), stackMap),
     };
   } catch {
-    return { name: skillDir, description: '', profiles: resolveProfiles(skillDir, undefined, profileMap) };
+    return {
+      name: skillDir,
+      description: '',
+      profiles: resolveProfiles(skillDir, undefined, profileMap),
+      stacks: resolveStacks(skillDir, undefined, stackMap),
+    };
   }
 }
 
@@ -128,29 +204,52 @@ function readAgentMeta(
   agentFile: string,
   sourceDir: string,
   profileMap: Map<string, TeamProfile[]>,
+  stackMap: Map<string, StackConstraint>,
 ): FileMeta {
   const agentPath = join(sourceDir, agentFile);
   const id = basename(agentFile, '.md');
   try {
     const { data } = matter.read(agentPath);
+    const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, readFrontmatterProfiles(data as Record<string, unknown>), profileMap),
+      profiles: resolveProfiles(id, readFrontmatterProfiles(record), profileMap),
+      stacks: resolveStacks(id, readFrontmatterStacks(record), stackMap),
     };
   } catch {
-    return { name: id, description: '', profiles: resolveProfiles(id, undefined, profileMap) };
+    return {
+      name: id,
+      description: '',
+      profiles: resolveProfiles(id, undefined, profileMap),
+      stacks: resolveStacks(id, undefined, stackMap),
+    };
   }
 }
 
-/** Returns true if a file should be included in a plugin.
- *  Universal files (no profiles) are always included.
- *  Tagged files are included only when at least one profile matches.
- */
-function matchesPlugin(fileMeta: FileMeta, pluginProfiles: TeamProfile[] | undefined): boolean {
+/** True when a file's PROFILE qualifies it for a plugin (universal = always). */
+function profileMatches(fileMeta: FileMeta, pluginProfiles: TeamProfile[] | undefined): boolean {
   if (!pluginProfiles || pluginProfiles.length === 0) return true;
   if (fileMeta.profiles.length === 0) return true;
   return fileMeta.profiles.some((p) => pluginProfiles.includes(p));
+}
+
+/**
+ * True when a file's STACK qualifies it for a plugin (the second, ANDed dimension that fixes the
+ * leak). Stack-agnostic files (no `stacks:`) belong in every bundle; stack-specific files belong
+ * ONLY in a bundle that opts into at least one of their stacks. Marketplace gating is name-level
+ * (the consuming project's version is unknown at build time); version ranges gate at project sync.
+ */
+function stackMatches(fileMeta: FileMeta, pluginStacks: Stack[] | undefined): boolean {
+  const fileStacks = Object.keys(fileMeta.stacks);
+  if (fileStacks.length === 0) return true;
+  const opted = pluginStacks ?? [];
+  return fileStacks.some((s) => opted.includes(s));
+}
+
+/** A file is included in a plugin only when BOTH its profile and its stack qualify. */
+function matchesPlugin(fileMeta: FileMeta, plugin: MarketplacePluginDefinition): boolean {
+  return profileMatches(fileMeta, plugin.profiles) && stackMatches(fileMeta, plugin.stacks);
 }
 
 /**
@@ -180,6 +279,7 @@ function emitPlugin(
   hooksContent: string | null,
   recordError: (msg: string) => void,
   profileMap: Map<string, TeamProfile[]>,
+  stackMap: Map<string, StackConstraint>,
 ): PluginManifest {
   const pluginDir = join(ctx.root, 'plugins', plugin.name);
   const rulesDir = join(pluginDir, 'rules');
@@ -198,8 +298,8 @@ function emitPlugin(
   const agentEntries: ManifestEntry[] = [];
 
   for (const [file, sourceDir] of allRules) {
-    const meta = readRuleMeta(file, sourceDir, profileMap);
-    if (!matchesPlugin(meta, plugin.profiles)) continue;
+    const meta = readRuleMeta(file, sourceDir, profileMap, stackMap);
+    if (!matchesPlugin(meta, plugin)) continue;
 
     const srcPath = join(sourceDir, file);
     const outPath = join(rulesDir, file);
@@ -218,8 +318,8 @@ function emitPlugin(
   }
 
   for (const [dirName, sourceParent] of allSkills) {
-    const meta = readSkillMeta(dirName, sourceParent, profileMap);
-    if (!matchesPlugin(meta, plugin.profiles)) continue;
+    const meta = readSkillMeta(dirName, sourceParent, profileMap, stackMap);
+    if (!matchesPlugin(meta, plugin)) continue;
 
     const srcPath = join(sourceParent, dirName, 'SKILL.md');
     const outSkillDir = join(skillsDir, dirName);
@@ -239,8 +339,8 @@ function emitPlugin(
   }
 
   for (const [file, sourceDir] of allAgents) {
-    const meta = readAgentMeta(file, sourceDir, profileMap);
-    if (!matchesPlugin(meta, plugin.profiles)) continue;
+    const meta = readAgentMeta(file, sourceDir, profileMap, stackMap);
+    if (!matchesPlugin(meta, plugin)) continue;
 
     const srcPath = join(sourceDir, file);
     const outPath = join(agentsDir, file);
@@ -287,7 +387,9 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
 
   if (allRules.size === 0 && allSkills.size === 0 && allAgents.size === 0) return;
 
-  const profileMap = buildProfileMap(loadCatalogSync(ctx.root));
+  const catalog = loadCatalogSync(ctx.root);
+  const profileMap = buildProfileMap(catalog);
+  const stackMap = buildStackMap(catalog);
   const hooksContent = readHooksContent(ctx.sourceDirs);
   const projectName = basename(ctx.root);
 
@@ -317,6 +419,7 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
       hooksContent,
       recordError,
       profileMap,
+      stackMap,
     );
 
     const totalFiles = manifest.rules.length + manifest.skills.length + manifest.agents.length;

@@ -20,6 +20,22 @@ export type TeamProfile =
   | 'design-engineer'
   | 'custom';
 
+/**
+ * A technology stack identifier (e.g. `"nextjs"`, `"payload"`, `"react"`). Orthogonal to
+ * `TeamProfile` (role): profile answers *who* you are, stack answers *what you build with*.
+ * Deliberately an open string vocabulary — adding a framework never requires an engine release;
+ * unknown names produce a soft warning, never a hard error.
+ */
+export type Stack = string;
+
+/**
+ * A map of stack name → semver range, declaring which framework versions a piece of guidance
+ * applies to (e.g. `{ payload: ">=3 <4" }`). An empty/absent map means stack-agnostic
+ * (applies everywhere). Ranges are validated with semver `validRange`; invalid ranges are
+ * dropped with a warning rather than matched.
+ */
+export type StackConstraint = Record<Stack, string>;
+
 export interface TargetConfig {
   dir: string;
   ext: string;
@@ -41,6 +57,12 @@ export interface MarketplacePluginDefinition {
    * profile are included. When omitted, all llm/ content is included.
    */
   profiles?: TeamProfile[];
+  /**
+   * Technology stacks this plugin (bundle) opts into. When set, a stack-specific file is
+   * included only if one of its stacks matches; stack-agnostic files (no `stacks:`) are always
+   * included. When omitted, the plugin is stack-agnostic and accepts only stack-agnostic files.
+   */
+  stacks?: Stack[];
 }
 
 export interface MarketplaceConfig {
@@ -69,6 +91,13 @@ export interface BlueprintConfig {
    * `llm/` remains the source of truth.
    */
   profile?: TeamProfile;
+  /**
+   * Declared technology stacks and their versions (Layer-1 detection), e.g.
+   * `{ "payload": "3.4.1", "nextjs": "auto" }`. A pinned version is matched directly against
+   * rule `stacks:` ranges; the sentinel `"auto"` opts that stack into per-sync auto-detection
+   * (Layer 2). Drives version-aware rule routing; `llm/` remains the source of truth.
+   */
+  stacks?: Record<Stack, string>;
   targets: {
     rules?: Partial<Record<Platform, TargetConfig>>;
     agents?: Partial<Record<Platform, TargetConfig>>;
@@ -222,6 +251,12 @@ export interface SyncResults {
 export interface RuleFrontmatter {
   description?: string;
   scope?: string | string[];
+  /**
+   * Version-aware stack constraints, e.g. `{ payload: ">=3 <4" }`. The rule applies only when
+   * every named stack is present in the project and its detected version satisfies the range.
+   * Absent = stack-agnostic (applies regardless of stacks).
+   */
+  stacks?: StackConstraint;
 }
 
 export interface GuardrailCheck {
@@ -249,6 +284,8 @@ export interface GuardrailFrontmatter {
   platforms?: Platform[];
   /** Team profiles for marketplace plugin filtering. */
   profiles?: TeamProfile[];
+  /** Version-aware stack constraints (e.g. `{ payload: ">=3 <4" }`) for stack-aware filtering. */
+  stacks?: StackConstraint;
 }
 
 export interface PresetItem {
