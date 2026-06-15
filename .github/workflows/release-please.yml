@@ -86,4 +86,4 @@ jobs:
       - name: Publish
         # Requires npm trusted publisher configured on npmjs.com for this repo.
         # See: https://github.com/prototypdigital/bluetemberg-packs/issues/21
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --ignore-scripts
