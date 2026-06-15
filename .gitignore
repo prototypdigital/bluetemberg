@@ -25,3 +25,7 @@ coverage/
 .github/agents/
 .github/skills/
 .github/copilot-instructions.md
+
+
+# Bluetemberg cache
+.bluetemberg/
