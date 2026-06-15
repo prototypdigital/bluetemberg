@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
@@ -160,5 +160,25 @@ describe('project sync — guardrail version gating', () => {
 
     const settingsPath = join(root, '.claude', 'settings.json');
     expect(existsSync(settingsPath)).toBe(true);
+  });
+
+  it('clears previously-managed hooks (preserving other keys) when all guardrails are filtered', async () => {
+    // A prior sync left a managed hooks section alongside an unrelated key.
+    mkdirSync(join(root, '.claude'), { recursive: true });
+    writeFileSync(
+      join(root, '.claude', 'settings.json'),
+      JSON.stringify(
+        { extraKnownMarketplaces: ['x'], hooks: { PreToolUse: [{ matcher: 'Old' }] } },
+        null,
+        2,
+      ) + '\n',
+    );
+    writeGuardrail('payload-only', 'stacks:\n  payload: ">=3 <4"');
+
+    await sync(root, { config: configWithStacks({ payload: '2.0.0' }), silent: true });
+
+    const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+    expect(settings.hooks).toBeUndefined(); // stale hook hard-excluded, not left active
+    expect(settings.extraKnownMarketplaces).toEqual(['x']); // unrelated keys preserved
   });
 });

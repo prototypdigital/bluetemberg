@@ -47,6 +47,17 @@ export interface CoverageReport {
 interface ReportOptions {
   json?: boolean;
   silent?: boolean;
+  /**
+   * Sink for user-facing output. Injected by the CLI entry (which owns `console`) so this `src/`
+   * module never references `console` directly. Omitted (or `silent`) → output is discarded; use
+   * {@link buildDetectReport} / {@link buildCoverageReport} when you only want the data.
+   */
+  log?: (message: string) => void;
+}
+
+function resolveSink(opts: ReportOptions): (message: string) => void {
+  if (opts.silent || !opts.log) return () => {};
+  return opts.log;
 }
 
 const CONFIDENCE_MARK: Record<DetectionConfidence, string> = {
@@ -166,7 +177,7 @@ function printCoverageHuman(report: CoverageReport, log: (msg: string) => void):
 /** `bluetemberg detect` — report detected stacks, coverage, and gaps (human table or `--json`). */
 export function runDetect(root: string, opts: ReportOptions = {}): DetectReport {
   const report = buildDetectReport(root);
-  const log = opts.silent ? () => {} : console.log;
+  const log = resolveSink(opts);
   if (opts.json) {
     log(JSON.stringify(report, null, 2));
   } else {
@@ -183,7 +194,7 @@ export function runCoverage(
   opts: ReportOptions = {},
 ): CoverageReport {
   const report = buildCoverageReport(root, stack, version);
-  const log = opts.silent ? () => {} : console.log;
+  const log = resolveSink(opts);
   if (opts.json) {
     log(JSON.stringify(report, null, 2));
   } else {

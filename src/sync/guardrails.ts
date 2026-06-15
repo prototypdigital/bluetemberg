@@ -134,10 +134,30 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
     ctx.log(`Guardrails: ${filtered} filtered out by version`);
   }
 
-  if (guardrails.length === 0) return;
-
+  // Always run the Claude pass when targeted — even with zero surviving guardrails — so a hooks
+  // section left by an earlier sync is cleared. Otherwise a version-filtered guardrail's hook would
+  // persist in settings.json, silently defeating the hard-exclusion guarantee.
   if (ctx.platforms.includes('claude')) {
     syncGuardrailsForClaude(ctx, guardrails, recordError);
+  }
+}
+
+/**
+ * Remove the bluetemberg-owned `hooks` section from `.claude/settings.json`, preserving every other
+ * key. No-op when the file or the `hooks` key is absent — so a project that never had guardrails is
+ * never given an empty settings file.
+ */
+function clearManagedHooks(ctx: GuardrailsSyncContext): void {
+  const settingsPath = join(ctx.root, '.claude', 'settings.json');
+  if (!existsSync(settingsPath)) return;
+  const existing = readExistingSettings(settingsPath);
+  if (!Object.prototype.hasOwnProperty.call(existing, 'hooks')) return;
+
+  const cleared = { ...existing };
+  delete cleared.hooks;
+  commitPlannedWrite(ctx, settingsPath, JSON.stringify(cleared, null, 2) + '\n');
+  if (!ctx.checkMode) {
+    ctx.log('Guardrails: cleared previously managed hooks (no applicable guardrails)');
   }
 }
 
@@ -169,7 +189,6 @@ function syncGuardrailsForClaude(
   recordError: (message: string) => void,
 ): void {
   const applicable = guardrails.filter((g) => !g.platforms || (g.platforms as string[]).includes('claude'));
-  if (applicable.length === 0) return;
 
   // Group hook entries by hook_type (PreToolUse / PostToolUse).
   const byHookType = new Map<
@@ -191,7 +210,12 @@ function syncGuardrailsForClaude(
     });
   }
 
-  if (byHookType.size === 0) return;
+  // Nothing to write (all guardrails filtered out, non-Claude, or condition-less): clear any hooks
+  // a prior sync left behind, rather than leaving stale entries active.
+  if (byHookType.size === 0) {
+    clearManagedHooks(ctx);
+    return;
+  }
 
   const claudeDir = join(ctx.root, '.claude');
   const settingsPath = join(claudeDir, 'settings.json');

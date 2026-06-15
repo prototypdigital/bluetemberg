@@ -390,7 +390,7 @@ program
   .action(async (directory, options) => {
     const { runDetect } = await import('../dist/stacks/report.js');
     try {
-      runDetect(resolve(directory), { json: options.json, silent: options.silent });
+      runDetect(resolve(directory), { json: options.json, silent: options.silent, log: console.log });
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -412,7 +412,11 @@ program
     const stack = atIdx === -1 ? stackSpec : stackSpec.slice(0, atIdx);
     const version = atIdx === -1 ? undefined : stackSpec.slice(atIdx + 1) || undefined;
     try {
-      runCoverage(resolve(directory), stack, version, { json: options.json, silent: options.silent });
+      runCoverage(resolve(directory), stack, version, {
+        json: options.json,
+        silent: options.silent,
+        log: console.log,
+      });
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
