@@ -8,6 +8,7 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
 {
   "platforms": ["cursor", "claude", "copilot"],
   "source": "llm",
+  "stacks": { "payload": "3.4.1", "nextjs": "auto" },
   "extends": ["../../"],
   "targets": {
     "rules": {
@@ -30,7 +31,7 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
 }
 ```
 
-The `extends` and `adapters` fields are optional.
+The `stacks`, `extends`, and `adapters` fields are optional.
 
 ## Fields
 
@@ -47,6 +48,29 @@ Only selected platforms get generated output during sync.
 Directory name containing vendor-neutral sources. Default: `"llm"`.
 
 The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skills/`, and optionally `<source>/mcp.json`, `<source>/hooks.json`, `<source>/commands/`, and `<source>/prompts/` (see [Adapters](Adapters)).
+
+### `stacks`
+
+Optional map of **technology stack → version**, declaring which frameworks (and which versions) the project builds on. This is the project-level half of the **stacks axis** — orthogonal to `profile` (role). It drives version-aware rule routing: at sync, a rule or guardrail whose `stacks:` constraint targets a version the project does not use is hard-excluded (see [Writing Rules](Writing-Rules)).
+
+```json
+{
+  "stacks": {
+    "payload": "3.4.1",
+    "nextjs": "auto"
+  }
+}
+```
+
+| Value | Meaning |
+|-------|---------|
+| Pinned version (`"3.4.1"`) | Asserted as fact, matched directly against rule ranges. Cheap and deterministic — the default. |
+| `"auto"` | Re-detect this stack every sync from `node_modules` / lockfile / `package.json`. |
+| (omitted) | The stack is still auto-detected if its package is a dependency; declare it here only to pin a version or surface it in `bluetemberg detect`. |
+
+Stack names are an **open vocabulary** — adding a framework never requires an engine release. The known stack→package mappings (e.g. `nextjs` → `next`, `angular` → `@angular/core`) are used for auto-detection; unknown names map to themselves. A version declared here is never persisted with a confidence level — confidence is a property of *detection* and is surfaced live by `bluetemberg detect`.
+
+Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory). `llm/` remains the source of truth; this field only routes existing content.
 
 ### `extends`
 

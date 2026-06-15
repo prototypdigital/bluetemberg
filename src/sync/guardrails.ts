@@ -1,15 +1,22 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import matter from 'gray-matter';
-import type { GuardrailFrontmatter, Platform } from '../types.js';
+import type { GuardrailFrontmatter, Platform, StackConstraint } from '../types.js';
+import type { Catalog } from '../catalog/index.js';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles } from './extends-loader.js';
+import { matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
+import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
   /** All source dirs in priority order: local, then `extends`, then packs. */
   sourceDirs: string[];
   platforms: readonly Platform[];
+  /** Pack catalog (drives the stack id→constraint map for version gating). */
+  catalog: Catalog;
+  /** Detected stacks + versions; a version-mismatched guardrail is hard-excluded. */
+  detectedStacks: DetectedStacks;
 }
 
 /**
@@ -101,25 +108,79 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
   const merged = mergeSourceFiles(ctx.sourceDirs, 'guardrails', (f) => f.endsWith('.md'));
   if (merged.size === 0) return;
 
+  const stackMap = buildStackMap(ctx.catalog);
   const guardrails: GuardrailFrontmatter[] = [];
+  let filtered = 0;
   for (const [file, sourceDir] of merged) {
     try {
       const { data } = matter.read(join(sourceDir, file));
+      // Capture the raw record before the type guard narrows `data` to GuardrailFrontmatter.
+      const record = data as Record<string, unknown>;
       if (!isGuardrailFrontmatter(data)) {
         recordError(`guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message`);
         continue;
       }
-      guardrails.push(data as GuardrailFrontmatter);
+      if (isVersionFiltered(ctx, file, record, stackMap)) {
+        filtered++;
+        continue;
+      }
+      guardrails.push(data);
     } catch (err) {
       recordError(`guardrails/${file}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  if (guardrails.length === 0) return;
+  if (filtered > 0 && !ctx.checkMode) {
+    ctx.log(`Guardrails: ${filtered} filtered out by version`);
+  }
 
+  // Always run the Claude pass when targeted — even with zero surviving guardrails — so a hooks
+  // section left by an earlier sync is cleared. Otherwise a version-filtered guardrail's hook would
+  // persist in settings.json, silently defeating the hard-exclusion guarantee.
   if (ctx.platforms.includes('claude')) {
     syncGuardrailsForClaude(ctx, guardrails, recordError);
   }
+}
+
+/**
+ * Remove the bluetemberg-owned `hooks` section from `.claude/settings.json`, preserving every other
+ * key. No-op when the file or the `hooks` key is absent — so a project that never had guardrails is
+ * never given an empty settings file.
+ */
+function clearManagedHooks(ctx: GuardrailsSyncContext): void {
+  const settingsPath = join(ctx.root, '.claude', 'settings.json');
+  if (!existsSync(settingsPath)) return;
+  const existing = readExistingSettings(settingsPath);
+  if (!Object.prototype.hasOwnProperty.call(existing, 'hooks')) return;
+
+  const cleared = { ...existing };
+  delete cleared.hooks;
+  commitPlannedWrite(ctx, settingsPath, JSON.stringify(cleared, null, 2) + '\n');
+  if (!ctx.checkMode) {
+    ctx.log('Guardrails: cleared previously managed hooks (no applicable guardrails)');
+  }
+}
+
+/**
+ * True when a guardrail's stack constraint (frontmatter `stacks:` > catalog pack-level) is not
+ * satisfied by the project's detected stacks — i.e. it targets a stack/version the project does
+ * not use, so it must be hard-excluded. Stack-agnostic guardrails always pass. Low-confidence
+ * detection still matches but is surfaced as a warning, never silently dropped.
+ */
+function isVersionFiltered(
+  ctx: GuardrailsSyncContext,
+  file: string,
+  data: Record<string, unknown>,
+  stackMap: Map<string, StackConstraint>,
+): boolean {
+  const constraint = resolveStacks(basename(file, '.md'), readFrontmatterStacks(data), stackMap);
+  const result = matchStackConstraint(constraint, ctx.detectedStacks);
+  if (result.lowConfidence.length > 0) {
+    const msg = `guardrails/${file}: matched via low-confidence detection for ${result.lowConfidence.join(', ')} — pin a version in bluetemberg.config.json for precision`;
+    ctx.results.warnings.push(msg);
+    ctx.log(`  WARN: ${msg}`);
+  }
+  return !result.matched;
 }
 
 function syncGuardrailsForClaude(
@@ -128,7 +189,6 @@ function syncGuardrailsForClaude(
   recordError: (message: string) => void,
 ): void {
   const applicable = guardrails.filter((g) => !g.platforms || (g.platforms as string[]).includes('claude'));
-  if (applicable.length === 0) return;
 
   // Group hook entries by hook_type (PreToolUse / PostToolUse).
   const byHookType = new Map<
@@ -150,7 +210,12 @@ function syncGuardrailsForClaude(
     });
   }
 
-  if (byHookType.size === 0) return;
+  // Nothing to write (all guardrails filtered out, non-Claude, or condition-less): clear any hooks
+  // a prior sync left behind, rather than leaving stale entries active.
+  if (byHookType.size === 0) {
+    clearManagedHooks(ctx);
+    return;
+  }
 
   const claudeDir = join(ctx.root, '.claude');
   const settingsPath = join(claudeDir, 'settings.json');

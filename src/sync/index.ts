@@ -21,9 +21,14 @@ import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './
 import { resolvePackSourceDirs } from '../registry/index.js';
 import { resolveExternalSourceDirs } from '../sources/registry.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
+import { type Catalog, loadCatalogSync } from '../catalog/index.js';
+import { detectStacks } from '../stacks/detect.js';
+import { matchStackConstraint, type DetectedStacks, type StackMatchResult } from '../stacks/match.js';
+import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
 import type {
   Platform,
   BlueprintConfig,
+  StackConstraint,
   SyncOptions,
   SyncResults,
   TargetConfig,
@@ -185,6 +190,10 @@ interface SyncContext extends SyncSink {
   config: BlueprintConfig;
   platforms: Platform[];
   verbose: boolean;
+  /** Pack catalog, loaded once per sync (drives profile + stack id→constraint maps). */
+  catalog: Catalog;
+  /** Technology stacks + resolved versions detected in the project (drives version-aware gating). */
+  detectedStacks: DetectedStacks;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
@@ -199,6 +208,46 @@ function recordWarning(ctx: SyncContext, message: string): void {
 
 function verboseLog(ctx: SyncContext, message: string): void {
   if (ctx.verbose) ctx.log(message);
+}
+
+/** A short, human-readable reason a file was version-filtered, for the "filtered out" report. */
+function describeStackMismatch(result: StackMatchResult): string {
+  const parts = [
+    ...result.missing.map((stack) => `${stack} not present`),
+    ...result.mismatched.map((m) => `${m.stack} ${m.range} (you're on ${m.detected})`),
+  ];
+  return parts.join('; ');
+}
+
+interface VersionGate {
+  /** True when the file's stack constraint is satisfied by the detected stacks (or it is agnostic). */
+  matched: boolean;
+  /** Human-readable mismatch reason, empty when matched. */
+  reason: string;
+}
+
+/**
+ * Decide whether a file applies to this project given its detected stacks. Resolves the effective
+ * constraint (frontmatter `stacks:` > catalog pack-level > agnostic), warns once on low-confidence
+ * detection, and returns the gate decision. Stack-agnostic files (the default) always match, so a
+ * project with no stack-tagged content behaves exactly as before.
+ */
+function gateByVersion(
+  ctx: SyncContext,
+  id: string,
+  frontmatter: Record<string, unknown>,
+  stackMap: Map<string, StackConstraint>,
+  label: string,
+): VersionGate {
+  const constraint = resolveStacks(id, readFrontmatterStacks(frontmatter), stackMap);
+  const result = matchStackConstraint(constraint, ctx.detectedStacks);
+  if (result.lowConfidence.length > 0) {
+    recordWarning(
+      ctx,
+      `${label}: matched via low-confidence detection for ${result.lowConfidence.join(', ')} — pin a version in bluetemberg.config.json for precision`,
+    );
+  }
+  return { matched: result.matched, reason: result.matched ? '' : describeStackMismatch(result) };
 }
 
 /**
@@ -238,6 +287,13 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const prune = Boolean(options.prune) && !checkMode;
   const expectedOutputPaths = prune ? new Set<string>() : undefined;
 
+  // Loaded once and shared: the catalog backs both profile and stack id→constraint maps, and the
+  // detected stacks drive version-aware rule/guardrail gating (a Payload-2 rule is hard-excluded
+  // on a Payload-3 project). Detection is cheap and side-effect-free; both default to empty so a
+  // project with no `stacks` declared and no stack-tagged packs syncs byte-identically to before.
+  const catalog = loadCatalogSync(root);
+  const detectedStacks = detectStacks(root, config);
+
   log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
   const ctx: SyncContext = {
@@ -253,6 +309,8 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     results,
     log,
     expectedOutputPaths,
+    catalog,
+    detectedStacks,
   };
 
   // Surface extends, pack, and external-source resolution warnings before sync output.
@@ -297,7 +355,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
     ];
-    syncMarketplace({ ...ctx, plugins: pluginDefs }, (msg) => recordError(ctx, msg));
+    syncMarketplace({ ...ctx, plugins: pluginDefs, catalog }, (msg) => recordError(ctx, msg));
 
     const remote = ctx.config.marketplace?.remote;
     if (remote) {
@@ -366,11 +424,44 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   return `external[${idx - packEnd}]`;
 }
 
+/**
+ * Resolve which rules are version-filtered out of this project. A rule is excluded when its stack
+ * constraint (frontmatter `stacks:` > catalog pack-level) names a stack that is absent or whose
+ * detected version is outside the declared range — the version-aware gate. Returns `file → reason`
+ * for the excluded rules; the decision is platform-independent so it is computed once.
+ */
+function resolveExcludedRules(ctx: SyncContext, merged: Map<string, string>): Map<string, string> {
+  const stackMap = buildStackMap(ctx.catalog);
+  const excluded = new Map<string, string>();
+  for (const [file, sourceDir] of merged) {
+    let data: Record<string, unknown> = {};
+    try {
+      data = matter.read(join(sourceDir, file)).data as Record<string, unknown>;
+    } catch {
+      // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
+    }
+    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `rules/${file}`);
+    if (!gate.matched) excluded.set(file, gate.reason);
+  }
+  return excluded;
+}
+
 function syncRules(ctx: SyncContext): void {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
   if (merged.size === 0) return;
 
+  const excluded = resolveExcludedRules(ctx, merged);
+  const appliedCount = merged.size - excluded.size;
+
   ctx.log(`Rules: ${merged.size} source files`);
+  if (excluded.size > 0) {
+    // Making the exclusion visible turns the gate into a trust signal: the user can audit that
+    // wrong-version rules were correctly withheld (hidden, not wrong-here).
+    ctx.log(`  ${appliedCount} applied · ${excluded.size} filtered out by version`);
+    for (const [file, reason] of excluded) {
+      ctx.log(`    - ${basename(file, '.md')}: ${reason}`);
+    }
+  }
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -389,6 +480,7 @@ function syncRules(ctx: SyncContext): void {
     ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
+      if (excluded.has(file)) continue;
       try {
         const source = matter.read(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
@@ -403,7 +495,7 @@ function syncRules(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} files)`);
   }
 }
 

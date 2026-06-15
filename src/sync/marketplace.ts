@@ -5,35 +5,11 @@ import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
-import { type Catalog, loadCatalogSync } from '../catalog/index.js';
+import type { Catalog } from '../catalog/index.js';
 import type { MarketplacePluginDefinition, Stack, StackConstraint, TeamProfile } from '../types.js';
-import { isValidStackRange } from '../stacks/match.js';
+import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
 
 const VALID_PROFILE_IDS: ReadonlySet<string> = new Set(TEAM_PROFILES.map((p) => p.id));
-
-/**
- * Build an id → stack-constraint map from the catalog. Pack-level `stacks` are coarse, name-only
- * (`["payload"]`), so each maps to a wildcard range (`{ payload: "*" }`). A rule's own
- * `stacks:` frontmatter (with version ranges) overrides this. Files with no stacks anywhere are
- * stack-agnostic and belong in every bundle.
- */
-function buildStackMap(catalog: Catalog): Map<string, StackConstraint> {
-  const map = new Map<string, StackConstraint>();
-  for (const pack of catalog.packs) {
-    const stacks = pack.stacks ?? [];
-    if (stacks.length === 0) continue;
-    const constraint: StackConstraint = {};
-    for (const s of stacks) constraint[s] = '*';
-    const ids = [
-      ...(pack.rules ?? []),
-      ...(pack.agents ?? []),
-      ...(pack.skills ?? []),
-      ...(pack.guardrails ?? []),
-    ];
-    for (const id of ids) map.set(id, constraint);
-  }
-  return map;
-}
 
 /**
  * Build an id → profiles map from the catalog: every rule/agent/skill/guardrail id a pack ships
@@ -59,6 +35,8 @@ function buildProfileMap(catalog: Catalog): Map<string, TeamProfile[]> {
 export interface MarketplaceSyncContext extends SyncSink {
   sourceDirs: string[];
   plugins: MarketplacePluginDefinition[];
+  /** Catalog loaded once per sync (shared with rule/guardrail version gating). */
+  catalog: Catalog;
 }
 
 interface ManifestEntry {
@@ -112,39 +90,6 @@ function resolveProfiles(
 ): TeamProfile[] {
   if (frontmatterProfiles !== undefined) return frontmatterProfiles;
   return profileMap.get(id) ?? [];
-}
-
-/**
- * Returns the validated stack constraint when the `stacks` key is present in frontmatter, or
- * `undefined` when absent (fall back to the catalog map). Invalid ranges are dropped so a
- * malformed range never silently matches. Mirrors `readFrontmatterProfiles`.
- */
-function readFrontmatterStacks(data: Record<string, unknown>): StackConstraint | undefined {
-  if (!Object.prototype.hasOwnProperty.call(data, 'stacks')) return undefined;
-  const value = data.stacks;
-  // Malformed (non-object) frontmatter falls back to catalog gating rather than widening the file
-  // to stack-agnostic — otherwise a typo'd `stacks:` would re-leak a pack rule into every bundle.
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const entries = Object.entries(value as Record<string, unknown>);
-  const out: StackConstraint = {};
-  for (const [name, range] of entries) {
-    if (typeof name !== 'string' || typeof range !== 'string') continue;
-    if (!isValidStackRange(range)) continue;
-    out[name] = range;
-  }
-  // Entries were declared but every one was invalid → don't silently widen to agnostic; fall back
-  // to catalog gating. An intentionally empty `stacks: {}` (no entries) stays explicitly agnostic.
-  if (entries.length > 0 && Object.keys(out).length === 0) return undefined;
-  return out;
-}
-
-function resolveStacks(
-  id: string,
-  frontmatterStacks: StackConstraint | undefined,
-  stackMap: Map<string, StackConstraint>,
-): StackConstraint {
-  if (frontmatterStacks !== undefined) return frontmatterStacks;
-  return stackMap.get(id) ?? {};
 }
 
 function readRuleMeta(
@@ -387,9 +332,8 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
 
   if (allRules.size === 0 && allSkills.size === 0 && allAgents.size === 0) return;
 
-  const catalog = loadCatalogSync(ctx.root);
-  const profileMap = buildProfileMap(catalog);
-  const stackMap = buildStackMap(catalog);
+  const profileMap = buildProfileMap(ctx.catalog);
+  const stackMap = buildStackMap(ctx.catalog);
   const hooksContent = readHooksContent(ctx.sourceDirs);
   const projectName = basename(ctx.root);
 
