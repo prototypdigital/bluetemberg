@@ -117,6 +117,46 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         'externalSources',
       ],
     },
+    stacks: {
+      description:
+        'Version-aware technology axis, orthogonal to profiles. A rule/guardrail `stacks:` constraint ' +
+        '(e.g. {"payload":">=3 <4"}) is applied at sync only when every named stack is present and its ' +
+        'detected version satisfies the range; otherwise it is hard-excluded.',
+      configField: {
+        key: 'stacks',
+        shape: 'Record<stackName, semverRange | exactVersion | "auto">',
+        note: 'A pinned version is matched directly; "auto" re-detects every sync. Drives RULE routing — `llm/` stays the source of truth.',
+      },
+      detection: {
+        layers: ['declared (config)', 'node_modules', 'package-lock.json', 'coerced package.json range'],
+        confidence: ['declared', 'exact', 'coerced', 'unknown'],
+        semantics: [
+          'hard-exclude on no match',
+          'warn (never silently drop) on low confidence',
+          'most-specific-range wins',
+        ],
+      },
+      commands: [
+        {
+          name: 'detect',
+          args: '[directory]',
+          description: 'Detect stacks + versions and report coverage/gaps.',
+          options: [
+            { long: '--json', description: 'Emit machine-readable JSON (detected, gaps, warnings).' },
+            { long: '--silent', description: 'Suppress all output.' },
+          ],
+        },
+        {
+          name: 'coverage',
+          args: '<stack>[@version] [directory]',
+          description: 'Query whether version-correct guidance exists for a stack.',
+          options: [
+            { long: '--json', description: 'Emit machine-readable JSON.' },
+            { long: '--silent', description: 'Suppress all output.' },
+          ],
+        },
+      ],
+    },
     source: {
       types: [...SOURCE_TYPES],
       specFormat: {

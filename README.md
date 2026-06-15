@@ -201,6 +201,32 @@ npx bluetemberg sync --prune
 
 `--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
 
+## Stacks (version-aware routing)
+
+A second routing axis orthogonal to profiles (role): **stacks** answer _what you build with_. Tag a rule or guardrail with a version range and sync delivers it **only where it's correct** — a Payload-2 rule never reaches a Payload-3 repo.
+
+```yaml
+# llm/rules/payload-rsc-admin.md frontmatter
+stacks:
+  payload: '>=3 <4'
+```
+
+```jsonc
+// bluetemberg.config.json — declare or pin the project's stacks
+{ "stacks": { "payload": "3.4.1", "nextjs": "auto" } }
+```
+
+`sync` detects the project's stacks (declared version → `node_modules` → lockfile → coerced `package.json` range), then hard-excludes rules whose range the detected version doesn't satisfy — listing what it filtered so you can audit it. Content with no `stacks:` is stack-agnostic and always applies, so projects that declare no stacks behave exactly as before.
+
+Inspect detection and coverage — these have a `--json` twin for agents:
+
+```bash
+npx bluetemberg detect              # detected stacks, versions, confidence, gaps
+npx bluetemberg coverage payload@3  # is there version-correct guidance for this stack?
+```
+
+See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks) and [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules) for the full model.
+
 ## External sources
 
 Pull rules from outside the npm pack registry — e.g. a community GitHub repo of `.cursorrules`/`.mdc` files — and Bluetemberg translates them into native frontmatter, caches them, and includes them on `sync`:

@@ -382,6 +382,46 @@ program
   });
 
 program
+  .command('detect')
+  .description('Detect technology stacks + versions in the project and report coverage/gaps')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--json', 'Emit machine-readable JSON (detected, gaps, warnings)')
+  .option('--silent', 'Suppress all output')
+  .action(async (directory, options) => {
+    const { runDetect } = await import('../dist/stacks/report.js');
+    try {
+      runDetect(resolve(directory), { json: options.json, silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('coverage')
+  .description('Query whether version-correct guidance exists for a stack (e.g. "payload@3.4.0")')
+  .argument('<stack>', 'Stack name with optional @version (e.g. payload@3 or nextjs)')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--json', 'Emit machine-readable JSON')
+  .option('--silent', 'Suppress all output')
+  .action(async (stackSpec, directory, options) => {
+    const { runCoverage } = await import('../dist/stacks/report.js');
+    const atIdx = String(stackSpec).indexOf('@');
+    const stack = atIdx === -1 ? stackSpec : stackSpec.slice(0, atIdx);
+    const version = atIdx === -1 ? undefined : stackSpec.slice(atIdx + 1) || undefined;
+    try {
+      runCoverage(resolve(directory), stack, version, { json: options.json, silent: options.silent });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
   .command('add')
   .description('Add a pack (rules, agents, skills, guardrails) from the npm registry')
   .argument('<package>', 'Package name with optional @version (e.g. my-rules@^1.0.0)')

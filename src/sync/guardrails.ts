@@ -1,15 +1,22 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import matter from 'gray-matter';
-import type { GuardrailFrontmatter, Platform } from '../types.js';
+import type { GuardrailFrontmatter, Platform, StackConstraint } from '../types.js';
+import type { Catalog } from '../catalog/index.js';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles } from './extends-loader.js';
+import { matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
+import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
   /** All source dirs in priority order: local, then `extends`, then packs. */
   sourceDirs: string[];
   platforms: readonly Platform[];
+  /** Pack catalog (drives the stack id→constraint map for version gating). */
+  catalog: Catalog;
+  /** Detected stacks + versions; a version-mismatched guardrail is hard-excluded. */
+  detectedStacks: DetectedStacks;
 }
 
 /**
@@ -101,18 +108,30 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
   const merged = mergeSourceFiles(ctx.sourceDirs, 'guardrails', (f) => f.endsWith('.md'));
   if (merged.size === 0) return;
 
+  const stackMap = buildStackMap(ctx.catalog);
   const guardrails: GuardrailFrontmatter[] = [];
+  let filtered = 0;
   for (const [file, sourceDir] of merged) {
     try {
       const { data } = matter.read(join(sourceDir, file));
+      // Capture the raw record before the type guard narrows `data` to GuardrailFrontmatter.
+      const record = data as Record<string, unknown>;
       if (!isGuardrailFrontmatter(data)) {
         recordError(`guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message`);
         continue;
       }
-      guardrails.push(data as GuardrailFrontmatter);
+      if (isVersionFiltered(ctx, file, record, stackMap)) {
+        filtered++;
+        continue;
+      }
+      guardrails.push(data);
     } catch (err) {
       recordError(`guardrails/${file}: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  if (filtered > 0 && !ctx.checkMode) {
+    ctx.log(`Guardrails: ${filtered} filtered out by version`);
   }
 
   if (guardrails.length === 0) return;
@@ -120,6 +139,28 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
   if (ctx.platforms.includes('claude')) {
     syncGuardrailsForClaude(ctx, guardrails, recordError);
   }
+}
+
+/**
+ * True when a guardrail's stack constraint (frontmatter `stacks:` > catalog pack-level) is not
+ * satisfied by the project's detected stacks — i.e. it targets a stack/version the project does
+ * not use, so it must be hard-excluded. Stack-agnostic guardrails always pass. Low-confidence
+ * detection still matches but is surfaced as a warning, never silently dropped.
+ */
+function isVersionFiltered(
+  ctx: GuardrailsSyncContext,
+  file: string,
+  data: Record<string, unknown>,
+  stackMap: Map<string, StackConstraint>,
+): boolean {
+  const constraint = resolveStacks(basename(file, '.md'), readFrontmatterStacks(data), stackMap);
+  const result = matchStackConstraint(constraint, ctx.detectedStacks);
+  if (result.lowConfidence.length > 0) {
+    const msg = `guardrails/${file}: matched via low-confidence detection for ${result.lowConfidence.join(', ')} — pin a version in bluetemberg.config.json for precision`;
+    ctx.results.warnings.push(msg);
+    ctx.log(`  WARN: ${msg}`);
+  }
+  return !result.matched;
 }
 
 function syncGuardrailsForClaude(

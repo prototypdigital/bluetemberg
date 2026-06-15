@@ -85,6 +85,8 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 
 Before first use of `--prune`, read the short pre-flight list and platform notes under **Stale generated files** in [Configuration](Configuration).
 
+**Version-aware stack filtering:** sync detects the project's technology stacks and versions, then **hard-excludes** any rule or guardrail whose `stacks:` constraint is not satisfied — a `payload: ">=3 <4"` rule never reaches a Payload-2 project. Excluded rules are listed under a `filtered out by version` line so you can audit them. Low-confidence detection (a version coerced from a `package.json` range) warns but still applies — never silently dropped. Content with no `stacks:` is stack-agnostic and always applies, so a project that declares no stacks syncs exactly as before. See [Configuration](Configuration) (the `stacks` field) and [Writing Rules](Writing-Rules).
+
 **Example:**
 
 ```bash
@@ -93,6 +95,34 @@ npx bluetemberg sync --check
 npx bluetemberg sync --dry-run --silent
 npx bluetemberg sync --prune
 npx bluetemberg sync ./my-project
+```
+
+## `bluetemberg detect [directory]`
+
+Report the technology stacks and versions detected in the project, each with its detection confidence and coverage status. Detection precedence (highest confidence first): a pinned version in the `stacks` config field → `node_modules/<pkg>/package.json` → `package-lock.json` → a version coerced from the `package.json` range (low confidence). This is the read side of the same machinery that gates rules at sync — an agent can call it once and self-select version-correct guidance.
+
+| Option | Description |
+| ------ | ----------- |
+| `--json` | Emit machine-readable JSON: `detected[]`, `gaps[]` (stacks with no covering pack), `warnings[]` (low-confidence detections) |
+| `--silent` | Suppress all output |
+
+```bash
+npx bluetemberg detect
+npx bluetemberg detect --json
+```
+
+## `bluetemberg coverage <stack>[@version] [directory]`
+
+Answer "do we have version-correct guidance for this stack?" against the installed catalog and detected stacks. Reports whether the stack is `known`, whether it is `covered`, and the most-specific covered range. A `*` match is **name-level** (a pack targets the stack, any version) — version-precise per-rule coverage is a planned refinement.
+
+| Option | Description |
+| ------ | ----------- |
+| `--json` | Emit machine-readable JSON (`query` + `result`) |
+| `--silent` | Suppress all output |
+
+```bash
+npx bluetemberg coverage payload@3.4.0
+npx bluetemberg coverage nextjs --json
 ```
 
 ## `bluetemberg add <package>`

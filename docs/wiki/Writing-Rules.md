@@ -31,6 +31,36 @@ Controls which files the rule applies to.
 | `'src/**'`             | Applies only to files matching the glob |
 | `['src/**', 'lib/**']` | Multiple glob patterns                  |
 
+### `stacks` (optional)
+
+Version-aware technology constraints. A map of **stack name → semver range** declaring which framework versions the rule applies to. At sync, the rule is emitted **only** when every named stack is present in the project *and* its detected version satisfies the range; otherwise it is hard-excluded.
+
+```markdown
+---
+description: Payload 3 uses Next-native config and RSC admin.
+scope: 'src/payload/**'
+stacks:
+  payload: '>=3 <4'
+---
+```
+
+| `stacks:` value | Behavior |
+| --------------- | -------- |
+| (absent) | **Stack-agnostic** — applies regardless of stacks (the default). |
+| `{ payload: '>=3 <4' }` | Applies only on a Payload 3.x project; a Payload-2 (or non-Payload) project never sees it. |
+| `{ payload: '*' }` | Any version of Payload (name-level). |
+| `{ angular: '>15 <=17' }` | Migration window — half-open ranges fall out of the same semver matching. |
+
+Notes:
+
+- **Version is a constraint on the rule, never part of the stack name.** There is no `payload-3` stack — there is `payload` plus a range.
+- Matching coerces loose versions and includes prereleases, so `15.0.0-canary.3` satisfies `>=15`.
+- When two ranges in one project both match, the **most-specific (narrowest)** range wins, deterministically.
+- Invalid ranges are dropped (never an accidental match); a version resolved from a low-confidence source (a coerced `package.json` range) still applies but emits a warning — guidance is never silently dropped.
+- The same field works on guardrails (`llm/guardrails/`). Pack-level `stacks` in the catalog supply coarse name-only routing; a rule's own range is the precision gate.
+
+Run [`bluetemberg detect`](Commands#bluetemberg-detect-directory) to see the detected versions your ranges are matched against, and declare versions in the [`stacks` config field](Configuration#stacks).
+
 ## How scope is transformed
 
 The sync engine converts `scope` into platform-specific frontmatter:
