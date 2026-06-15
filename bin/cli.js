@@ -592,6 +592,23 @@ program
     }
   });
 
+const mcpCmd = program.command('mcp').description('Run Bluetemberg itself as an MCP server for agents');
+
+mcpCmd
+  .command('serve')
+  .description('Serve stack detection + coverage as MCP tools over stdio (read-only)')
+  .argument('[directory]', 'Project root directory', '.')
+  .action(async (directory) => {
+    const { serveStdio } = await import('../dist/mcp/server.js');
+    // stdout is the MCP protocol channel — never write to it here. Status goes to stderr.
+    try {
+      await serveStdio(resolve(directory), pkg.version);
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
 const sourceCmd = program
   .command('source')
   .description('Manage external rule sources (GitHub repos, PRPM, cursor.directory)');

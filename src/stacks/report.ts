@@ -136,6 +136,34 @@ export function buildCoverageReport(root: string, stack: string, version?: strin
   };
 }
 
+export interface StackListEntry {
+  name: string;
+  origins: StackOrigin[];
+  /** Version ranges known to be covered (`"*"` = name-level pack coverage). */
+  coveredRanges: string[];
+  /** Version observed locally, when detection found one. */
+  version: string | null;
+  /** Whether detection found this stack in the current project. */
+  detected: boolean;
+}
+
+/**
+ * List the live stack registry — the union of catalog-declared stacks and stacks detected in the
+ * project — with each one's coverage ranges and detected version. Exposed for testing and the MCP
+ * `list_stacks` tool.
+ */
+export function buildStacksList(root: string): StackListEntry[] {
+  const detected = detectStacks(root, loadConfig(root));
+  const registry = buildStackRegistry(loadCatalogSync(root), detected);
+  return [...registry.values()].map((entry) => ({
+    name: entry.name,
+    origins: [...entry.origins],
+    coveredRanges: entry.coveredRanges,
+    version: entry.version ?? null,
+    detected: entry.origins.has('detected'),
+  }));
+}
+
 function printDetectHuman(report: DetectReport, log: (msg: string) => void): void {
   if (report.detected.length === 0) {
     log('No stacks detected. Declare them in bluetemberg.config.json "stacks", or install their packages.');
