@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { TeamProfile } from '../types.js';
+import type { Stack, TeamProfile } from '../types.js';
 
 /** Raw catalog published by the packs repo — the single source of truth for pack ids and profiles. */
 export const CATALOG_URL =
@@ -13,6 +13,13 @@ export interface CatalogPack {
   version: string;
   description: string;
   profiles: TeamProfile[];
+  /**
+   * Technology stacks this pack targets (coarse, name-only routing), e.g. `["payload"]`.
+   * Empty/absent = stack-agnostic. Version precision lives in each rule's `stacks:` frontmatter,
+   * not here. Additive and optional — older engines ignore it; a new engine reading an old
+   * catalog sees `[]`.
+   */
+  stacks?: Stack[];
   universal: boolean;
   kind: 'rules' | 'agents' | 'skills' | 'guardrails';
   rules?: string[];
@@ -52,10 +59,13 @@ function assertCatalog(data: unknown): asserts data is Catalog {
       typeof p.version !== 'string' ||
       !VALID_KINDS.has(p.kind as string) ||
       !Array.isArray(p.profiles) ||
-      !(p.profiles as unknown[]).every((x) => typeof x === 'string')
+      !(p.profiles as unknown[]).every((x) => typeof x === 'string') ||
+      // `stacks` is optional and additive; when present it must be a string array.
+      (p.stacks !== undefined &&
+        (!Array.isArray(p.stacks) || !(p.stacks as unknown[]).every((x) => typeof x === 'string')))
     ) {
       throw new Error(
-        'Invalid catalog format: pack missing required fields (name, version, kind, profiles) or has invalid kind/profile values',
+        'Invalid catalog format: pack missing required fields (name, version, kind, profiles) or has invalid kind/profile/stack values',
       );
     }
   }
