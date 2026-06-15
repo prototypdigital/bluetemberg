@@ -42,7 +42,9 @@ const ITEM_KINDS = ['rules', 'agents', 'skills', 'guardrails'];
 for (const pack of json.packs) {
   for (const kind of ITEM_KINDS) {
     if (Array.isArray(pack[kind])) {
-      pack[kind] = pack[kind].map((item) => (typeof item === 'string' ? item : (item?.name ?? '')));
+      pack[kind] = pack[kind]
+        .map((item) => (typeof item === 'string' ? item : item?.name))
+        .filter((id) => typeof id === 'string' && id.length > 0);
     }
   }
 }

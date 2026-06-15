@@ -79,10 +79,14 @@ function normalizeCatalogItems(data: unknown): void {
     for (const kind of ITEM_KINDS) {
       const items = record[kind];
       if (!Array.isArray(items)) continue;
-      // Items are either `string` ids or `{ name }` objects; reduce both to the id.
-      record[kind] = items.map((item) =>
-        typeof item === 'string' ? item : ((item as { name?: string }).name ?? ''),
-      );
+      // Items are either `string` ids or `{ name }` objects; reduce to id and drop malformed entries.
+      record[kind] = items
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (!item || typeof item !== 'object') return undefined;
+          return (item as { name?: unknown }).name;
+        })
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
     }
   }
 }

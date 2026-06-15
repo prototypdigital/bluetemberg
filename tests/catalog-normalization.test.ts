@@ -46,6 +46,32 @@ describe('catalog item normalization on load', () => {
     expect(catalog.packs[0].rules).toEqual(['rule-a', 'rule-b']);
   });
 
+  it('drops malformed items that have no valid string name', () => {
+    const root = cacheRootWith({
+      generated: '2026-01-01T00:00:00.000Z',
+      packs: [
+        {
+          name: 'bluetemberg-rules-z',
+          version: '0.1.0',
+          description: '',
+          kind: 'rules',
+          universal: false,
+          profiles: ['frontend'],
+          rules: [
+            { name: 'rule-good', description: 'ok' },
+            { description: 'no name field' },
+            null,
+            { name: '', description: 'empty name' },
+          ],
+          preview: '',
+        },
+      ],
+    });
+
+    const catalog = loadCatalogSync(root);
+    expect(catalog.packs[0].rules).toEqual(['rule-good']);
+  });
+
   it('leaves already-string items untouched', () => {
     const root = cacheRootWith({
       generated: '2026-01-01T00:00:00.000Z',
