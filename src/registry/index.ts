@@ -36,7 +36,6 @@ import type {
   RegistrySearchOptions,
   RegistryUpdateOptions,
   RegistryVerifyOptions,
-  VerifyStatus,
 } from '../types.js';
 import { loadConfig } from '../sync/index.js';
 
