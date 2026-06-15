@@ -61,6 +61,7 @@ The interactive wizard will ask you to pick:
 
 - **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), **agentic** (LLM-heavy / AI workflow projects), or Custom — sets defaults for rules, agents, and skills (`--profile agentic` in headless runs)
 - Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf / OpenAI Codex)
+- **Stacks** — detected from the project and pre-checked (e.g. Payload 3.4.1, Next 15); drive which rules apply by version, written to config `stacks` (`--stacks payload@3.4.1,nextjs@auto` in headless runs)
 - **Rule source** — versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
 - Rule collections pre-selected by profile — defaults depend on team type (see wiki **Profiles**)
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)

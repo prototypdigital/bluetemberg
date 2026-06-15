@@ -55,6 +55,20 @@ describe('scaffold', () => {
       expect(config.profile).toBe('frontend');
     });
 
+    it('writes the stacks map when stacks are selected', () => {
+      scaffold(root, { ...baseAnswers, stacks: { payload: '3.4.1', nextjs: 'auto' } });
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.stacks).toEqual({ payload: '3.4.1', nextjs: 'auto' });
+    });
+
+    it('omits the stacks field when none are selected', () => {
+      scaffold(root, { ...baseAnswers, stacks: {} });
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.stacks).toBeUndefined();
+    });
+
     it('includes rules targets when rules are selected', () => {
       scaffold(root, baseAnswers);
 

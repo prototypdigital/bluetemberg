@@ -132,6 +132,9 @@ export function finalizeNonInteractiveAnswers(
     includeGuardrails: overrides.includeGuardrails ?? base.includeGuardrails,
     guardrails: overrides.guardrails ?? base.guardrails,
     externalSources: overrides.externalSources ?? base.externalSources,
+    // Stacks are not part of the profile baseline (sync auto-detects); only an explicit
+    // `--stacks` override pins them into the config.
+    stacks: overrides.stacks,
     github: overrides.github ?? base.github,
   };
 }

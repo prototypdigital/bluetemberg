@@ -21,6 +21,7 @@ if (wantsJsonHelp) {
 
 const { INIT_TEAM_PROFILES, INIT_PACKAGE_MANAGERS, INIT_PLATFORMS, INIT_RULE_SOURCES } =
   await import('../dist/init/init-catalog.js');
+const { parseStacksCsv } = await import('../dist/init/stacks-csv.js');
 
 const TEAM_PROFILES = new Set(INIT_TEAM_PROFILES);
 const PLATFORMS = new Set(INIT_PLATFORMS);
@@ -75,6 +76,7 @@ function strayHeadlessOptsWithoutNiOrConfig(opts) {
   checkCsv(opts.skills, '`--skills`');
   checkCsv(opts.mcpServers, '`--mcp-servers`');
   checkCsv(opts.sources, '`--sources`');
+  checkCsv(opts.stacks, '`--stacks`');
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
@@ -111,6 +113,7 @@ function assertNoInitFlagsBundledWithConfig(opts) {
   checkBundle(opts.skills, '--skills');
   checkBundle(opts.mcpServers, '--mcp-servers');
   checkBundle(opts.sources, '--sources');
+  checkBundle(opts.stacks, '--stacks');
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
@@ -188,6 +191,17 @@ function buildNiOverrides(opts) {
 
   if ((opts.sources ?? '') !== '') ov.externalSources = csvList(String(opts.sources));
 
+  if ((opts.stacks ?? '') !== '') {
+    const { stacks, skipped } = parseStacksCsv(String(opts.stacks));
+    ov.stacks = stacks;
+    if (skipped.length > 0 && !opts.silent) {
+      console.error(
+        `Warning: --stacks ignored ${skipped.length} token(s) with no stack name: ${skipped.join(', ')}. ` +
+          'Use a short stack name like "angular", not a package name.',
+      );
+    }
+  }
+
   if (argvHas('--omit-agents')) ov.includeAgents = false;
   if (argvHas('--omit-skills')) ov.includeSkills = false;
   if (argvHas('--omit-mcp')) ov.includeMcp = false;
@@ -222,6 +236,7 @@ program
   .option('--skills <csv>')
   .option('--mcp-servers <csv>')
   .option('--sources <csv>', 'External source specs (comma-separated, e.g. "github:owner/repo#HEAD:rules")')
+  .option('--stacks <csv>', 'Stacks to manage (e.g. "payload@3.4.1,nextjs@auto"); bare name → "auto"')
   .option('--omit-agents')
   .option('--omit-skills')
   .option('--omit-mcp')

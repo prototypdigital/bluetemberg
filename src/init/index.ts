@@ -7,6 +7,7 @@ import { finalizeNonInteractiveAnswers } from './init-answers-from-profile.js';
 import { readInitAnswersFromFile } from './parse-init-answers.js';
 import { runPrompts } from './prompts.js';
 import { scaffold } from './scaffold.js';
+import { invalidStackVersions } from './stacks-csv.js';
 
 function assertMutuallyExclusiveInitOptions(run: InitRunOptions): void {
   if (run.answers) {
@@ -66,6 +67,12 @@ export async function init(targetPath?: string, run?: InitRunOptions): Promise<v
   }
 
   const answers = await resolveInitAnswers(targetDir, run);
+
+  const badStacks = invalidStackVersions(answers.stacks ?? {});
+  if (badStacks.length > 0) {
+    log(`\n  ⚠ Stack version(s) that aren't a semver range or "auto": ${badStacks.join(', ')}`);
+    log("    Treated as a literal pin — they won't match any rule until corrected.\n");
+  }
 
   log('\nScaffolding...\n');
   const created = scaffold(targetDir, answers);

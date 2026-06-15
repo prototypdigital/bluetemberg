@@ -70,7 +70,7 @@ Optional map of **technology stack → version**, declaring which frameworks (an
 
 Stack names are an **open vocabulary** — adding a framework never requires an engine release. The known stack→package mappings (e.g. `nextjs` → `next`, `angular` → `@angular/core`) are used for auto-detection; unknown names map to themselves. A version declared here is never persisted with a confidence level — confidence is a property of *detection* and is surfaced live by `bluetemberg detect`.
 
-Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory). `llm/` remains the source of truth; this field only routes existing content.
+`bluetemberg init` populates this field via a **detect-then-confirm** step (detected stacks pre-checked, with free-text adds), or pass `--stacks` in headless runs; you can also edit it by hand. Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory). `llm/` remains the source of truth; this field only routes existing content.
 
 ### `extends`
 
