@@ -36,6 +36,8 @@ function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
       return ['devops'];
     case 'agentic':
       return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
+    case 'design-engineer':
+      return ['design-engineer'];
     case 'custom':
       return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
   }

@@ -11,6 +11,7 @@ export const INIT_TEAM_PROFILES: readonly TeamProfile[] = [
   'devops',
   'pure-infra',
   'agentic',
+  'design-engineer',
   'custom',
 ];
 

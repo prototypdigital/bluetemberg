@@ -104,6 +104,63 @@ describe('catalog-derived preset resolution', () => {
     expect(resolveSkills(catalogWith([]))).toHaveLength(0);
   });
 
+  it('resolves the design-engineer overlays against the catalog with their profile tag', () => {
+    const catalog = catalogWith([
+      {
+        name: 'bluetemberg-rules-design-craft',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: false,
+        profiles: ['design-engineer'],
+        rules: ['anti-stock-defaults', 'banned-moves-first'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-agents-design-engineer',
+        version: '0.1.0',
+        description: '',
+        kind: 'agents',
+        universal: false,
+        profiles: ['design-engineer'],
+        agents: ['design-engineer'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-skills-figma-to-code',
+        version: '0.1.0',
+        description: '',
+        kind: 'skills',
+        universal: false,
+        profiles: ['design-engineer'],
+        skills: ['figma-to-code'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-skills-design-critique',
+        version: '0.1.0',
+        description: '',
+        kind: 'skills',
+        universal: false,
+        profiles: ['design-engineer'],
+        skills: ['design-critique'],
+        preview: '',
+      },
+    ]);
+
+    const craft = resolveRuleCollections(catalog).find((c) => c.id === 'design-craft');
+    expect(craft?.tags).toEqual(['design-engineer']);
+    expect(craft?.rules).toEqual(['anti-stock-defaults', 'banned-moves-first']);
+
+    const agent = resolveAgents(catalog).find((a) => a.id === 'design-engineer');
+    expect(agent?.tags).toEqual(['design-engineer']);
+    expect(agent?.default).toBe(true); // curated flagship default
+
+    const skills = resolveSkills(catalog);
+    expect(skills.find((s) => s.id === 'figma-to-code')?.default).toBe(true);
+    expect(skills.find((s) => s.id === 'design-critique')?.default).toBe(false);
+  });
+
   it('resolvers skip overlays when their pack is missing from a partial catalog', () => {
     // Catalog has git pack but not typescript pack
     const catalog = catalogWith([

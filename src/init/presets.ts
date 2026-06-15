@@ -26,6 +26,11 @@ export const TEAM_PROFILES: TeamProfileChoice[] = [
     name: 'AI / Agentic Workflow',
     description: 'Context engineering, agent memory, sub-agent design for LLM-heavy projects',
   },
+  {
+    id: 'design-engineer',
+    name: 'Design Engineer',
+    description: 'Anti-stock UI craft, design-to-code, visual direction & critique',
+  },
   { id: 'custom', name: 'Custom', description: 'Pick everything individually' },
 ];
 
@@ -70,6 +75,13 @@ export const RULE_COLLECTION_OVERLAYS: RuleCollectionOverlay[] = [
     name: 'Next.js',
     packageName: 'bluetemberg-rules-nextjs',
     description: 'Next.js env var safety, data fetching, image optimization, metadata, server components',
+  },
+  {
+    id: 'design-craft',
+    name: 'Design craft',
+    packageName: 'bluetemberg-rules-design-craft',
+    description:
+      'Anti-stock defaults, banned moves, references over moods, tokens before components, every state',
   },
   {
     id: 'context-engineering',
@@ -138,6 +150,13 @@ export const AGENT_OVERLAYS: PresetOverlay[] = [
     description: 'WCAG 2.2 A/AA audit and remediation',
     default: false,
     packageName: 'bluetemberg-agents-a11y-specialist',
+  },
+  {
+    id: 'design-engineer',
+    name: 'Design engineer',
+    description: 'Anti-stock UI build to a reference; holds tokens and banned moves; catches drift',
+    default: true,
+    packageName: 'bluetemberg-agents-design-engineer',
   },
   {
     id: 'security-specialist',
@@ -222,6 +241,27 @@ export const SKILL_OVERLAYS: PresetOverlay[] = [
     description: 'Component composition, hook extraction, and state co-location for React projects',
     default: false,
     packageName: 'bluetemberg-skills-react-patterns',
+  },
+  {
+    id: 'figma-to-code',
+    name: 'Figma to code',
+    description: 'Section-by-section design-to-code loop with prompt stacking and drift checks',
+    default: true,
+    packageName: 'bluetemberg-skills-figma-to-code',
+  },
+  {
+    id: 'design-critique',
+    name: 'Design critique',
+    description: 'Multi-lens critique, hostile QA, and an impact-ranked fix list',
+    default: false,
+    packageName: 'bluetemberg-skills-design-critique',
+  },
+  {
+    id: 'visual-direction',
+    name: 'Visual direction',
+    description: 'Explore and lock a visual direction; produce banned moves and a Design System Document',
+    default: false,
+    packageName: 'bluetemberg-skills-visual-direction',
   },
   {
     id: 'code-review',
@@ -402,6 +442,12 @@ export const MARKETPLACE_PLUGIN_PACKS: MarketplacePluginPackChoice[] = [
     displayName: 'DevOps / Platform Engineer',
     description: 'Skills and agents for CI/CD, containers, and infrastructure',
     profiles: ['devops', 'pure-infra'],
+  },
+  {
+    id: 'design-engineer',
+    displayName: 'Design Engineer',
+    description: 'Anti-stock UI craft — design-to-code, visual direction, and design critique',
+    profiles: ['design-engineer'],
   },
 ];
 
