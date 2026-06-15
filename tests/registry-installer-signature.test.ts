@@ -47,7 +47,11 @@ function signPayload(payload: string): string {
 const FAKE_TARBALL_BYTES = Buffer.from('fake-tarball');
 const FAKE_INTEGRITY = `sha512-${createHash('sha512').update(FAKE_TARBALL_BYTES).digest('base64')}`;
 
-function makeMetadata(name: string, version: string, opts: { signed?: boolean; integrity?: string } = {}): NpmPackageMetadata {
+function makeMetadata(
+  name: string,
+  version: string,
+  opts: { signed?: boolean; integrity?: string } = {},
+): NpmPackageMetadata {
   const integrity = opts.integrity ?? FAKE_INTEGRITY;
   const signed = opts.signed ?? true;
   const signatures = signed
@@ -138,9 +142,7 @@ describe('installPackVersion — signature verification', () => {
     globalThis.fetch = buildFetchMock();
     const metadata = makeMetadata('my-pack', '1.0.0', { signed: false });
 
-    await expect(installPackVersion(root, metadata, '1.0.0')).rejects.toThrow(
-      /has no registry signature/,
-    );
+    await expect(installPackVersion(root, metadata, '1.0.0')).rejects.toThrow(/has no registry signature/);
   });
 
   it('rejects install when signature verification fails (bad sig)', async () => {

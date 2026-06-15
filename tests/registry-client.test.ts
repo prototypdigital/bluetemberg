@@ -389,12 +389,24 @@ describe('verifyRegistrySignature', () => {
 
   it('returns verified: false for a bad signature', () => {
     const sig = Buffer.from('invalidsignature').toString('base64');
-    const result = verifyRegistrySignature('pack', '1.0.0', 'sha512-abc', [{ keyid: testKeyid, sig }], [testKey]);
+    const result = verifyRegistrySignature(
+      'pack',
+      '1.0.0',
+      'sha512-abc',
+      [{ keyid: testKeyid, sig }],
+      [testKey],
+    );
     expect(result.verified).toBe(false);
   });
 
   it('returns verified: false when no matching keyid', () => {
-    const result = verifyRegistrySignature('pack', '1.0.0', 'sha512-abc', [{ keyid: 'unknown', sig: 'aGVsbG8=' }], [testKey]);
+    const result = verifyRegistrySignature(
+      'pack',
+      '1.0.0',
+      'sha512-abc',
+      [{ keyid: 'unknown', sig: 'aGVsbG8=' }],
+      [testKey],
+    );
     expect(result.verified).toBe(false);
   });
 

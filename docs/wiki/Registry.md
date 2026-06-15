@@ -241,7 +241,7 @@ Every pack install goes through two layers of verification:
 
 The default npm registry (`registry.npmjs.org`) always signs packages. Bluetemberg enforces this: an unsigned package from the default registry is rejected as a potential supply-chain attack, even if the integrity hash matches.
 
-For **self-hosted or private registries** that do not produce signatures, pass `--skip-signature-verification` to `bluetemberg install`/`bluetemberg add`, or set `skipSignatureVerification: true` in the programmatic API. This flag has no effect against the default registry.
+For **self-hosted or private registries** that do not produce signatures, pass `--skip-signature-verification` to `bluetemberg verify`. This flag has no effect against the default registry.
 
 Run `bluetemberg verify` at any time to re-check all installed packs without re-downloading them.
 

@@ -1,5 +1,5 @@
 import { createHash, createVerify } from 'node:crypto';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, readFileSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Readable, Transform } from 'node:stream';
 import type { TransformCallback } from 'node:stream';
@@ -140,6 +140,12 @@ export async function downloadTarball(
  */
 export function verifyIntegrity(integrity: string, actualIntegrity: string): boolean {
   return integrity === actualIntegrity;
+}
+
+/** Compute the sha512 SRI integrity hash of a file on disk. */
+export function computeFileIntegrity(filePath: string): string {
+  const data = readFileSync(filePath);
+  return `sha512-${createHash('sha512').update(data).digest('base64')}`;
 }
 
 /**
