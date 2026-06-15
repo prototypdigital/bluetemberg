@@ -231,6 +231,7 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     platforms: answers.platforms,
     source: 'llm',
     ...(answers.teamProfile ? { profile: answers.teamProfile } : {}),
+    ...(answers.stacks && Object.keys(answers.stacks).length > 0 ? { stacks: answers.stacks } : {}),
     targets,
     ...(answers.platforms.includes(MARKETPLACE_PLATFORM)
       ? { marketplace: buildMarketplaceConfig(answers) }

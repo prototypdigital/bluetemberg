@@ -58,6 +58,22 @@ describe('parseInitAnswersJson', () => {
       parseInitAnswersJson(JSON.stringify({ ...minimalCollections, platforms: ['unknown'] })),
     ).toThrow(/unknown platform/);
   });
+
+  it('parses an optional stacks map', () => {
+    const rec = { ...minimalCollections, stacks: { payload: '3.4.1', nextjs: 'auto' } };
+    const got = parseInitAnswersJson(JSON.stringify(rec));
+    expect(got.stacks).toEqual({ payload: '3.4.1', nextjs: 'auto' });
+  });
+
+  it('leaves stacks undefined when absent', () => {
+    const got = parseInitAnswersJson(JSON.stringify(minimalCollections));
+    expect(got.stacks).toBeUndefined();
+  });
+
+  it('rejects a stacks map with a non-string version', () => {
+    const rec = { ...minimalCollections, stacks: { payload: 3 } };
+    expect(() => parseInitAnswersJson(JSON.stringify(rec))).toThrow(/stacks\.payload/);
+  });
 });
 
 describe('assertInitAnswers', () => {
@@ -140,6 +156,16 @@ describe('finalizeNonInteractiveAnswers', () => {
     expect(got.ruleSource).toBe('none');
     expect(got.rules).toEqual([]);
     expect(got.ruleCollections).toEqual([]);
+  });
+
+  it('threads a --stacks override through (baseline pins no stacks)', () => {
+    const baseline = finalizeNonInteractiveAnswers('fullstack', join('/tmp', 'proj'), {});
+    expect(baseline.stacks).toBeUndefined();
+
+    const got = finalizeNonInteractiveAnswers('fullstack', join('/tmp', 'proj'), {
+      stacks: { payload: '3.4.1', nextjs: 'auto' },
+    });
+    expect(got.stacks).toEqual({ payload: '3.4.1', nextjs: 'auto' });
   });
 });
 

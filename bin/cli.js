@@ -38,6 +38,22 @@ function csvList(value) {
     .filter(Boolean);
 }
 
+/**
+ * Parse a `--stacks` CSV into a stack → version map. Each token is `name` (→ `"auto"`) or
+ * `name@version` (e.g. `payload@3.4.1`, `nextjs@auto`).
+ */
+function csvStacks(value) {
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const token of csvList(value)) {
+    const at = token.indexOf('@');
+    const name = at === -1 ? token : token.slice(0, at);
+    const version = at === -1 ? 'auto' : token.slice(at + 1) || 'auto';
+    if (name) out[name] = version;
+  }
+  return out;
+}
+
 /** @typedef {Record<string, unknown>} InitPartial */
 
 /**
@@ -75,6 +91,7 @@ function strayHeadlessOptsWithoutNiOrConfig(opts) {
   checkCsv(opts.skills, '`--skills`');
   checkCsv(opts.mcpServers, '`--mcp-servers`');
   checkCsv(opts.sources, '`--sources`');
+  checkCsv(opts.stacks, '`--stacks`');
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
@@ -111,6 +128,7 @@ function assertNoInitFlagsBundledWithConfig(opts) {
   checkBundle(opts.skills, '--skills');
   checkBundle(opts.mcpServers, '--mcp-servers');
   checkBundle(opts.sources, '--sources');
+  checkBundle(opts.stacks, '--stacks');
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
@@ -188,6 +206,8 @@ function buildNiOverrides(opts) {
 
   if ((opts.sources ?? '') !== '') ov.externalSources = csvList(String(opts.sources));
 
+  if ((opts.stacks ?? '') !== '') ov.stacks = csvStacks(String(opts.stacks));
+
   if (argvHas('--omit-agents')) ov.includeAgents = false;
   if (argvHas('--omit-skills')) ov.includeSkills = false;
   if (argvHas('--omit-mcp')) ov.includeMcp = false;
@@ -222,6 +242,7 @@ program
   .option('--skills <csv>')
   .option('--mcp-servers <csv>')
   .option('--sources <csv>', 'External source specs (comma-separated, e.g. "github:owner/repo#HEAD:rules")')
+  .option('--stacks <csv>', 'Stacks to manage (e.g. "payload@3.4.1,nextjs@auto"); bare name → "auto"')
   .option('--omit-agents')
   .option('--omit-skills')
   .option('--omit-mcp')

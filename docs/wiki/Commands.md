@@ -22,6 +22,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--rule-collections <csv>` | Registry collection ids to include (e.g. `typescript,git`). Applies when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
 | `--sources <csv>` | External source specs (e.g. `github:owner/repo#HEAD:rules`, `prpm:name`, `cursor-directory:slug`), written to `llm/rule-sources.json`. `--non-interactive` without `--config`. |
+| `--stacks <csv>` | Technology stacks to manage, written to config `stacks` (e.g. `payload@3.4.1,nextjs@auto`; a bare name → `auto`). `--non-interactive` without `--config`. |
 | `--omit-agents`, `--omit-skills`, `--omit-mcp` | Shortcut booleans (`--non-interactive` only). |
 | `--silent` | Hide progress/success logs and forward silence to initial `sync` (still exit non-zero on failure). **Requires** `--non-interactive` **or** `--config`. |
 
@@ -34,7 +35,7 @@ From the repo root, `npm run build` must have produced `dist/` first — otherwi
 - **Interactive (default)** — Steps 1–3 are prompts:
   1. Pick a **team profile** (sets smart defaults for everything below).
   2. Enter project name, description, and package manager.
-  3. Pick platforms, rules/agents/skills/MCP, and (optionally) external rule sources (per your choices).
+  3. Pick platforms; **confirm detected stacks** (auto-detected from the project and pre-checked — drive which rules apply by version, written to config `stacks`; add undetected ones free-text); rules/agents/skills/MCP, and (optionally) external rule sources.
 - **`--non-interactive`** — Skips prompts 1–3; defaults come from **`--profile`** (default `fullstack`) plus any override flags you pass.
 - **`--config <file>`** — Skips prompts 1–3; answers come entirely from validated JSON (`InitAnswers`).
 
@@ -59,7 +60,7 @@ npx bluetemberg init ./my-project
 # Headless
 npx bluetemberg init --non-interactive --profile devops --omit-mcp
 npx bluetemberg init --non-interactive --profile pure-infra --omit-mcp --silent
-npx bluetemberg init --non-interactive --profile devops --silent
+npx bluetemberg init --non-interactive --profile fullstack --stacks "payload@3.4.1,nextjs@auto"
 npx bluetemberg init --config ./bluetemberg.init.json ./my-project
 ```
 

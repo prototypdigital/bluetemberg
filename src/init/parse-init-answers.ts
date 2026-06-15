@@ -86,6 +86,24 @@ function parseGithubConfig(val: unknown): GitHubScaffoldConfig | undefined {
   };
 }
 
+/** Parse the optional `stacks` map (stack name → version string). Absent → undefined. */
+function parseStacks(val: unknown): Record<string, string> | undefined {
+  if (val === undefined) return undefined;
+  if (!isRecord(val)) {
+    throw new Error('Init answers invalid: "stacks" must be an object of stack name → version string.');
+  }
+  const out: Record<string, string> = {};
+  for (const [name, version] of Object.entries(val)) {
+    if (typeof version !== 'string') {
+      throw new Error(
+        `Init answers invalid: stacks.${name} must be a version string (e.g. "3.4.1" or "auto").`,
+      );
+    }
+    out[name] = version;
+  }
+  return out;
+}
+
 /** Parse and validate `--config` JSON into `InitAnswers`. */
 export function assertInitAnswers(record: unknown): InitAnswers {
   if (!isRecord(record)) throw new Error('Init answers invalid: expected a JSON object.');
@@ -110,6 +128,7 @@ export function assertInitAnswers(record: unknown): InitAnswers {
       ? (record.marketplacePlugins as string[])
       : [],
     externalSources: Array.isArray(record.externalSources) ? (record.externalSources as string[]) : [],
+    stacks: parseStacks(record.stacks),
     github: parseGithubConfig(record.github),
   };
 }

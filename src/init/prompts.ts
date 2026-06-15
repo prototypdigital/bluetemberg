@@ -13,6 +13,7 @@ import {
   GITHUB_FEATURE_PRESETS,
 } from './presets.js';
 import { loadCatalogSync } from '../catalog/index.js';
+import { detectStacks } from '../stacks/detect.js';
 import type {
   InitAnswers,
   Platform,
@@ -41,6 +42,47 @@ function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
     case 'custom':
       return MARKETPLACE_PLUGIN_PACKS.map((p) => p.id);
   }
+}
+
+/**
+ * Detect-then-confirm stack step (epic §3.1): auto-detect the project's stacks, pre-check the
+ * detected ones (pinning their resolved version), and allow free-text adds for stacks not yet
+ * installed (recorded as `"auto"` → re-detected each sync). Stacks drive which RULES apply by
+ * version. Returns the map to write under `bluetemberg.config.json` `stacks` (empty = omit the field).
+ */
+async function promptStacks(targetDir: string): Promise<Record<string, string>> {
+  const detected = detectStacks(targetDir);
+  const stacks: Record<string, string> = {};
+
+  const detectedNames = [...detected.keys()];
+  if (detectedNames.length > 0) {
+    const selected = await checkbox<string>({
+      message: 'Stacks to manage (drive which RULES apply, by version):',
+      choices: detectedNames.map((name) => {
+        const det = detected.get(name)!;
+        const lowConfidence = det.confidence === 'coerced' || det.confidence === 'unknown';
+        return {
+          value: name,
+          name: `${name} ${det.version}${lowConfidence ? '  (low confidence — pin to be sure)' : ''}`,
+          checked: true,
+        };
+      }),
+    });
+    for (const name of selected) stacks[name] = detected.get(name)!.version;
+  }
+
+  const extra = await input({
+    message: 'Add other stacks not auto-detected (comma-separated names, optional):',
+    default: '',
+  });
+  for (const name of extra
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    if (!(name in stacks)) stacks[name] = 'auto';
+  }
+
+  return stacks;
 }
 
 export async function runPrompts(targetDir: string): Promise<InitAnswers> {
@@ -100,6 +142,8 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
       })),
     });
   }
+
+  const stacks = await promptStacks(targetDir);
 
   const ruleSource = await select<RuleSource>({
     message: 'Rule source:',
@@ -233,6 +277,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     marketplaceRemote,
     marketplacePlugins,
     externalSources,
+    ...(Object.keys(stacks).length > 0 ? { stacks } : {}),
     github,
   };
 }

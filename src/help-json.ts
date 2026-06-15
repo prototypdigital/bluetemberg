@@ -96,6 +96,12 @@ export function getMachineReadableHelp(): Record<string, unknown> {
             'External source specs (comma-separated, e.g. "github:owner/repo#HEAD:rules"). Written to llm/rule-sources.json.',
           requires: '--non-interactive without --config',
         },
+        {
+          long: '--stacks <csv>',
+          description:
+            'Technology stacks to manage, written to config "stacks" (e.g. "payload@3.4.1,nextjs@auto"; bare name → "auto").',
+          requires: '--non-interactive without --config',
+        },
         { long: '--omit-agents', requires: '--non-interactive without --config' },
         { long: '--omit-skills', requires: '--non-interactive without --config' },
         { long: '--omit-mcp', requires: '--non-interactive without --config' },
@@ -115,6 +121,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         'includeMcp',
         'mcpServers',
         'externalSources',
+        'stacks',
       ],
     },
     stacks: {

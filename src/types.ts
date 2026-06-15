@@ -203,6 +203,12 @@ export interface InitAnswers {
   guardrails?: string[];
   /** External source spec strings (e.g. `github:owner/repo#HEAD:rules`). Written to `llm/rule-sources.json`. */
   externalSources?: string[];
+  /**
+   * Technology stacks to manage, written to `bluetemberg.config.json` `stacks`. Map of stack name →
+   * version (a detected version is pinned; `"auto"` re-detects each sync). Empty/absent → no `stacks`
+   * field is written (sync still auto-detects from the project). See {@link BlueprintConfig.stacks}.
+   */
+  stacks?: Record<Stack, string>;
   /** GitHub repository file scaffolding (CI, security, templates). Omitted = no GitHub files generated. */
   github?: GitHubScaffoldConfig;
 }
