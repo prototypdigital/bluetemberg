@@ -61,10 +61,41 @@ function assertCatalog(data: unknown): asserts data is Catalog {
   }
 }
 
+const ITEM_KINDS = ['rules', 'agents', 'skills', 'guardrails'] as const;
+
+/**
+ * Coerce every pack's item arrays to string ids. Catalog items arrive either as plain id strings
+ * or as `{ name, description }` objects — the packs repo publishes the richer object shape for its
+ * wiki/site, but the engine only consumes ids (marketplace profile map, preset resolution).
+ * Normalizing at every load boundary keeps downstream consumers shape-agnostic.
+ */
+function normalizeCatalogItems(data: unknown): void {
+  if (!data || typeof data !== 'object') return;
+  const packs = (data as { packs?: unknown }).packs;
+  if (!Array.isArray(packs)) return;
+  for (const pack of packs) {
+    if (!pack || typeof pack !== 'object') continue;
+    const record = pack as Record<string, unknown>;
+    for (const kind of ITEM_KINDS) {
+      const items = record[kind];
+      if (!Array.isArray(items)) continue;
+      // Items are either `string` ids or `{ name }` objects; reduce to id and drop malformed entries.
+      record[kind] = items
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (!item || typeof item !== 'object') return undefined;
+          return (item as { name?: unknown }).name;
+        })
+        .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    }
+  }
+}
+
 /** The catalog snapshot committed into the package — the offline floor for every command. */
 function loadSnapshot(): Catalog {
   const raw = readFileSync(new URL('./catalog.json', import.meta.url), 'utf8');
   const data = JSON.parse(raw) as unknown;
+  normalizeCatalogItems(data);
   assertCatalog(data);
   return data;
 }
@@ -75,6 +106,7 @@ function readCache(root: string, maxAgeMs?: number): Catalog | null {
   if (!existsSync(cachePath)) return null;
   try {
     const data = JSON.parse(readFileSync(cachePath, 'utf8')) as unknown;
+    normalizeCatalogItems(data);
     assertCatalog(data);
     if (maxAgeMs === undefined) return data;
     const generatedTime = new Date(data.generated).getTime();
@@ -103,6 +135,7 @@ export async function fetchCatalog(): Promise<Catalog> {
     throw new Error(`Failed to fetch catalog: ${res.status} ${res.statusText}`);
   }
   const data = (await res.json()) as unknown;
+  normalizeCatalogItems(data);
   assertCatalog(data);
   return data;
 }

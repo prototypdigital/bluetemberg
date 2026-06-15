@@ -36,5 +36,18 @@ for (const pack of json.packs) {
   }
 }
 
+// Reduce item arrays to string ids — the engine consumes ids, not the packs repo's richer
+// `{ name, description }` objects. Keeps the committed snapshot compact and shape-stable.
+const ITEM_KINDS = ['rules', 'agents', 'skills', 'guardrails'];
+for (const pack of json.packs) {
+  for (const kind of ITEM_KINDS) {
+    if (Array.isArray(pack[kind])) {
+      pack[kind] = pack[kind]
+        .map((item) => (typeof item === 'string' ? item : item?.name))
+        .filter((id) => typeof id === 'string' && id.length > 0);
+    }
+  }
+}
+
 writeFileSync(OUT, JSON.stringify(json, null, 2) + '\n');
 console.log(`Wrote ${json.packs.length} packs to src/catalog/catalog.json (generated ${json.generated}).`);
