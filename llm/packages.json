@@ -1,5 +1,7 @@
 {
   "packages": {
+    "bluetemberg-rules-agent-memory": "^0.1.0",
+    "bluetemberg-rules-context-engineering": "^0.2.0",
     "bluetemberg-rules-git": "^0.1.0",
     "bluetemberg-rules-typescript": "^0.1.0",
     "bluetemberg-rules-docs": "^0.2.0",

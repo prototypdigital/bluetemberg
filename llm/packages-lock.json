@@ -60,6 +60,18 @@
       "resolved": "https://registry.npmjs.org/bluetemberg-skills-workspace-hygiene/-/bluetemberg-skills-workspace-hygiene-0.1.0.tgz",
       "integrity": "sha512-29bnHFEK/0Ewqu7wdEhjSJkq5cSBr8IiPGN2f5RFrlbiJCAod5e5EH8lLz7hPYZksm657fI4umYKIW4Q1uD71g==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-rules-agent-memory": {
+      "version": "0.1.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-agent-memory/-/bluetemberg-rules-agent-memory-0.1.0.tgz",
+      "integrity": "sha512-GGa0/t8Ug2yp6aljPCmkFUqo0MAhsRibmXuRjgkMzr4wbNd2e+kEQPrQ9AV2QRmgZZUI8t4VHNpqAvGXNQtf5A==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-rules-context-engineering": {
+      "version": "0.2.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-context-engineering/-/bluetemberg-rules-context-engineering-0.2.0.tgz",
+      "integrity": "sha512-VKG7vIYGfq8Aje9JoZAszwnllLzMplih4xOql30vlb3L0X/L9j2hj9iEoKtGm3gF0z27AncgJWqAWoP3iQ3R5Q==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     }
   }
 }
