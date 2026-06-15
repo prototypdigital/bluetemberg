@@ -1,0 +1,104 @@
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { buildCoverageReport, buildDetectReport, buildStacksList } from '../stacks/report.js';
+
+/**
+ * First-party MCP server — exposes Bluetemberg's stack detection + coverage model as tools so any
+ * agent can query version-correct guidance structurally (the read side of the `--json` flags, one
+ * implementation, two surfaces). Read-only: it reports what the project uses and what guidance
+ * exists, and never writes. The gated `scaffold_from_gap` tool belongs to the parked create-loop
+ * (M7) and is intentionally absent.
+ */
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+    additionalProperties: false;
+  };
+}
+
+export const STACKS_MCP_TOOLS: ToolDefinition[] = [
+  {
+    name: 'bluetemberg_detect_stacks',
+    description:
+      "Detect the project's technology stacks and resolved versions, each with detection confidence " +
+      'and coverage. Returns { detected, gaps, warnings }. Call once at session start to self-select ' +
+      'version-correct guidance.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'bluetemberg_query_coverage',
+    description:
+      'Ask whether version-correct guidance exists for a stack. Returns { query, result } with ' +
+      '`known`, `covered`, and the most-specific matched range.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stack: { type: 'string', description: 'Stack name, e.g. "payload" or "nextjs".' },
+        version: { type: 'string', description: 'Optional version to check, e.g. "3.4.0".' },
+      },
+      required: ['stack'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'bluetemberg_list_stacks',
+    description:
+      "List the live stack registry (catalog-declared ∪ detected) with each stack's covered ranges, " +
+      'detected version, and origins.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+];
+
+/**
+ * Run one stack tool by name against `root`. Pure (reads the project, returns data) so it can be
+ * unit-tested without a transport. Throws on an unknown tool or a missing required argument.
+ */
+export function callStacksTool(root: string, name: string, args: Record<string, unknown>): unknown {
+  switch (name) {
+    case 'bluetemberg_detect_stacks':
+      return buildDetectReport(root);
+    case 'bluetemberg_list_stacks':
+      return buildStacksList(root);
+    case 'bluetemberg_query_coverage': {
+      const stack = typeof args.stack === 'string' ? args.stack.trim() : '';
+      if (!stack) throw new Error('bluetemberg_query_coverage requires a non-empty "stack" argument');
+      const version =
+        typeof args.version === 'string' && args.version.trim() ? args.version.trim() : undefined;
+      return buildCoverageReport(root, stack, version);
+    }
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
+}
+
+/** Build the MCP server with the stack tools wired to `root`. Transport-agnostic (see {@link serveStdio}). */
+export function createStacksMcpServer(root: string, version: string): Server {
+  const server = new Server({ name: 'bluetemberg', version }, { capabilities: { tools: {} } });
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: STACKS_MCP_TOOLS }));
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    try {
+      const data = callStacksTool(root, name, args ?? {});
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true };
+    }
+  });
+
+  return server;
+}
+
+/** Serve the stack tools over stdio. Resolves once connected; the transport keeps the process alive. */
+export async function serveStdio(root: string, version: string): Promise<void> {
+  const server = createStacksMcpServer(root, version);
+  await server.connect(new StdioServerTransport());
+}
