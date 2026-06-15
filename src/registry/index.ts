@@ -531,29 +531,55 @@ function checkPackCachePresence(dest: string, name: string, version: string): Pa
 }
 
 /**
- * Re-hash the cached tarball if present; fall back to the marker file for packs
- * installed before tarball preservation was added. This ensures local tampering
- * of extracted files is detected when the tarball is available.
+ * Re-hash the cached tarball when present; for legacy (unsigned) entries without a
+ * tarball, fall back to the marker file. IO errors are caught and returned as a
+ * result so one corrupt pack cannot abort the whole verify loop.
+ *
+ * @param isSigned - true when the lockfile has a keyid. Signed entries must have
+ *   the tarball — marker fallback is disallowed because it would let an attacker
+ *   tamper with extracted files while leaving the marker intact.
  */
 function checkPackIntegrity(
   dest: string,
   name: string,
   version: string,
   expectedIntegrity: string,
+  isSigned: boolean,
 ): PackVerifyResult | null {
   const tarballPath = join(dest, '.bluetemberg-pack.tgz');
-  const actualIntegrity = existsSync(tarballPath)
-    ? computeFileIntegrity(tarballPath)
-    : readFileSync(join(dest, '.bluetemberg-integrity'), 'utf8').trim();
+  const tarballExists = existsSync(tarballPath);
 
-  if (actualIntegrity !== expectedIntegrity) {
+  if (isSigned && !tarballExists) {
+    return {
+      name,
+      version,
+      status: 'missing',
+      message: 'Preserved tarball not in cache — re-install to restore verifiable artifact',
+    };
+  }
+
+  try {
+    const actualIntegrity = tarballExists
+      ? computeFileIntegrity(tarballPath)
+      : readFileSync(join(dest, '.bluetemberg-integrity'), 'utf8').trim();
+
+    if (actualIntegrity !== expectedIntegrity) {
+      return {
+        name,
+        version,
+        status: 'integrity-mismatch',
+        message: `Expected ${expectedIntegrity}, found ${actualIntegrity}`,
+      };
+    }
+  } catch {
     return {
       name,
       version,
       status: 'integrity-mismatch',
-      message: `Expected ${expectedIntegrity}, found ${actualIntegrity}`,
+      message: 'Failed to read cached artifact for integrity check',
     };
   }
+
   return null;
 }
 
@@ -648,7 +674,7 @@ export async function verify(root: string, options: RegistryVerifyOptions = {}):
       continue;
     }
 
-    const integrityResult = checkPackIntegrity(dest, name, version, integrity);
+    const integrityResult = checkPackIntegrity(dest, name, version, integrity, !!keyid);
     if (integrityResult) {
       results.push(integrityResult);
       log(`  ✗ ${name}@${version} — integrity mismatch`);
