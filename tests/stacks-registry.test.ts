@@ -69,4 +69,10 @@ describe('queryCoverage', () => {
     expect(result.known).toBe(true);
     expect(result.origins).toContain('detected');
   });
+
+  it('a detected-only stack with no covering pack is a gap (known but not covered)', () => {
+    const reg = buildStackRegistry(catalogWith([]));
+    registerStack(reg, 'astro', '4.0.0', 'detected');
+    expect(queryCoverage(reg, 'astro')).toMatchObject({ known: true, covered: false });
+  });
 });

@@ -87,7 +87,9 @@ export interface CoverageResult {
 }
 
 /**
- * Answer "do we have coverage for (stack, version)?". With no version, `covered` mirrors `known`.
+ * Answer "do we have coverage for (stack, version)?". With no version, `covered` is true only
+ * when at least one covered range exists — a stack that is merely *known* (detected/registered
+ * locally) but has no covering pack is `known: true, covered: false`, i.e. a coverage gap.
  * With a version, picks the most-specific satisfied range (deterministic, not declaration order).
  */
 export function queryCoverage(registry: StackRegistry, stack: Stack, version?: string): CoverageResult {

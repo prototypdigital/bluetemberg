@@ -26,9 +26,14 @@ export interface DetectedStack {
 
 export type DetectedStacks = Map<string, DetectedStack>;
 
-/** True when `range` is a valid semver range (or the wildcard `"*"`/empty = any version). */
+/**
+ * True when `range` is a valid semver range (or the wildcard `"*"`/empty = any version).
+ * Note: the `"auto"` sentinel is intentionally NOT valid here — it belongs only in blueprint
+ * `stacks` detection config, never in a rule's `stacks:` constraint (where it would silently
+ * become match-all).
+ */
 export function isValidStackRange(range: string): boolean {
-  if (range === '' || range === '*' || range === 'auto') return true;
+  if (range === '' || range === '*') return true;
   return validRange(range) !== null;
 }
 
@@ -37,7 +42,7 @@ export function isValidStackRange(range: string): boolean {
  * canary/rc matches its major. An invalid range returns false (never an accidental match).
  */
 export function versionSatisfies(version: string, range: string): boolean {
-  if (range === '' || range === '*' || range === 'auto') return true;
+  if (range === '' || range === '*') return true;
   if (validRange(range) === null) return false;
   const v = coerce(version, { includePrerelease: true });
   if (!v) return false;

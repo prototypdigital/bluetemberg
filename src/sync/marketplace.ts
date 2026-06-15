@@ -122,13 +122,19 @@ function resolveProfiles(
 function readFrontmatterStacks(data: Record<string, unknown>): StackConstraint | undefined {
   if (!Object.prototype.hasOwnProperty.call(data, 'stacks')) return undefined;
   const value = data.stacks;
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  // Malformed (non-object) frontmatter falls back to catalog gating rather than widening the file
+  // to stack-agnostic — otherwise a typo'd `stacks:` would re-leak a pack rule into every bundle.
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value as Record<string, unknown>);
   const out: StackConstraint = {};
-  for (const [name, range] of Object.entries(value as Record<string, unknown>)) {
+  for (const [name, range] of entries) {
     if (typeof name !== 'string' || typeof range !== 'string') continue;
     if (!isValidStackRange(range)) continue;
     out[name] = range;
   }
+  // Entries were declared but every one was invalid → don't silently widen to agnostic; fall back
+  // to catalog gating. An intentionally empty `stacks: {}` (no entries) stays explicitly agnostic.
+  if (entries.length > 0 && Object.keys(out).length === 0) return undefined;
   return out;
 }
 

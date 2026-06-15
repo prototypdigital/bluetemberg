@@ -70,6 +70,48 @@ describe('marketplace stack gating (the leak fix)', () => {
     expect(existsSync(join(root, 'plugins/backend/rules/payload-collections.md'))).toBe(false);
   });
 
+  it('malformed `stacks` frontmatter falls back to catalog gating (no silent widening)', async () => {
+    // A pack rule whose catalog entry declares stacks: ["payload"], but whose frontmatter `stacks`
+    // is malformed (a string, not a map). It must stay gated to payload, NOT leak into the agnostic
+    // bundle as if it were stack-agnostic.
+    mkdirSync(join(root, '.bluetemberg'), { recursive: true });
+    writeFileSync(
+      join(root, '.bluetemberg', 'catalog.json'),
+      JSON.stringify({
+        generated: '2026-06-15T00:00:00.000Z',
+        packs: [
+          {
+            name: 'bluetemberg-rules-payload',
+            version: '0.1.0',
+            description: '',
+            kind: 'rules',
+            universal: false,
+            profiles: [],
+            stacks: ['payload'],
+            rules: ['payload-thing'],
+            preview: '',
+          },
+        ],
+      }),
+    );
+    writeRule(root, 'payload-thing', 'stacks: "payload"'); // malformed: string, not a map
+
+    const config: BlueprintConfig = {
+      ...BASE_CONFIG,
+      marketplace: {
+        plugins: [
+          { name: 'agnostic' }, // no profiles, no stacks
+          { name: 'payload-bundle', stacks: ['payload'] },
+        ],
+      },
+    };
+    await sync(root, { config, silent: true });
+
+    // Catalog fallback keeps it gated to payload — it must NOT widen into the agnostic bundle.
+    expect(existsSync(join(root, 'plugins/agnostic/rules/payload-thing.md'))).toBe(false);
+    expect(existsSync(join(root, 'plugins/payload-bundle/rules/payload-thing.md'))).toBe(true);
+  });
+
   it('a stack bundle only accepts the stacks it opts into', async () => {
     writeRule(root, 'payload-collections', 'stacks:\n  payload: ">=3 <4"');
     writeRule(root, 'next-rsc', 'stacks:\n  nextjs: ">=13.4"');

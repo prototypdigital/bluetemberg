@@ -17,13 +17,14 @@ function detected(entries: Record<string, string>): DetectedStacks {
 }
 
 describe('isValidStackRange', () => {
-  it('accepts valid semver ranges and the wildcard/auto sentinels', () => {
-    for (const r of ['>=3 <4', '^17.0.0', '13.4 - 16', '1.x', '*', '', 'auto']) {
+  it('accepts valid semver ranges and the wildcard/empty sentinels', () => {
+    for (const r of ['>=3 <4', '^17.0.0', '13.4 - 16', '1.x', '*', '']) {
       expect(isValidStackRange(r)).toBe(true);
     }
   });
-  it('rejects garbage ranges', () => {
-    for (const r of ['not-a-range', '>=', '3..4']) expect(isValidStackRange(r)).toBe(false);
+  it('rejects garbage ranges and the config-only "auto" sentinel', () => {
+    // "auto" is valid only in blueprint detection config, never as a rule constraint range.
+    for (const r of ['not-a-range', '>=', '3..4', 'auto']) expect(isValidStackRange(r)).toBe(false);
   });
 });
 
