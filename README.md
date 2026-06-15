@@ -226,7 +226,13 @@ npx bluetemberg detect              # detected stacks, versions, confidence, gap
 npx bluetemberg coverage payload@3  # is there version-correct guidance for this stack?
 ```
 
-See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks) and [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules) for the full model.
+Or expose the same model to an agent as MCP tools (`detect_stacks`, `query_coverage`, `list_stacks`) — read-only, over stdio:
+
+```bash
+npx bluetemberg mcp serve
+```
+
+See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
 
 ## External sources
 

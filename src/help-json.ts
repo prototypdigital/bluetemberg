@@ -162,7 +162,17 @@ export function getMachineReadableHelp(): Record<string, unknown> {
             { long: '--silent', description: 'Suppress all output.' },
           ],
         },
+        {
+          name: 'mcp serve',
+          args: '[directory]',
+          description: 'Serve the stack model as MCP tools over stdio (read-only).',
+        },
       ],
+      mcp: {
+        transport: 'stdio',
+        tools: ['bluetemberg_detect_stacks', 'bluetemberg_query_coverage', 'bluetemberg_list_stacks'],
+        note: 'Read-only. The gated scaffold_from_gap tool (M7 create-loop) is intentionally absent.',
+      },
     },
     source: {
       types: [...SOURCE_TYPES],

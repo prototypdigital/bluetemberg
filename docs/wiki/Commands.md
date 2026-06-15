@@ -126,6 +126,30 @@ npx bluetemberg coverage payload@3.4.0
 npx bluetemberg coverage nextjs --json
 ```
 
+## `bluetemberg mcp serve [directory]`
+
+Run Bluetemberg itself as an [MCP](https://modelcontextprotocol.io) server over **stdio**, exposing the stack model as tools so an agent gets structured coverage without shelling out. It is the same machinery behind the `--json` flags — one implementation, two surfaces — and is **read-only** (it never writes files).
+
+Tools:
+
+| Tool | Args | Returns |
+| ---- | ---- | ------- |
+| `bluetemberg_detect_stacks` | — | Detected stacks, versions, confidence, coverage, gaps, warnings |
+| `bluetemberg_query_coverage` | `stack`, optional `version` | Whether version-correct guidance exists for the stack |
+| `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
+
+Register it with an MCP client (example for Claude Code's `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "bluetemberg": { "command": "npx", "args": ["bluetemberg", "mcp", "serve"] }
+  }
+}
+```
+
+> stdout is the MCP protocol channel — do not pipe other output through it. Diagnostics go to stderr.
+
 ## `bluetemberg add <package>`
 
 Install a rule pack from the npm registry. See [Registry](Registry) for full details.
