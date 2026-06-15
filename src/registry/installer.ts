@@ -1,8 +1,22 @@
-import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  copyFileSync,
+} from 'node:fs';
 import { join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
-import { downloadTarball, verifyIntegrity, DEFAULT_REGISTRY } from './client.js';
+import {
+  downloadTarball,
+  verifyIntegrity,
+  fetchRegistryKeys,
+  verifyRegistrySignature,
+  DEFAULT_REGISTRY,
+} from './client.js';
 import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -85,7 +99,12 @@ export async function installPackVersion(
   root: string,
   metadata: NpmPackageMetadata,
   version: string,
-  options: { force?: boolean; registryUrl?: string; allowExternalTarballHost?: boolean } = {},
+  options: {
+    force?: boolean;
+    registryUrl?: string;
+    allowExternalTarballHost?: boolean;
+    skipSignatureVerification?: boolean;
+  } = {},
 ): Promise<PackageLockEntry> {
   const dest = packVersionDir(root, metadata.name, version);
 
@@ -134,6 +153,13 @@ export async function installPackVersion(
     );
   }
 
+  // Compute signature policy upfront — needed for both the cache-hit and fresh-install paths.
+  const registryUrl = options.registryUrl ?? DEFAULT_REGISTRY;
+  const isDefaultRegistry = registryUrl.replace(/\/$/, '') === DEFAULT_REGISTRY;
+  // skipSignatureVerification is only honoured for non-default registries.
+  // The default npm registry always signs packages; we always verify there.
+  const skipSig = !isDefaultRegistry && options.skipSignatureVerification === true;
+
   // Skip if already cached (unless force).
   if (!options.force && existsSync(dest)) {
     // Validate integrity if we have a marker file.
@@ -141,6 +167,37 @@ export async function installPackVersion(
     if (existsSync(markerPath)) {
       const cachedIntegrity = readFileSync(markerPath, 'utf8').trim();
       if (cachedIntegrity === expectedIntegrity) {
+        const keyidMarkerPath = join(dest, '.bluetemberg-keyid');
+        const cachedKeyid = existsSync(keyidMarkerPath)
+          ? readFileSync(keyidMarkerPath, 'utf8').trim()
+          : undefined;
+
+        if (cachedKeyid || skipSig) {
+          return {
+            version,
+            resolved: tarballUrl,
+            integrity: cachedIntegrity,
+            ...(cachedKeyid ? { keyid: cachedKeyid } : {}),
+          };
+        }
+
+        // keyid is missing — backfill via signature verification without re-downloading.
+        const signatures = versionMeta.dist.signatures ?? [];
+        if (signatures.length > 0) {
+          const keys = await fetchRegistryKeys(registryUrl);
+          const result = verifyRegistrySignature(metadata.name, version, cachedIntegrity, signatures, keys);
+          if (result.verified) {
+            writeFileSync(keyidMarkerPath, result.keyid + '\n');
+            return {
+              version,
+              resolved: tarballUrl,
+              integrity: cachedIntegrity,
+              keyid: result.keyid,
+            };
+          }
+        }
+
+        // Backfill not possible — return without keyid (verify will surface as unsigned).
         return {
           version,
           resolved: tarballUrl,
@@ -160,6 +217,7 @@ export async function installPackVersion(
   // Download tarball to a temp file.
   const tmpFile = join(tmpdir(), `bluetemberg-pack-${Date.now()}-${Math.random().toString(36).slice(2)}.tgz`);
   let integrity: string;
+  let verifiedKeyid: string | undefined;
 
   try {
     integrity = await downloadTarball(tarballUrl, tmpFile);
@@ -170,8 +228,32 @@ export async function installPackVersion(
       );
     }
 
+    if (!skipSig) {
+      const signatures = versionMeta.dist.signatures ?? [];
+      if (signatures.length === 0) {
+        throw new Error(
+          `Package "${metadata.name}@${version}" has no registry signature. ` +
+            (isDefaultRegistry
+              ? 'The default npm registry always signs packages; this may indicate a compromised registry response.'
+              : 'Pass skipSignatureVerification: true to allow unsigned packages from self-hosted registries.'),
+        );
+      }
+      const keys = await fetchRegistryKeys(registryUrl);
+      const result = verifyRegistrySignature(metadata.name, version, integrity, signatures, keys);
+      if (!result.verified) {
+        throw new Error(
+          `Registry signature verification failed for "${metadata.name}@${version}". The package may have been tampered with.`,
+        );
+      }
+      verifiedKeyid = result.keyid;
+    }
+
     // Extract tarball with security filtering (rejects symlinks + path traversal).
     await extractTarball(tmpFile, dest, metadata.name);
+
+    // Preserve tarball in cache so verify() can recompute integrity from disk
+    // rather than trusting the marker file alone.
+    copyFileSync(tmpFile, join(dest, '.bluetemberg-pack.tgz'));
   } catch (err) {
     // Clean up partial extraction directory on any failure.
     try {
@@ -192,11 +274,15 @@ export async function installPackVersion(
   // Write integrity marker for future cache validation.
   const markerPath = join(dest, '.bluetemberg-integrity');
   writeFileSync(markerPath, integrity + '\n');
+  if (verifiedKeyid) {
+    writeFileSync(join(dest, '.bluetemberg-keyid'), verifiedKeyid + '\n');
+  }
 
   return {
     version,
     resolved: tarballUrl,
     integrity,
+    ...(verifiedKeyid ? { keyid: verifiedKeyid } : {}),
   };
 }
 

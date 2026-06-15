@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, createSign } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -8,8 +8,12 @@ import {
   searchPackages,
   downloadTarball,
   verifyIntegrity,
+  fetchRegistryKeys,
+  verifyRegistrySignature,
+  clearRegistryKeysCache,
   DEFAULT_REGISTRY,
 } from '../src/registry/client.js';
+import type { NpmRegistryKey } from '../src/types.js';
 
 // ---------------------------------------------------------------------------
 // verifyIntegrity (pure, no mocking needed)
@@ -262,5 +266,159 @@ describe('downloadTarball', () => {
     await expect(downloadTarball('https://example.com/big.tgz', tmpFile, 512)).rejects.toThrow(
       'exceeds the maximum allowed size',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchRegistryKeys
+// ---------------------------------------------------------------------------
+
+describe('fetchRegistryKeys', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    clearRegistryKeysCache();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    clearRegistryKeysCache();
+  });
+
+  it('returns keys on success', async () => {
+    const mockKeys: NpmRegistryKey[] = [
+      {
+        expires: null,
+        keyid: 'SHA256:testkey',
+        keytype: 'ecdsa-sha2-nistp256',
+        scheme: 'ecdsa-sha2-nistp256',
+        key: 'abc123base64',
+      },
+    ];
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ keys: mockKeys }),
+    });
+
+    const result = await fetchRegistryKeys();
+    expect(result).toEqual(mockKeys);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      `${DEFAULT_REGISTRY}/-/npm/v1/keys`,
+      expect.objectContaining({ headers: { Accept: 'application/json' } }),
+    );
+  });
+
+  it('throws on non-OK response', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+    });
+
+    await expect(fetchRegistryKeys()).rejects.toThrow('Failed to fetch registry keys: 503');
+  });
+
+  it('caches keys and only calls fetch once on repeated calls', async () => {
+    const mockKeys: NpmRegistryKey[] = [
+      {
+        expires: null,
+        keyid: 'SHA256:cached',
+        keytype: 'ecdsa-sha2-nistp256',
+        scheme: 'ecdsa-sha2-nistp256',
+        key: 'cachedKey',
+      },
+    ];
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ keys: mockKeys }),
+    });
+
+    const first = await fetchRegistryKeys();
+    const second = await fetchRegistryKeys();
+
+    expect(first).toEqual(mockKeys);
+    expect(second).toEqual(mockKeys);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses custom registry URL when provided', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ keys: [] }),
+    });
+
+    await fetchRegistryKeys('https://custom.registry.io/');
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(calledUrl).toBe('https://custom.registry.io/-/npm/v1/keys');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verifyRegistrySignature
+// ---------------------------------------------------------------------------
+
+describe('verifyRegistrySignature', () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const pubKeyDer = publicKey.export({ type: 'spki', format: 'der' }) as Buffer;
+  const testKeyid = 'SHA256:testkey';
+  const testKey: NpmRegistryKey = {
+    expires: null,
+    keyid: testKeyid,
+    keytype: 'ecdsa-sha2-nistp256',
+    scheme: 'ecdsa-sha2-nistp256',
+    key: pubKeyDer.toString('base64'),
+  };
+
+  function sign(payload: string): string {
+    const signer = createSign('SHA256');
+    signer.update(payload, 'utf8');
+    return signer.sign(privateKey).toString('base64');
+  }
+
+  it('returns verified: true for a valid signature', () => {
+    const name = 'my-pack';
+    const version = '1.0.0';
+    const integrity = 'sha512-abc123';
+    const sig = sign(`${name}@${version}:${integrity}`);
+    const result = verifyRegistrySignature(name, version, integrity, [{ keyid: testKeyid, sig }], [testKey]);
+    expect(result.verified).toBe(true);
+    expect(result.keyid).toBe(testKeyid);
+  });
+
+  it('returns verified: false for a bad signature', () => {
+    const sig = Buffer.from('invalidsignature').toString('base64');
+    const result = verifyRegistrySignature(
+      'pack',
+      '1.0.0',
+      'sha512-abc',
+      [{ keyid: testKeyid, sig }],
+      [testKey],
+    );
+    expect(result.verified).toBe(false);
+  });
+
+  it('returns verified: false when no matching keyid', () => {
+    const result = verifyRegistrySignature(
+      'pack',
+      '1.0.0',
+      'sha512-abc',
+      [{ keyid: 'unknown', sig: 'aGVsbG8=' }],
+      [testKey],
+    );
+    expect(result.verified).toBe(false);
+  });
+
+  it('returns verified: false for empty keys list', () => {
+    const sig = sign('pack@1.0.0:sha512-abc');
+    const result = verifyRegistrySignature('pack', '1.0.0', 'sha512-abc', [{ keyid: testKeyid, sig }], []);
+    expect(result.verified).toBe(false);
+  });
+
+  it('returns verified: false for empty signatures list', () => {
+    const result = verifyRegistrySignature('pack', '1.0.0', 'sha512-abc', [], [testKey]);
+    expect(result.verified).toBe(false);
+    expect(result.keyid).toBe('');
   });
 });
