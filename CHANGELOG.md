@@ -20,6 +20,44 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.6.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.5.0...bluetemberg-v0.6.0) (2026-06-15)
+
+
+### Features
+
+* register Design Engineer profile ([bf76173](https://github.com/prototypdigital/bluetemberg/commit/bf7617368d1b041b0cf079b1d4db95dbe4bf3132))
+* register Design Engineer profile (engine half of packs[#40](https://github.com/prototypdigital/bluetemberg/issues/40)) ([f7d80c2](https://github.com/prototypdigital/bluetemberg/commit/f7d80c271e470e2313b6f74d628900650858daac))
+* **registry:** verify npm ECDSA registry signatures + add verify command ([266e00b](https://github.com/prototypdigital/bluetemberg/commit/266e00b56cc66b66a092edc1c7fa061d95772cc1))
+* **registry:** verify npm ECDSA registry signatures + add verify command ([4a8a41f](https://github.com/prototypdigital/bluetemberg/commit/4a8a41ffbbf8aab25eacc93bd0cb5e79fe167ced))
+* **site:** add Bluetemberg logo and wire it into the site ([09e99a2](https://github.com/prototypdigital/bluetemberg/commit/09e99a2d431bcf92497d4d84d547ffd03d8d5d99))
+* **site:** add Bluetemberg logo and wire it into the site ([e2d1451](https://github.com/prototypdigital/bluetemberg/commit/e2d14519642dc65cf284fb214d27b1bab0c13ad9))
+* **stacks:** activate version-aware gating at sync + detect/coverage CLI ([2e5ce77](https://github.com/prototypdigital/bluetemberg/commit/2e5ce7778d8a79293e4f853f94ea9d3e333b459a))
+* **stacks:** activate version-aware gating at sync + detect/coverage CLI ([0ae1645](https://github.com/prototypdigital/bluetemberg/commit/0ae1645f46003e69dab10d8ba0e2d088bc9d189d))
+* **stacks:** first-party MCP server (bluetemberg mcp serve) ([a571eee](https://github.com/prototypdigital/bluetemberg/commit/a571eee61e202b84c11f91af39e5e63db2529574))
+* **stacks:** first-party MCP server (bluetemberg mcp serve) ([cba3f92](https://github.com/prototypdigital/bluetemberg/commit/cba3f928810f8cdcd1981a4677b4018f3c72af5c))
+* **stacks:** init wizard detect-then-confirm stack step ([908a9af](https://github.com/prototypdigital/bluetemberg/commit/908a9af7b08293e2403b60bdef79040f81b4ac83))
+* **stacks:** init wizard detect-then-confirm stack step ([228f63a](https://github.com/prototypdigital/bluetemberg/commit/228f63a80e347e00dcfca96ab342f45a741ab059))
+* **stacks:** version-aware technology axis — M0–M5 engine foundation ([3e89ef6](https://github.com/prototypdigital/bluetemberg/commit/3e89ef6b106ab6d812daaa1a81ddda1bc42c9232))
+* **stacks:** version-aware technology axis (M0–M5 foundation) ([58ea378](https://github.com/prototypdigital/bluetemberg/commit/58ea37804a9912a55824877e01b77c07619a57db))
+* **sync:** add OpenAI Codex as a sync target ([09c4dba](https://github.com/prototypdigital/bluetemberg/commit/09c4dba9df29202f70438ab73019f30cf71adcb7))
+* **sync:** add OpenAI Codex as a sync target ([ca19a6a](https://github.com/prototypdigital/bluetemberg/commit/ca19a6a6976ab2b159e39ec6c77a35f2a9b02114)), closes [#175](https://github.com/prototypdigital/bluetemberg/issues/175)
+
+
+### Bug Fixes
+
+* **catalog:** normalize catalog item arrays to string ids ([eaf04d3](https://github.com/prototypdigital/bluetemberg/commit/eaf04d38e4387a98bcdcf11a53b57740fe0254dc))
+* **catalog:** normalize catalog item arrays to string ids ([ae41526](https://github.com/prototypdigital/bluetemberg/commit/ae415264fb818a145e62035c37ccc51e74622c76))
+* **catalog:** reject malformed items instead of coercing to empty-string ids ([3cdec18](https://github.com/prototypdigital/bluetemberg/commit/3cdec184e1c1182cb4004222ec94b7813bac1fd5))
+* **codex:** guard ensureDir in check mode, surface MCP parse errors, extract helpers ([09f27fd](https://github.com/prototypdigital/bluetemberg/commit/09f27fd8bd27ff51a675f34f763bbe82c954112a))
+* **registry:** address CodeRabbit review findings ([8a5365b](https://github.com/prototypdigital/bluetemberg/commit/8a5365b75a17930253b0eb4a2cb30468e11ac335))
+* **registry:** harden checkPackIntegrity for signed entries ([3489a3a](https://github.com/prototypdigital/bluetemberg/commit/3489a3a8653e733240b8165ac395bfa812ee45cc))
+* **registry:** remove unused VerifyStatus import ([0363bdd](https://github.com/prototypdigital/bluetemberg/commit/0363bdd7552f9765f11cd3d7454e6bb7a7a38b79))
+* **site:** align supply chain label column and clarify comparison heading ([a3ba212](https://github.com/prototypdigital/bluetemberg/commit/a3ba212d19e36bb365b7432b6fb723efe61b0953))
+* **site:** align supply chain label column and clarify comparison heading ([2043348](https://github.com/prototypdigital/bluetemberg/commit/2043348f945e60eae17b37aabe0e9dea642d52c6))
+* **stacks:** address CodeRabbit — clear stale guardrail hooks, inject report logger ([75f73f4](https://github.com/prototypdigital/bluetemberg/commit/75f73f414dd8009f9a5fcc4b251f5542e8df61d7))
+* **stacks:** address review — auto sentinel, gap semantics, malformed frontmatter ([8a3a112](https://github.com/prototypdigital/bluetemberg/commit/8a3a112271c05bf8a6ea69815c321ebca69573c8))
+* **stacks:** harden --stacks parsing and gate the empty wizard step ([011f4c1](https://github.com/prototypdigital/bluetemberg/commit/011f4c1d5245a58256039f4a4dc71e04d0ca429b))
+
 ## [0.5.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.4.0...bluetemberg-v0.5.0) (2026-06-14)
 
 
