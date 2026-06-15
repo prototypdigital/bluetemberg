@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
@@ -9,6 +9,13 @@ function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-mkt-stacks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/** Assert a rule was emitted into a plugin AND that its body content was carried through. */
+function expectEmitted(root: string, rel: string, name: string): void {
+  const path = join(root, rel);
+  expect(existsSync(path)).toBe(true);
+  expect(readFileSync(path, 'utf8')).toContain(`# ${name}`);
 }
 
 /** Write a rule with optional extra frontmatter lines (e.g. a `stacks:` block). */
@@ -44,7 +51,7 @@ describe('marketplace stack gating (the leak fix)', () => {
     await sync(root, { config, silent: true });
 
     // The role bundle gets the agnostic rule but NOT the Payload rule — this is the bug being fixed.
-    expect(existsSync(join(root, 'plugins/backend/rules/git-workflow.md'))).toBe(true);
+    expectEmitted(root, 'plugins/backend/rules/git-workflow.md', 'git-workflow');
     expect(existsSync(join(root, 'plugins/backend/rules/payload-collections.md'))).toBe(false);
   });
 
@@ -64,8 +71,8 @@ describe('marketplace stack gating (the leak fix)', () => {
     await sync(root, { config, silent: true });
 
     // Stack bundle gets both the agnostic rule and the opted-in Payload rule.
-    expect(existsSync(join(root, 'plugins/backend-payload/rules/payload-collections.md'))).toBe(true);
-    expect(existsSync(join(root, 'plugins/backend-payload/rules/git-workflow.md'))).toBe(true);
+    expectEmitted(root, 'plugins/backend-payload/rules/payload-collections.md', 'payload-collections');
+    expectEmitted(root, 'plugins/backend-payload/rules/git-workflow.md', 'git-workflow');
     // Agnostic bundle still excludes the Payload rule.
     expect(existsSync(join(root, 'plugins/backend/rules/payload-collections.md'))).toBe(false);
   });
@@ -109,7 +116,7 @@ describe('marketplace stack gating (the leak fix)', () => {
 
     // Catalog fallback keeps it gated to payload — it must NOT widen into the agnostic bundle.
     expect(existsSync(join(root, 'plugins/agnostic/rules/payload-thing.md'))).toBe(false);
-    expect(existsSync(join(root, 'plugins/payload-bundle/rules/payload-thing.md'))).toBe(true);
+    expectEmitted(root, 'plugins/payload-bundle/rules/payload-thing.md', 'payload-thing');
   });
 
   it('a stack bundle only accepts the stacks it opts into', async () => {
@@ -122,7 +129,7 @@ describe('marketplace stack gating (the leak fix)', () => {
     };
     await sync(root, { config, silent: true });
 
-    expect(existsSync(join(root, 'plugins/nextjs-bundle/rules/next-rsc.md'))).toBe(true);
+    expectEmitted(root, 'plugins/nextjs-bundle/rules/next-rsc.md', 'next-rsc');
     expect(existsSync(join(root, 'plugins/nextjs-bundle/rules/payload-collections.md'))).toBe(false);
   });
 });
