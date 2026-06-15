@@ -79,7 +79,11 @@ export interface CoverageResult {
   stack: Stack;
   /** The stack label exists in the live registry. */
   known: boolean;
-  /** At least one covered range satisfies the queried version (or the stack is known, if no version). */
+  /**
+   * A covering pack exists: with a version, at least one covered range satisfies it; with no
+   * version, at least one covered range exists at all. A stack that is only *known* (detected or
+   * registered locally) with no covering pack is `covered: false` — i.e. a coverage gap.
+   */
   covered: boolean;
   /** The most-specific covered range that satisfied the version, when a version was queried. */
   matchedRange?: string;
