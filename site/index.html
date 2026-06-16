@@ -437,6 +437,17 @@
       .security {
         padding: 56px 0;
       }
+      .evidence {
+        padding: 56px 0;
+      }
+      .lane-val a {
+        color: var(--accent-soft);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .lane-val a:hover {
+        color: var(--text);
+      }
       .controls {
         list-style: none;
         border: 1px solid var(--border);
@@ -730,6 +741,7 @@
           <li class="nav-anchor"><a href="#how">how</a></li>
           <li class="nav-anchor"><a href="#routing">routing</a></li>
           <li class="nav-anchor"><a href="#security">security</a></li>
+          <li class="nav-anchor"><a href="#research">research</a></li>
           <li><a href="https://prototypdigital.github.io/bluetemberg-packs/">packs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg/wiki">docs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg">github</a></li>
@@ -1072,6 +1084,44 @@
         </div>
       </section>
 
+      <!-- EVIDENCE — researched, primary-source-verified standards -->
+      <section class="evidence" id="research">
+        <div class="container">
+          <p class="section-label">Standards with receipts</p>
+          <h2 class="section-title">
+            Most AI rules are a model's best guess.
+            <em>Ours are checked against the source.</em>
+          </h2>
+          <ul class="lanes">
+            <li class="lane">
+              <span class="lane-key">Primary sources</span>
+              <span class="lane-val"
+                >Every claim past plain convention is verified against official docs, IETF RFCs, and vendor
+                advisories — PostgreSQL, RFC&nbsp;9110, OWASP, CISA.
+                <strong>Sourced from the spec, not forum folklore.</strong></span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">Default-refute</span>
+              <span class="lane-val"
+                >An independent agent tries to <em>disprove</em> each claim; only the ones that survive a
+                majority of checks ship.
+                <strong>Overstated guidance gets downgraded, not waved through.</strong></span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">Public receipts</span>
+              <span class="lane-val"
+                >Every verdict and source is on the
+                <a href="https://github.com/prototypdigital/bluetemberg-packs/wiki/Research">Research page</a>
+                — confirmed, or flagged "nuanced" and reworded.
+                <strong>Including the claims we walked back.</strong></span
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <!-- COMPARISON -->
       <section class="compare">
         <div class="container">
@@ -1096,6 +1146,11 @@
                 <td class="row-label">Integrity</td>
                 <td class="dim">none</td>
                 <td class="win">SHA-512, ECDSA-signed, host-pinned</td>
+              </tr>
+              <tr>
+                <td class="row-label">Provenance</td>
+                <td class="dim">whatever the model knows</td>
+                <td class="win">verified vs. primary sources</td>
               </tr>
               <tr>
                 <td class="row-label">Per-role config</td>
@@ -1130,6 +1185,11 @@
               <span class="compare-label">Integrity</span>
               <span class="compare-old">none</span>
               <span class="compare-new">SHA-512, ECDSA-signed, host-pinned</span>
+            </div>
+            <div class="compare-row">
+              <span class="compare-label">Provenance</span>
+              <span class="compare-old">whatever the model knows</span>
+              <span class="compare-new">verified vs. primary sources</span>
             </div>
             <div class="compare-row">
               <span class="compare-label">Per-role config</span>
