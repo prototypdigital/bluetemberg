@@ -1199,6 +1199,176 @@ describe('loadConfig', () => {
 
     expect(() => loadConfig(root)).toThrow('"profile" must be one of');
   });
+
+  it('throws when the root field is not a boolean', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['cursor'], source: 'llm', targets: {}, root: 'yes' }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('"root" must be a boolean');
+  });
+});
+
+describe('loadConfig: monorepo inheritance', () => {
+  let monorepo: string;
+  let pkg: string;
+
+  function writeConfig(dir: string, config: Record<string, unknown>): void {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'bluetemberg.config.json'), JSON.stringify(config));
+  }
+
+  beforeEach(() => {
+    monorepo = createTmpDir();
+    // A `.git` marker stops upward traversal at the monorepo root, isolating these tests.
+    mkdirSync(join(monorepo, '.git'), { recursive: true });
+    pkg = join(monorepo, 'packages', 'frontend');
+    mkdirSync(pkg, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(monorepo, { recursive: true, force: true });
+  });
+
+  it('merges a local config with an ancestor root config', () => {
+    writeConfig(monorepo, { platforms: ['claude'], source: 'llm', targets: {} });
+    writeConfig(pkg, { platforms: ['cursor'], targets: {} });
+
+    const config = loadConfig(pkg);
+    // platforms are unioned across the chain (ancestor first).
+    expect(config.platforms).toEqual(['claude', 'cursor']);
+  });
+
+  it('lets local values win on conflict', () => {
+    writeConfig(monorepo, {
+      platforms: ['claude'],
+      source: 'root-llm',
+      profile: 'backend',
+      targets: {},
+    });
+    writeConfig(pkg, { platforms: ['cursor'], profile: 'frontend', targets: {} });
+
+    const config = loadConfig(pkg);
+    expect(config.profile).toBe('frontend');
+  });
+
+  it('never inherits source — always uses the local value', () => {
+    writeConfig(monorepo, { platforms: ['claude'], source: 'root-llm', targets: {} });
+    writeConfig(pkg, { platforms: ['cursor'], source: 'pkg-llm', targets: {} });
+
+    expect(loadConfig(pkg).source).toBe('pkg-llm');
+  });
+
+  it('does not inherit source when the local config omits it', () => {
+    writeConfig(monorepo, { platforms: ['claude'], source: 'root-llm', targets: {} });
+    writeConfig(pkg, { platforms: ['cursor'], targets: {} });
+
+    // `source` is local-only; omitting it locally must not pull in the ancestor value.
+    expect(loadConfig(pkg).source).toBeUndefined();
+  });
+
+  it('lets a local config inherit platforms from an ancestor', () => {
+    writeConfig(monorepo, { platforms: ['claude', 'cursor'], source: 'llm', targets: {} });
+    writeConfig(pkg, { source: 'llm', targets: {}, profile: 'frontend' });
+
+    const config = loadConfig(pkg);
+    expect(config.platforms).toEqual(['claude', 'cursor']);
+    expect(config.profile).toBe('frontend');
+  });
+
+  it('deep-merges targets per platform, local fields winning', () => {
+    writeConfig(monorepo, {
+      platforms: ['claude', 'cursor'],
+      source: 'llm',
+      targets: {
+        rules: {
+          claude: { dir: '.claude/rules', ext: '.md' },
+          cursor: { dir: '.cursor/rules', ext: '.mdc' },
+        },
+      },
+    });
+    writeConfig(pkg, {
+      platforms: ['cursor'],
+      targets: { rules: { cursor: { dir: '.cursor/custom' } } },
+    });
+
+    const config = loadConfig(pkg);
+    // Untouched ancestor platform is preserved.
+    expect(config.targets.rules?.claude).toEqual({ dir: '.claude/rules', ext: '.md' });
+    // Overridden platform merges fields — local dir wins, ancestor ext survives.
+    expect(config.targets.rules?.cursor).toEqual({ dir: '.cursor/custom', ext: '.mdc' });
+  });
+
+  it('merges extends with local entries taking priority and dedupes', () => {
+    writeConfig(monorepo, {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+      extends: ['../shared', '../../'],
+    });
+    writeConfig(pkg, { platforms: ['cursor'], targets: {}, extends: ['./local', '../../'] });
+
+    const config = loadConfig(pkg);
+    expect(config.extends).toEqual(['./local', '../../', '../shared']);
+  });
+
+  it('merges stacks and adapters across the chain', () => {
+    writeConfig(monorepo, {
+      platforms: ['claude'],
+      source: 'llm',
+      targets: {},
+      stacks: { nextjs: 'auto', payload: '3.4.1' },
+      adapters: ['@scope/base'],
+    });
+    writeConfig(pkg, {
+      platforms: ['cursor'],
+      targets: {},
+      stacks: { nextjs: '15.0.0' },
+      adapters: ['@scope/frontend', '@scope/base'],
+    });
+
+    const config = loadConfig(pkg);
+    expect(config.stacks).toEqual({ nextjs: '15.0.0', payload: '3.4.1' });
+    expect(config.adapters).toEqual(['@scope/frontend', '@scope/base']);
+  });
+
+  it('stops upward traversal at a config marked root: true', () => {
+    // workspace/ carries root:true and must halt discovery before the monorepo-level config.
+    const workspace = join(monorepo, 'workspace');
+    const inner = join(workspace, 'pkg');
+    writeConfig(monorepo, { platforms: ['gemini'], source: 'llm', targets: {} });
+    writeConfig(workspace, { platforms: ['claude'], source: 'llm', targets: {}, root: true });
+    writeConfig(inner, { platforms: ['cursor'], targets: {} });
+
+    const config = loadConfig(inner);
+    // 'gemini' from the monorepo root is above the root:true boundary and must be excluded.
+    expect(config.platforms).toEqual(['claude', 'cursor']);
+  });
+
+  it('stops upward traversal at the git root', () => {
+    // pkg/ has no config and no platforms anywhere below .git → falls through to the monorepo root,
+    // but discovery must not climb past the .git marker into any real ancestor config.
+    writeConfig(monorepo, { platforms: ['claude'], source: 'llm', targets: {} });
+
+    expect(loadConfig(pkg).platforms).toEqual(['claude']);
+  });
+
+  it('returns a stand-alone local config unchanged when no ancestor exists', () => {
+    writeConfig(pkg, { platforms: ['cursor'], source: 'pkg-llm', targets: {} });
+    rmSync(join(monorepo, 'bluetemberg.config.json'), { force: true });
+
+    const config = loadConfig(pkg);
+    expect(config.platforms).toEqual(['cursor']);
+    expect(config.source).toBe('pkg-llm');
+  });
+
+  it('throws when no config in the chain supplies platforms', () => {
+    writeConfig(monorepo, { source: 'llm', targets: {} });
+    writeConfig(pkg, { source: 'llm', targets: {} });
+
+    expect(() => loadConfig(pkg)).toThrow('"platforms" must be a non-empty array');
+  });
 });
 
 describe('shouldExitWithFailure', () => {

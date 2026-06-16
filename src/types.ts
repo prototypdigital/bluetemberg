@@ -123,6 +123,12 @@ export interface BlueprintConfig {
    * Each module must `export default` as a function or `{ run(ctx, recordError) }` — see wiki *Adapters*.
    */
   adapters?: string[];
+  /**
+   * Stops upward config discovery in a monorepo. When `true`, this config is treated as the
+   * inheritance root: {@link loadConfig} does not look for ancestor `bluetemberg.config.json`
+   * files above this directory. See wiki *Configuration* → *Monorepo config inheritance*.
+   */
+  root?: boolean;
 }
 
 export type RuleSource = 'collections' | 'none';

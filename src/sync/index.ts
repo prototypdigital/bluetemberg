@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join, basename, dirname, resolve } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
 import { ensureDir } from '../utils/fs.js';
@@ -46,7 +46,7 @@ const VALID_PLATFORMS: readonly Platform[] = [
   'claude-marketplace',
 ];
 
-function validateTargets(targets: unknown, configPath: string): void {
+function validateTargets(targets: unknown, configPath: string, requireComplete = true): void {
   if (targets === undefined) {
     return;
   }
@@ -80,12 +80,17 @@ function validateTargets(targets: unknown, configPath: string): void {
         throw new Error(`Invalid config in ${configPath}: targets.${key}.${platformKey} must be an object`);
       }
       const v = value as Record<string, unknown>;
-      if (typeof v.dir !== 'string' || v.dir.trim().length === 0) {
-        throw new Error(
-          `Invalid config in ${configPath}: targets.${key}.${platformKey}.dir must be a non-empty string`,
-        );
+      // In a monorepo chain, an entry may override only some fields and inherit the rest, so
+      // presence is enforced only on the merged result (`requireComplete`). Present fields are
+      // always type-checked.
+      if (requireComplete || v.dir !== undefined) {
+        if (typeof v.dir !== 'string' || v.dir.trim().length === 0) {
+          throw new Error(
+            `Invalid config in ${configPath}: targets.${key}.${platformKey}.dir must be a non-empty string`,
+          );
+        }
       }
-      if (needsExt) {
+      if (needsExt && (requireComplete || v.ext !== undefined)) {
         if (typeof v.ext !== 'string' || v.ext.trim().length === 0) {
           throw new Error(
             `Invalid config in ${configPath}: targets.${key}.${platformKey}.ext must be a non-empty string`,
@@ -96,20 +101,38 @@ function validateTargets(targets: unknown, configPath: string): void {
   }
 }
 
-function validateConfig(config: unknown, configPath: string): BlueprintConfig {
+interface ValidateConfigOptions {
+  /**
+   * Require `platforms` to be present. True for a stand-alone or fully-merged config; false when
+   * validating an individual file in a monorepo inheritance chain, where an ancestor may supply it.
+   */
+  requirePlatforms?: boolean;
+}
+
+function validateConfig(
+  config: unknown,
+  configPath: string,
+  { requirePlatforms = true }: ValidateConfigOptions = {},
+): BlueprintConfig {
   if (!config || typeof config !== 'object') {
     throw new Error(`Invalid config in ${configPath}: expected an object`);
   }
 
   const cfg = config as Record<string, unknown>;
 
-  if (!Array.isArray(cfg.platforms) || cfg.platforms.length === 0) {
-    throw new Error(`Invalid config in ${configPath}: "platforms" must be a non-empty array`);
-  }
+  if (cfg.platforms === undefined) {
+    if (requirePlatforms) {
+      throw new Error(`Invalid config in ${configPath}: "platforms" must be a non-empty array`);
+    }
+  } else {
+    if (!Array.isArray(cfg.platforms) || cfg.platforms.length === 0) {
+      throw new Error(`Invalid config in ${configPath}: "platforms" must be a non-empty array`);
+    }
 
-  const invalid = cfg.platforms.filter((p: unknown) => !VALID_PLATFORMS.includes(p as Platform));
-  if (invalid.length > 0) {
-    throw new Error(`Invalid config in ${configPath}: unknown platform(s): ${invalid.join(', ')}`);
+    const invalid = cfg.platforms.filter((p: unknown) => !VALID_PLATFORMS.includes(p as Platform));
+    if (invalid.length > 0) {
+      throw new Error(`Invalid config in ${configPath}: unknown platform(s): ${invalid.join(', ')}`);
+    }
   }
 
   if (cfg.source !== undefined && typeof cfg.source !== 'string') {
@@ -138,7 +161,13 @@ function validateConfig(config: unknown, configPath: string): BlueprintConfig {
     }
   }
 
-  validateTargets(cfg.targets, configPath);
+  if (cfg.root !== undefined && typeof cfg.root !== 'boolean') {
+    throw new Error(`Invalid config in ${configPath}: "root" must be a boolean`);
+  }
+
+  // A lenient pass (an individual file in an inheritance chain) also allows partial target entries
+  // whose missing fields are supplied by an ancestor; the merged result is validated completely.
+  validateTargets(cfg.targets, configPath, requirePlatforms);
 
   return config as BlueprintConfig;
 }
@@ -157,26 +186,152 @@ export function shouldExitWithFailure(results: SyncResults, checkMode: boolean):
   return false;
 }
 
-export function loadConfig(root: string): BlueprintConfig {
-  const configPath = join(root, 'bluetemberg.config.json');
+const CONFIG_FILENAME = 'bluetemberg.config.json';
 
-  if (!existsSync(configPath)) {
-    return {
-      platforms: ['cursor', 'claude', 'copilot'],
-      source: 'llm',
-      targets: DEFAULT_TARGETS,
-    };
-  }
+function defaultConfig(): BlueprintConfig {
+  return {
+    platforms: ['cursor', 'claude', 'copilot'],
+    source: 'llm',
+    targets: DEFAULT_TARGETS,
+  };
+}
 
-  let raw: unknown;
+function parseConfigFile(configPath: string): unknown {
   try {
-    raw = JSON.parse(readFileSync(configPath, 'utf8'));
+    return JSON.parse(readFileSync(configPath, 'utf8'));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`Failed to parse ${configPath}: ${message}`);
   }
+}
 
-  return validateConfig(raw, configPath);
+/**
+ * Collect `bluetemberg.config.json` files from `start` upward, nearest first. Traversal stops after
+ * a config marked `root: true`, after the git root, or at the filesystem root — whichever comes
+ * first. The stopping directory's own config is always included.
+ */
+function collectConfigFiles(start: string): { path: string; raw: unknown }[] {
+  const found: { path: string; raw: unknown }[] = [];
+  let dir = resolve(start);
+
+  while (true) {
+    const configPath = join(dir, CONFIG_FILENAME);
+    let stop = existsSync(join(dir, '.git'));
+
+    if (existsSync(configPath)) {
+      const raw = parseConfigFile(configPath);
+      found.push({ path: configPath, raw });
+      if (raw && typeof raw === 'object' && (raw as Record<string, unknown>).root === true) {
+        stop = true;
+      }
+    }
+
+    const parent = dirname(dir);
+    if (stop || parent === dir) {
+      return found;
+    }
+    dir = parent;
+  }
+}
+
+/**
+ * Load the effective config for `root`. In a monorepo, walks up the directory tree merging every
+ * `bluetemberg.config.json` found (see {@link collectConfigFiles}); the most-local file wins on
+ * conflicts. With no config anywhere, returns built-in defaults.
+ */
+export function loadConfig(root: string): BlueprintConfig {
+  const files = collectConfigFiles(root);
+  if (files.length === 0) {
+    return defaultConfig();
+  }
+
+  // Individual files may omit `platforms` when an ancestor supplies it; defer that requirement to
+  // the merged result below.
+  const parsed = files.map(({ path, raw }) => validateConfig(raw, path, { requirePlatforms: false }));
+
+  // `files` is nearest-first, so reduceRight folds ancestors into descendants — local values win.
+  const effective = parsed.reduceRight((parent, child) => mergeConfigs(parent, child));
+
+  return validateConfig(effective, files[0].path);
+}
+
+function dedupe<T>(values: T[]): T[] {
+  return [...new Set(values)];
+}
+
+function toStringArray(value: string | string[] | undefined): string[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+/** Merge two `string | string[]` fields, `primary` entries first (higher priority), deduped. */
+function mergeStringList(
+  primary: string | string[] | undefined,
+  secondary: string | string[] | undefined,
+): string[] | undefined {
+  const combined = [...toStringArray(primary), ...toStringArray(secondary)];
+  return combined.length > 0 ? dedupe(combined) : undefined;
+}
+
+/** Per-platform deep merge: child entries override parent entries, merging their fields. */
+function mergePlatformTargets<T extends object>(
+  parent: Partial<Record<Platform, T>> | undefined,
+  child: Partial<Record<Platform, T>> | undefined,
+): Partial<Record<Platform, T>> | undefined {
+  if (!parent && !child) return undefined;
+
+  const merged: Partial<Record<Platform, T>> = { ...parent };
+  for (const key of Object.keys(child ?? {}) as Platform[]) {
+    // Safe: both operands are `T extends object`; the spread yields a complete `T`.
+    merged[key] = { ...parent?.[key], ...child?.[key] } as T;
+  }
+  return merged;
+}
+
+function mergeTargets(
+  parent: BlueprintConfig['targets'] = {},
+  child: BlueprintConfig['targets'] = {},
+): BlueprintConfig['targets'] {
+  const merged: BlueprintConfig['targets'] = {};
+  const rules = mergePlatformTargets(parent.rules, child.rules);
+  if (rules) merged.rules = rules;
+  const agents = mergePlatformTargets(parent.agents, child.agents);
+  if (agents) merged.agents = agents;
+  const skills = mergePlatformTargets(parent.skills, child.skills);
+  if (skills) merged.skills = skills;
+  return merged;
+}
+
+/**
+ * Deep-merge a parent (ancestor) config with a child (more-local) config. Child wins on conflicts.
+ * `platforms`, `extends`, `adapters`, and `stacks` are merged; `targets` is deep-merged per platform;
+ * `source` is intentionally never inherited — it is always the local package's value.
+ */
+function mergeConfigs(parent: BlueprintConfig, child: BlueprintConfig): BlueprintConfig {
+  const merged: BlueprintConfig = {
+    ...parent,
+    ...child,
+    source: child.source,
+    platforms: dedupe([...(parent.platforms ?? []), ...(child.platforms ?? [])]),
+    targets: mergeTargets(parent.targets, child.targets),
+  };
+
+  const extendsMerged = mergeStringList(child.extends, parent.extends);
+  if (extendsMerged) merged.extends = extendsMerged;
+  else delete merged.extends;
+
+  const adaptersMerged = mergeStringList(child.adapters, parent.adapters);
+  if (adaptersMerged) merged.adapters = adaptersMerged;
+  else delete merged.adapters;
+
+  if (parent.stacks || child.stacks) {
+    merged.stacks = { ...parent.stacks, ...child.stacks };
+  }
+
+  // `root` only controls traversal during discovery; it carries no meaning post-merge.
+  delete merged.root;
+
+  return merged;
 }
 
 interface SyncContext extends SyncSink {
