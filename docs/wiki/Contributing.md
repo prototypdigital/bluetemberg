@@ -122,7 +122,7 @@ Follow the contributing guide in the bluetemberg-packs repo. The package must be
 
 ### 2. Add a collection preset
 
-In `src/init/presets.ts`, add an entry to `RULE_COLLECTION_PRESETS`:
+In `src/init/presets.ts`, add an entry to `RULE_COLLECTION_OVERLAYS`:
 
 ```ts
 {
@@ -130,10 +130,10 @@ In `src/init/presets.ts`, add an entry to `RULE_COLLECTION_PRESETS`:
   name: 'My Collection',
   packageName: 'bluetemberg-rules-my-collection',
   description: 'What these rules enforce',
-  rules: ['rule-id-a', 'rule-id-b'],     // ids of rules inside the package
-  tags: ['backend', 'fullstack'],         // which profiles pre-select this collection
 },
 ```
+
+Rule ids and profile tags are **not** declared here — they're resolved from the catalog by `packageName` (via `resolveRuleCollections`). The overlay only fixes which collections the wizard offers, their display text, and their order.
 
 ### 3. Update the docs
 
@@ -159,7 +159,7 @@ Follow the contributing guide in the bluetemberg-packs repo. The package must be
 
 ### 2. Add a preset entry
 
-In `src/init/presets.ts`, add to `AGENT_PRESETS`:
+In `src/init/presets.ts`, add to `AGENT_OVERLAYS`:
 
 ```ts
 {
@@ -167,10 +167,11 @@ In `src/init/presets.ts`, add to `AGENT_PRESETS`:
   name: 'My agent',
   description: 'What it does',
   default: false,
-  tags: ['backend', 'fullstack'],
   packageName: 'bluetemberg-agents-my-agent',
 },
 ```
+
+Profile tags are resolved from the catalog by `packageName` — don't declare them inline.
 
 ### 3. Update docs and open a PR
 
@@ -188,7 +189,7 @@ Follow the contributing guide in the bluetemberg-packs repo. The package must be
 
 ### 2. Add a preset entry
 
-In `src/init/presets.ts`, add to `SKILL_PRESETS`:
+In `src/init/presets.ts`, add to `SKILL_OVERLAYS`:
 
 ```ts
 {
@@ -196,10 +197,11 @@ In `src/init/presets.ts`, add to `SKILL_PRESETS`:
   name: 'My skill',
   description: 'What it does',
   default: false,
-  tags: ['backend', 'fullstack'],
   packageName: 'bluetemberg-skills-my-skill',
 },
 ```
+
+Profile tags are resolved from the catalog by `packageName` — don't declare them inline.
 
 ### 3. Update docs and open a PR
 
