@@ -80,8 +80,12 @@ You can also write custom local agents directly in `llm/agents/` — local files
 
 ## Writing a good agent
 
+- **Make the description a delegation trigger.** State what the agent does AND when to route to it, in third person; add a proactive cue (`use proactively after code changes`, `MUST BE USED for X`) when you want auto-delegation. The `description` is what drives routing — not the body.
 - **Define the role clearly.** The first sentence should tell the AI exactly what hat it's wearing.
-- **List tools explicitly.** `tools: ['read', 'search']` prevents an agent from making edits when it shouldn't.
-- **Set constraints.** Boundaries prevent the agent from wandering outside its domain.
-- **Use RFC 2119 keywords** (MUST, SHOULD, MAY) for behavior requirements — they map well to how LLMs interpret instructions.
-- **Keep it focused.** One agent per domain. If an agent needs to do both security and testing, split it.
+- **Least-privilege tools.** A read-only review/audit agent gets `['read', 'search']` only — never `edit`/`execute`. Keep the constraint prose and the `tools` array in lockstep (defense in depth).
+- **Declare an output/return format.** A sub-agent reports a summary back to the caller; an explicit return shape prevents duplicated or garbled work.
+- **Set layered constraints.** What it must NOT do, where it defers, and what blocks release.
+- **Use RFC 2119 keywords** (MUST, SHOULD, MAY) for behavior requirements — rationed, not on every line.
+- **Keep it focused.** One agent per domain; prefer extending one over proliferating near-duplicates. Match the model tier to the role (cheaper/faster for narrow, read-only, high-volume specialists).
+
+The full, source-cited quality bar lives in the packs wiki: [Authoring Standards](https://github.com/prototypdigital/bluetemberg-packs/wiki/Authoring-Standards#agents--delegated-specialist-sub-agents).

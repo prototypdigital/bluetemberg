@@ -82,7 +82,7 @@ Rules ship inside `bluetemberg-rules-*` npm packages, not as local templates. Th
 | **Collection default** | Collection is pre-checked for tagged profiles | The collection's rules are broadly useful for that team type |
 | **Collection optional** | Collection is available but not pre-checked | Specialized rules that only apply to certain stacks |
 
-Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_PRESETS`. See [Contributing](Contributing) for how to add a new collection.
+Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_OVERLAYS` (rule ids and tags are resolved from the catalog by `packageName`, not declared inline). See [Contributing](Contributing) for how to add a new collection.
 
 ## Naming convention
 
@@ -104,12 +104,17 @@ Rules are grouped into collections. For the full list of individual rules inside
 
 ## Writing a good rule
 
-- **Be concise.** The AI reads every rule on every interaction. Long rules waste context.
-- **Be actionable.** Say what to do, not what to think. "Run the formatter" beats "consider formatting".
-- **Use examples.** Code blocks clarify expected behavior better than prose.
+- **Be concise — apply the deletion test.** The AI reads every rule on every interaction; bloated rules get ignored. For each line ask "would removing this cause a mistake?" — if not, cut it.
+- **Be actionable and imperative.** Say what to do, not what to think. "Run the formatter" beats "consider formatting".
+- **Say what TO do, not only what NOT to do.** Pair every prohibition with the positive replacement ("read from `process.env`", not just "never read `.env`").
+- **State the consequence.** One line on what breaks if the rule is ignored, so the model can generalize the intent.
+- **Use a BAD/GOOD example.** Code blocks clarify expected behavior better than prose.
 - **Scope it correctly.** A rule about Docker should scope to `Dockerfile*` or `docker-compose*`, not `**`.
+- **A rule is advisory, not a guarantee.** Push non-negotiable invariants into a deterministic gate (hook/lint/CI) and let the rule explain the *why*.
 - **One rule per file.** Easier to enable/disable individually, and clearer intent.
 - **After creating or editing rules**, run `npx bluetemberg sync` to regenerate platform files.
+
+The full, source-cited quality bar lives in the packs wiki: [Authoring Standards](https://github.com/prototypdigital/bluetemberg-packs/wiki/Authoring-Standards#rules--always-on-passive-context).
 
 ## Tips
 
