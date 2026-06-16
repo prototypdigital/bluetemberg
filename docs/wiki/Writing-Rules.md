@@ -82,7 +82,7 @@ Rules ship inside `bluetemberg-rules-*` npm packages, not as local templates. Th
 | **Collection default** | Collection is pre-checked for tagged profiles | The collection's rules are broadly useful for that team type |
 | **Collection optional** | Collection is available but not pre-checked | Specialized rules that only apply to certain stacks |
 
-Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_PRESETS`. See [Contributing](Contributing) for how to add a new collection.
+Collections are defined in `src/init/presets.ts` as `RULE_COLLECTION_OVERLAYS` (rule ids and tags are resolved from the catalog by `packageName`, not declared inline). See [Contributing](Contributing) for how to add a new collection.
 
 ## Naming convention
 
