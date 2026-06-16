@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { writeOrCheck, ensureDir, readIfExists, listFiles, listDirs } from '../src/utils/fs.js';
+import { writeOrCheck, computeCheck, ensureDir, readIfExists, listFiles, listDirs } from '../src/utils/fs.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bluetemberg-fs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -43,6 +43,43 @@ describe('writeOrCheck', () => {
     const result = writeOrCheck(filePath, 'hello', false);
     expect(result).toBe(false);
     expect(existsSync(filePath)).toBe(true);
+  });
+});
+
+describe('computeCheck', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns in-sync with both normalized sides when content matches', () => {
+    const filePath = join(dir, 'x.txt');
+    writeFileSync(filePath, 'a\r\nb', 'utf8');
+    const result = computeCheck(filePath, 'a\nb');
+    expect(result.outOfSync).toBe(false);
+    expect(result.existing).toBe('a\nb');
+    expect(result.content).toBe('a\nb');
+  });
+
+  it('returns out-of-sync with both sides when content differs', () => {
+    const filePath = join(dir, 'y.txt');
+    writeFileSync(filePath, 'a\nb', 'utf8');
+    const result = computeCheck(filePath, 'a\nc');
+    expect(result.outOfSync).toBe(true);
+    expect(result.existing).toBe('a\nb');
+    expect(result.content).toBe('a\nc');
+  });
+
+  it('reports a missing file as out-of-sync with null existing', () => {
+    const result = computeCheck(join(dir, 'nope.txt'), 'content');
+    expect(result.outOfSync).toBe(true);
+    expect(result.existing).toBeNull();
+    expect(result.content).toBe('content');
   });
 });
 

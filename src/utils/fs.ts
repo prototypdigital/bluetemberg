@@ -9,15 +9,32 @@ function normalizeNewlines(text: string): string {
   return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
-export function writeOrCheck(filePath: string, content: string, checkMode = false): boolean {
-  if (checkMode) {
-    const existing = existsSync(filePath) ? readFileSync(filePath, 'utf8') : null;
-    if (existing === null) {
-      return true;
-    }
-    return normalizeNewlines(existing) !== normalizeNewlines(content);
-  }
+/** Result of comparing planned content against the on-disk file without writing. */
+export interface CheckResult {
+  /** True when the file is missing or differs from the planned content (after newline normalization). */
+  outOfSync: boolean;
+  /** Normalized on-disk content, or `null` when the file does not exist yet. */
+  existing: string | null;
+  /** Normalized planned content. */
+  content: string;
+}
 
+/**
+ * Compare planned `content` against the on-disk file without writing, returning both normalized
+ * sides so callers (e.g. `sync --check --diff`) can render the difference. Newlines are normalized
+ * on both sides, so CRLF/LF-only changes are not reported as drift — matching {@link writeOrCheck}.
+ */
+export function computeCheck(filePath: string, content: string): CheckResult {
+  const normalizedContent = normalizeNewlines(content);
+  const existing = existsSync(filePath) ? normalizeNewlines(readFileSync(filePath, 'utf8')) : null;
+  if (existing === null) {
+    return { outOfSync: true, existing: null, content: normalizedContent };
+  }
+  return { outOfSync: existing !== normalizedContent, existing, content: normalizedContent };
+}
+
+export function writeOrCheck(filePath: string, content: string, checkMode = false): boolean {
+  if (checkMode) return computeCheck(filePath, content).outOfSync;
   ensureDir(dirname(filePath));
   writeFileSync(filePath, content);
   return false;

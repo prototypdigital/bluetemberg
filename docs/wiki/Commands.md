@@ -80,6 +80,7 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | ------ | ----------- |
 | `--check` | Dry-run mode; exits with code 1 if any generated files are out of sync |
 | `--dry-run` | Alias for `--check` |
+| `--diff` | Under `--check`, print a per-file unified diff (summary counts + `@@` hunks) of what drifted, so CI shows *what* changed, not just *how many* files. Implies `--check`; honors `--silent`; never changes counts or exit code |
 | `--silent` | Suppress all output (useful in scripts and CI) |
 | `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
 | `--verbose` | Emit debug output: resolved source directories (including `extends` entries), per-file origin when multiple sources are active, and any non-fatal warnings |
@@ -93,6 +94,7 @@ Before first use of `--prune`, read the short pre-flight list and platform notes
 ```bash
 npx bluetemberg sync
 npx bluetemberg sync --check
+npx bluetemberg sync --check --diff
 npx bluetemberg sync --dry-run --silent
 npx bluetemberg sync --prune
 npx bluetemberg sync ./my-project

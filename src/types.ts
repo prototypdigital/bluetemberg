@@ -243,6 +243,12 @@ export interface SyncOptions {
    * sources are active, and any non-fatal warnings (e.g. unresolved `extends` entries).
    */
   verbose?: boolean;
+  /**
+   * In check mode, print a per-file unified diff under each out-of-sync file so contributors can
+   * see *what* drifted, not just *how many* files did. Only meaningful with {@link SyncOptions.check}
+   * (implied when set), and silenced by {@link SyncOptions.silent}. No effect on counts or exit code.
+   */
+  diff?: boolean;
 }
 
 export interface SyncResults {

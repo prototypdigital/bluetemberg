@@ -1,6 +1,7 @@
 import { relative, resolve } from 'node:path';
 import type { SyncResults } from '../types.js';
-import { writeOrCheck } from '../utils/fs.js';
+import { computeCheck, writeOrCheck } from '../utils/fs.js';
+import { renderUnifiedDiff } from './diff.js';
 
 /** Minimal context for applying planned file writes (sync and check mode). */
 export interface SyncSink {
@@ -8,6 +9,8 @@ export interface SyncSink {
   checkMode: boolean;
   results: SyncResults;
   log: (...args: unknown[]) => void;
+  /** When set (`sync --check --diff`), a per-file unified diff is logged under each OUT OF SYNC line. */
+  diff?: boolean;
   /** When set (e.g. `sync --prune`), each committed output path is recorded for stale-file removal. */
   expectedOutputPaths?: Set<string>;
 }
@@ -20,13 +23,21 @@ export interface SyncSink {
  */
 export function commitPlannedWrite(sink: SyncSink, outPath: string, content: string): void {
   sink.expectedOutputPaths?.add(resolve(outPath));
-  const isDiff = writeOrCheck(outPath, content, sink.checkMode);
-  if (sink.checkMode && isDiff) {
-    sink.log(`  OUT OF SYNC: ${relative(sink.root, outPath)}`);
-    sink.results.outOfSync++;
+
+  if (!sink.checkMode) {
+    writeOrCheck(outPath, content, false);
+    sink.results.synced++;
     return;
   }
-  if (!sink.checkMode) {
-    sink.results.synced++;
+
+  const result = computeCheck(outPath, content);
+  if (!result.outOfSync) return;
+
+  sink.log(`  OUT OF SYNC: ${relative(sink.root, outPath)}`);
+  if (sink.diff) {
+    for (const line of renderUnifiedDiff(result.existing, result.content)) {
+      sink.log(line);
+    }
   }
+  sink.results.outOfSync++;
 }

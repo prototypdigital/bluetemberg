@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
@@ -212,6 +212,104 @@ describe('sync', () => {
     await sync(root, { config, silent: true });
     const results = await sync(root, { check: true, config, silent: true });
     expect(results.outOfSync).toBe(0);
+  });
+
+  it('check --diff prints a per-file diff of the changed lines', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'diff-test.md'),
+      '---\ndescription: Diff\nscope: "**"\n---\n\n# Correct heading\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: { rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } } },
+    };
+
+    // Generate the output, then hand-edit it to introduce drift the diff should surface.
+    await sync(root, { config, silent: true });
+    const outPath = join(root, '.cursor', 'rules', 'diff-test.mdc');
+    writeFileSync(outPath, readFileSync(outPath, 'utf8').replace('# Correct heading', '# Stale heading'));
+
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.join(' '));
+    });
+    let results;
+    try {
+      results = await sync(root, { check: true, diff: true, config });
+    } finally {
+      spy.mockRestore();
+    }
+    const output = logs.join('\n');
+
+    expect(results.outOfSync).toBe(1);
+    expect(shouldExitWithFailure(results, true)).toBe(true);
+    expect(output).toContain('OUT OF SYNC:');
+    expect(output).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
+    expect(output).toContain('-# Stale heading');
+    expect(output).toContain('+# Correct heading');
+  });
+
+  it('check --diff honors --silent and leaves counts unchanged', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'silent-diff.md'),
+      '---\ndescription: Silent\nscope: "**"\n---\n\n# Heading\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: { rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } } },
+    };
+
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.join(' '));
+    });
+    let results;
+    try {
+      // Output never generated, so the file is out of sync; --silent suppresses the diff lines.
+      results = await sync(root, { check: true, diff: true, silent: true, config });
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(results.outOfSync).toBe(1);
+    expect(logs.join('\n')).toBe('');
+  });
+
+  it('check without --diff produces no diff output (no regression)', async () => {
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'no-diff.md'),
+      '---\ndescription: NoDiff\nscope: "**"\n---\n\n# Heading\n',
+    );
+
+    const config: BlueprintConfig = {
+      platforms: ['cursor'],
+      source: 'llm',
+      targets: { rules: { cursor: { dir: '.cursor/rules', ext: '.mdc' } } },
+    };
+
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logs.push(args.join(' '));
+    });
+    let results;
+    try {
+      results = await sync(root, { check: true, config });
+    } finally {
+      spy.mockRestore();
+    }
+    const output = logs.join('\n');
+
+    expect(results.outOfSync).toBe(1);
+    expect(output).toContain('OUT OF SYNC:');
+    expect(output).not.toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
+    expect(output).not.toContain('lines added');
   });
 
   it('syncs AGENTS.md to copilot instructions', async () => {
