@@ -444,16 +444,15 @@ program
   .command('add')
   .description('Add one or more packs (rules, agents, skills, guardrails) from the npm registry')
   .argument('<packages...>', 'Package name(s) with optional @version (e.g. my-rules@^1.0.0)')
-  .option('--version <range>', 'Semver range (overrides @version in package spec; single package only)')
   .option('--silent', 'Suppress all output')
   .action(async (packages, options) => {
     const { add } = await import('../dist/registry/index.js');
+    const uniquePackages = [...new Set(packages)];
     const failed = [];
 
-    for (const packageSpec of packages) {
+    for (const packageSpec of uniquePackages) {
       try {
         await add(process.cwd(), packageSpec, {
-          version: options.version,
           silent: options.silent,
         });
       } catch (err) {
@@ -464,7 +463,7 @@ program
       }
     }
 
-    if (failed.length < packages.length) {
+    if (failed.length < uniquePackages.length) {
       const { refreshCatalogCache } = await import('../dist/catalog/index.js');
       const refreshed = await refreshCatalogCache(process.cwd());
       if (!refreshed && !options.silent) {
@@ -475,6 +474,11 @@ program
     }
 
     if (failed.length > 0) {
+      if (!options.silent && uniquePackages.length > 1) {
+        console.error(
+          `Failed to add ${failed.length} of ${uniquePackages.length} pack(s): ${failed.join(', ')}`,
+        );
+      }
       process.exit(1);
     }
   });
