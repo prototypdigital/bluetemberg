@@ -31,7 +31,7 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
 }
 ```
 
-The `stacks`, `extends`, and `adapters` fields are optional.
+The `stacks`, `extends`, `adapters`, and `root` fields are optional.
 
 ## Fields
 
@@ -138,6 +138,10 @@ See [Marketplace](Marketplace) for the full schema, profile filtering behavior, 
 
 Optional array of **strings** passed to `import()`: npm package names (must be installed in the consumer project), `file:` URLs, or absolute `file://` URLs. Loaded **after** all built-in steps. Specifiers execute code at sync time — use only **trusted** modules; see [Adapters](Adapters) for the module contract and security notes.
 
+### `root`
+
+Optional boolean. When `true`, marks this config as the **inheritance root** in a monorepo: config discovery stops here and never looks at ancestor `bluetemberg.config.json` files above this directory. Defaults to `false`. See [Monorepo config inheritance](#monorepo-config-inheritance).
+
 ### `targets`
 
 Maps each content type (rules, agents, skills) to platform-specific output directories and file extensions.
@@ -208,6 +212,55 @@ Skills are synced as `<skill-name>/SKILL.md` within the target directory.
 > Codex rules, agents, and MCP do **not** use the `targets` tables above — they have fixed,
 > non-per-file outputs. See [OpenAI Codex](#openai-codex-codex) below. Only `targets.skills.codex`
 > is configurable.
+
+## Monorepo config inheritance
+
+In a monorepo, each package can have its own `bluetemberg.config.json` that **inherits from a root config**. When you run `bluetemberg sync` from a package directory, Bluetemberg walks **up** the directory tree, collects every `bluetemberg.config.json` it finds, and merges them — with the most-local file winning on conflicts.
+
+```
+my-monorepo/
+  bluetemberg.config.json       # root — shared platforms, targets
+  packages/
+    frontend/
+      bluetemberg.config.json   # inherits root, adds frontend-specific values
+    backend/
+      bluetemberg.config.json   # inherits root, adds backend-specific values
+```
+
+### How discovery and merging work
+
+1. Starting from the directory you run sync in, Bluetemberg looks for `bluetemberg.config.json` in that directory and each parent.
+2. Traversal **stops** after the first of: a config with `"root": true`, the git root (a directory containing `.git`), or the filesystem root. The stopping directory's own config is still included.
+3. Configs are merged from the outermost ancestor inward, so **local values win**.
+
+### Merge semantics
+
+| Field | Behavior |
+|-------|----------|
+| `platforms` | **Unioned** across the chain (ancestor entries first), deduped. |
+| `targets` | **Deep-merged per platform.** A local entry overriding only `dir` keeps the inherited `ext`. |
+| `extends` | **Unioned**, with local entries taking priority (placed first), deduped. |
+| `stacks` | **Merged** as an object; local versions override inherited ones. |
+| `adapters` | **Unioned** (local first), deduped. |
+| `source` | **Never inherited** — always the local package's value (or the default `llm`). |
+| `profile`, `marketplace` | Local value replaces the inherited one. |
+
+Because fields can be inherited, an individual package config may **omit** `platforms` (or partial `targets` fields) as long as an ancestor supplies them. The **merged** result must still be valid — if no config in the chain defines `platforms`, sync fails with the usual error.
+
+### Stopping inheritance with `root`
+
+Set `"root": true` in a config to stop discovery from climbing past it — useful when a monorepo lives inside a larger directory that also contains a `bluetemberg.config.json`:
+
+```json
+{
+  "root": true,
+  "platforms": ["cursor", "claude"],
+  "source": "llm",
+  "targets": {}
+}
+```
+
+> **Not the same as [`extends`](#extends).** `extends` merges **source directories** (`llm/` rules, agents, skills) from other locations. Config inheritance merges the **config file itself** (platforms, targets, stacks, …). The two are independent and can be used together — e.g. a package config can both inherit a root config *and* declare its own `extends`.
 
 ## MCP manifest (`llm/mcp.json`)
 
