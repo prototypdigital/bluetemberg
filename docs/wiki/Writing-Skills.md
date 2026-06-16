@@ -17,10 +17,12 @@ Use a **rule** when the behavior should happen automatically on every interactio
 
 ## Format
 
-```markdown
+Skills follow the **deep-skill standard** — a step-by-step protocol the model can execute, not a restatement of what a base model already knows:
+
+````markdown
 ---
 name: skill-name
-description: One-line description of what this skill does.
+description: One tight sentence — what the skill does and when.
 ---
 
 # skill-name
@@ -29,23 +31,37 @@ Use this skill when [trigger context].
 
 ## Triggers
 
-- `trigger-keyword-1`
-- `trigger-keyword-2`
+- "trigger phrase or measurable condition"
+- "a second concrete trigger"
 
-## Required behavior
+## Protocol
 
-1. The agent MUST [required action].
-2. The agent SHOULD [recommended action].
-3. The agent MAY [optional action].
+### Step 1 — {imperative action}
 
-## Examples
+Use a decision tree wherever a branch matters:
 
-- Example scenario and expected behavior
+```text
+Does {condition} hold?
+  YES → {path A}
+  NO  → {path B}
+```
+
+### Step 2 — {imperative action}
+
+```text
+BAD:  {the wrong form — concrete code/command/output}
+GOOD: {the corrected form}
+```
+
+## Completion checklist
+
+- [ ] {verifiable criterion}
+- [ ] {verifiable criterion}
 
 ## When NOT to use
 
-- Situations where this skill should be skipped
-```
+- {Situation where this skill is the wrong tool or adds noise}
+````
 
 ## Frontmatter fields
 
@@ -93,9 +109,15 @@ You can also write custom local skills directly in `llm/skills/` — local files
 
 ## Writing a good skill
 
-- **Define clear triggers.** The AI needs to know when to activate the skill, and so does the human invoking it.
-- **Use RFC 2119 keywords** (MUST, SHOULD, MAY) for behavior requirements.
-- **Include a "When NOT to use" section.** Prevents over-application in situations where the skill adds noise.
+The bar is a procedure the model can *execute*, not a list of platitudes a base model already follows.
+
+- **Write a `## Protocol`, not a flat checklist.** Numbered `### Step N` actions the model works through in order.
+- **Add a decision tree wherever a branch matters** — input → which path, with no dead ends.
+- **Show at least one BAD/GOOD example** with concrete code, commands, or output — the wrong form next to the corrected one. (A pure ordered diagnostic may substitute exact commands/templates, but stay concrete.)
+- **End with a `## Completion checklist`** the invoker can tick off (`- [ ] …`), not vague quality statements.
+- **Include a "When NOT to use" section.** Prevents over-application where the skill adds noise.
+- **Use RFC 2119 keywords** (MUST, SHOULD, MAY) inside a step only where authority genuinely varies.
+- **Aim for ~60–120 lines of actionable content.** Benchmark against `figma-to-code` and `config-echo`. A skill that only restates generic best practice with no protocol, decision tree, or worked example is too thin — it adds nothing over the base model.
 - **Keep skills focused on a single workflow.** If a skill covers both security auditing and code review, split it.
-- **Link to canonical documentation** rather than restating full policies.
+- **Make claims traceable.** Where guidance goes beyond convention, cite a primary source (see the packs repo's Research & Sources page).
 - After creating or editing skills, run `npx bluetemberg sync`.
