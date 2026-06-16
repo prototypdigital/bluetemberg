@@ -20,6 +20,32 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.7.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.6.0...bluetemberg-v0.7.0) (2026-06-16)
+
+
+### Features
+
+* **add:** accept multiple package arguments in a single call ([4dce283](https://github.com/prototypdigital/bluetemberg/commit/4dce283b42809d7a4b25a43153e3518e765d15ff))
+* **add:** accept multiple package arguments in a single call ([01d0e97](https://github.com/prototypdigital/bluetemberg/commit/01d0e97d625140cee24eb449abe11b8ee4fef2d5)), closes [#137](https://github.com/prototypdigital/bluetemberg/issues/137)
+* **site:** add evidence-backed "standards with receipts" section ([e3ab92a](https://github.com/prototypdigital/bluetemberg/commit/e3ab92a1515bc9df0faba62e358e35cca31df0c6))
+* **site:** refresh landing copy — six tools, version-aware routing, signatures, evidence-backed ([b69d88c](https://github.com/prototypdigital/bluetemberg/commit/b69d88c04f2320197975be24dc9ef4ad7327c963))
+* **site:** refresh landing copy for stacks, MCP, signatures, Codex ([fc613b0](https://github.com/prototypdigital/bluetemberg/commit/fc613b0baa171d3d2e521db0b88f4319e9e939ec))
+* **sync:** monorepo config inheritance with per-package overrides ([17e7062](https://github.com/prototypdigital/bluetemberg/commit/17e7062a3b67b93958fb539828b434ee52fb3894))
+* **sync:** monorepo config inheritance with per-package overrides ([00eac4b](https://github.com/prototypdigital/bluetemberg/commit/00eac4b8da0d3b42162d5094003216c5b109e059))
+* **sync:** surface per-file diff under `sync --check --diff` ([14d2eec](https://github.com/prototypdigital/bluetemberg/commit/14d2eec4d327abdc27d7c68e6f1f0f7e4856837d))
+* **sync:** surface per-file diff under sync --check --diff ([fe6b6e4](https://github.com/prototypdigital/bluetemberg/commit/fe6b6e4b2cc5702517e9d9596a91daafc71f6dbb))
+
+
+### Bug Fixes
+
+* **add:** drop dead --version flag, dedupe packs, summarize failures ([e18d970](https://github.com/prototypdigital/bluetemberg/commit/e18d97029aed9f758b4805e38e5c6399850f655f))
+* **ci:** skip prepublishOnly in publish job ([c0b2689](https://github.com/prototypdigital/bluetemberg/commit/c0b2689407282e699de5a18f37be5d3b7ee382e2))
+* **ci:** skip prepublishOnly in publish job — dist already built by artifact ([29c4930](https://github.com/prototypdigital/bluetemberg/commit/29c4930035d8309d6a1a3dca3cc2e1134a240789))
+* **cli:** guard against subcommand options shadowed by global flags ([d664fe2](https://github.com/prototypdigital/bluetemberg/commit/d664fe21b66fd9babab5ad80555aecb70d220969))
+* **cli:** guard against subcommand options shadowed by global flags ([6c6fa85](https://github.com/prototypdigital/bluetemberg/commit/6c6fa8586671ce6e29697562759c88f9caf912c1))
+* **site:** match the install profile picker to the real init wizard ([916e44b](https://github.com/prototypdigital/bluetemberg/commit/916e44bfbcdb6f3e9bbb9b13d38086a90c265116))
+* **sync:** address code review findings on --diff renderer ([7faf9ee](https://github.com/prototypdigital/bluetemberg/commit/7faf9ee11be11b3795029fde25e1586ac10d185c))
+
 ## [0.6.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.5.0...bluetemberg-v0.6.0) (2026-06-15)
 
 
