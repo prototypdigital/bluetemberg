@@ -133,6 +133,31 @@ cliSuite('cli flags', () => {
   });
 });
 
+cliSuite('cli add', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('--help documents the variadic packages argument', () => {
+    const r = runCli(['add', '--help'], process.cwd());
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('packages...');
+    expect(r.stdout).toMatch(/one or more packs/i);
+  });
+
+  it('requires at least one package argument', () => {
+    const r = runCli(['add'], root);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/missing required argument/i);
+  });
+});
+
 cliSuite('cli init headless', () => {
   let root: string;
 

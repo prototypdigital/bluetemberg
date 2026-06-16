@@ -152,13 +152,16 @@ Register it with an MCP client (example for Claude Code's `.mcp.json`):
 
 > stdout is the MCP protocol channel — do not pipe other output through it. Diagnostics go to stderr.
 
-## `bluetemberg add <package>`
+## `bluetemberg add <packages...>`
 
-Install a rule pack from the npm registry. See [Registry](Registry) for full details.
+Install one or more rule packs from the npm registry. See [Registry](Registry) for full details.
 
 ```bash
 bluetemberg add @company/rules-frontend
 bluetemberg add @company/rules-frontend@^1.2.0
+
+# Add several packs at once
+bluetemberg add bluetemberg-rules-typescript bluetemberg-agents-code-reviewer
 ```
 
 ## `bluetemberg remove <package>`

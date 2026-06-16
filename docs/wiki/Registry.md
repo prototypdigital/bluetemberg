@@ -73,16 +73,22 @@ The `keyid` field is recorded when the package is installed and holds the regist
 
 ## Commands
 
-### `bluetemberg add <package>`
+### `bluetemberg add <packages...>`
 
-Install a rule pack from the npm registry.
+Install one or more rule packs from the npm registry.
 
 ```bash
 bluetemberg add @company/rules-frontend
 bluetemberg add @company/rules-frontend@^1.2.0
 bluetemberg add community-ts-rules@latest
-bluetemberg add community-ts-rules --version "~2.0.0"
+bluetemberg add community-ts-rules@"~2.0.0"
+
+# Add several packs at once (pin each with name@range)
+bluetemberg add bluetemberg-rules-typescript bluetemberg-agents-code-reviewer bluetemberg-skills-code-review
 ```
+
+Pin a version with the `name@range` syntax (e.g. `community-ts-rules@^1.2.0`); it
+works per-package, so each pack in a multi-package install can carry its own range.
 
 **What it does:**
 
@@ -96,12 +102,17 @@ bluetemberg add community-ts-rules --version "~2.0.0"
 
 After adding, run `bluetemberg sync` to generate platform-specific files that include the new rules.
 
+When multiple packages are given, they install sequentially and duplicates are
+ignored. If some fail, the rest still install — the failures are listed at the
+end and the command exits non-zero.
+
 **Options:**
 
 | Option | Description |
 | ------ | ----------- |
-| `--version <range>` | Semver range (overrides `@version` in the package spec) |
 | `--silent` | Suppress all output |
+
+To pin a version, use the `name@range` syntax in the package argument rather than a flag.
 
 ### `bluetemberg remove <package>`
 
