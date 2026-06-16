@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="AI coding standards, delivered like a real dependency. Author rules, agents, and skills once — synced to Cursor, Claude Code, Copilot, Gemini CLI, and Windsurf, version-locked and integrity-verified."
+      content="Author your AI coding standards once — rules, agents, and skills — and Bluetemberg syncs them to Cursor, Claude Code, Copilot, Gemini CLI, Windsurf, and OpenAI Codex. Routed by role and tech-stack version, version-locked and signature-verified."
     />
     <meta property="og:title" content="Bluetemberg — AI standards, shipped like a dependency" />
     <meta
       property="og:description"
-      content="Author rules, agents, and skills once. Sync to five AI tools, version-locked and SHA-512 verified."
+      content="Author rules, agents, and skills once. Sync to six AI tools, routed by role and stack version, integrity- and signature-verified."
     />
     <meta property="og:type" content="website" />
     <title>Bluetemberg — AI standards, shipped like a dependency</title>
@@ -269,16 +269,13 @@
         color: var(--accent-soft);
         margin-right: 6px;
       }
-      .pp-arrow {
-        color: var(--accent-soft);
-        margin-left: 4px;
-      }
       .profile-option {
         display: flex;
         align-items: baseline;
         gap: 10px;
         padding: 2px 0;
         font-size: 12px;
+        line-height: 1.5;
       }
       .pp-cursor {
         display: inline-block;
@@ -288,14 +285,18 @@
       }
       .pp-name {
         color: var(--text);
-        min-width: 82px;
-        flex-shrink: 0;
       }
-      .pp-desc {
+      .pp-line {
         color: var(--text-faint);
       }
-      .profile-option--active .pp-name {
+      .profile-option--active .pp-name,
+      .profile-option--active .pp-line {
         color: var(--accent-soft);
+      }
+      .profile-hint {
+        font-size: 11px;
+        color: var(--text-faint);
+        margin-top: 10px;
       }
 
       /* How it works — steps */
@@ -338,6 +339,11 @@
         color: var(--accent-soft);
         background: var(--bg-code);
         padding: 1px 5px;
+      }
+
+      /* Targeting — two routing axes */
+      .targeting {
+        padding: 56px 0;
       }
 
       /* Audiences — humans + agents loop */
@@ -430,6 +436,17 @@
       /* Security controls */
       .security {
         padding: 56px 0;
+      }
+      .evidence {
+        padding: 56px 0;
+      }
+      .lane-val a {
+        color: var(--accent-soft);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .lane-val a:hover {
+        color: var(--text);
       }
       .controls {
         list-style: none;
@@ -722,7 +739,9 @@
         </a>
         <ul class="nav-links">
           <li class="nav-anchor"><a href="#how">how</a></li>
+          <li class="nav-anchor"><a href="#routing">routing</a></li>
           <li class="nav-anchor"><a href="#security">security</a></li>
+          <li class="nav-anchor"><a href="#research">research</a></li>
           <li><a href="https://prototypdigital.github.io/bluetemberg-packs/">packs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg/wiki">docs</a></li>
           <li><a href="https://github.com/prototypdigital/bluetemberg">github</a></li>
@@ -738,8 +757,11 @@
           <h1 class="hero-headline">AI coding standards,<br /><em>shipped like a dependency.</em></h1>
           <p class="hero-sub">
             Author rules, agents, and skills <strong>once</strong>. Bluetemberg compiles them into native
-            config for five AI tools —
-            <strong>version-locked, integrity-verified, and matched to each engineer's role.</strong>
+            config for six AI tools —
+            <strong
+              >routed by each engineer's role and the stack's exact version, then verified like a real
+              dependency.</strong
+            >
           </p>
           <div class="badges">
             <a href="https://www.npmjs.com/package/bluetemberg">
@@ -773,44 +795,58 @@
             <button class="copy-btn" id="copyBtn" aria-label="Copy install command">Copy</button>
           </div>
           <div class="profile-picker">
-            <p class="profile-prompt">
-              <span class="pp-q">?</span>Team profile<span class="pp-arrow">›</span>
-            </p>
+            <p class="profile-prompt"><span class="pp-q">?</span>Team profile:</p>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-line"
+                ><span class="pp-name">Frontend</span> — UI, design systems, accessibility</span
+              >
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-line"
+                ><span class="pp-name">Backend</span> — APIs, databases, auth, services</span
+              >
+            </div>
             <div class="profile-option profile-option--active">
-              <span class="pp-cursor" aria-hidden="true">›</span>
-              <span class="pp-name">Frontend</span>
-              <span class="pp-desc">UI, design systems, accessibility</span>
+              <span class="pp-cursor" aria-hidden="true">❯</span>
+              <span class="pp-line"
+                ><span class="pp-name">Full-stack</span> — Frontend + backend combined</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Backend</span>
-              <span class="pp-desc">APIs, databases, auth, services</span>
+              <span class="pp-line"
+                ><span class="pp-name">DevOps / Platform</span> — CI/CD, containers,
+                infrastructure-as-code</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Full-stack</span>
-              <span class="pp-desc">Frontend + backend combined</span>
+              <span class="pp-line"
+                ><span class="pp-name">Pure Infrastructure</span> — Ansible, Kubernetes, Terraform — no
+                application code</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">DevOps</span>
-              <span class="pp-desc">CI/CD, containers, infrastructure</span>
+              <span class="pp-line"
+                ><span class="pp-name">AI / Agentic Workflow</span> — Context engineering, agent memory,
+                sub-agent design for LLM-heavy projects</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Pure infra</span>
-              <span class="pp-desc">Kubernetes, Terraform, Ansible</span>
+              <span class="pp-line"
+                ><span class="pp-name">Design Engineer</span> — Anti-stock UI craft, design-to-code, visual
+                direction &amp; critique</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Agentic</span>
-              <span class="pp-desc">Context engineering, sub-agents</span>
+              <span class="pp-line"><span class="pp-name">Custom</span> — Pick everything individually</span>
             </div>
-            <div class="profile-option">
-              <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Custom</span>
-              <span class="pp-desc">Pick everything individually</span>
-            </div>
+            <p class="profile-hint" aria-hidden="true">↑↓ navigate • ⏎ select</p>
           </div>
           <p class="install-note">
             Requires Node.js 20+. &nbsp;Headless:
@@ -848,11 +884,50 @@
               <span class="step-num">03 / SHIP</span>
               <span class="step-title">Onboard instantly</span>
               <span class="step-desc"
-                >Publish packs to npm with semver + SHA-512. Teammates run <code>install</code> — or get them
-                zero-setup via a Claude Code plugin.</span
+                >Publish packs to npm with semver, SHA-512, and registry signatures. Teammates
+                <code>install</code> — verified on arrival — or get them zero-setup via a Claude Code
+                plugin.</span
               >
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- TARGETING — two routing axes: role + stack/version -->
+      <section class="targeting" id="routing">
+        <div class="container">
+          <p class="section-label">Version-aware routing</p>
+          <h2 class="section-title">
+            Two axes, not one. <em>Role decides who gets a rule. Stack decides which version of it.</em>
+          </h2>
+          <ul class="lanes">
+            <li class="lane">
+              <span class="lane-key">By role</span>
+              <span class="lane-val"
+                >Profiles match content to an engineer's work — frontend, backend, infra, design.
+                <strong
+                  >Each teammate gets the standards that apply to them, and none that don't.</strong
+                ></span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">By stack &amp; version</span>
+              <span class="lane-val"
+                >Tag a rule with a version range; <code>sync</code> delivers it only where it's correct —
+                resolving each stack's version from your config, lockfile, and dependencies.
+                <strong>A Payload&nbsp;2 rule never reaches a Payload&nbsp;3 repo.</strong></span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">Queryable</span>
+              <span class="lane-val"
+                ><code>bluetemberg detect</code> reports the stacks and versions it found;
+                <code>coverage</code> checks whether version-correct guidance exists. Both have
+                <code>--json</code> twins — and <code>bluetemberg mcp serve</code> exposes them to any agent
+                over MCP. <strong>Read-only — it answers, it never writes.</strong></span
+              >
+            </li>
+          </ul>
         </div>
       </section>
 
@@ -893,8 +968,8 @@
       <!-- PLATFORM MATRIX -->
       <section class="platforms">
         <div class="container">
-          <p class="section-label">Coverage</p>
-          <h2 class="section-title">Five tools, native formats.</h2>
+          <p class="section-label">Tool coverage</p>
+          <h2 class="section-title">Six tools, native formats.</h2>
           <!-- Desktop: feature matrix table -->
           <table class="matrix">
             <thead>
@@ -936,6 +1011,12 @@
                 <td><span class="no">–</span></td>
                 <td><span class="yes">●</span></td>
               </tr>
+              <tr>
+                <th>OpenAI&nbsp;Codex</th>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span></td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -949,6 +1030,17 @@
             Packs are dependencies. <em>So they're verified like dependencies.</em>
           </h2>
           <ul class="controls">
+            <li class="control">
+              <span class="control-key">Registry signatures</span>
+              <span class="control-val"
+                >Packs from the npm registry have their ECDSA registry signature verified on every install —
+                and re-checked any time with <code>bluetemberg verify</code>.
+                <strong
+                  >Tampered or unsigned packages are refused — the same cryptographic provenance check npm
+                  itself runs.</strong
+                ></span
+              >
+            </li>
             <li class="control">
               <span class="control-key">SHA-512 integrity</span>
               <span class="control-val"
@@ -992,6 +1084,44 @@
         </div>
       </section>
 
+      <!-- EVIDENCE — researched, primary-source-verified standards -->
+      <section class="evidence" id="research">
+        <div class="container">
+          <p class="section-label">Standards with receipts</p>
+          <h2 class="section-title">
+            Most AI rules are a model's best guess.
+            <em>Ours are checked against the source.</em>
+          </h2>
+          <ul class="lanes">
+            <li class="lane">
+              <span class="lane-key">Primary sources</span>
+              <span class="lane-val"
+                >Every claim past plain convention is verified against official docs, IETF RFCs, and vendor
+                advisories — PostgreSQL, RFC&nbsp;9110, OWASP, CISA.
+                <strong>Sourced from the spec, not forum folklore.</strong></span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">Default-refute</span>
+              <span class="lane-val"
+                >An independent agent tries to <em>disprove</em> each claim; only the ones that survive a
+                majority of checks ship.
+                <strong>Overstated guidance gets downgraded, not waved through.</strong></span
+              >
+            </li>
+            <li class="lane">
+              <span class="lane-key">Public receipts</span>
+              <span class="lane-val"
+                >Every verdict and source is on the
+                <a href="https://github.com/prototypdigital/bluetemberg-packs/wiki/Research">Research page</a>
+                — confirmed, or flagged "nuanced" and reworded.
+                <strong>Including the claims we walked back.</strong></span
+              >
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <!-- COMPARISON -->
       <section class="compare">
         <div class="container">
@@ -1015,7 +1145,12 @@
               <tr>
                 <td class="row-label">Integrity</td>
                 <td class="dim">none</td>
-                <td class="win">SHA-512, host-pinned</td>
+                <td class="win">SHA-512, ECDSA-signed, host-pinned</td>
+              </tr>
+              <tr>
+                <td class="row-label">Provenance</td>
+                <td class="dim">whatever the model knows</td>
+                <td class="win">verified vs. primary sources</td>
               </tr>
               <tr>
                 <td class="row-label">Per-role config</td>
@@ -1023,9 +1158,14 @@
                 <td class="win">profiles, role-matched defaults</td>
               </tr>
               <tr>
+                <td class="row-label">Stack targeting</td>
+                <td class="dim">one file, every version</td>
+                <td class="win">version-gated at sync</td>
+              </tr>
+              <tr>
                 <td class="row-label">Multi-tool</td>
                 <td class="dim">one file, one format</td>
-                <td class="win">5 tools, native formats</td>
+                <td class="win">6 tools, native formats</td>
               </tr>
               <tr>
                 <td class="row-label">Onboarding</td>
@@ -1044,7 +1184,12 @@
             <div class="compare-row">
               <span class="compare-label">Integrity</span>
               <span class="compare-old">none</span>
-              <span class="compare-new">SHA-512, host-pinned</span>
+              <span class="compare-new">SHA-512, ECDSA-signed, host-pinned</span>
+            </div>
+            <div class="compare-row">
+              <span class="compare-label">Provenance</span>
+              <span class="compare-old">whatever the model knows</span>
+              <span class="compare-new">verified vs. primary sources</span>
             </div>
             <div class="compare-row">
               <span class="compare-label">Per-role config</span>
@@ -1052,9 +1197,14 @@
               <span class="compare-new">profiles, role-matched defaults</span>
             </div>
             <div class="compare-row">
+              <span class="compare-label">Stack targeting</span>
+              <span class="compare-old">one file, every version</span>
+              <span class="compare-new">version-gated at sync</span>
+            </div>
+            <div class="compare-row">
               <span class="compare-label">Multi-tool</span>
               <span class="compare-old">one file, one format</span>
-              <span class="compare-new">5 tools, native formats</span>
+              <span class="compare-new">6 tools, native formats</span>
             </div>
             <div class="compare-row">
               <span class="compare-label">Onboarding</span>
