@@ -65,7 +65,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",
     "@commitlint/config-conventional": "^21.0.2",
-    "@types/node": "^22.0.0",
+    "@types/node": "^25.9.3",
     "@types/semver": "^7.7.1",
     "eslint": "^10.2.1",
     "prettier": "^3.8.4",
