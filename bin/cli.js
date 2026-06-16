@@ -749,4 +749,11 @@ sourceCmd
     }
   });
 
+const { findReservedFlagCollisions, formatReservedFlagCollisions } = await import('../dist/cli-guards.js');
+const flagCollisions = findReservedFlagCollisions(program);
+if (flagCollisions.length > 0) {
+  console.error(formatReservedFlagCollisions(flagCollisions));
+  process.exit(1);
+}
+
 program.parse();
