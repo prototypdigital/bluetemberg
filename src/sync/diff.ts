@@ -6,6 +6,20 @@
 
 const CONTEXT = 3;
 
+/**
+ * Split text into lines, stripping the phantom empty element produced by a terminal `\n`.
+ * A file that ends with `\n` has N real lines, not N+1 — this keeps counts and diffs accurate.
+ */
+function splitLines(text: string): string[] {
+  const lines = text.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
+function pluralLines(n: number): string {
+  return `${n} ${n === 1 ? 'line' : 'lines'}`;
+}
+
 type DiffType = 'add' | 'del' | 'eq';
 
 interface DiffLine {
@@ -82,20 +96,28 @@ function prefixFor(type: DiffType): string {
  * Render a unified diff between the on-disk `existing` content and the freshly rendered `content`.
  * `existing` is `null` when the output file does not exist yet (a brand-new generated file).
  * Returns indented log lines: a summary count, then `@@` hunks with `+`/`-`/context lines.
+ *
+ * Note: the new-file format intentionally omits the `@@ -0,0 +1,N @@` hunk header used by standard
+ * unified diff — bare `+line` lines are clearer in a nested CLI log context.
  */
 export function renderUnifiedDiff(existing: string | null, content: string): string[] {
   if (existing === null) {
-    const added = content === '' ? [] : content.split('\n');
-    const lines = [`    ~ new file, ${added.length} line(s) added`];
+    const added = splitLines(content);
+    const lines = [`    ~ new file, ${pluralLines(added.length)} added`];
     for (const text of added) lines.push(`    +${text}`);
     return lines;
   }
 
-  const diff = diffLines(existing.split('\n'), content.split('\n'));
+  const diff = diffLines(splitLines(existing), splitLines(content));
   const added = diff.filter((d) => d.type === 'add').length;
   const removed = diff.filter((d) => d.type === 'del').length;
 
-  const lines = [`    ~ ${added} line(s) added, ${removed} line(s) removed`];
+  // Trailing-newline-only differences collapse to zero after splitLines — surface them explicitly.
+  if (added === 0 && removed === 0) {
+    return ['    ~ trailing newline difference only'];
+  }
+
+  const lines = [`    ~ ${pluralLines(added)} added, ${pluralLines(removed)} removed`];
   for (const [start, end] of buildHunks(diff)) {
     const slice = diff.slice(start, end + 1);
     const oldNos = slice.filter((d) => d.type !== 'add').map((d) => d.oldNo);

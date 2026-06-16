@@ -329,7 +329,7 @@ program
     // --diff implies --check: a diff is only meaningful when comparing against on-disk output.
     const check = options.check || options.dryRun || options.diff || false;
     if (options.diff && !options.check && !options.dryRun && !options.silent) {
-      console.log('Note: --diff implies --check (no files will be written).\n');
+      console.log('Note: --diff implies --check (no files will be written).');
     }
     const results = await sync(root, {
       check,

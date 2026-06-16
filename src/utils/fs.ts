@@ -9,20 +9,6 @@ function normalizeNewlines(text: string): string {
   return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
-export function writeOrCheck(filePath: string, content: string, checkMode = false): boolean {
-  if (checkMode) {
-    const existing = existsSync(filePath) ? readFileSync(filePath, 'utf8') : null;
-    if (existing === null) {
-      return true;
-    }
-    return normalizeNewlines(existing) !== normalizeNewlines(content);
-  }
-
-  ensureDir(dirname(filePath));
-  writeFileSync(filePath, content);
-  return false;
-}
-
 /** Result of comparing planned content against the on-disk file without writing. */
 export interface CheckResult {
   /** True when the file is missing or differs from the planned content (after newline normalization). */
@@ -45,6 +31,13 @@ export function computeCheck(filePath: string, content: string): CheckResult {
     return { outOfSync: true, existing: null, content: normalizedContent };
   }
   return { outOfSync: existing !== normalizedContent, existing, content: normalizedContent };
+}
+
+export function writeOrCheck(filePath: string, content: string, checkMode = false): boolean {
+  if (checkMode) return computeCheck(filePath, content).outOfSync;
+  ensureDir(dirname(filePath));
+  writeFileSync(filePath, content);
+  return false;
 }
 
 export function readIfExists(filePath: string): string | null {

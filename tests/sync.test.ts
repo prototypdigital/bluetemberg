@@ -309,7 +309,7 @@ describe('sync', () => {
     expect(results.outOfSync).toBe(1);
     expect(output).toContain('OUT OF SYNC:');
     expect(output).not.toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
-    expect(output).not.toContain('line(s) added');
+    expect(output).not.toContain('lines added');
   });
 
   it('syncs AGENTS.md to copilot instructions', async () => {
