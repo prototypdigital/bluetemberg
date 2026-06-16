@@ -269,16 +269,13 @@
         color: var(--accent-soft);
         margin-right: 6px;
       }
-      .pp-arrow {
-        color: var(--accent-soft);
-        margin-left: 4px;
-      }
       .profile-option {
         display: flex;
         align-items: baseline;
         gap: 10px;
         padding: 2px 0;
         font-size: 12px;
+        line-height: 1.5;
       }
       .pp-cursor {
         display: inline-block;
@@ -288,14 +285,18 @@
       }
       .pp-name {
         color: var(--text);
-        min-width: 82px;
-        flex-shrink: 0;
       }
-      .pp-desc {
+      .pp-line {
         color: var(--text-faint);
       }
-      .profile-option--active .pp-name {
+      .profile-option--active .pp-name,
+      .profile-option--active .pp-line {
         color: var(--accent-soft);
+      }
+      .profile-hint {
+        font-size: 11px;
+        color: var(--text-faint);
+        margin-top: 10px;
       }
 
       /* How it works — steps */
@@ -782,49 +783,58 @@
             <button class="copy-btn" id="copyBtn" aria-label="Copy install command">Copy</button>
           </div>
           <div class="profile-picker">
-            <p class="profile-prompt">
-              <span class="pp-q">?</span>Team profile<span class="pp-arrow">›</span>
-            </p>
+            <p class="profile-prompt"><span class="pp-q">?</span>Team profile:</p>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-line"
+                ><span class="pp-name">Frontend</span> — UI, design systems, accessibility</span
+              >
+            </div>
+            <div class="profile-option">
+              <span class="pp-cursor" aria-hidden="true"></span>
+              <span class="pp-line"
+                ><span class="pp-name">Backend</span> — APIs, databases, auth, services</span
+              >
+            </div>
             <div class="profile-option profile-option--active">
-              <span class="pp-cursor" aria-hidden="true">›</span>
-              <span class="pp-name">Frontend</span>
-              <span class="pp-desc">UI, design systems, accessibility</span>
+              <span class="pp-cursor" aria-hidden="true">❯</span>
+              <span class="pp-line"
+                ><span class="pp-name">Full-stack</span> — Frontend + backend combined</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Backend</span>
-              <span class="pp-desc">APIs, databases, auth, services</span>
+              <span class="pp-line"
+                ><span class="pp-name">DevOps / Platform</span> — CI/CD, containers,
+                infrastructure-as-code</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Full-stack</span>
-              <span class="pp-desc">Frontend + backend combined</span>
+              <span class="pp-line"
+                ><span class="pp-name">Pure Infrastructure</span> — Ansible, Kubernetes, Terraform — no
+                application code</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">DevOps</span>
-              <span class="pp-desc">CI/CD, containers, infrastructure</span>
+              <span class="pp-line"
+                ><span class="pp-name">AI / Agentic Workflow</span> — Context engineering, agent memory,
+                sub-agent design for LLM-heavy projects</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Pure infra</span>
-              <span class="pp-desc">Kubernetes, Terraform, Ansible</span>
+              <span class="pp-line"
+                ><span class="pp-name">Design Engineer</span> — Anti-stock UI craft, design-to-code, visual
+                direction &amp; critique</span
+              >
             </div>
             <div class="profile-option">
               <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Agentic</span>
-              <span class="pp-desc">Context engineering, sub-agents</span>
+              <span class="pp-line"><span class="pp-name">Custom</span> — Pick everything individually</span>
             </div>
-            <div class="profile-option">
-              <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Design&nbsp;Eng</span>
-              <span class="pp-desc">Design-to-code, visual direction &amp; critique</span>
-            </div>
-            <div class="profile-option">
-              <span class="pp-cursor" aria-hidden="true"></span>
-              <span class="pp-name">Custom</span>
-              <span class="pp-desc">Pick everything individually</span>
-            </div>
+            <p class="profile-hint" aria-hidden="true">↑↓ navigate • ⏎ select</p>
           </div>
           <p class="install-note">
             Requires Node.js 20+. &nbsp;Headless:
