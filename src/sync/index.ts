@@ -257,7 +257,7 @@ function gateByVersion(
  * `await`, upgrade to `await sync(...)` so you receive {@link SyncResults} instead of a Promise.
  *
  * @param root - Project root (directory containing `bluetemberg.config.json` and `llm/`).
- * @param options - Optional `check`, `config`, `silent`, `prune`.
+ * @param options - Optional `check`, `config`, `silent`, `prune`, `verbose`, `diff`.
  * @returns Promise resolving to write/check counts and any recorded errors.
  *
  * @example
@@ -270,6 +270,8 @@ function gateByVersion(
 export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
   const checkMode = options.check || false;
   const verbose = Boolean(options.verbose) && !options.silent;
+  // A diff is only meaningful in check mode (write mode produces the in-sync state outright).
+  const diff = Boolean(options.diff) && checkMode;
   const config = options.config || loadConfig(root);
   const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
   const sourceBase = join(root, config.source || 'llm');
@@ -306,6 +308,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     platforms,
     verbose,
     checkMode,
+    diff,
     results,
     log,
     expectedOutputPaths,

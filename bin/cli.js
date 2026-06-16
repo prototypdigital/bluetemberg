@@ -305,6 +305,7 @@ program
   .argument('[directory]', 'Project root directory', '.')
   .option('--check', 'Exit 1 if files are out of sync (no writes)')
   .option('--dry-run', 'Alias for --check')
+  .option('--diff', 'With --check, print a per-file unified diff of what drifted (implies --check)')
   .option('--silent', 'Suppress all output')
   .option(
     '--prune',
@@ -325,13 +326,18 @@ program
       process.exit(1);
     }
 
-    const check = options.check || options.dryRun || false;
+    // --diff implies --check: a diff is only meaningful when comparing against on-disk output.
+    const check = options.check || options.dryRun || options.diff || false;
+    if (options.diff && !options.check && !options.dryRun && !options.silent) {
+      console.log('Note: --diff implies --check (no files will be written).\n');
+    }
     const results = await sync(root, {
       check,
       config,
       silent: options.silent,
       prune: options.prune || false,
       verbose: options.verbose || false,
+      diff: options.diff || false,
     });
 
     if (shouldExitWithFailure(results, check)) {

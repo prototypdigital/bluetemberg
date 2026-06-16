@@ -192,6 +192,12 @@ Check mode for CI (exits 1 if out of sync):
 npx bluetemberg sync --check
 ```
 
+Add `--diff` to see _what_ drifted, not just how many files — a per-file unified diff (summary counts + `@@` hunks) under each out-of-sync path. It implies `--check`, honors `--silent`, and never changes counts or the exit code:
+
+```bash
+npx bluetemberg sync --check --diff
+```
+
 **Exit codes:** the CLI exits **1** if sync records **any** error (invalid `llm/hooks.json`, unknown MCP id, adapter failure, etc.), not only when `--check` finds drift. Use the exit code in CI, especially with `--silent`.
 
 Optional **stale output cleanup** after you remove or rename sources under `llm/`:
