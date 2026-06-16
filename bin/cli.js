@@ -442,17 +442,29 @@ program
 
 program
   .command('add')
-  .description('Add a pack (rules, agents, skills, guardrails) from the npm registry')
-  .argument('<package>', 'Package name with optional @version (e.g. my-rules@^1.0.0)')
-  .option('--version <range>', 'Semver range (overrides @version in package spec)')
+  .description('Add one or more packs (rules, agents, skills, guardrails) from the npm registry')
+  .argument('<packages...>', 'Package name(s) with optional @version (e.g. my-rules@^1.0.0)')
+  .option('--version <range>', 'Semver range (overrides @version in package spec; single package only)')
   .option('--silent', 'Suppress all output')
-  .action(async (packageSpec, options) => {
+  .action(async (packages, options) => {
     const { add } = await import('../dist/registry/index.js');
-    try {
-      await add(process.cwd(), packageSpec, {
-        version: options.version,
-        silent: options.silent,
-      });
+    const failed = [];
+
+    for (const packageSpec of packages) {
+      try {
+        await add(process.cwd(), packageSpec, {
+          version: options.version,
+          silent: options.silent,
+        });
+      } catch (err) {
+        if (!options.silent) {
+          console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        failed.push(packageSpec);
+      }
+    }
+
+    if (failed.length < packages.length) {
       const { refreshCatalogCache } = await import('../dist/catalog/index.js');
       const refreshed = await refreshCatalogCache(process.cwd());
       if (!refreshed && !options.silent) {
@@ -460,10 +472,9 @@ program
           'Warning: failed to refresh .bluetemberg/catalog.json; later catalog-based commands may use stale pack metadata.',
         );
       }
-    } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+    }
+
+    if (failed.length > 0) {
       process.exit(1);
     }
   });
