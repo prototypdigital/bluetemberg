@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { program } from 'commander';
+import { program, InvalidArgumentError } from 'commander';
 import { readFileSync, writeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -452,11 +452,16 @@ program
   .argument('[paths...]', 'Local repo root directories to scan (e.g. ../app-a ../app-b)')
   .option('--org <name>', '[remote] Scan every non-fork, non-archived repo in this GitHub org')
   .option('--repos <list>', '[remote] Comma-separated owner/repo to scan (e.g. acme/app,acme/web)')
-  .option('--since <days>', '[remote --org] Only scan repos pushed to within the last N days', (v) => parseInt(v, 10))
+  .option('--since <days>', '[remote --org] Only scan repos pushed to within the last N days', (v) => {
+    const n = parseInt(v, 10);
+    if (isNaN(n) || n <= 0) throw new InvalidArgumentError(`Expected a positive integer, got: ${JSON.stringify(v)}`);
+    return n;
+  })
   .option('--json', 'Emit machine-readable JSON (roots, histogram, gaps, skipped)')
   .option('--silent', 'Suppress all output')
   .action(async (paths, options) => {
     const { runScanOrg } = await import('../dist/stacks/scan.js');
+    const { resolveGithubToken } = await import('../dist/stacks/github.js');
     const roots = [...new Set((paths ?? []).map((p) => resolve(p)))];
     const repos = options.repos ? csvList(options.repos) : [];
     const wantsRemote = Boolean(options.org) || repos.length > 0;
@@ -468,8 +473,7 @@ program
       process.exit(1);
     }
 
-    // Token is read from the environment only — never from project files — and never logged.
-    const token = wantsRemote ? (process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN) : undefined;
+    const token = wantsRemote ? resolveGithubToken() : undefined;
     if (wantsRemote && !token) {
       if (!options.silent) {
         console.error('Error: No GitHub token found. Set GITHUB_TOKEN or GH_TOKEN in your environment.');

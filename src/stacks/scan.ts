@@ -126,8 +126,8 @@ interface DetectionUnit {
   detected: DetectedStacks;
 }
 
-function resolveSink(enabled: boolean | undefined, sink?: (m: string) => void): (m: string) => void {
-  if (enabled || !sink) return () => {};
+function resolveSink(silent: boolean | undefined, sink?: (m: string) => void): (m: string) => void {
+  if (silent || !sink) return () => {};
   return sink;
 }
 

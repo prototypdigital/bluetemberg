@@ -30,7 +30,7 @@ export class GithubFetchError extends Error {
 
 /** The token gh/CI use, read from the process environment only. Never read from project files. */
 export function resolveGithubToken(): string | undefined {
-  return process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? undefined;
+  return process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN;
 }
 
 function headers(token: string, accept: string): Record<string, string> {
