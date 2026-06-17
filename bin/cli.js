@@ -452,6 +452,7 @@ program
   .argument('[paths...]', 'Local repo root directories to scan (e.g. ../app-a ../app-b)')
   .option('--org <name>', '[remote] Scan every non-fork, non-archived repo in this GitHub org')
   .option('--repos <list>', '[remote] Comma-separated owner/repo to scan (e.g. acme/app,acme/web)')
+  .option('--since <days>', '[remote --org] Only scan repos pushed to within the last N days', (v) => parseInt(v, 10))
   .option('--json', 'Emit machine-readable JSON (roots, histogram, gaps, skipped)')
   .option('--silent', 'Suppress all output')
   .action(async (paths, options) => {
@@ -486,6 +487,7 @@ program
         org: options.org,
         repos,
         token,
+        since: options.since,
       });
     } catch (err) {
       if (!options.silent) {

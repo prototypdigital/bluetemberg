@@ -113,6 +113,11 @@ export interface ScanOptions {
   repos?: string[];
   /** GitHub token (resolved from the environment by the caller). Required for any remote scan. */
   token?: string;
+  /**
+   * Only scan repos pushed to within the last N days. Applies to `--org` listings only (explicit
+   * `repos` lists are always scanned regardless). Omit for no cutoff.
+   */
+  since?: number;
 }
 
 /** One scanned repo's detection result, source-agnostic — the unit the histogram folds over. */
@@ -239,11 +244,13 @@ async function gatherRemoteUnits(
   repos: string[],
   token: string,
   progress: (m: string) => void,
+  sinceDate?: Date,
 ): Promise<{ units: DetectionUnit[]; skipped: SkippedRepo[] }> {
   const targets = [...repos];
   if (org) {
-    progress(`Listing repos in org "${org}"…`);
-    targets.push(...(await fetchOrgRepos(org, token)));
+    const sinceNote = sinceDate ? ` pushed since ${sinceDate.toISOString().slice(0, 10)}` : '';
+    progress(`Listing repos in org "${org}"${sinceNote}…`);
+    targets.push(...(await fetchOrgRepos(org, token, sinceDate)));
   }
   const unique = [...new Set(targets)];
   const skipped: SkippedRepo[] = [];
@@ -339,7 +346,8 @@ export async function runScanOrg(localRoots: string[], opts: ScanOptions = {}): 
     if (!opts.token) {
       throw new Error('No GitHub token found. Set GITHUB_TOKEN or GH_TOKEN in your environment.');
     }
-    const remote = await gatherRemoteUnits(opts.org, opts.repos ?? [], opts.token, progress);
+    const sinceDate = opts.since ? new Date(Date.now() - opts.since * 24 * 60 * 60 * 1000) : undefined;
+    const remote = await gatherRemoteUnits(opts.org, opts.repos ?? [], opts.token, progress, sinceDate);
     remoteUnits = remote.units;
     skipped = remote.skipped;
   }

@@ -143,12 +143,14 @@ The catalog it compares against is loaded from the current working directory (pr
 | ------ | ----------- |
 | `--org <name>` | **[remote]** Scan every non-fork, non-archived repo in this GitHub org |
 | `--repos <list>` | **[remote]** Comma-separated `owner/repo` to scan |
+| `--since <days>` | **[remote `--org`]** Only include repos pushed to within the last N days |
 | `--json` | Emit machine-readable JSON (`roots`, `scanned`, `empty`, `skipped`, `histogram`, `gaps`) |
 | `--silent` | Suppress all output |
 
 ```bash
 npx bluetemberg scan-org ../app-a ../app-b ../app-c       # local clones
 npx bluetemberg scan-org --org acme --json                # every repo in an org
+npx bluetemberg scan-org --org acme --since 90            # only repos active in the last 90 days
 npx bluetemberg scan-org --repos acme/app,acme/web        # specific repos
 npx bluetemberg scan-org ../app-a --repos acme/web        # local + remote, merged
 ```

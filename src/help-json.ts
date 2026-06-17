@@ -173,6 +173,10 @@ export function getMachineReadableHelp(): Record<string, unknown> {
               description: '[remote] Scan every non-fork, non-archived repo in this GitHub org.',
             },
             { long: '--repos <list>', description: '[remote] Comma-separated owner/repo to scan.' },
+            {
+              long: '--since <days>',
+              description: '[remote --org] Only scan repos pushed to within the last N days.',
+            },
             { long: '--json', description: 'Emit machine-readable JSON (roots, histogram, gaps, skipped).' },
             { long: '--silent', description: 'Suppress all output.' },
           ],

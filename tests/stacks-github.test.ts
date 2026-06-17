@@ -121,6 +121,35 @@ describe('fetchOrgRepos', () => {
     expect(repos).toEqual(['acme/a', 'acme/b']);
   });
 
+  it('excludes repos whose pushed_at predates the since cutoff', async () => {
+    const recentDate = new Date().toISOString();
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      mockResponse({
+        json: [
+          { full_name: 'acme/active', pushed_at: recentDate },
+          { full_name: 'acme/stale', pushed_at: '2020-01-01T00:00:00Z' },
+        ],
+      }),
+    );
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const repos = await fetchOrgRepos('acme', 'tok', since);
+    expect(repos).toEqual(['acme/active']);
+  });
+
+  it('includes all repos when since is omitted', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      mockResponse({
+        json: [
+          { full_name: 'acme/active', pushed_at: new Date().toISOString() },
+          { full_name: 'acme/stale', pushed_at: '2020-01-01T00:00:00Z' },
+        ],
+      }),
+    );
+    const repos = await fetchOrgRepos('acme', 'tok');
+    expect(repos).toEqual(['acme/active', 'acme/stale']);
+  });
+
   it('classifies a 403 with X-RateLimit-Remaining: 0 as rate-limited', async () => {
     globalThis.fetch = vi
       .fn()

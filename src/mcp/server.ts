@@ -81,6 +81,10 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
           items: { type: 'string' },
           description: 'Specific repos to scan remotely as "owner/repo" pairs.',
         },
+        since: {
+          type: 'number',
+          description: 'Only scan repos pushed to within the last N days (org only).',
+        },
       },
       additionalProperties: false,
     },
@@ -115,11 +119,13 @@ export async function callStacksTool(root: string, name: string, args: Record<st
       if (roots.length === 0 && !org && repos.length === 0) {
         throw new Error('bluetemberg_org_histogram requires at least one of: roots, org, or repos');
       }
+      const since = typeof args.since === 'number' && args.since > 0 ? args.since : undefined;
       const token = org || repos.length > 0 ? resolveGithubToken() : undefined;
       return runScanOrg(roots, {
         org,
         repos: repos.length > 0 ? repos : undefined,
         token,
+        since,
         catalogRoot: root,
       });
     }

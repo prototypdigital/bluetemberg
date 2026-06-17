@@ -124,10 +124,11 @@ function nextPageUrl(linkHeader: string | null): string | null {
 
 /**
  * List an organisation's repositories — non-fork (`type=sources`) and non-archived — by their
- * `owner/repo` full names, following `Link` pagination. Throws on a hard failure (bad org, invalid
- * token, rate limit) since none of the repos can be scanned without it.
+ * `owner/repo` full names, following `Link` pagination. Pass `since` to exclude repos whose last
+ * push predates the cutoff (client-side filter on `pushed_at`; no extra API calls). Throws on a
+ * hard failure (bad org, invalid token, rate limit) since none of the repos can be scanned without it.
  */
-export async function fetchOrgRepos(org: string, token: string): Promise<string[]> {
+export async function fetchOrgRepos(org: string, token: string, since?: Date): Promise<string[]> {
   const names: string[] = [];
   let url: string | null = `${API}/orgs/${encodeURIComponent(org)}/repos?type=sources&per_page=100`;
 
@@ -140,11 +141,17 @@ export async function fetchOrgRepos(org: string, token: string): Promise<string[
         `Failed to list repos for org "${org}": ${res.status} ${res.statusText}`,
       );
     }
-    const page = (await res.json()) as Array<{ full_name?: unknown; archived?: unknown; fork?: unknown }>;
+    const page = (await res.json()) as Array<{
+      full_name?: unknown;
+      archived?: unknown;
+      fork?: unknown;
+      pushed_at?: unknown;
+    }>;
     for (const repo of page) {
-      if (typeof repo.full_name === 'string' && repo.archived !== true && repo.fork !== true) {
-        names.push(repo.full_name);
-      }
+      if (repo.archived === true || repo.fork === true) continue;
+      if (typeof repo.full_name !== 'string') continue;
+      if (since && (typeof repo.pushed_at !== 'string' || new Date(repo.pushed_at) < since)) continue;
+      names.push(repo.full_name);
     }
     url = nextPageUrl(res.headers.get('link'));
   }
