@@ -128,6 +128,45 @@ npx bluetemberg coverage payload@3.4.0
 npx bluetemberg coverage nextjs --json
 ```
 
+## `bluetemberg scan-org [paths...]`
+
+**Maintainer tooling** — read-only. Scan N repositories and build a `(stack, version)` usage histogram against the installed catalog, then rank the uncovered buckets by usage so you author the highest-impact rules first. It reuses the exact detection that gates rules at sync. It **never writes** anything.
+
+Two sources, one report — and they can be combined in a single run:
+
+- **Local** — pass filesystem paths to cloned repos. Detection precedence is `node_modules` → `package-lock.json` → coerced `package.json` range, so installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`.
+- **Remote** — `--org`/`--repos` read each repo's `package.json` (and `package-lock.json` when present) over the GitHub Contents API **without cloning**. Detection precedence is `package-lock.json` → coerced `package.json` range (there is no `node_modules` over the API).
+
+The catalog it compares against is loaded from the current working directory (project cache → committed snapshot), not from the scanned repos.
+
+| Option | Description |
+| ------ | ----------- |
+| `--org <name>` | **[remote]** Scan every non-fork, non-archived repo in this GitHub org |
+| `--repos <list>` | **[remote]** Comma-separated `owner/repo` to scan |
+| `--since <days>` | **[remote `--org`]** Only include repos pushed to within the last N days |
+| `--json` | Emit machine-readable JSON (`roots`, `scanned`, `empty`, `skipped`, `histogram`, `gaps`) |
+| `--silent` | Suppress all output |
+
+```bash
+npx bluetemberg scan-org ../app-a ../app-b ../app-c       # local clones
+npx bluetemberg scan-org --org acme --json                # every repo in an org
+npx bluetemberg scan-org --org acme --since 90            # only repos active in the last 90 days
+npx bluetemberg scan-org --repos acme/app,acme/web        # specific repos
+npx bluetemberg scan-org ../app-a --repos acme/web        # local + remote, merged
+```
+
+### Remote authentication
+
+A remote scan requires a GitHub token, read from the **environment only** (`GITHUB_TOKEN`, then `GH_TOKEN`) — never from a project file, and never logged. If you use the [`gh` CLI](https://cli.github.com/), `GH_TOKEN` is typically already set. With no token, `--org`/`--repos` exits with a clear error.
+
+Progress is written to **stderr**, so `--json` output on stdout stays clean for piping.
+
+### Behaviour notes
+
+- The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` (`version-uncovered` when the stack is known but the version isn't, `no-coverage` when no pack targets the stack at all).
+- Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.
+- Remote detection only reads `package-lock.json`; repos using `yarn.lock`/`pnpm-lock.yaml` resolve to `coerced` confidence from the manifest range (still useful for a histogram). Scan a local clone for `exact` versions across any package manager.
+
 ## `bluetemberg mcp serve [directory]`
 
 Run Bluetemberg itself as an [MCP](https://modelcontextprotocol.io) server over **stdio**, exposing the stack model as tools so an agent gets structured coverage without shelling out. It is the same machinery behind the `--json` flags — one implementation, two surfaces — and is **read-only** (it never writes files).
@@ -139,6 +178,7 @@ Tools:
 | `bluetemberg_detect_stacks` | — | Detected stacks, versions, confidence, coverage, gaps, warnings |
 | `bluetemberg_query_coverage` | `stack`, optional `version` | Whether version-correct guidance exists for the stack |
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
+| `bluetemberg_org_histogram` | `roots` (array of repo paths) | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
 
 Register it with an MCP client (example for Claude Code's `.mcp.json`):
 

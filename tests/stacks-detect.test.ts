@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { detectStacks, packageForStack } from '../src/stacks/detect.js';
+import { detectStacks, detectStacksFromManifests, packageForStack } from '../src/stacks/detect.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-detect-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -76,6 +76,54 @@ describe('detectStacks', () => {
   it('omits stacks that are neither declared nor present', () => {
     writeManifest(root, { lodash: '^4.0.0' });
     const d = detectStacks(root);
+    expect(d.size).toBe(0);
+  });
+});
+
+describe('detectStacksFromManifests (remote path)', () => {
+  it('resolves exact version from a lockfile object (no node_modules layer)', () => {
+    const manifest = { dependencies: { next: '^15.0.0' } };
+    const lock = { lockfileVersion: 3, packages: { 'node_modules/next': { version: '15.3.1' } } };
+    const d = detectStacksFromManifests(manifest, lock);
+    expect(d.get('nextjs')).toEqual({ version: '15.3.1', confidence: 'exact', source: 'package-lock.json' });
+  });
+
+  it('handles lockfileVersion 1 shape', () => {
+    const manifest = { dependencies: { payload: '^3.0.0' } };
+    const lock = { lockfileVersion: 1, dependencies: { payload: { version: '3.4.1' } } };
+    const d = detectStacksFromManifests(manifest, lock);
+    expect(d.get('payload')).toEqual({ version: '3.4.1', confidence: 'exact', source: 'package-lock.json' });
+  });
+
+  it('coerces the manifest range when no lockfile is available', () => {
+    const manifest = { devDependencies: { '@angular/core': '^17.2.0' } };
+    const d = detectStacksFromManifests(manifest, null);
+    expect(d.get('angular')).toEqual({ version: '17.2.0', confidence: 'coerced', source: 'package.json' });
+  });
+
+  it('declared config still wins over fetched manifests', () => {
+    const manifest = { dependencies: { next: '^14.0.0' } };
+    const d = detectStacksFromManifests(manifest, null, { stacks: { nextjs: '15.3.1' } });
+    expect(d.get('nextjs')).toEqual({ version: '15.3.1', confidence: 'declared', source: 'config' });
+  });
+
+  it('matches detectStacks output for the same manifest+lock minus node_modules', () => {
+    const manifest = { dependencies: { payload: '^3.0.0', next: '^15.0.0' } };
+    const lock = {
+      lockfileVersion: 3,
+      packages: {
+        'node_modules/payload': { version: '3.4.1' },
+        'node_modules/next': { version: '15.3.1' },
+      },
+    };
+    const d = detectStacksFromManifests(manifest, lock);
+    expect(d.get('payload')?.version).toBe('3.4.1');
+    expect(d.get('nextjs')?.version).toBe('15.3.1');
+    expect(d.size).toBe(2);
+  });
+
+  it('returns an empty map when no known stack is present', () => {
+    const d = detectStacksFromManifests({ dependencies: { lodash: '^4.0.0' } }, null);
     expect(d.size).toBe(0);
   });
 });

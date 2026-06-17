@@ -163,6 +163,26 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           ],
         },
         {
+          name: 'scan-org',
+          args: '[paths...]',
+          description:
+            '[maintainer] Histogram stack+version usage across N repos (local and/or remote) vs catalog coverage (read-only).',
+          options: [
+            {
+              long: '--org <name>',
+              description: '[remote] Scan every non-fork, non-archived repo in this GitHub org.',
+            },
+            { long: '--repos <list>', description: '[remote] Comma-separated owner/repo to scan.' },
+            {
+              long: '--since <days>',
+              description: '[remote --org] Only scan repos pushed to within the last N days.',
+            },
+            { long: '--json', description: 'Emit machine-readable JSON (roots, histogram, gaps, skipped).' },
+            { long: '--silent', description: 'Suppress all output.' },
+          ],
+          note: 'A remote scan (--org/--repos) reads manifests over the GitHub API without cloning and requires a GITHUB_TOKEN or GH_TOKEN in the environment.',
+        },
+        {
           name: 'mcp serve',
           args: '[directory]',
           description: 'Serve the stack model as MCP tools over stdio (read-only).',
@@ -170,7 +190,12 @@ export function getMachineReadableHelp(): Record<string, unknown> {
       ],
       mcp: {
         transport: 'stdio',
-        tools: ['bluetemberg_detect_stacks', 'bluetemberg_query_coverage', 'bluetemberg_list_stacks'],
+        tools: [
+          'bluetemberg_detect_stacks',
+          'bluetemberg_query_coverage',
+          'bluetemberg_list_stacks',
+          'bluetemberg_org_histogram',
+        ],
         note: 'Read-only. The gated scaffold_from_gap tool (M7 create-loop) is intentionally absent.',
       },
     },
