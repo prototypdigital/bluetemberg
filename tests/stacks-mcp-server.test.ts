@@ -99,9 +99,9 @@ describe('callStacksTool', () => {
   it('query_coverage throws when "stack" is missing or empty', async () => {
     writeConfig(root);
     await expect(callStacksTool(root, 'bluetemberg_query_coverage', {})).rejects.toThrow(/stack/);
-    await expect(
-      callStacksTool(root, 'bluetemberg_query_coverage', { stack: '  ' }),
-    ).rejects.toThrow(/stack/);
+    await expect(callStacksTool(root, 'bluetemberg_query_coverage', { stack: '  ' })).rejects.toThrow(
+      /stack/,
+    );
   });
 
   it('list_stacks returns the live registry entries', async () => {
@@ -167,9 +167,9 @@ describe('callStacksTool', () => {
   it('org_histogram throws when none of roots/org/repos is provided', async () => {
     writeConfig(root);
     await expect(callStacksTool(root, 'bluetemberg_org_histogram', {})).rejects.toThrow(/roots|org|repos/);
-    await expect(
-      callStacksTool(root, 'bluetemberg_org_histogram', { roots: [] }),
-    ).rejects.toThrow(/roots|org|repos/);
+    await expect(callStacksTool(root, 'bluetemberg_org_histogram', { roots: [] })).rejects.toThrow(
+      /roots|org|repos/,
+    );
   });
 
   it('throws on an unknown tool', async () => {

@@ -454,7 +454,8 @@ program
   .option('--repos <list>', '[remote] Comma-separated owner/repo to scan (e.g. acme/app,acme/web)')
   .option('--since <days>', '[remote --org] Only scan repos pushed to within the last N days', (v) => {
     const n = parseInt(v, 10);
-    if (isNaN(n) || n <= 0) throw new InvalidArgumentError(`Expected a positive integer, got: ${JSON.stringify(v)}`);
+    if (isNaN(n) || n <= 0)
+      throw new InvalidArgumentError(`Expected a positive integer, got: ${JSON.stringify(v)}`);
     return n;
   })
   .option('--json', 'Emit machine-readable JSON (roots, histogram, gaps, skipped)')

@@ -151,16 +151,14 @@ describe('fetchOrgRepos', () => {
   });
 
   it('classifies a 403 with X-RateLimit-Remaining: 0 as rate-limited', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(
-        mockResponse({
-          ok: false,
-          status: 403,
-          statusText: 'Forbidden',
-          headers: { 'x-ratelimit-remaining': '0' },
-        }),
-      );
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      mockResponse({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        headers: { 'x-ratelimit-remaining': '0' },
+      }),
+    );
     await fetchOrgRepos('acme', 'tok').then(
       () => expect.fail('should have thrown'),
       (err) => expect((err as GithubFetchError).reason).toBe('rate-limited'),
@@ -168,16 +166,14 @@ describe('fetchOrgRepos', () => {
   });
 
   it('classifies a 403 with remaining quota as forbidden', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockResolvedValue(
-        mockResponse({
-          ok: false,
-          status: 403,
-          statusText: 'Forbidden',
-          headers: { 'x-ratelimit-remaining': '42' },
-        }),
-      );
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      mockResponse({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        headers: { 'x-ratelimit-remaining': '42' },
+      }),
+    );
     await fetchOrgRepos('acme', 'tok').then(
       () => expect.fail('should have thrown'),
       (err) => expect((err as GithubFetchError).reason).toBe('forbidden'),

@@ -95,7 +95,11 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
  * Run one stack tool by name against `root`. Pure (reads the project, returns data) so it can be
  * unit-tested without a transport. Throws on an unknown tool or a missing required argument.
  */
-export async function callStacksTool(root: string, name: string, args: Record<string, unknown>): Promise<unknown> {
+export async function callStacksTool(
+  root: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
   switch (name) {
     case 'bluetemberg_detect_stacks':
       return buildDetectReport(root);
@@ -110,9 +114,9 @@ export async function callStacksTool(root: string, name: string, args: Record<st
     }
     case 'bluetemberg_org_histogram': {
       const rawRoots = Array.isArray(args.roots) ? args.roots : [];
-      const roots = [...new Set(rawRoots.filter((p): p is string => typeof p === 'string' && p.length > 0))].map(
-        (p) => resolve(root, p),
-      );
+      const roots = [
+        ...new Set(rawRoots.filter((p): p is string => typeof p === 'string' && p.length > 0)),
+      ].map((p) => resolve(root, p));
       const org = typeof args.org === 'string' && args.org.trim() ? args.org.trim() : undefined;
       const rawRepos = Array.isArray(args.repos) ? args.repos : [];
       const repos = rawRepos.filter((r): r is string => typeof r === 'string' && r.length > 0);
