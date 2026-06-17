@@ -164,13 +164,19 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         },
         {
           name: 'scan-org',
-          args: '<paths...>',
+          args: '[paths...]',
           description:
-            '[maintainer] Histogram stack+version usage across N repos vs catalog coverage (read-only).',
+            '[maintainer] Histogram stack+version usage across N repos (local and/or remote) vs catalog coverage (read-only).',
           options: [
-            { long: '--json', description: 'Emit machine-readable JSON (roots, histogram, gaps).' },
+            {
+              long: '--org <name>',
+              description: '[remote] Scan every non-fork, non-archived repo in this GitHub org.',
+            },
+            { long: '--repos <list>', description: '[remote] Comma-separated owner/repo to scan.' },
+            { long: '--json', description: 'Emit machine-readable JSON (roots, histogram, gaps, skipped).' },
             { long: '--silent', description: 'Suppress all output.' },
           ],
+          note: 'A remote scan (--org/--repos) reads manifests over the GitHub API without cloning and requires a GITHUB_TOKEN or GH_TOKEN in the environment.',
         },
         {
           name: 'mcp serve',

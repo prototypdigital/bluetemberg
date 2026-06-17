@@ -128,23 +128,42 @@ npx bluetemberg coverage payload@3.4.0
 npx bluetemberg coverage nextjs --json
 ```
 
-## `bluetemberg scan-org <paths...>`
+## `bluetemberg scan-org [paths...]`
 
-**Maintainer tooling** — read-only. Scan N repository roots and build a `(stack, version)` usage histogram against the installed catalog, then rank the uncovered buckets by usage so you author the highest-impact rules first. It reuses the exact detection that gates rules at sync (`node_modules` → lockfile → coerced `package.json` range), so a repo only needs to be cloned — installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`. It **never writes** anything.
+**Maintainer tooling** — read-only. Scan N repositories and build a `(stack, version)` usage histogram against the installed catalog, then rank the uncovered buckets by usage so you author the highest-impact rules first. It reuses the exact detection that gates rules at sync. It **never writes** anything.
+
+Two sources, one report — and they can be combined in a single run:
+
+- **Local** — pass filesystem paths to cloned repos. Detection precedence is `node_modules` → `package-lock.json` → coerced `package.json` range, so installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`.
+- **Remote** — `--org`/`--repos` read each repo's `package.json` (and `package-lock.json` when present) over the GitHub Contents API **without cloning**. Detection precedence is `package-lock.json` → coerced `package.json` range (there is no `node_modules` over the API).
 
 The catalog it compares against is loaded from the current working directory (project cache → committed snapshot), not from the scanned repos.
 
 | Option | Description |
 | ------ | ----------- |
-| `--json` | Emit machine-readable JSON (`roots`, `scanned`, `empty`, `histogram`, `gaps`) |
+| `--org <name>` | **[remote]** Scan every non-fork, non-archived repo in this GitHub org |
+| `--repos <list>` | **[remote]** Comma-separated `owner/repo` to scan |
+| `--json` | Emit machine-readable JSON (`roots`, `scanned`, `empty`, `skipped`, `histogram`, `gaps`) |
 | `--silent` | Suppress all output |
 
 ```bash
-npx bluetemberg scan-org ../app-a ../app-b ../app-c
-npx bluetemberg scan-org ../app-a ../app-b --json
+npx bluetemberg scan-org ../app-a ../app-b ../app-c       # local clones
+npx bluetemberg scan-org --org acme --json                # every repo in an org
+npx bluetemberg scan-org --repos acme/app,acme/web        # specific repos
+npx bluetemberg scan-org ../app-a --repos acme/web        # local + remote, merged
 ```
 
-The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` (`version-uncovered` when the stack is known but the version isn't, `no-coverage` when no pack targets the stack at all).
+### Remote authentication
+
+A remote scan requires a GitHub token, read from the **environment only** (`GITHUB_TOKEN`, then `GH_TOKEN`) — never from a project file, and never logged. If you use the [`gh` CLI](https://cli.github.com/), `GH_TOKEN` is typically already set. With no token, `--org`/`--repos` exits with a clear error.
+
+Progress is written to **stderr**, so `--json` output on stdout stays clean for piping.
+
+### Behaviour notes
+
+- The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` (`version-uncovered` when the stack is known but the version isn't, `no-coverage` when no pack targets the stack at all).
+- Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.
+- Remote detection only reads `package-lock.json`; repos using `yarn.lock`/`pnpm-lock.yaml` resolve to `coerced` confidence from the manifest range (still useful for a histogram). Scan a local clone for `exact` versions across any package manager.
 
 ## `bluetemberg mcp serve [directory]`
 

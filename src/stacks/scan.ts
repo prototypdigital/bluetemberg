@@ -2,24 +2,25 @@ import { basename } from 'node:path';
 import { coerce, rcompare } from 'semver';
 import { loadCatalogSync } from '../catalog/index.js';
 import { loadConfig } from '../sync/index.js';
-import { detectStacks } from './detect.js';
+import { detectStacks, detectStacksFromManifests } from './detect.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
-import type { DetectionConfidence } from './match.js';
+import { GithubFetchError, fetchOrgRepos, fetchRepoManifests, type SkipReason } from './github.js';
+import type { DetectedStacks, DetectionConfidence } from './match.js';
 
 /**
  * Org-repo (stack, version) scanner / coverage histogram (Milestone M6).
  *
  * MAINTAINER tooling, not an end-developer command: it answers "which version-eras are worth
  * authoring rules for?" by scanning N repos with the SAME detection that gates rules at sync
- * (reuses {@link detectStacks} unchanged — no new detection logic), folding into a
- * `(stack, version) → count` histogram, and ranking uncovered buckets against the catalog.
+ * (reuses {@link detectStacks} / {@link detectStacksFromManifests} — no new detection logic),
+ * folding into a `(stack, version) → count` histogram, and ranking uncovered buckets vs the catalog.
+ *
+ * Two sources, one report shape:
+ *   - LOCAL: filesystem paths to cloned repos (node_modules → lockfile → coerced; highest confidence).
+ *   - REMOTE: `--org`/`--repos` read manifests over the GitHub API without cloning (lockfile → coerced).
  *
  * Read-only. INTERNAL-ONLY: reached via `bin/cli.js` dynamic import and the MCP tool, never
  * re-exported from `src/index.ts`. Keep it off the public package contract (see issue #196).
- *
- * v1 supports two repo shapes with zero detection changes: (a) local + installed `node_modules`
- * (exact), and (b) shallow-clone with a lockfile (exact); manifest-only falls back to `coerced`.
- * GitHub-API-only scanning (no clone) is a deferred follow-up.
  */
 
 /** Confidence ordering, lowest first — a bucket reports the least-confident detection across repos. */
@@ -45,7 +46,7 @@ function compareVersionsDesc(a: string, b: string): number {
 export interface VersionBucket {
   version: string;
   count: number;
-  /** Resolved repo roots that detected this `(stack, version)`. */
+  /** Repo ids (local paths or `owner/repo`) that detected this `(stack, version)`. */
   repos: string[];
   /** Least-confident detection seen across the contributing repos. */
   confidence: DetectionConfidence;
@@ -68,12 +69,21 @@ export interface ScanGap {
   reason: 'version-uncovered' | 'no-coverage';
 }
 
+/** A remote repo that could not be read; recorded rather than aborting the whole scan. */
+export interface SkippedRepo {
+  repo: string;
+  reason: SkipReason;
+  message: string;
+}
+
 export interface ScanReport {
-  /** Resolved roots that were scanned. */
+  /** Repo ids that were scanned successfully (local paths + remote `owner/repo`). */
   roots: string[];
   scanned: number;
-  /** Roots where detection found zero stacks (still counted in `scanned`). */
+  /** Repos where detection found zero stacks (still counted in `scanned`). */
   empty: string[];
+  /** Remote repos that could not be read (404, forbidden, rate-limited, …). */
+  skipped: SkippedRepo[];
   histogram: StackHistogramEntry[];
   /** Uncovered `(stack, version)` buckets ranked by usage — the authoring priority list. */
   gaps: ScanGap[];
@@ -83,20 +93,37 @@ export interface ScanOptions {
   json?: boolean;
   silent?: boolean;
   /**
-   * Sink for user-facing output. Injected by the CLI (which owns `console`) so this `src/` module
-   * never references `console` directly. Omitted (or `silent`) → output is discarded.
+   * Sink for the report output. Injected by the CLI (which owns `console`) so this `src/` module
+   * never references `console` directly. Omitted (or `silent`) → discarded.
    */
   log?: (message: string) => void;
   /**
+   * Sink for progress lines during a remote scan. The CLI wires this to stderr so it never
+   * corrupts `--json` output on stdout. Omitted (or `silent`) → discarded.
+   */
+  progress?: (message: string) => void;
+  /**
    * Root to load the catalog from (typically the maintainer's cwd). Resolves to the project cache
-   * or the committed snapshot — never the scanned repos. Defaults to the first scanned root.
+   * or the committed snapshot — never the scanned repos. Defaults to the first local root.
    */
   catalogRoot?: string;
+  /** Remote: scan every non-fork, non-archived repo in this GitHub org. */
+  org?: string;
+  /** Remote: scan these specific `owner/repo` repositories. */
+  repos?: string[];
+  /** GitHub token (resolved from the environment by the caller). Required for any remote scan. */
+  token?: string;
 }
 
-function resolveSink(opts: ScanOptions): (message: string) => void {
-  if (opts.silent || !opts.log) return () => {};
-  return opts.log;
+/** One scanned repo's detection result, source-agnostic — the unit the histogram folds over. */
+interface DetectionUnit {
+  id: string;
+  detected: DetectedStacks;
+}
+
+function resolveSink(enabled: boolean | undefined, sink?: (m: string) => void): (m: string) => void {
+  if (enabled || !sink) return () => {};
+  return sink;
 }
 
 interface MutableBucket {
@@ -105,15 +132,17 @@ interface MutableBucket {
   confidence: DetectionConfidence;
 }
 
-/** Fold per-repo detection into a `stack → version → bucket` map; collect roots with no stacks. */
-function accumulate(roots: string[]): { acc: Map<string, Map<string, MutableBucket>>; empty: string[] } {
+/** Fold detection units into a `stack → version → bucket` map; collect units with no stacks. */
+function foldUnits(units: DetectionUnit[]): {
+  acc: Map<string, Map<string, MutableBucket>>;
+  empty: string[];
+} {
   const acc = new Map<string, Map<string, MutableBucket>>();
   const empty: string[] = [];
 
-  for (const root of roots) {
-    const detected = detectStacks(root, loadConfig(root));
+  for (const { id, detected } of units) {
     if (detected.size === 0) {
-      empty.push(root);
+      empty.push(id);
       continue;
     }
     for (const [stack, det] of detected) {
@@ -121,24 +150,21 @@ function accumulate(roots: string[]): { acc: Map<string, Map<string, MutableBuck
       acc.set(stack, byVersion);
       const bucket = byVersion.get(det.version);
       if (!bucket) {
-        byVersion.set(det.version, { count: 1, repos: [root], confidence: det.confidence });
+        byVersion.set(det.version, { count: 1, repos: [id], confidence: det.confidence });
         continue;
       }
       bucket.count += 1;
-      bucket.repos.push(root);
+      bucket.repos.push(id);
       bucket.confidence = leastConfident(bucket.confidence, det.confidence);
     }
   }
   return { acc, empty };
 }
 
-/**
- * Scan `roots` and build the `(stack, version)` histogram with catalog coverage and a ranked gap
- * list. Pure (reads the repos + catalog, returns data) — exposed for the CLI, MCP, and tests.
- */
-export function buildScanReport(roots: string[], catalogRoot?: string): ScanReport {
-  const { acc, empty } = accumulate(roots);
-  const registry = buildStackRegistry(loadCatalogSync(catalogRoot ?? roots[0] ?? '.'));
+/** Build the histogram + ranked gap list from folded units (the shared local/remote core). */
+function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot?: string): ScanReport {
+  const { acc, empty } = foldUnits(units);
+  const registry = buildStackRegistry(loadCatalogSync(catalogRoot ?? '.'));
 
   const histogram: StackHistogramEntry[] = [];
   const gaps: ScanGap[] = [];
@@ -176,7 +202,68 @@ export function buildScanReport(roots: string[], catalogRoot?: string): ScanRepo
       b.count - a.count || a.stack.localeCompare(b.stack) || compareVersionsDesc(a.version, b.version),
   );
 
-  return { roots, scanned: roots.length, empty, histogram, gaps };
+  return { roots: units.map((u) => u.id), scanned: units.length, empty, skipped, histogram, gaps };
+}
+
+/**
+ * Scan local `roots` and build the `(stack, version)` histogram with catalog coverage and a ranked
+ * gap list. Pure + synchronous (reads the repos + catalog, returns data) — exposed for the MCP tool
+ * and tests. The async {@link runScanOrg} adds the remote path on top of this same core.
+ */
+export function buildScanReport(roots: string[], catalogRoot?: string): ScanReport {
+  const units = roots.map((root) => ({ id: root, detected: detectStacks(root, loadConfig(root)) }));
+  return buildReport(units, [], catalogRoot ?? roots[0]);
+}
+
+/** Run async tasks with a bounded concurrency window (no dependency; politeness vs GitHub limits). */
+async function mapPool<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await fn(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/** Resolve remote targets (`--repos` ∪ org listing) into detection units, isolating per-repo failures. */
+async function gatherRemoteUnits(
+  org: string | undefined,
+  repos: string[],
+  token: string,
+  progress: (m: string) => void,
+): Promise<{ units: DetectionUnit[]; skipped: SkippedRepo[] }> {
+  const targets = [...repos];
+  if (org) {
+    progress(`Listing repos in org "${org}"…`);
+    targets.push(...(await fetchOrgRepos(org, token)));
+  }
+  const unique = [...new Set(targets)];
+  const skipped: SkippedRepo[] = [];
+  let done = 0;
+  progress(`Scanning ${unique.length} remote repo(s)…`);
+
+  const units = await mapPool(unique, 6, async (fullName) => {
+    try {
+      const { manifest, lock } = await fetchRepoManifests(fullName, token);
+      progress(`  [${++done}/${unique.length}] ${fullName}`);
+      return { id: fullName, detected: detectStacksFromManifests(manifest, lock) } as DetectionUnit;
+    } catch (err) {
+      const reason: SkipReason = err instanceof GithubFetchError ? err.reason : 'unknown';
+      skipped.push({ repo: fullName, reason, message: err instanceof Error ? err.message : String(err) });
+      progress(`  [${++done}/${unique.length}] ${fullName} — skipped (${reason})`);
+      return null;
+    }
+  });
+
+  return { units: units.filter((u): u is DetectionUnit => u !== null), skipped };
 }
 
 const CONFIDENCE_MARK: Record<DetectionConfidence, string> = {
@@ -194,43 +281,70 @@ function describeCoverage(bucket: VersionBucket): string {
 
 function printScanHuman(report: ScanReport, log: (msg: string) => void): void {
   const withStacks = report.scanned - report.empty.length;
-  log(`Scanned ${report.scanned} repo(s): ${withStacks} with stacks, ${report.empty.length} empty.`);
+  const skippedNote = report.skipped.length > 0 ? `, ${report.skipped.length} skipped` : '';
+  log(
+    `Scanned ${report.scanned} repo(s): ${withStacks} with stacks, ${report.empty.length} empty${skippedNote}.`,
+  );
 
   if (report.histogram.length === 0) {
     log('No stacks detected in any scanned repo.');
-    return;
-  }
+  } else {
+    log('');
+    log('Stack usage (stack → versions):');
+    for (const entry of report.histogram) {
+      log(`  ${entry.stack}  (${entry.total} repo${entry.total === 1 ? '' : 's'})`);
+      for (const v of entry.versions) {
+        const mark = CONFIDENCE_MARK[v.confidence];
+        log(`    ${mark} ${v.version}  ×${v.count}  ${v.confidence}  ${describeCoverage(v)}`);
+      }
+    }
 
-  log('');
-  log('Stack usage (stack → versions):');
-  for (const entry of report.histogram) {
-    log(`  ${entry.stack}  (${entry.total} repo${entry.total === 1 ? '' : 's'})`);
-    for (const v of entry.versions) {
-      const mark = CONFIDENCE_MARK[v.confidence];
-      log(`    ${mark} ${v.version}  ×${v.count}  ${v.confidence}  ${describeCoverage(v)}`);
+    if (report.gaps.length === 0) {
+      log('');
+      log('No coverage gaps — every detected (stack, version) is covered.');
+    } else {
+      log('');
+      log('Coverage gaps (ranked by usage — author these first):');
+      report.gaps.forEach((gap, i) => {
+        log(`  ${i + 1}. ${gap.stack}@${gap.version}  ×${gap.count}  ${gap.reason}`);
+      });
     }
   }
 
-  if (report.gaps.length === 0) {
+  if (report.skipped.length > 0) {
     log('');
-    log('No coverage gaps — every detected (stack, version) is covered.');
-    return;
+    log(`Skipped ${report.skipped.length} repo(s):`);
+    for (const s of report.skipped) log(`  ${s.repo} — ${s.reason}: ${s.message}`);
   }
-
-  log('');
-  log('Coverage gaps (ranked by usage — author these first):');
-  report.gaps.forEach((gap, i) => {
-    log(`  ${i + 1}. ${gap.stack}@${gap.version}  ×${gap.count}  ${gap.reason}`);
-  });
 }
 
 /**
- * `bluetemberg scan-org <paths...>` — histogram stack+version usage across N repos vs catalog
- * coverage (human table or `--json`). Read-only maintainer tooling.
+ * `bluetemberg scan-org [paths...] [--org] [--repos]` — histogram stack+version usage across N
+ * repos (local and/or remote) vs catalog coverage. Read-only maintainer tooling. A remote scan
+ * requires `opts.token`; individual remote repos that fail to read are recorded in `skipped`.
  */
-export function runScanOrg(roots: string[], opts: ScanOptions = {}): ScanReport {
-  const report = buildScanReport(roots, opts.catalogRoot);
-  const log = resolveSink(opts);
+export async function runScanOrg(localRoots: string[], opts: ScanOptions = {}): Promise<ScanReport> {
+  const log = resolveSink(opts.silent, opts.log);
+  const progress = resolveSink(opts.silent, opts.progress);
+
+  const localUnits: DetectionUnit[] = localRoots.map((root) => ({
+    id: root,
+    detected: detectStacks(root, loadConfig(root)),
+  }));
+
+  let remoteUnits: DetectionUnit[] = [];
+  let skipped: SkippedRepo[] = [];
+  const wantsRemote = Boolean(opts.org) || (opts.repos?.length ?? 0) > 0;
+  if (wantsRemote) {
+    if (!opts.token) {
+      throw new Error('No GitHub token found. Set GITHUB_TOKEN or GH_TOKEN in your environment.');
+    }
+    const remote = await gatherRemoteUnits(opts.org, opts.repos ?? [], opts.token, progress);
+    remoteUnits = remote.units;
+    skipped = remote.skipped;
+  }
+
+  const report = buildReport([...localUnits, ...remoteUnits], skipped, opts.catalogRoot ?? localRoots[0]);
   if (opts.json) {
     log(JSON.stringify(report, null, 2));
   } else {

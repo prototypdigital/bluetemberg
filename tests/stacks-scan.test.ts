@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { buildScanReport } from '../src/stacks/scan.js';
+import { buildScanReport, runScanOrg } from '../src/stacks/scan.js';
 
 /**
  * M6 scanner tests. The fold is net-new code, so each detection source (node_modules → exact,
@@ -154,5 +154,100 @@ describe('buildScanReport — aggregation + gaps', () => {
     const report = buildScanReport([a, empty], workdir);
     expect(report.scanned).toBe(2);
     expect(report.empty).toEqual([empty]);
+    expect(report.skipped).toEqual([]);
+  });
+});
+
+/** Minimal Response-like object for fetch mocks (raw media type → text(); arrays → json()). */
+function ghResponse(body: unknown, opts: { ok?: boolean; status?: number } = {}): Response {
+  const { ok = true, status = 200 } = opts;
+  return {
+    ok,
+    status,
+    statusText: ok ? 'OK' : 'Error',
+    headers: { get: () => null },
+    text: () => Promise.resolve(typeof body === 'string' ? body : JSON.stringify(body)),
+    json: () => Promise.resolve(body),
+  } as unknown as Response;
+}
+const gh404 = () => ghResponse('', { ok: false, status: 404 });
+
+describe('runScanOrg — remote', () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('scans --repos over the API and merges them into the histogram', async () => {
+    writeCatalog(workdir, [PAYLOAD_PACK]);
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('acme/app/contents/package.json')) {
+        return Promise.resolve(ghResponse({ dependencies: { next: '^15.0.0' } }));
+      }
+      if (url.includes('acme/app/contents/package-lock.json')) {
+        return Promise.resolve(
+          ghResponse({ lockfileVersion: 3, packages: { 'node_modules/next': { version: '15.3.1' } } }),
+        );
+      }
+      if (url.includes('acme/api/contents/package.json')) {
+        return Promise.resolve(ghResponse({ dependencies: { payload: '^3.0.0' } }));
+      }
+      return Promise.resolve(gh404());
+    });
+
+    const report = await runScanOrg([], {
+      repos: ['acme/app', 'acme/api'],
+      token: 'tok',
+      catalogRoot: workdir,
+    });
+    expect(report.scanned).toBe(2);
+    expect(report.roots).toEqual(['acme/app', 'acme/api']);
+    expect(report.histogram.find((h) => h.stack === 'nextjs')?.versions[0].version).toBe('15.3.1');
+    expect(report.skipped).toEqual([]);
+  });
+
+  it('records a repo with no package.json as skipped and continues the scan', async () => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('acme/good/contents/package.json')) {
+        return Promise.resolve(ghResponse({ dependencies: { next: '^15.0.0' } }));
+      }
+      return Promise.resolve(gh404());
+    });
+
+    const report = await runScanOrg([], {
+      repos: ['acme/good', 'acme/bad'],
+      token: 'tok',
+      catalogRoot: workdir,
+    });
+    expect(report.scanned).toBe(1);
+    expect(report.skipped).toHaveLength(1);
+    expect(report.skipped[0]).toMatchObject({ repo: 'acme/bad', reason: 'not-found' });
+  });
+
+  it('throws when a remote scan is requested without a token', async () => {
+    await expect(runScanOrg([], { repos: ['acme/app'] })).rejects.toThrow(/token/i);
+  });
+
+  it('merges a local repo and a remote repo into one report', async () => {
+    const a = repo('a');
+    writeNodeModules(a, 'next', '15.3.1');
+    writeManifest(a, { next: '15' });
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('acme/api/contents/package.json')) {
+        return Promise.resolve(ghResponse({ dependencies: { next: '^15.0.0' } }));
+      }
+      if (url.includes('acme/api/contents/package-lock.json')) {
+        return Promise.resolve(
+          ghResponse({ lockfileVersion: 3, packages: { 'node_modules/next': { version: '15.3.1' } } }),
+        );
+      }
+      return Promise.resolve(gh404());
+    });
+
+    const report = await runScanOrg([a], { repos: ['acme/api'], token: 'tok', catalogRoot: workdir });
+    expect(report.scanned).toBe(2);
+    const nextjs = report.histogram.find((h) => h.stack === 'nextjs');
+    expect(nextjs?.versions[0]).toMatchObject({ version: '15.3.1', count: 2 });
+    expect(nextjs?.versions[0].repos).toEqual([a, 'acme/api']);
   });
 });

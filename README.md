@@ -238,10 +238,12 @@ Or expose the same model to an agent as MCP tools (`detect_stacks`, `query_cover
 npx bluetemberg mcp serve
 ```
 
-Maintainers can scan several repos at once to see which `(stack, version)` eras are worth authoring rules for — a read-only usage histogram ranked by coverage gaps:
+Maintainers can scan several repos at once to see which `(stack, version)` eras are worth authoring rules for — a read-only usage histogram ranked by coverage gaps. Scan local clones, or read manifests straight from a GitHub org over the API (no cloning) with a `GITHUB_TOKEN`/`GH_TOKEN` in your environment:
 
 ```bash
-npx bluetemberg scan-org ../app-a ../app-b --json   # [maintainer] gaps ranked by usage
+npx bluetemberg scan-org ../app-a ../app-b               # local clones
+npx bluetemberg scan-org --org acme --json               # every repo in the acme org
+npx bluetemberg scan-org --repos acme/app,acme/web       # specific repos
 ```
 
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.

@@ -449,18 +449,43 @@ program
 program
   .command('scan-org')
   .description('[maintainer] Histogram stack+version usage across N repos vs catalog coverage (read-only)')
-  .argument('<paths...>', 'Repo root directories to scan (e.g. ../app-a ../app-b)')
-  .option('--json', 'Emit machine-readable JSON (roots, histogram, gaps)')
+  .argument('[paths...]', 'Local repo root directories to scan (e.g. ../app-a ../app-b)')
+  .option('--org <name>', '[remote] Scan every non-fork, non-archived repo in this GitHub org')
+  .option('--repos <list>', '[remote] Comma-separated owner/repo to scan (e.g. acme/app,acme/web)')
+  .option('--json', 'Emit machine-readable JSON (roots, histogram, gaps, skipped)')
   .option('--silent', 'Suppress all output')
   .action(async (paths, options) => {
     const { runScanOrg } = await import('../dist/stacks/scan.js');
-    const roots = [...new Set(paths.map((p) => resolve(p)))];
+    const roots = [...new Set((paths ?? []).map((p) => resolve(p)))];
+    const repos = options.repos ? csvList(options.repos) : [];
+    const wantsRemote = Boolean(options.org) || repos.length > 0;
+
+    if (roots.length === 0 && !wantsRemote) {
+      if (!options.silent) {
+        console.error('Error: provide local paths, or --org / --repos for a remote scan.');
+      }
+      process.exit(1);
+    }
+
+    // Token is read from the environment only — never from project files — and never logged.
+    const token = wantsRemote ? (process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN) : undefined;
+    if (wantsRemote && !token) {
+      if (!options.silent) {
+        console.error('Error: No GitHub token found. Set GITHUB_TOKEN or GH_TOKEN in your environment.');
+      }
+      process.exit(1);
+    }
+
     try {
-      runScanOrg(roots, {
+      await runScanOrg(roots, {
         json: options.json,
         silent: options.silent,
         log: console.log,
+        progress: console.error, // stderr — never corrupts --json on stdout
         catalogRoot: resolve('.'),
+        org: options.org,
+        repos,
+        token,
       });
     } catch (err) {
       if (!options.silent) {
