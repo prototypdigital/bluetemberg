@@ -447,6 +447,30 @@ program
   });
 
 program
+  .command('scan-org')
+  .description('[maintainer] Histogram stack+version usage across N repos vs catalog coverage (read-only)')
+  .argument('<paths...>', 'Repo root directories to scan (e.g. ../app-a ../app-b)')
+  .option('--json', 'Emit machine-readable JSON (roots, histogram, gaps)')
+  .option('--silent', 'Suppress all output')
+  .action(async (paths, options) => {
+    const { runScanOrg } = await import('../dist/stacks/scan.js');
+    const roots = [...new Set(paths.map((p) => resolve(p)))];
+    try {
+      runScanOrg(roots, {
+        json: options.json,
+        silent: options.silent,
+        log: console.log,
+        catalogRoot: resolve('.'),
+      });
+    } catch (err) {
+      if (!options.silent) {
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      process.exit(1);
+    }
+  });
+
+program
   .command('add')
   .description('Add one or more packs (rules, agents, skills, guardrails) from the npm registry')
   .argument('<packages...>', 'Package name(s) with optional @version (e.g. my-rules@^1.0.0)')

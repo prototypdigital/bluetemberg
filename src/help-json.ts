@@ -163,6 +163,16 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           ],
         },
         {
+          name: 'scan-org',
+          args: '<paths...>',
+          description:
+            '[maintainer] Histogram stack+version usage across N repos vs catalog coverage (read-only).',
+          options: [
+            { long: '--json', description: 'Emit machine-readable JSON (roots, histogram, gaps).' },
+            { long: '--silent', description: 'Suppress all output.' },
+          ],
+        },
+        {
           name: 'mcp serve',
           args: '[directory]',
           description: 'Serve the stack model as MCP tools over stdio (read-only).',
@@ -170,7 +180,12 @@ export function getMachineReadableHelp(): Record<string, unknown> {
       ],
       mcp: {
         transport: 'stdio',
-        tools: ['bluetemberg_detect_stacks', 'bluetemberg_query_coverage', 'bluetemberg_list_stacks'],
+        tools: [
+          'bluetemberg_detect_stacks',
+          'bluetemberg_query_coverage',
+          'bluetemberg_list_stacks',
+          'bluetemberg_org_histogram',
+        ],
         note: 'Read-only. The gated scaffold_from_gap tool (M7 create-loop) is intentionally absent.',
       },
     },

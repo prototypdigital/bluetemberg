@@ -128,6 +128,24 @@ npx bluetemberg coverage payload@3.4.0
 npx bluetemberg coverage nextjs --json
 ```
 
+## `bluetemberg scan-org <paths...>`
+
+**Maintainer tooling** — read-only. Scan N repository roots and build a `(stack, version)` usage histogram against the installed catalog, then rank the uncovered buckets by usage so you author the highest-impact rules first. It reuses the exact detection that gates rules at sync (`node_modules` → lockfile → coerced `package.json` range), so a repo only needs to be cloned — installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`. It **never writes** anything.
+
+The catalog it compares against is loaded from the current working directory (project cache → committed snapshot), not from the scanned repos.
+
+| Option | Description |
+| ------ | ----------- |
+| `--json` | Emit machine-readable JSON (`roots`, `scanned`, `empty`, `histogram`, `gaps`) |
+| `--silent` | Suppress all output |
+
+```bash
+npx bluetemberg scan-org ../app-a ../app-b ../app-c
+npx bluetemberg scan-org ../app-a ../app-b --json
+```
+
+The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` (`version-uncovered` when the stack is known but the version isn't, `no-coverage` when no pack targets the stack at all).
+
 ## `bluetemberg mcp serve [directory]`
 
 Run Bluetemberg itself as an [MCP](https://modelcontextprotocol.io) server over **stdio**, exposing the stack model as tools so an agent gets structured coverage without shelling out. It is the same machinery behind the `--json` flags — one implementation, two surfaces — and is **read-only** (it never writes files).
@@ -139,6 +157,7 @@ Tools:
 | `bluetemberg_detect_stacks` | — | Detected stacks, versions, confidence, coverage, gaps, warnings |
 | `bluetemberg_query_coverage` | `stack`, optional `version` | Whether version-correct guidance exists for the stack |
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
+| `bluetemberg_org_histogram` | `roots` (array of repo paths) | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
 
 Register it with an MCP client (example for Claude Code's `.mcp.json`):
 

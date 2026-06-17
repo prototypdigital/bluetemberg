@@ -41,12 +41,13 @@ function writeCatalog(root: string): void {
 }
 
 describe('STACKS_MCP_TOOLS', () => {
-  it('exposes the three read-only tools with well-formed object schemas (no M7 scaffold)', () => {
+  it('exposes the read-only tools with well-formed object schemas (no M7 scaffold)', () => {
     const names = STACKS_MCP_TOOLS.map((t) => t.name);
     expect(names).toEqual([
       'bluetemberg_detect_stacks',
       'bluetemberg_query_coverage',
       'bluetemberg_list_stacks',
+      'bluetemberg_org_histogram',
     ]);
     expect(names).not.toContain('bluetemberg_scaffold_from_gap'); // parked (M7)
     for (const tool of STACKS_MCP_TOOLS) {
@@ -56,6 +57,8 @@ describe('STACKS_MCP_TOOLS', () => {
     }
     const coverage = STACKS_MCP_TOOLS.find((t) => t.name === 'bluetemberg_query_coverage');
     expect(coverage?.inputSchema.required).toEqual(['stack']);
+    const histogram = STACKS_MCP_TOOLS.find((t) => t.name === 'bluetemberg_org_histogram');
+    expect(histogram?.inputSchema.required).toEqual(['roots']);
   });
 });
 
@@ -101,6 +104,23 @@ describe('callStacksTool', () => {
     }>;
     const payload = result.find((e) => e.name === 'payload');
     expect(payload?.detected).toBe(true);
+  });
+
+  it('org_histogram scans the given roots and returns a histogram report', () => {
+    writeConfig(root, { payload: '3.4.1' });
+    writeCatalog(root);
+    const result = callStacksTool(root, 'bluetemberg_org_histogram', { roots: ['.'] }) as {
+      scanned: number;
+      histogram: Array<{ stack: string }>;
+    };
+    expect(result.scanned).toBe(1);
+    expect(result.histogram.some((h) => h.stack === 'payload')).toBe(true);
+  });
+
+  it('org_histogram throws when "roots" is missing or empty', () => {
+    writeConfig(root);
+    expect(() => callStacksTool(root, 'bluetemberg_org_histogram', {})).toThrow(/roots/);
+    expect(() => callStacksTool(root, 'bluetemberg_org_histogram', { roots: [] })).toThrow(/roots/);
   });
 
   it('throws on an unknown tool', () => {

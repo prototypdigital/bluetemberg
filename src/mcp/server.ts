@@ -1,7 +1,9 @@
+import { resolve } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { buildCoverageReport, buildDetectReport, buildStacksList } from '../stacks/report.js';
+import { buildScanReport } from '../stacks/scan.js';
 
 /**
  * First-party MCP server — exposes Bluetemberg's stack detection + coverage model as tools so any
@@ -53,6 +55,25 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
       'detected version, and origins.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
+  {
+    name: 'bluetemberg_org_histogram',
+    description:
+      '[maintainer] Scan N repo roots and build a (stack, version) usage histogram vs catalog ' +
+      'coverage. Read-only. Returns { roots, scanned, empty, histogram, gaps } — `gaps` is the ' +
+      'authoring priority list (uncovered buckets ranked by usage).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        roots: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Repo root directories to scan (absolute or relative to the server cwd).',
+        },
+      },
+      required: ['roots'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 /**
@@ -71,6 +92,16 @@ export function callStacksTool(root: string, name: string, args: Record<string, 
       const version =
         typeof args.version === 'string' && args.version.trim() ? args.version.trim() : undefined;
       return buildCoverageReport(root, stack, version);
+    }
+    case 'bluetemberg_org_histogram': {
+      const raw = Array.isArray(args.roots) ? args.roots : [];
+      const roots = [...new Set(raw.filter((p): p is string => typeof p === 'string' && p.length > 0))].map(
+        (p) => resolve(root, p),
+      );
+      if (roots.length === 0) {
+        throw new Error('bluetemberg_org_histogram requires a non-empty "roots" array of repo paths');
+      }
+      return buildScanReport(roots, root);
     }
     default:
       throw new Error(`Unknown tool: ${name}`);

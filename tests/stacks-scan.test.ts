@@ -1,0 +1,158 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { buildScanReport } from '../src/stacks/scan.js';
+
+/**
+ * M6 scanner tests. The fold is net-new code, so each detection source (node_modules → exact,
+ * lockfile → exact, manifest → coerced, config → declared) gets a fixture, plus the cross-repo
+ * aggregation, version bucketing, and catalog-ranked gap list.
+ */
+
+let workdir: string;
+
+beforeEach(() => {
+  workdir = join(tmpdir(), `bt-scan-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(workdir, { recursive: true });
+});
+afterEach(() => rmSync(workdir, { recursive: true, force: true }));
+
+function repo(name: string): string {
+  const root = join(workdir, name);
+  mkdirSync(root, { recursive: true });
+  return root;
+}
+
+function writeManifest(root: string, deps: Record<string, string>): void {
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'fixture', dependencies: deps }));
+}
+
+function writeNodeModules(root: string, pkg: string, version: string): void {
+  const dir = join(root, 'node_modules', ...pkg.split('/'));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: pkg, version }));
+}
+
+function writeLock(root: string, pkg: string, version: string): void {
+  writeFileSync(
+    join(root, 'package-lock.json'),
+    JSON.stringify({ lockfileVersion: 3, packages: { [`node_modules/${pkg}`]: { version } } }),
+  );
+}
+
+/** A catalog (committed under the maintainer's catalogRoot) that covers payload but not nextjs. */
+const PAYLOAD_PACK = {
+  name: 'bluetemberg-rules-payload',
+  version: '0.1.0',
+  description: '',
+  kind: 'rules',
+  universal: false,
+  profiles: [],
+  stacks: ['payload'],
+  rules: ['payload-thing'],
+  preview: '',
+};
+
+function writeCatalog(root: string, packs: unknown[]): void {
+  mkdirSync(join(root, '.bluetemberg'), { recursive: true });
+  writeFileSync(
+    join(root, '.bluetemberg', 'catalog.json'),
+    JSON.stringify({ generated: '2026-06-15T00:00:00.000Z', packs }),
+  );
+}
+
+describe('buildScanReport — detection sources', () => {
+  it('resolves an exact version from node_modules', () => {
+    const a = repo('a');
+    writeManifest(a, { next: '^15.0.0' });
+    writeNodeModules(a, 'next', '15.3.1');
+
+    const report = buildScanReport([a], workdir);
+    const nextjs = report.histogram.find((h) => h.stack === 'nextjs');
+    expect(nextjs?.versions[0]).toMatchObject({ version: '15.3.1', count: 1, confidence: 'exact' });
+  });
+
+  it('resolves an exact version from a lockfile when node_modules is absent (shallow clone)', () => {
+    const a = repo('a');
+    writeManifest(a, { next: '^14.0.0' });
+    writeLock(a, 'next', '14.2.0');
+
+    const report = buildScanReport([a], workdir);
+    const nextjs = report.histogram.find((h) => h.stack === 'nextjs');
+    expect(nextjs?.versions[0]).toMatchObject({ version: '14.2.0', confidence: 'exact' });
+  });
+
+  it('falls back to a coerced version from the manifest range', () => {
+    const a = repo('a');
+    writeManifest(a, { payload: '^3.4.0' });
+
+    const report = buildScanReport([a], workdir);
+    const payload = report.histogram.find((h) => h.stack === 'payload');
+    expect(payload?.versions[0]).toMatchObject({ version: '3.4.0', confidence: 'coerced' });
+  });
+});
+
+describe('buildScanReport — aggregation + gaps', () => {
+  it('aggregates the same (stack, version) across repos into one bucket with a combined count', () => {
+    const a = repo('a');
+    const b = repo('b');
+    writeNodeModules(a, 'next', '15.3.1');
+    writeNodeModules(b, 'next', '15.3.1');
+    writeManifest(a, { next: '15' });
+    writeManifest(b, { next: '15' });
+
+    const report = buildScanReport([a, b], workdir);
+    const nextjs = report.histogram.find((h) => h.stack === 'nextjs');
+    expect(nextjs?.total).toBe(2);
+    expect(nextjs?.versions).toHaveLength(1);
+    expect(nextjs?.versions[0]).toMatchObject({ version: '15.3.1', count: 2 });
+    expect(nextjs?.versions[0].repos).toEqual([a, b]);
+  });
+
+  it('separates distinct versions and orders buckets by count then version desc', () => {
+    const a = repo('a');
+    const b = repo('b');
+    const c = repo('c');
+    writeNodeModules(a, 'next', '14.2.0');
+    writeNodeModules(b, 'next', '15.3.1');
+    writeNodeModules(c, 'next', '15.3.1');
+    for (const r of [a, b, c]) writeManifest(r, { next: '*' });
+
+    const report = buildScanReport([a, b, c], workdir);
+    const nextjs = report.histogram.find((h) => h.stack === 'nextjs');
+    expect(nextjs?.versions.map((v) => v.version)).toEqual(['15.3.1', '14.2.0']);
+    expect(nextjs?.versions.map((v) => v.count)).toEqual([2, 1]);
+  });
+
+  it('ranks uncovered (stack, version) buckets by usage and tags the gap reason', () => {
+    writeCatalog(workdir, [PAYLOAD_PACK]); // covers payload (name-level), not nextjs
+    const a = repo('a');
+    const b = repo('b');
+    const c = repo('c');
+    writeNodeModules(a, 'next', '14.2.0');
+    writeNodeModules(b, 'next', '14.2.0');
+    writeNodeModules(c, 'payload', '3.4.1');
+    writeManifest(a, { next: '14' });
+    writeManifest(b, { next: '14' });
+    writeManifest(c, { payload: '3' });
+
+    const report = buildScanReport([a, b, c], workdir);
+    // payload is covered name-level → not a gap; nextjs has no covering pack → no-coverage gap.
+    expect(report.gaps).toEqual([{ stack: 'nextjs', version: '14.2.0', count: 2, reason: 'no-coverage' }]);
+    const payload = report.histogram.find((h) => h.stack === 'payload');
+    expect(payload?.versions[0].covered).toBe(true);
+  });
+
+  it('counts repos with no detectable stacks as empty, not scanned-with-stacks', () => {
+    const a = repo('a');
+    const empty = repo('empty');
+    writeNodeModules(a, 'next', '15.3.1');
+    writeManifest(a, { next: '15' });
+    writeManifest(empty, { lodash: '^4.0.0' }); // not a known stack
+
+    const report = buildScanReport([a, empty], workdir);
+    expect(report.scanned).toBe(2);
+    expect(report.empty).toEqual([empty]);
+  });
+});
