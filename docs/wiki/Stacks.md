@@ -104,7 +104,7 @@ The switch rule both ecosystems use: **use the in-artifact selector (Tier 1) unt
 
 Version-aware routing is maturing. Tracked in [issue #212](https://github.com/prototypdigital/bluetemberg/issues/212):
 
-- **One version per stack name, per repo root.** A monorepo with `react@14` in one package and `react@15` in another resolves to a single version at the root, so per-package gating is not yet correct. Pin per-package via [config inheritance](Configuration#config-inheritance) as an interim measure.
+- **Monorepos: solved per-package, not per-version-within-a-package.** A monorepo with `react@14` in one package and `react@15` in another is handled — `bluetemberg sync` [fans out](Commands#bluetemberg-sync-directory) and gates each package against its own detected stacks. What's still not expressible is *two versions of one stack inside a single package* (the detection model resolves one version per stack name per directory).
 - **Agents and skills are not version-gated** — only rules and guardrails. Stack-specific agent/skill advice cannot yet be withheld by version.
 - **Cross-stack matching is AND-only.** "applies to A≥3 *or* B≥2" across two different stacks is not expressible (OR *within* one stack via `||` is).
 

@@ -312,13 +312,15 @@ program
     'After sync, remove stale generated files under managed output dirs (no-op with --check)',
   )
   .option('--verbose', 'Emit debug output: resolved source dirs, per-file origins, warnings')
+  .option('--no-recursive', 'Sync only this directory; do not descend into configured workspace packages')
   .action(async (directory, options) => {
     const { sync, loadConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
     const root = resolve(directory);
 
-    let config;
+    // Validate the local config early for a clean error + exit code. Sync (re)loads config per
+    // package, so a recursive run picks up each workspace package's own merged config and stacks.
     try {
-      config = loadConfig(root);
+      loadConfig(root);
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -333,11 +335,11 @@ program
     }
     const results = await sync(root, {
       check,
-      config,
       silent: options.silent,
       prune: options.prune || false,
       verbose: options.verbose || false,
       diff: options.diff || false,
+      recursive: options.recursive,
     });
 
     if (shouldExitWithFailure(results, check)) {

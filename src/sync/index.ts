@@ -1,5 +1,5 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { join, basename, dirname, resolve } from 'node:path';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
 import { ensureDir } from '../utils/fs.js';
@@ -239,6 +239,47 @@ function collectConfigFiles(start: string): { path: string; raw: unknown }[] {
   }
 }
 
+/** Heavy / generated directories never worth descending into when discovering package configs. */
+const DISCOVERY_SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'coverage',
+  'out',
+  '.next',
+  '.turbo',
+]);
+
+/**
+ * Discover every directory at or below `root` that holds a `bluetemberg.config.json` — the inverse
+ * of {@link collectConfigFiles}. The config tree IS the workspace map: a package opts into sync by
+ * having a config, so recursive sync needs no npm/pnpm/yarn workspace parsing. Skips heavy/generated
+ * dirs and dotfolders. Returns absolute paths, root-first then lexical, for deterministic ordering.
+ */
+function discoverConfigDirs(root: string): string[] {
+  const start = resolve(root);
+  const found: string[] = [];
+  const pending = [start];
+
+  while (pending.length > 0) {
+    const dir = pending.pop() as string;
+    if (existsSync(join(dir, CONFIG_FILENAME))) found.push(dir);
+
+    try {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('.') || DISCOVERY_SKIP_DIRS.has(entry.name)) continue;
+        pending.push(join(dir, entry.name));
+      }
+    } catch {
+      // Unreadable directory (permissions, race) — skip it, never fail discovery.
+    }
+  }
+
+  return found.sort((a, b) => (a === start ? -1 : b === start ? 1 : a.localeCompare(b)));
+}
+
 /**
  * Load the effective config for `root`. In a monorepo, walks up the directory tree merging every
  * `bluetemberg.config.json` found (see {@link collectConfigFiles}); the most-local file wins on
@@ -439,7 +480,7 @@ function gateByVersion(
  * const results = await sync(process.cwd(), { config: loadConfig(process.cwd()) });
  * ```
  */
-export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
+async function syncSingle(root: string, options: SyncOptions, orchestrated = false): Promise<SyncResults> {
   const checkMode = options.check || false;
   const verbose = Boolean(options.verbose) && !options.silent;
   // A diff is only meaningful in check mode (write mode produces the in-sync state outright).
@@ -468,7 +509,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const catalog = loadCatalogSync(root);
   const detectedStacks = detectStacks(root, config);
 
-  log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
+  if (!orchestrated) log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
   const ctx: SyncContext = {
     root,
@@ -564,6 +605,13 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     });
   }
 
+  if (!orchestrated) printSummary(log, results, checkMode);
+
+  return results;
+}
+
+/** Print the trailing summary (Done / out-of-sync, plus warning and error counts). */
+function printSummary(log: (msg: string) => void, results: SyncResults, checkMode: boolean): void {
   if (checkMode) {
     if (results.outOfSync > 0) {
       log(`\n${results.outOfSync} file(s) out of sync. Run: npx bluetemberg sync`);
@@ -582,8 +630,44 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   if (results.errors.length > 0) {
     log(`\n${results.errors.length} error(s) occurred during sync.`);
   }
+}
 
-  return results;
+/**
+ * Public sync entry point. In a monorepo, discovers every configured package at or below `root`
+ * (the config tree is the workspace map) and syncs each against its own detected stacks, so a
+ * single `bluetemberg sync` keeps the whole workspace in sync — no flag to forget, no CI false-green.
+ *
+ * Falls back to a single-package sync (byte-identical to before) when recursion is disabled, a
+ * caller passes an explicit `config` (a deliberate single target), or there is nothing but the
+ * root config to sync. See {@link SyncOptions.recursive}.
+ */
+export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
+  const single = options.recursive === false || Boolean(options.config);
+  if (single) return syncSingle(root, options);
+
+  const configDirs = discoverConfigDirs(root);
+  const onlyRoot = configDirs.length === 1 && configDirs[0] === resolve(root);
+  if (configDirs.length === 0 || onlyRoot) return syncSingle(root, options);
+
+  const log = options.silent ? () => {} : console.log;
+  const checkMode = options.check || false;
+  log(`${checkMode ? 'Checking' : 'Syncing'} AI config across ${configDirs.length} package(s)...\n`);
+
+  const aggregate: SyncResults = { synced: 0, outOfSync: 0, errors: [], warnings: [] };
+  for (const dir of configDirs) {
+    log(`── ${relative(root, dir) || '.'} ──`);
+    // Each package loads and merges its OWN config (drop any inherited `config` override) and
+    // detects its own stacks; the orchestrator owns the header and summary.
+    const r = await syncSingle(dir, { ...options, config: undefined }, true);
+    aggregate.synced += r.synced;
+    aggregate.outOfSync += r.outOfSync;
+    aggregate.errors.push(...r.errors);
+    aggregate.warnings.push(...r.warnings);
+    log('');
+  }
+
+  printSummary(log, aggregate, checkMode);
+  return aggregate;
 }
 
 /** Returns a short label for a resolved source dir path, relative to root. */

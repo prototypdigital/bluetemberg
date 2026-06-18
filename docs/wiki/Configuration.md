@@ -219,6 +219,8 @@ Skills are synced as `<skill-name>/SKILL.md` within the target directory.
 
 In a monorepo, each package can have its own `bluetemberg.config.json` that **inherits from a root config**. When you run `bluetemberg sync` from a package directory, Bluetemberg walks **up** the directory tree, collects every `bluetemberg.config.json` it finds, and merges them — with the most-local file winning on conflicts.
 
+> **Run it once from the root.** `bluetemberg sync` is **recursive by default**: from any directory it discovers every `bluetemberg.config.json` at or below that point and syncs each configured package against its own merged config and detected stacks (the config tree is the workspace map — no npm/pnpm/yarn workspace globs to maintain). One sync, or one `sync --check` in CI, keeps the whole workspace correct. A repo with no sub-package configs is unaffected. Pass [`--no-recursive`](Commands#bluetemberg-sync-directory) to sync only the current directory.
+
 ```
 my-monorepo/
   bluetemberg.config.json       # root — shared platforms, targets
