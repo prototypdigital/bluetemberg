@@ -136,10 +136,11 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
     }
   }
 
-  if (excluded.size > 0 && !ctx.checkMode) {
+  ctx.log(`Guardrails: ${merged.size} source files`);
+  if (excluded.size > 0) {
     // Per-file reasons (parity with rules): the user can audit that wrong-version guardrails were
     // correctly withheld, rather than seeing only an opaque count.
-    ctx.log(`Guardrails: ${guardrails.length} applied · ${excluded.size} filtered out by version`);
+    ctx.log(`  ${guardrails.length} applied · ${excluded.size} filtered out by version`);
     for (const [file, reason] of excluded) {
       ctx.log(`    - ${basename(file, '.md')}: ${reason}`);
     }

@@ -260,7 +260,8 @@ describe('project sync — audible stack filtering', () => {
     } finally {
       restore();
     }
-    expect(lines.some((l) => l.includes('Guardrails:') && l.includes('filtered out by version'))).toBe(true);
+    expect(lines.some((l) => l.includes('Guardrails:') && l.includes('source files'))).toBe(true);
+    expect(lines.some((l) => l.includes('applied') && l.includes('filtered out by version'))).toBe(true);
     expect(lines.some((l) => l.includes('payload-only') && l.includes("you're on 2.0.0"))).toBe(true);
   });
 });
