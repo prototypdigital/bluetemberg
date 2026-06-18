@@ -23,7 +23,12 @@ import { resolveExternalSourceDirs } from '../sources/registry.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
-import { describeStackMismatch, matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
+import {
+  describeStackMismatch,
+  isValidStackRange,
+  matchStackConstraint,
+  type DetectedStacks,
+} from '../stacks/match.js';
 import {
   buildStackMap,
   frontmatterStackIssues,
@@ -168,6 +173,21 @@ function validateConfig(
 
   if (cfg.root !== undefined && typeof cfg.root !== 'boolean') {
     throw new Error(`Invalid config in ${configPath}: "root" must be a boolean`);
+  }
+
+  // Validate stack pins so a typo (e.g. "15.x.0") errors loudly instead of silently hard-excluding
+  // every versioned rule. Each value must be the "auto" sentinel or a valid semver version/range.
+  if (cfg.stacks !== undefined) {
+    if (!cfg.stacks || typeof cfg.stacks !== 'object' || Array.isArray(cfg.stacks)) {
+      throw new Error(`Invalid config in ${configPath}: "stacks" must be an object`);
+    }
+    for (const [name, value] of Object.entries(cfg.stacks as Record<string, unknown>)) {
+      if (typeof value !== 'string' || (value !== 'auto' && !isValidStackRange(value))) {
+        throw new Error(
+          `Invalid config in ${configPath}: stacks.${name} must be "auto" or a valid semver version/range (got ${JSON.stringify(value)})`,
+        );
+      }
+    }
   }
 
   // A lenient pass (an individual file in an inheritance chain) also allows partial target entries
@@ -695,12 +715,17 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
 }
 
 /**
- * Resolve which rules are version-filtered out of this project. A rule is excluded when its stack
- * constraint (frontmatter `stacks:` > catalog pack-level) names a stack that is absent or whose
- * detected version is outside the declared range — the version-aware gate. Returns `file → reason`
- * for the excluded rules; the decision is platform-independent so it is computed once.
+ * Resolve which `.md` files (rules or agents) are version-filtered out of this project. A file is
+ * excluded when its stack constraint (frontmatter `stacks:` > catalog pack-level) names a stack that
+ * is absent or whose detected version is outside the declared range — the version-aware gate.
+ * Returns `file → reason` for the excluded files; the decision is platform-independent so it is
+ * computed once. Used for both rules and agents so version-specific guidance is withheld uniformly.
  */
-function resolveExcludedRules(ctx: SyncContext, merged: Map<string, string>): Map<string, string> {
+function resolveExcludedFiles(
+  ctx: SyncContext,
+  merged: Map<string, string>,
+  kind: 'rules' | 'agents',
+): Map<string, string> {
   const stackMap = buildStackMap(ctx.catalog);
   const excluded = new Map<string, string>();
   for (const [file, sourceDir] of merged) {
@@ -710,28 +735,53 @@ function resolveExcludedRules(ctx: SyncContext, merged: Map<string, string>): Ma
     } catch {
       // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `rules/${file}`);
+    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `${kind}/${file}`);
     if (!gate.matched) excluded.set(file, gate.reason);
   }
   return excluded;
+}
+
+/**
+ * Resolve which skill directories are version-filtered out. A skill is gated on the `stacks:`
+ * frontmatter of its `SKILL.md` (id = directory name), mirroring rules/agents so a version-specific
+ * skill is withheld on projects it does not target. Returns `dirName → reason` for excluded skills.
+ */
+function resolveExcludedSkills(ctx: SyncContext, merged: Map<string, string>): Map<string, string> {
+  const stackMap = buildStackMap(ctx.catalog);
+  const excluded = new Map<string, string>();
+  for (const [dirName, sourceParent] of merged) {
+    let data: Record<string, unknown> = {};
+    try {
+      data = matter.read(join(sourceParent, dirName, 'SKILL.md')).data as Record<string, unknown>;
+    } catch {
+      // Unreadable SKILL.md → treat as stack-agnostic; the write loop reports the read error.
+    }
+    const gate = gateByVersion(ctx, dirName, data, stackMap, `skills/${dirName}`);
+    if (!gate.matched) excluded.set(dirName, gate.reason);
+  }
+  return excluded;
+}
+
+/** Log the shared "applied · filtered out by version" summary for a synced kind (id → reason). */
+function logVersionFiltered(ctx: SyncContext, appliedCount: number, excluded: Map<string, string>): void {
+  if (excluded.size === 0) return;
+  // Making the exclusion visible turns the gate into a trust signal: the user can audit that
+  // wrong-version content was correctly withheld (hidden, not wrong-here).
+  ctx.log(`  ${appliedCount} applied · ${excluded.size} filtered out by version`);
+  for (const [id, reason] of excluded) {
+    ctx.log(`    - ${id.replace(/\.md$/, '')}: ${reason}`);
+  }
 }
 
 function syncRules(ctx: SyncContext): void {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedRules(ctx, merged);
+  const excluded = resolveExcludedFiles(ctx, merged, 'rules');
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Rules: ${merged.size} source files`);
-  if (excluded.size > 0) {
-    // Making the exclusion visible turns the gate into a trust signal: the user can audit that
-    // wrong-version rules were correctly withheld (hidden, not wrong-here).
-    ctx.log(`  ${appliedCount} applied · ${excluded.size} filtered out by version`);
-    for (const [file, reason] of excluded) {
-      ctx.log(`    - ${basename(file, '.md')}: ${reason}`);
-    }
-  }
+  logVersionFiltered(ctx, appliedCount, excluded);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -773,7 +823,11 @@ function syncAgents(ctx: SyncContext): void {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
   if (merged.size === 0) return;
 
+  const excluded = resolveExcludedFiles(ctx, merged, 'agents');
+  const appliedCount = merged.size - excluded.size;
+
   ctx.log(`Agents: ${merged.size} source files`);
+  logVersionFiltered(ctx, appliedCount, excluded);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -792,6 +846,7 @@ function syncAgents(ctx: SyncContext): void {
     ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
+      if (excluded.has(file)) continue;
       try {
         const content = readFileSync(join(sourceDir, file), 'utf8');
         const outName = file.replace(/\.md$/, targetConfig.ext);
@@ -804,7 +859,7 @@ function syncAgents(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} files)`);
   }
 }
 
@@ -814,12 +869,16 @@ function syncSkills(ctx: SyncContext): void {
   );
   if (merged.size === 0) return;
 
+  const excluded = resolveExcludedSkills(ctx, merged);
+  const appliedCount = merged.size - excluded.size;
+
   const skillTargets = filterTargets<SkillTargetConfig>(
     ctx.config.targets?.skills || DEFAULT_TARGETS.skills,
     ctx.platforms,
   );
 
   ctx.log(`Skills: ${merged.size} source directories`);
+  logVersionFiltered(ctx, appliedCount, excluded);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -830,6 +889,7 @@ function syncSkills(ctx: SyncContext): void {
 
   for (const [, targetConfig] of skillTargets) {
     for (const [dirName, sourceParent] of merged) {
+      if (excluded.has(dirName)) continue;
       try {
         const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
@@ -845,7 +905,7 @@ function syncSkills(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} skills)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} skills)`);
   }
 }
 

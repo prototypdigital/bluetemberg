@@ -57,7 +57,7 @@ Notes:
 - Matching coerces loose versions and includes prereleases, so `15.0.0-canary.3` satisfies `>=15`.
 - When two ranges in one project both match, the **most-specific (narrowest)** range wins, deterministically.
 - Invalid ranges are dropped (never an accidental match); a version resolved from a low-confidence source (a coerced `package.json` range) still applies but emits a warning — guidance is never silently dropped.
-- The same field works on guardrails (`llm/guardrails/`). Pack-level `stacks` in the catalog supply coarse name-only routing; a rule's own range is the precision gate.
+- The same field works on guardrails (`llm/guardrails/`), agents (`llm/agents/`), and skills (`llm/skills/<name>/SKILL.md`) — version-specific content of every kind is gated and withheld uniformly. Pack-level `stacks` in the catalog supply coarse name-only routing; a file's own range is the precision gate.
 
 Run [`bluetemberg detect`](Commands#bluetemberg-detect-directory) to see the detected versions your ranges are matched against, and declare versions in the [`stacks` config field](Configuration#stacks). For the full version-aware model — detection, the gate, and the versioning strategy — see [Stacks & Versioning](Stacks).
 
