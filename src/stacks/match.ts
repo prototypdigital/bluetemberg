@@ -8,8 +8,8 @@ import type { StackConstraint } from '../types.js';
  *  - A range is matched with semver `satisfies`, prereleases included, so `15.0.0-canary.3`
  *    matches `>=15`.
  *  - No match = HARD EXCLUDE (the caller drops the guidance), never an advisory no-op.
- *  - Invalid ranges never silently match — they are reported by {@link invalidRanges} so the
- *    caller can warn, and treated as non-matching here.
+ *  - Invalid ranges never silently match — they are dropped here (and surfaced as a warning by the
+ *    sync gate via `frontmatterStackIssues`), never an accidental match.
  *  - Absolute semver ranges only; `"*"` (or empty) means "any version of this stack".
  */
 
@@ -47,13 +47,6 @@ export function versionSatisfies(version: string, range: string): boolean {
   const v = coerce(version, { includePrerelease: true });
   if (!v) return false;
   return satisfies(v, range, { includePrerelease: true });
-}
-
-/** The invalid ranges in a constraint, so the caller can warn and drop them. */
-export function invalidRanges(constraint: StackConstraint): string[] {
-  return Object.entries(constraint)
-    .filter(([, range]) => !isValidStackRange(range))
-    .map(([name, range]) => `${name}: "${range}"`);
 }
 
 export interface StackMatchResult {

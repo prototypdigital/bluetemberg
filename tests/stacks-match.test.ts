@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   isValidStackRange,
   versionSatisfies,
-  invalidRanges,
   matchStackConstraint,
   compareSpecificity,
   type DetectedStacks,
@@ -45,13 +44,6 @@ describe('versionSatisfies', () => {
     expect(versionSatisfies('1.0.0', '*')).toBe(true);
     expect(versionSatisfies('1.0.0', '')).toBe(true);
     expect(versionSatisfies('1.0.0', 'garbage')).toBe(false);
-  });
-});
-
-describe('invalidRanges', () => {
-  it('reports only the malformed entries', () => {
-    expect(invalidRanges({ payload: '>=3 <4', next: 'garbage' })).toEqual(['next: "garbage"']);
-    expect(invalidRanges({ payload: '>=3' })).toEqual([]);
   });
 });
 

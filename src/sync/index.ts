@@ -239,7 +239,13 @@ function collectConfigFiles(start: string): { path: string; raw: unknown }[] {
   }
 }
 
-/** Heavy / generated directories never worth descending into when discovering package configs. */
+/**
+ * Heavy / generated directories never worth descending into when discovering package configs.
+ * A pragmatic denylist (plus all dotfolders, skipped at the call site) — a package config is never
+ * expected inside these, and crawling them (especially `node_modules`) would be slow. Dependency
+ * artifact dirs across ecosystems (`target` = Rust/JVM, `vendor` = Go/PHP) are included so the walk
+ * stays cheap in polyglot monorepos.
+ */
 const DISCOVERY_SKIP_DIRS = new Set([
   'node_modules',
   '.git',
@@ -249,6 +255,8 @@ const DISCOVERY_SKIP_DIRS = new Set([
   'out',
   '.next',
   '.turbo',
+  'target',
+  'vendor',
 ]);
 
 /**
@@ -263,7 +271,8 @@ function discoverConfigDirs(root: string): string[] {
   const pending = [start];
 
   while (pending.length > 0) {
-    const dir = pending.pop() as string;
+    const dir = pending.pop();
+    if (dir === undefined) break; // unreachable given the loop guard; satisfies the type narrowing
     if (existsSync(join(dir, CONFIG_FILENAME))) found.push(dir);
 
     try {
