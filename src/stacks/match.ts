@@ -99,6 +99,18 @@ export function matchStackConstraint(
 }
 
 /**
+ * A short, human-readable reason a file was version-filtered, for the "filtered out" report.
+ * Shared by rule and guardrail sync so both surfaces phrase exclusions identically.
+ */
+export function describeStackMismatch(result: StackMatchResult): string {
+  const parts = [
+    ...result.missing.map((stack) => `${stack} not present`),
+    ...result.mismatched.map((m) => `${m.stack} ${m.range} (you're on ${m.detected})`),
+  ];
+  return parts.join('; ');
+}
+
+/**
  * Compare two ranges by specificity for deterministic "most-specific-wins" resolution.
  * Returns a negative number when `a` is more specific (narrower) than `b`. Specificity is the
  * count of comparator clauses (a proxy for boundedness); ties break lexically on the raw range

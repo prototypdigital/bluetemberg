@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -180,5 +180,87 @@ describe('project sync — guardrail version gating', () => {
     const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
     expect(settings.hooks).toBeUndefined(); // stale hook hard-excluded, not left active
     expect(settings.extraKnownMarketplaces).toEqual(['x']); // unrelated keys preserved
+  });
+});
+
+describe('project sync — audible stack filtering', () => {
+  let root: string;
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  /** Write a guardrail with valid base frontmatter plus optional extra lines (e.g. a `stacks:` block). */
+  function writeGuardrail(name: string, extra = ''): void {
+    mkdirSync(join(root, 'llm', 'guardrails'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'guardrails', `${name}.md`),
+      `---\ntrigger: SomeTool\nmessage: blocked\ncheck:\n  field: name\n  not_empty: true${extra ? '\n' + extra : ''}\n---\n\n# ${name}\n`,
+    );
+  }
+
+  /** Capture console.log lines for a non-silent sync. */
+  function captureLogs(): { lines: string[]; restore: () => void } {
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args) => {
+      lines.push(args.map(String).join(' '));
+    });
+    return { lines, restore: () => spy.mockRestore() };
+  }
+
+  it('warns (never silently drops) when a rule declares an invalid stack range', async () => {
+    // "15..16" is a realistic typo (Ruby-style range) that semver rejects.
+    writeRule(root, 'typo-range', 'stacks:\n  react: "15..16"');
+
+    const results = await sync(root, { config: configWithStacks({ react: '15.2.0' }), silent: true });
+
+    expect(results.warnings.some((w) => w.includes('invalid stack range') && w.includes('react'))).toBe(true);
+    // The dropped range widens the rule to agnostic, so it still applies — the warning is the signal.
+    expect(existsSync(join(root, RULE_OUT('typo-range')))).toBe(true);
+  });
+
+  it('warns when a rule declares a non-string stack range value', async () => {
+    // A YAML scalar (`react: 15` → number) silently vanishes from the constraint too — surface it.
+    writeRule(root, 'bad-type', 'stacks:\n  react: 15');
+
+    const results = await sync(root, { config: configWithStacks({ react: '15.2.0' }), silent: true });
+
+    expect(
+      results.warnings.some((w) => w.includes('invalid stack range') && w.includes('not a string')),
+    ).toBe(true);
+    expect(existsSync(join(root, RULE_OUT('bad-type')))).toBe(true);
+  });
+
+  it('warns when a guardrail declares an invalid stack range', async () => {
+    writeGuardrail('typo-guardrail', 'stacks:\n  payload: "15..16"');
+
+    const results = await sync(root, { config: configWithStacks({ payload: '3.4.1' }), silent: true });
+
+    expect(results.warnings.some((w) => w.includes('invalid stack range') && w.includes('payload'))).toBe(
+      true,
+    );
+  });
+
+  it('logs the detected stacks so the user can see what the gate matched against', async () => {
+    writeRule(root, 'a');
+    const { lines, restore } = captureLogs();
+    try {
+      await sync(root, { config: configWithStacks({ react: '15.2.0' }) });
+    } finally {
+      restore();
+    }
+    expect(lines.some((l) => l.includes('Detected stacks:') && l.includes('react@15.2.0'))).toBe(true);
+  });
+
+  it('lists per-file guardrail exclusion reasons (parity with rules)', async () => {
+    writeGuardrail('payload-only', 'stacks:\n  payload: ">=3 <4"');
+    const { lines, restore } = captureLogs();
+    try {
+      await sync(root, { config: configWithStacks({ payload: '2.0.0' }) });
+    } finally {
+      restore();
+    }
+    expect(lines.some((l) => l.includes('Guardrails:') && l.includes('filtered out by version'))).toBe(true);
+    expect(lines.some((l) => l.includes('payload-only') && l.includes("you're on 2.0.0"))).toBe(true);
   });
 });

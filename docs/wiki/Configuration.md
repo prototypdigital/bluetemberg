@@ -72,6 +72,8 @@ Stack names are an **open vocabulary** — adding a framework never requires an 
 
 `bluetemberg init` populates this field via a **detect-then-confirm** step (detected stacks pre-checked, with free-text adds), or pass `--stacks` in headless runs; you can also edit it by hand. Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory). `llm/` remains the source of truth; this field only routes existing content.
 
+See [Stacks & Versioning](Stacks) for the full model: detection precedence and confidence, the hard-exclude gate, the audible filtering output, and the versioning strategy.
+
 ### `extends`
 
 Optional string or array of strings that point to **additional source directories** to merge with the local `source` directory. Extended sources supply rules, agents, and skills that your local `source` dir does not define; when the same filename exists in both, the **local file wins**.
