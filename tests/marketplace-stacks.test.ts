@@ -11,6 +11,11 @@ function createTmpDir(): string {
   return dir;
 }
 
+/** Path to a rule's generated skill wrapper — rules are emitted as `rule-{id}` skills. */
+function ruleSkillPath(plugin: string, ruleName: string): string {
+  return `plugins/${plugin}/skills/rule-${ruleName}/SKILL.md`;
+}
+
 /** Assert a rule was emitted into a plugin AND that its body content was carried through. */
 function expectEmitted(root: string, rel: string, name: string): void {
   const path = join(root, rel);
@@ -51,8 +56,8 @@ describe('marketplace stack gating (the leak fix)', () => {
     await sync(root, { config, silent: true });
 
     // The role bundle gets the agnostic rule but NOT the Payload rule — this is the bug being fixed.
-    expectEmitted(root, 'plugins/backend/rules/git-workflow.md', 'git-workflow');
-    expect(existsSync(join(root, 'plugins/backend/rules/payload-collections.md'))).toBe(false);
+    expectEmitted(root, ruleSkillPath('backend', 'git-workflow'), 'git-workflow');
+    expect(existsSync(join(root, ruleSkillPath('backend', 'payload-collections')))).toBe(false);
   });
 
   it('a stack-specific rule lands in a bundle that opts into its stack', async () => {
@@ -71,10 +76,10 @@ describe('marketplace stack gating (the leak fix)', () => {
     await sync(root, { config, silent: true });
 
     // Stack bundle gets both the agnostic rule and the opted-in Payload rule.
-    expectEmitted(root, 'plugins/backend-payload/rules/payload-collections.md', 'payload-collections');
-    expectEmitted(root, 'plugins/backend-payload/rules/git-workflow.md', 'git-workflow');
+    expectEmitted(root, ruleSkillPath('backend-payload', 'payload-collections'), 'payload-collections');
+    expectEmitted(root, ruleSkillPath('backend-payload', 'git-workflow'), 'git-workflow');
     // Agnostic bundle still excludes the Payload rule.
-    expect(existsSync(join(root, 'plugins/backend/rules/payload-collections.md'))).toBe(false);
+    expect(existsSync(join(root, ruleSkillPath('backend', 'payload-collections')))).toBe(false);
   });
 
   it('malformed `stacks` frontmatter falls back to catalog gating (no silent widening)', async () => {
@@ -115,8 +120,8 @@ describe('marketplace stack gating (the leak fix)', () => {
     await sync(root, { config, silent: true });
 
     // Catalog fallback keeps it gated to payload — it must NOT widen into the agnostic bundle.
-    expect(existsSync(join(root, 'plugins/agnostic/rules/payload-thing.md'))).toBe(false);
-    expectEmitted(root, 'plugins/payload-bundle/rules/payload-thing.md', 'payload-thing');
+    expect(existsSync(join(root, ruleSkillPath('agnostic', 'payload-thing')))).toBe(false);
+    expectEmitted(root, ruleSkillPath('payload-bundle', 'payload-thing'), 'payload-thing');
   });
 
   it('a stack bundle only accepts the stacks it opts into', async () => {
@@ -129,7 +134,7 @@ describe('marketplace stack gating (the leak fix)', () => {
     };
     await sync(root, { config, silent: true });
 
-    expectEmitted(root, 'plugins/nextjs-bundle/rules/next-rsc.md', 'next-rsc');
-    expect(existsSync(join(root, 'plugins/nextjs-bundle/rules/payload-collections.md'))).toBe(false);
+    expectEmitted(root, ruleSkillPath('nextjs-bundle', 'next-rsc'), 'next-rsc');
+    expect(existsSync(join(root, ruleSkillPath('nextjs-bundle', 'payload-collections')))).toBe(false);
   });
 });

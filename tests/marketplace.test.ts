@@ -27,6 +27,14 @@ function writeAgent(root: string, name: string, frontmatter = ''): void {
   );
 }
 
+function writeRule(root: string, name: string, frontmatter = ''): void {
+  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+  writeFileSync(
+    join(root, 'llm', 'rules', `${name}.md`),
+    `---\ndescription: ${name} description${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n\nRule body content.\n`,
+  );
+}
+
 const BASE_CONFIG: BlueprintConfig = {
   platforms: ['claude-marketplace'],
   source: 'llm',
@@ -100,7 +108,7 @@ describe('syncMarketplace', () => {
 
     expect(marketplaceJson.plugins).toHaveLength(2);
     expect(marketplaceJson.plugins[0].name).toBe('frontend');
-    expect(marketplaceJson.plugins[0].path).toBe('plugins/frontend');
+    expect(marketplaceJson.plugins[0].source).toBe('./plugins/frontend');
     expect(marketplaceJson.plugins[1].name).toBe('devops');
   });
 
@@ -340,6 +348,64 @@ describe('syncMarketplace', () => {
 
     expect(existsSync(join(root, `plugins/${projectName}/agents/README.md`))).toBe(false);
     expect(existsSync(join(root, `plugins/${projectName}/agents/my-agent.md`))).toBe(true);
+  });
+
+  describe('rule to skill conversion', () => {
+    it('emits a rule as a skill (Claude Code plugins have no native "rules" component)', async () => {
+      writeRule(root, 'docs-parity');
+
+      const projectName = basename(root);
+      const results = await sync(root, { config: BASE_CONFIG, silent: true });
+
+      expect(results.errors).toHaveLength(0);
+      expect(existsSync(join(root, `plugins/${projectName}/skills/rule-docs-parity/SKILL.md`))).toBe(true);
+      expect(existsSync(join(root, `plugins/${projectName}/rules`))).toBe(false);
+    });
+
+    it('rule-derived skill has valid SKILL.md frontmatter and the original body', async () => {
+      writeRule(root, 'docs-parity');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      const content = readFileSync(
+        join(root, `plugins/${projectName}/skills/rule-docs-parity/SKILL.md`),
+        'utf8',
+      );
+      expect(content).toMatch(/^---\nname: docs-parity\ndescription: docs-parity description\n---\n/);
+      expect(content).toContain('Rule body content.');
+      // frontmatter fields meaningless to a skill (profiles, scope) must not leak through
+      expect(content).not.toContain('profiles:');
+    });
+
+    it('plugin.json lists the rule under skills, with no separate "rules" key', async () => {
+      writeRule(root, 'docs-parity');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      const pluginJson = JSON.parse(
+        readFileSync(join(root, `plugins/${projectName}/.claude-plugin/plugin.json`), 'utf8'),
+      );
+
+      expect(pluginJson.rules).toBeUndefined();
+      expect(pluginJson.skills).toHaveLength(1);
+      expect(pluginJson.skills[0].name).toBe('docs-parity');
+      expect(pluginJson.skills[0].path).toBe(
+        `plugins/${projectName}/skills/rule-docs-parity/SKILL.md`,
+      );
+    });
+
+    it('namespaces a rule skill so it cannot collide with an actual skill of the same id', async () => {
+      writeRule(root, 'patterns');
+      writeSkill(root, 'patterns');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      expect(existsSync(join(root, `plugins/${projectName}/skills/patterns/SKILL.md`))).toBe(true);
+      expect(existsSync(join(root, `plugins/${projectName}/skills/rule-patterns/SKILL.md`))).toBe(true);
+    });
   });
 
   describe('hooks bundling', () => {

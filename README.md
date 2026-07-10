@@ -285,7 +285,10 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 | `llm/commands/*.md`     | —                           | `.claude/commands/*.md`                | —                                        | —                      | `.windsurf/workflows/*.md`    |
 | `llm/prompts/*.md`      | —                           | —                                      | `.github/prompts/*.prompt.md`            | —                      | —                             |
 | `AGENTS.md`             | —                           | —                                      | `.github/copilot-instructions.md`        | `GEMINI.md`            | —                             |
-| `llm/` (marketplace)    | —                           | `plugins/*/rules \| skills \| agents/` | —                                        | —                      | —                             |
+| `llm/` (marketplace)    | —                           | `plugins/*/skills \| agents/`¹         | —                                        | —                      | —                             |
+
+¹ Claude Code plugins have no native "rules" component, so the marketplace emitter converts each
+rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace).
 
 Rules get platform-specific frontmatter transforms:
 
