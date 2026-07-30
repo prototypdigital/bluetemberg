@@ -77,9 +77,10 @@ describe('marketplace profile leak closure (catalog-derived)', () => {
 
     // foo-rule is backend-scoped → must NOT appear in a frontend-only plugin.
     // (Before the catalog-derived map, an id absent from presets fell back to [] = universal and leaked here.)
-    expect(existsSync(join(root, 'plugins/frontend-plugin/rules/foo-rule.md'))).toBe(false);
+    // Rules are emitted as `rule-{id}` skills (Claude Code plugins have no native "rules" component).
+    expect(existsSync(join(root, 'plugins/frontend-plugin/skills/rule-foo-rule/SKILL.md'))).toBe(false);
     // uni-rule is universal → included in every plugin.
-    expect(existsSync(join(root, 'plugins/frontend-plugin/rules/uni-rule.md'))).toBe(true);
+    expect(existsSync(join(root, 'plugins/frontend-plugin/skills/rule-uni-rule/SKILL.md'))).toBe(true);
   });
 
   it('frontmatter profiles still win over the catalog-derived map', async () => {
@@ -111,6 +112,6 @@ describe('marketplace profile leak closure (catalog-derived)', () => {
 
     await sync(root, { config, silent: true });
 
-    expect(existsSync(join(root, 'plugins/frontend-plugin/rules/override-rule.md'))).toBe(true);
+    expect(existsSync(join(root, 'plugins/frontend-plugin/skills/rule-override-rule/SKILL.md'))).toBe(true);
   });
 });
