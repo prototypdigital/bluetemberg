@@ -26,13 +26,20 @@ Running `bluetemberg sync` then produces:
 plugins/
 └── my-project/
     ├── .claude-plugin/plugin.json
-    ├── rules/
-    │   └── {rule-id}.md
     ├── skills/
-    │   └── {skill-id}/SKILL.md
+    │   ├── {skill-id}/SKILL.md
+    │   └── rule-{rule-id}/SKILL.md   ← rules, converted (see below)
     └── agents/
         └── {agent-id}.md
 ```
+
+> **Rules are emitted as skills, not as a separate component.** Claude Code's plugin schema has no
+> "rules" concept — a `CLAUDE.md` at a plugin's root is not loaded as context, and skills/agents are
+> the only components that inject markdown guidance into a session. So each `llm/rules/{id}.md` is
+> rewritten into `plugins/{name}/skills/rule-{id}/SKILL.md`: its own frontmatter (`profiles`, `scope`,
+> etc. — meaningless to a skill) is stripped and replaced with a minimal `name`/`description` block,
+> and the rule body passes through verbatim. The `rule-` prefix keeps it from colliding with an actual
+> skill that happens to share the same id.
 
 ## Dedicated marketplace repo (Option A)
 
@@ -174,21 +181,21 @@ A plugin with **no `profiles` field** always includes everything (no filtering).
 
 ### `plugins/{name}/.claude-plugin/plugin.json`
 
-Per-plugin manifest listing all included skills and agents:
+Per-plugin manifest listing all included skills and agents. This matches Claude Code's actual
+[plugin manifest schema](https://code.claude.com/docs/en/plugins-reference) — there is no `rules`
+key; rule-derived skills appear in `skills` alongside real skills, namespaced as `rule-{id}`:
 
 ```json
 {
   "name": "frontend",
   "displayName": "Frontend Developer",
   "description": "...",
-  "rules": [
+  "skills": [
     {
       "name": "coding-standards",
       "description": "Keep functions and components small, readable, and easy to reason about.",
-      "path": "plugins/frontend/rules/coding-standards.md"
-    }
-  ],
-  "skills": [
+      "path": "plugins/frontend/skills/rule-coding-standards/SKILL.md"
+    },
     {
       "name": "Patterns",
       "description": "Reusable architecture patterns",
@@ -207,14 +214,16 @@ Per-plugin manifest listing all included skills and agents:
 
 ### `.claude-plugin/marketplace.json`
 
-Root manifest listing all plugins in this marketplace:
+Root manifest listing all plugins in this marketplace. Each entry's `source` is a relative path
+starting with `./`, per Claude Code's [marketplace schema](https://code.claude.com/docs/en/plugin-marketplaces) —
+this field must be named `source`, not `path`, or Claude Code cannot resolve where the plugin lives:
 
 ```json
 {
   "name": "my-project",
   "plugins": [
-    { "name": "frontend", "description": "...", "path": "plugins/frontend" },
-    { "name": "devops", "description": "...", "path": "plugins/devops" }
+    { "name": "frontend", "description": "...", "source": "./plugins/frontend" },
+    { "name": "devops", "description": "...", "source": "./plugins/devops" }
   ]
 }
 ```

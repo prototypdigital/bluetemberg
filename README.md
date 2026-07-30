@@ -276,16 +276,19 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 
 ## How sync works
 
-| Source                  | Cursor                      | Claude                                 | Copilot                                  | Gemini CLI             | Windsurf                      |
-| ----------------------- | --------------------------- | -------------------------------------- | ---------------------------------------- | ---------------------- | ----------------------------- |
-| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`                   | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` | `.windsurf/rules/*.md`        |
-| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`                  | `.github/agents/*.agent.md`              | —                      | —                             |
-| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md`            | `.github/skills/*/SKILL.md`              | —                      | `.windsurf/skills/*/SKILL.md` |
-| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`                     | `.github/mcp.json`                       | —                      | —                             |
-| `llm/commands/*.md`     | —                           | `.claude/commands/*.md`                | —                                        | —                      | `.windsurf/workflows/*.md`    |
-| `llm/prompts/*.md`      | —                           | —                                      | `.github/prompts/*.prompt.md`            | —                      | —                             |
-| `AGENTS.md`             | —                           | —                                      | `.github/copilot-instructions.md`        | `GEMINI.md`            | —                             |
-| `llm/` (marketplace)    | —                           | `plugins/*/rules \| skills \| agents/` | —                                        | —                      | —                             |
+| Source                  | Cursor                      | Claude                         | Copilot                                  | Gemini CLI             | Windsurf                      |
+| ----------------------- | --------------------------- | ------------------------------ | ---------------------------------------- | ---------------------- | ----------------------------- |
+| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`           | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` | `.windsurf/rules/*.md`        |
+| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`          | `.github/agents/*.agent.md`              | —                      | —                             |
+| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md`    | `.github/skills/*/SKILL.md`              | —                      | `.windsurf/skills/*/SKILL.md` |
+| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`             | `.github/mcp.json`                       | —                      | —                             |
+| `llm/commands/*.md`     | —                           | `.claude/commands/*.md`        | —                                        | —                      | `.windsurf/workflows/*.md`    |
+| `llm/prompts/*.md`      | —                           | —                              | `.github/prompts/*.prompt.md`            | —                      | —                             |
+| `AGENTS.md`             | —                           | —                              | `.github/copilot-instructions.md`        | `GEMINI.md`            | —                             |
+| `llm/` (marketplace)    | —                           | `plugins/*/skills \| agents/`¹ | —                                        | —                      | —                             |
+
+¹ Claude Code plugins have no native "rules" component, so the marketplace emitter converts each
+rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace).
 
 Rules get platform-specific frontmatter transforms:
 
