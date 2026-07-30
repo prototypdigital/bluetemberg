@@ -1,6 +1,6 @@
 {
   "name": "bluetemberg",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Author AI coding rules, agents, and skills once — sync version-locked, integrity-verified config to Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.",
   "type": "module",
   "bin": {
