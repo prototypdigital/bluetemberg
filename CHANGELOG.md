@@ -20,6 +20,14 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.8.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.8.0...bluetemberg-v0.8.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **marketplace:** emit required owner field in marketplace.json ([57269c7](https://github.com/prototypdigital/bluetemberg/commit/57269c753944bbb9112adae315b23d260c016b23))
+* **marketplace:** emit required owner field in marketplace.json ([aa43f89](https://github.com/prototypdigital/bluetemberg/commit/aa43f893a2802c6d6350aa14cc002a2f511b8969))
+
 ## [0.8.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.7.0...bluetemberg-v0.8.0) (2026-07-30)
 
 
