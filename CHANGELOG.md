@@ -20,6 +20,27 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.8.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.7.0...bluetemberg-v0.8.0) (2026-07-30)
+
+
+### Features
+
+* **mcp:** extend bluetemberg_org_histogram to support remote scanning ([0187617](https://github.com/prototypdigital/bluetemberg/commit/0187617a4e8172a8b7a9c39ff3445eec2be05005))
+* **stacks:** --since &lt;days&gt; filters scan-org to recently active repos ([6e746bf](https://github.com/prototypdigital/bluetemberg/commit/6e746bf09cbce809999dfbc7c67e2b9dbcd3a66a))
+* **stacks:** m6 — org-repo (stack,version) scanner and coverage histogram ([c250551](https://github.com/prototypdigital/bluetemberg/commit/c250551095aa9ee3b74ea588d453f6d7507ac9cc))
+* **stacks:** M6 — org-repo (stack,version) scanner and coverage histogram ([d371d9f](https://github.com/prototypdigital/bluetemberg/commit/d371d9f492996f634b5b48c6b5fd77646be74b38))
+* **stacks:** scan-org remote scanning via the GitHub API ([ea9f7ee](https://github.com/prototypdigital/bluetemberg/commit/ea9f7ee8070f4ace1ca7d01e14009f5e37b069ad))
+* **sync:** make stack version filtering audible ([7a97b2e](https://github.com/prototypdigital/bluetemberg/commit/7a97b2eca6d7ad8c3353169eb48a24c7e635d5f3))
+* **sync:** make stack version filtering audible ([38a195a](https://github.com/prototypdigital/bluetemberg/commit/38a195adbae5d57f05ee96c81245d8f0dc4c201b))
+
+
+### Bug Fixes
+
+* **marketplace:** conform generated output to Claude Code's plugin schema ([987c6ca](https://github.com/prototypdigital/bluetemberg/commit/987c6ca811c8387dd6df1b2c620dd14741aba838))
+* **marketplace:** conform generated output to Claude Code's plugin schema ([6075a03](https://github.com/prototypdigital/bluetemberg/commit/6075a030ecb5bcac915e440808ac499c539e5170))
+* **stacks:** address review findings in M6 scan-org ([74d11de](https://github.com/prototypdigital/bluetemberg/commit/74d11de056c0e842007412b53d34aac70e4f40a8))
+* **sync:** align guardrail output format and checkMode behaviour with rules ([89f3638](https://github.com/prototypdigital/bluetemberg/commit/89f3638df914ca038a9999646feb68abadc343de))
+
 ## [0.7.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.6.0...bluetemberg-v0.7.0) (2026-06-16)
 
 
