@@ -61,6 +61,30 @@ export function readFrontmatterStacks(data: Record<string, unknown>): StackConst
   return out;
 }
 
+/**
+ * Report the `stacks:` frontmatter entries that {@link readFrontmatterStacks} silently dropped —
+ * a range that is not valid semver, or a value that is not a string. Returned as `name: "range"`
+ * strings so the caller can warn. Empty when the `stacks:` key is absent or entirely well-formed.
+ *
+ * Without this, a typo'd range (`">==15"`) vanishes from the constraint with no signal: the file
+ * either widens to stack-agnostic (applies everywhere) or falls back to catalog gating — a silent
+ * mis-gate. The gate calls this so the author sees the dropped entry instead.
+ */
+export function frontmatterStackIssues(data: Record<string, unknown>): string[] {
+  if (!Object.prototype.hasOwnProperty.call(data, 'stacks')) return [];
+  const value = data.stacks;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const issues: string[] = [];
+  for (const [name, range] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof range !== 'string') {
+      issues.push(`${name}: (not a string)`);
+      continue;
+    }
+    if (!isValidStackRange(range)) issues.push(`${name}: "${range}"`);
+  }
+  return issues;
+}
+
 /** Resolve a file's effective stack constraint: frontmatter wins, else catalog, else agnostic. */
 export function resolveStacks(
   id: string,

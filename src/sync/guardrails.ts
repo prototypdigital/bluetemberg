@@ -6,8 +6,13 @@ import type { Catalog } from '../catalog/index.js';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles } from './extends-loader.js';
-import { matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
-import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
+import { describeStackMismatch, matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
+import {
+  buildStackMap,
+  frontmatterStackIssues,
+  readFrontmatterStacks,
+  resolveStacks,
+} from '../stacks/resolve.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
   /** All source dirs in priority order: local, then `extends`, then packs. */
@@ -110,7 +115,7 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
 
   const stackMap = buildStackMap(ctx.catalog);
   const guardrails: GuardrailFrontmatter[] = [];
-  let filtered = 0;
+  const excluded = new Map<string, string>();
   for (const [file, sourceDir] of merged) {
     try {
       const { data } = matter.read(join(sourceDir, file));
@@ -120,8 +125,9 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
         recordError(`guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message`);
         continue;
       }
-      if (isVersionFiltered(ctx, file, record, stackMap)) {
-        filtered++;
+      const reason = versionFilterReason(ctx, file, record, stackMap);
+      if (reason !== null) {
+        excluded.set(file, reason);
         continue;
       }
       guardrails.push(data);
@@ -130,8 +136,14 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
     }
   }
 
-  if (filtered > 0 && !ctx.checkMode) {
-    ctx.log(`Guardrails: ${filtered} filtered out by version`);
+  ctx.log(`Guardrails: ${merged.size} source files`);
+  if (excluded.size > 0) {
+    // Per-file reasons (parity with rules): the user can audit that wrong-version guardrails were
+    // correctly withheld, rather than seeing only an opaque count.
+    ctx.log(`  ${guardrails.length} applied · ${excluded.size} filtered out by version`);
+    for (const [file, reason] of excluded) {
+      ctx.log(`    - ${basename(file, '.md')}: ${reason}`);
+    }
   }
 
   // Always run the Claude pass when targeted — even with zero surviving guardrails — so a hooks
@@ -162,17 +174,24 @@ function clearManagedHooks(ctx: GuardrailsSyncContext): void {
 }
 
 /**
- * True when a guardrail's stack constraint (frontmatter `stacks:` > catalog pack-level) is not
- * satisfied by the project's detected stacks — i.e. it targets a stack/version the project does
- * not use, so it must be hard-excluded. Stack-agnostic guardrails always pass. Low-confidence
- * detection still matches but is surfaced as a warning, never silently dropped.
+ * Returns the exclusion reason when a guardrail's stack constraint (frontmatter `stacks:` > catalog
+ * pack-level) is NOT satisfied by the project's detected stacks — i.e. it targets a stack/version
+ * the project does not use, so it must be hard-excluded — or `null` when it applies. Stack-agnostic
+ * guardrails always apply. Invalid frontmatter ranges and low-confidence detection are surfaced as
+ * warnings, never silently dropped.
  */
-function isVersionFiltered(
+function versionFilterReason(
   ctx: GuardrailsSyncContext,
   file: string,
   data: Record<string, unknown>,
   stackMap: Map<string, StackConstraint>,
-): boolean {
+): string | null {
+  const issues = frontmatterStackIssues(data);
+  if (issues.length > 0) {
+    const msg = `guardrails/${file}: ignored invalid stack range(s) ${issues.join(', ')} — fix the range or the guardrail may apply to unintended versions`;
+    ctx.results.warnings.push(msg);
+    ctx.log(`  WARN: ${msg}`);
+  }
   const constraint = resolveStacks(basename(file, '.md'), readFrontmatterStacks(data), stackMap);
   const result = matchStackConstraint(constraint, ctx.detectedStacks);
   if (result.lowConfidence.length > 0) {
@@ -180,7 +199,7 @@ function isVersionFiltered(
     ctx.results.warnings.push(msg);
     ctx.log(`  WARN: ${msg}`);
   }
-  return !result.matched;
+  return result.matched ? null : describeStackMismatch(result);
 }
 
 function syncGuardrailsForClaude(

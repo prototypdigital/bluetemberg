@@ -59,7 +59,7 @@ Notes:
 - Invalid ranges are dropped (never an accidental match); a version resolved from a low-confidence source (a coerced `package.json` range) still applies but emits a warning — guidance is never silently dropped.
 - The same field works on guardrails (`llm/guardrails/`). Pack-level `stacks` in the catalog supply coarse name-only routing; a rule's own range is the precision gate.
 
-Run [`bluetemberg detect`](Commands#bluetemberg-detect-directory) to see the detected versions your ranges are matched against, and declare versions in the [`stacks` config field](Configuration#stacks).
+Run [`bluetemberg detect`](Commands#bluetemberg-detect-directory) to see the detected versions your ranges are matched against, and declare versions in the [`stacks` config field](Configuration#stacks). For the full version-aware model — detection, the gate, and the versioning strategy — see [Stacks & Versioning](Stacks).
 
 ## How scope is transformed
 

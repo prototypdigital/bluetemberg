@@ -23,8 +23,13 @@ import { resolveExternalSourceDirs } from '../sources/registry.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
-import { matchStackConstraint, type DetectedStacks, type StackMatchResult } from '../stacks/match.js';
-import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
+import { describeStackMismatch, matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
+import {
+  buildStackMap,
+  frontmatterStackIssues,
+  readFrontmatterStacks,
+  resolveStacks,
+} from '../stacks/resolve.js';
 import type {
   Platform,
   BlueprintConfig,
@@ -365,13 +370,18 @@ function verboseLog(ctx: SyncContext, message: string): void {
   if (ctx.verbose) ctx.log(message);
 }
 
-/** A short, human-readable reason a file was version-filtered, for the "filtered out" report. */
-function describeStackMismatch(result: StackMatchResult): string {
-  const parts = [
-    ...result.missing.map((stack) => `${stack} not present`),
-    ...result.mismatched.map((m) => `${m.stack} ${m.range} (you're on ${m.detected})`),
-  ];
-  return parts.join('; ');
+/**
+ * Log the stacks (and resolved versions) this sync detected, so the user can see what the
+ * version-aware gate is matching against. This is the "which version's rules did I get" signal:
+ * without it, an upgrade silently swaps the rule set with nothing explaining why. No-op when no
+ * stacks are detected, so a project with no stack-tagged content is unaffected.
+ */
+function logDetectedStacks(ctx: SyncContext): void {
+  if (ctx.detectedStacks.size === 0) return;
+  const parts = [...ctx.detectedStacks.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, det]) => `${name}@${det.version} (${det.source})`);
+  ctx.log(`Detected stacks: ${parts.join(', ')}\n`);
 }
 
 interface VersionGate {
@@ -394,6 +404,13 @@ function gateByVersion(
   stackMap: Map<string, StackConstraint>,
   label: string,
 ): VersionGate {
+  const issues = frontmatterStackIssues(frontmatter);
+  if (issues.length > 0) {
+    recordWarning(
+      ctx,
+      `${label}: ignored invalid stack range(s) ${issues.join(', ')} — fix the range or the file may apply to unintended versions`,
+    );
+  }
   const constraint = resolveStacks(id, readFrontmatterStacks(frontmatter), stackMap);
   const result = matchStackConstraint(constraint, ctx.detectedStacks);
   if (result.lowConfidence.length > 0) {
@@ -475,6 +492,8 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   for (const w of extendsWarnings) recordWarning(ctx, w);
   for (const w of packWarnings) recordWarning(ctx, w);
   for (const w of externalWarnings) recordWarning(ctx, w);
+
+  logDetectedStacks(ctx);
 
   if (verbose) {
     log(`Source dirs (priority order):`);
