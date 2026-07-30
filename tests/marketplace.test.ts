@@ -391,9 +391,7 @@ describe('syncMarketplace', () => {
       expect(pluginJson.rules).toBeUndefined();
       expect(pluginJson.skills).toHaveLength(1);
       expect(pluginJson.skills[0].name).toBe('docs-parity');
-      expect(pluginJson.skills[0].path).toBe(
-        `plugins/${projectName}/skills/rule-docs-parity/SKILL.md`,
-      );
+      expect(pluginJson.skills[0].path).toBe(`plugins/${projectName}/skills/rule-docs-parity/SKILL.md`);
     });
 
     it('namespaces a rule skill so it cannot collide with an actual skill of the same id', async () => {
