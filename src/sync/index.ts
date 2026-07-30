@@ -532,7 +532,16 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
     ];
-    syncMarketplace({ ...ctx, plugins: pluginDefs, catalog }, (msg) => recordError(ctx, msg));
+    syncMarketplace(
+      {
+        ...ctx,
+        plugins: pluginDefs,
+        catalog,
+        owner: ctx.config.marketplace?.owner,
+        remote: ctx.config.marketplace?.remote,
+      },
+      (msg) => recordError(ctx, msg),
+    );
 
     const remote = ctx.config.marketplace?.remote;
     if (remote) {

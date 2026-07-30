@@ -6,7 +6,13 @@ import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
 import type { Catalog } from '../catalog/index.js';
-import type { MarketplacePluginDefinition, Stack, StackConstraint, TeamProfile } from '../types.js';
+import type {
+  MarketplaceOwner,
+  MarketplacePluginDefinition,
+  Stack,
+  StackConstraint,
+  TeamProfile,
+} from '../types.js';
 import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
 
 const VALID_PROFILE_IDS: ReadonlySet<string> = new Set(TEAM_PROFILES.map((p) => p.id));
@@ -37,6 +43,10 @@ export interface MarketplaceSyncContext extends SyncSink {
   plugins: MarketplacePluginDefinition[];
   /** Catalog loaded once per sync (shared with rule/guardrail version gating). */
   catalog: Catalog;
+  /** `marketplace.owner` from config; when absent the emitter derives a fallback. */
+  owner?: MarketplaceOwner;
+  /** `marketplace.remote` from config (`owner/repo`); its owner segment is the fallback owner. */
+  remote?: string;
 }
 
 interface ManifestEntry {
@@ -64,6 +74,8 @@ interface PluginManifest {
 
 interface MarketplaceManifest {
   name: string;
+  /** Required by Claude Code — a marketplace without `owner` is rejected at add time. */
+  owner: MarketplaceOwner;
   plugins: Array<{ name: string; description: string; source: string }>;
 }
 
@@ -345,6 +357,18 @@ function emitPlugin(
   };
 }
 
+/**
+ * Claude Code rejects a marketplace whose manifest lacks `owner`. Precedence: explicit
+ * `marketplace.owner` config, then the owner segment of `marketplace.remote` (`owner/repo`),
+ * then the project directory name as a last resort.
+ */
+function resolveOwner(ctx: MarketplaceSyncContext, projectName: string): MarketplaceOwner {
+  if (ctx.owner?.name) return ctx.owner;
+  const remoteOwner = ctx.remote?.split('/')[0]?.trim();
+  if (remoteOwner) return { name: remoteOwner };
+  return { name: projectName };
+}
+
 export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: string) => void): void {
   const allRules = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md') && f !== 'README.md');
   const allSkills = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
@@ -423,6 +447,7 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
 
   const marketplace: MarketplaceManifest = {
     name: projectName,
+    owner: resolveOwner(ctx, projectName),
     plugins: pluginManifests.map((p) => ({
       name: p.name,
       description: p.description,

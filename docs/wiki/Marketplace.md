@@ -101,6 +101,12 @@ Defined under `blueprintconfig.marketplace`. Controls how `llm/` content maps to
 - `extraKnownMarketplaces` is written to `.claude/settings.json` on every sync
 - The scaffolded CI workflow uses `${{ vars.MARKETPLACE_REPO }}` to push output there
 
+### `owner` field
+
+Written to `marketplace.json` as the required `owner` object (`{ "name": "...", "email"?, "url"? }`).
+Claude Code refuses to add a marketplace without it. Optional in config — when omitted, the owner
+segment of `remote` is used, then the project directory name.
+
 ### `plugins` array
 
 Each entry in `plugins` becomes one installable plugin in the marketplace:
@@ -216,11 +222,16 @@ key; rule-derived skills appear in `skills` alongside real skills, namespaced as
 
 Root manifest listing all plugins in this marketplace. Each entry's `source` is a relative path
 starting with `./`, per Claude Code's [marketplace schema](https://code.claude.com/docs/en/plugin-marketplaces) —
-this field must be named `source`, not `path`, or Claude Code cannot resolve where the plugin lives:
+this field must be named `source`, not `path`, or Claude Code cannot resolve where the plugin lives.
+`owner` is also required — Claude Code rejects a marketplace without it at
+`/plugin marketplace add` time. Set it via `marketplace.owner` in `bluetemberg.config.json`;
+when omitted, bluetemberg falls back to the owner segment of `marketplace.remote`
+(`prototypdigital/claude-marketplace` → `prototypdigital`), then to the project directory name:
 
 ```json
 {
   "name": "my-project",
+  "owner": { "name": "prototypdigital" },
   "plugins": [
     { "name": "frontend", "description": "...", "source": "./plugins/frontend" },
     { "name": "devops", "description": "...", "source": "./plugins/devops" }
