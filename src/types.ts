@@ -65,6 +65,12 @@ export interface MarketplacePluginDefinition {
   stacks?: Stack[];
 }
 
+export interface MarketplaceOwner {
+  name: string;
+  email?: string;
+  url?: string;
+}
+
 export interface MarketplaceConfig {
   /**
    * GitHub repository in `owner/repo` format that hosts the published marketplace output.
@@ -74,6 +80,12 @@ export interface MarketplaceConfig {
    * value to push generated `plugins/` and `.claude-plugin/` output to that repo.
    */
   remote?: string;
+  /**
+   * Marketplace owner written to `.claude-plugin/marketplace.json`. Claude Code REJECTS a
+   * marketplace without `owner` at add time ("Invalid schema: owner: Required"). When omitted,
+   * bluetemberg falls back to the owner segment of `remote`, then to the project directory name.
+   */
+  owner?: MarketplaceOwner;
   /**
    * Plugin definitions. Each entry becomes one installable plugin in the marketplace.
    * When omitted, bluetemberg emits a single plugin named after the project containing
