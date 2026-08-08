@@ -7,6 +7,15 @@ set -euo pipefail
 
 pr_url=$1
 
+# Ground truth for post-review-comment.sh: the model only ever sees $pr_url as
+# prompt text, which a prompt-injected diff could try to override with a
+# different <pr-url> argument. EXPECTED_PR_URL is set here, in the trusted
+# wrapper, and inherited by the claude subprocess and everything it spawns —
+# the model has no way to set or unset it without a command that would fall
+# outside the allowedTools prefix match below. post-review-comment.sh refuses
+# to post anywhere that doesn't match it.
+export EXPECTED_PR_URL="$pr_url"
+
 command -v jq >/dev/null 2>&1 || exit 0
 
 claude_bin=$(command -v claude || true)
@@ -44,8 +53,9 @@ log_file="$log_dir/pr-${pr_url##*/}-$(date +%Y%m%d-%H%M%S).log"
 # Comma-separated: rule patterns contain spaces, so space-splitting would
 # mangle them. Write access to GitHub goes only through post-review-comment.sh,
 # which can list/comment but never approve, request changes, merge, or hit
-# other API endpoints — the comment-only invariant holds even if the reviewed
-# diff prompt-injects the model. gh pr view / gh pr diff are read-only.
+# other API endpoints, and (via EXPECTED_PR_URL above) never target a PR other
+# than this one — the comment-only, this-PR-only invariant holds even if the
+# reviewed diff prompt-injects the model. gh pr view / gh pr diff are read-only.
 # stderr goes to its own file so the JSON result stays parseable.
 "$claude_bin" -p "$prompt" \
   --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash($poster:*),Read,Grep,Glob" \

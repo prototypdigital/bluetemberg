@@ -24,13 +24,6 @@ if [[ -z "$transcript" || ! -f "$transcript" || -z "$session_id" || -z "$cwd" ]]
   exit 0
 fi
 
-# Triviality gate: a session with only a handful of assistant turns has
-# nothing worth judging — skip before spending any tokens.
-turns=$(grep -c '"type":"assistant"' "$transcript" 2>/dev/null || true)
-if [[ "${turns:-0}" -lt 5 ]]; then
-  exit 0
-fi
-
 # Dedupe: one retrospective per session.
 if [[ -f "$cwd/.claude/retrospectives/$session_id.md" ]]; then
   exit 0

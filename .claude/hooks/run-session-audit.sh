@@ -35,6 +35,17 @@ if [[ -f "$retro" ]]; then
   exit 0
 fi
 
+# Triviality gate: a session with only a handful of assistant turns has
+# nothing worth judging — skip before spending any tokens. Lives here (after
+# detaching) rather than in the SessionEnd gate script so a large transcript
+# never eats into that hook's tight time budget. jq's parser isn't line-based,
+# so unlike a line-oriented grep it also counts correctly against a
+# pretty-printed/formatted transcript where a record spans multiple lines.
+turns=$(jq -r 'select(.type? == "assistant") | .type' "$transcript" 2>/dev/null | wc -l | tr -d ' ' || true)
+if [[ "${turns:-0}" -lt 5 ]]; then
+  exit 0
+fi
+
 log_dir="${TMPDIR:-/tmp}/bluetemberg-session-audits"
 mkdir -p "$log_dir"
 log_file="$log_dir/$session_id.log"
@@ -110,11 +121,20 @@ $stats
 === USER PROMPTS (each truncated to 300 chars, max 20) ===
 ${user_prompts:-unavailable}"
 
+# The transcript's user prompts reach $prompt verbatim, so a prompt-injected
+# session could try to steer this judge call — restrict it to pure text
+# generation: no built-in tools, no MCP servers, one turn, capped spend.
+#
 # JSON output is the only reliable success signal — and even there, an auth
 # failure reports subtype "success" with the error text in .result; only
 # .is_error distinguishes a real judgment from a failure message. Exit status
 # and non-empty stdout both lie (claude exits 0 on auth failure).
-judge_out=$("$claude_bin" -p "$prompt" --model haiku --output-format json 2>>"$log_file" || true)
+judge_out=$("$claude_bin" -p "$prompt" --model haiku \
+  --tools "" \
+  --strict-mcp-config \
+  --max-turns 1 \
+  --max-budget-usd 0.05 \
+  --output-format json 2>>"$log_file" || true)
 judged=$(jq -er 'select(.is_error == false) | .result // empty' <<<"$judge_out" 2>/dev/null || true)
 judge_cost=$(jq -er 'select(.is_error == false) | .total_cost_usd // empty' <<<"$judge_out" 2>/dev/null || true)
 
