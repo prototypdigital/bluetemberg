@@ -29,3 +29,7 @@ coverage/
 
 # Bluetemberg cache
 .bluetemberg/
+
+# Session retrospectives — local ledger, never committed
+# (findings graduate into llm/rules/ only via human triage)
+.claude/retrospectives/
