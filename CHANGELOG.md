@@ -20,6 +20,23 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.9.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.8.1...bluetemberg-v0.9.0) (2026-08-08)
+
+
+### Features
+
+* **hooks:** spawn background PR reviewer when an agent opens a PR ([895d431](https://github.com/prototypdigital/bluetemberg/commit/895d431a80f5c51d30ef4c08e6fe0b01168a0254))
+* **hooks:** spawn background PR reviewer when an agent opens a PR ([1e67699](https://github.com/prototypdigital/bluetemberg/commit/1e676991d137f26ac2c3477f6d7470d7e42e658c))
+* **hooks:** wire spawn-pr-review into PostToolUse Bash hook ([144ed74](https://github.com/prototypdigital/bluetemberg/commit/144ed7481a6a3574953c23964f53633fb44623a2))
+* **sync:** sync Claude Code hooks from llm/hooks.claude.json ([8ce8c08](https://github.com/prototypdigital/bluetemberg/commit/8ce8c08b534ee552595a7d26351e2449a9c7eea1))
+* **sync:** sync Claude Code hooks from llm/hooks.claude.json ([38ae582](https://github.com/prototypdigital/bluetemberg/commit/38ae582cf59213c6bb5665c40fc43c4490ce4753)), closes [#225](https://github.com/prototypdigital/bluetemberg/issues/225)
+
+
+### Bug Fixes
+
+* **hooks:** address dogfood review findings on spawn-pr-review ([65939c9](https://github.com/prototypdigital/bluetemberg/commit/65939c95a460eb9574c157d4817f9156eeb3a6c7))
+* **hooks:** enforce comment-only reviews structurally via posting wrapper ([a81b04a](https://github.com/prototypdigital/bluetemberg/commit/a81b04a21f17aa90f9165d2bf718d601e6d2c4cf))
+
 ## [0.8.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.8.0...bluetemberg-v0.8.1) (2026-07-30)
 
 
