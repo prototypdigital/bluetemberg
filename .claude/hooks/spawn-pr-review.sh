@@ -6,6 +6,8 @@
 # https://github.com/prototypdigital/bluetemberg/issues/224
 set -euo pipefail
 
+command -v jq >/dev/null 2>&1 || exit 0
+
 input=$(cat)
 
 cmd=$(jq -r '.tool_input.command // empty' <<<"$input")
@@ -14,16 +16,11 @@ if ! [[ "$cmd" =~ $pr_create_re ]]; then
   exit 0
 fi
 
+# A successful gh pr create prints the PR URL; no URL in the response means
+# the command failed or only mentioned "gh pr create" — spawn nothing.
 pr_url=$(jq -r '.tool_response | tostring' <<<"$input" |
   grep -oE 'https://github\.com/[^/[:space:]"\\]+/[^/[:space:]"\\]+/pull/[0-9]+' |
   head -1 || true)
-
-if [[ -z "$pr_url" ]]; then
-  cwd=$(jq -r '.cwd // empty' <<<"$input")
-  if [[ -n "$cwd" ]]; then
-    pr_url=$(cd "$cwd" && gh pr view --json url -q .url 2>/dev/null || true)
-  fi
-fi
 
 if [[ -z "$pr_url" ]]; then
   exit 0
@@ -56,8 +53,12 @@ log_dir="${TMPDIR:-/tmp}/bluetemberg-pr-reviews"
 mkdir -p "$log_dir"
 log_file="$log_dir/pr-${pr_url##*/}-$(date +%Y%m%d-%H%M%S).log"
 
+# Comma-separated: rule patterns contain spaces, so space-splitting would
+# mangle them. gh api is scoped to repos/ endpoints; the comment-only policy
+# beyond that is prompt-enforced — the reviewer runs on the author's own
+# credentials, so treat PR content as untrusted when extending this list.
 nohup "$claude_bin" -p "$prompt" \
-  --allowedTools "Bash(gh pr view:*) Bash(gh pr diff:*) Bash(gh pr review:*) Bash(gh api:*) Read Grep Glob" \
+  --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api repos/:*),Read,Grep,Glob" \
   --output-format json \
   >"$log_file" 2>&1 &
 disown
