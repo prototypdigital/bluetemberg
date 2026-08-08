@@ -16,6 +16,7 @@ import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
 import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails } from './guardrails.js';
+import { syncClaudeHooks } from './claude-hooks.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
@@ -517,7 +518,15 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   syncSkills(ctx);
   syncCopilotInstructions(ctx);
   syncGeminiInstructions(ctx);
-  syncGuardrails(ctx, (msg) => recordError(ctx, msg));
+  // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
+  // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
+  const guardrailClaudeHooks = syncGuardrails(ctx, (msg) => recordError(ctx, msg));
+  syncClaudeHooks(
+    ctx,
+    guardrailClaudeHooks,
+    (msg) => recordError(ctx, msg),
+    (msg) => recordWarning(ctx, msg),
+  );
   syncMcp(ctx, (msg) => recordError(ctx, msg));
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));

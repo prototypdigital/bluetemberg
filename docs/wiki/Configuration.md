@@ -47,7 +47,7 @@ Only selected platforms get generated output during sync.
 
 Directory name containing vendor-neutral sources. Default: `"llm"`.
 
-The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skills/`, and optionally `<source>/mcp.json`, `<source>/hooks.json`, `<source>/commands/`, and `<source>/prompts/` (see [Adapters](Adapters)).
+The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skills/`, and optionally `<source>/mcp.json`, `<source>/hooks.json`, `<source>/hooks.claude.json`, `<source>/commands/`, and `<source>/prompts/` (see [Adapters](Adapters)).
 
 ### `stacks`
 
@@ -300,6 +300,10 @@ After changing `mcp.json`, run `bluetemberg sync` (or your `sync:llm-config` scr
 ## Cursor hooks (`llm/hooks.json`)
 
 When this file exists and **`cursor`** is in `platforms`, sync writes **`.cursor/hooks.json`** with the same logical content (validated JSON). See [Writing Hooks](Writing-Hooks).
+
+## Claude Code hooks (`llm/hooks.claude.json`)
+
+When this file exists and **`claude`** is in `platforms`, sync validates it (whitelisted events, `"type": "command"` hooks only) and merges it into the `hooks` key of **`.claude/settings.json`**, composed with any [Guardrails](Guardrails)-generated entries. **Security boundary:** the file is honored only from the project's own `<source>/` directory — a `hooks.claude.json` shipped by an installed pack or an `extends` source is skipped with a warning, so third-party packs can never inject shell hooks. See [Writing Hooks](Writing-Hooks).
 
 ## Claude commands (`llm/commands/`)
 

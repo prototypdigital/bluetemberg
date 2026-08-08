@@ -69,7 +69,7 @@ The interactive wizard will ask you to pick:
 - MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)
 - **External rule sources** (optional) — pull rules from a GitHub repo, PRPM, or cursor.directory, translated to native format and pinned in `llm/rule-sources.json` (`--sources <csv>` in headless runs)
 
-You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/commands/*.md`** (Claude slash commands), **`llm/prompts/*.md`** (Copilot `*.prompt.md`), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
+You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/hooks.claude.json`** (Claude Code hooks — honored from the project's own `llm/` only; packs cannot ship them), **`llm/commands/*.md`** (Claude slash commands), **`llm/prompts/*.md`** (Copilot `*.prompt.md`), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
 
 It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-specific files, and patches `.prettierignore` to protect your prose files from the formatter.
 
@@ -87,6 +87,7 @@ your-project/
 │   ├── skills/                 # On-demand skill workflows
 │   ├── mcp.json                # Optional — MCP presets and/or inline servers (if you add it)
 │   ├── hooks.json              # Optional — Cursor hooks (if you add it)
+│   ├── hooks.claude.json       # Optional — Claude Code hooks (project-local only)
 │   ├── commands/               # Optional — Claude slash commands (if you add it)
 │   └── prompts/                # Optional — Copilot prompt sources (if you add it)
 ├── .cursor/rules/              # Generated — do not edit
