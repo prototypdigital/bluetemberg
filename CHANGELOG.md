@@ -20,6 +20,19 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.10.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.9.0...bluetemberg-v0.10.0) (2026-08-08)
+
+
+### Features
+
+* **hooks:** automatic session audit on SessionEnd ([c3f5d5e](https://github.com/prototypdigital/bluetemberg/commit/c3f5d5e1ad9760b1006b6c399222914ac406cd19))
+* **hooks:** automatic session audit on SessionEnd + hooks.claude.json migration ([9765456](https://github.com/prototypdigital/bluetemberg/commit/97654566c4752f53981421bebbbece1a23ed863d))
+
+
+### Bug Fixes
+
+* **hooks:** address CodeRabbit findings on PR [#231](https://github.com/prototypdigital/bluetemberg/issues/231) ([20d71d3](https://github.com/prototypdigital/bluetemberg/commit/20d71d35f314069639f430000dbfc1fcd51c6164))
+
 ## [0.9.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.8.1...bluetemberg-v0.9.0) (2026-08-08)
 
 
