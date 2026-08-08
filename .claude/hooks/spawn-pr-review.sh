@@ -34,6 +34,9 @@ if [[ -z "$claude_bin" ]]; then
   exit 0
 fi
 
+hook_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+poster="$hook_dir/post-review-comment.sh"
+
 prompt="You are an automated PR reviewer. Review $pr_url and post your review on GitHub.
 
 1. Fetch context: gh pr view $pr_url --json title,body,baseRefName,headRefName,files
@@ -41,24 +44,27 @@ prompt="You are an automated PR reviewer. Review $pr_url and post your review on
 2. Follow this repository's code-review skill (.claude/skills/code-review/SKILL.md):
    intent-first, diff-focused, severity-tiered findings, Conventional Comments
    labels (issue/warning/suggestion/nitpick/praise). Substance over style.
-3. Check existing review comments first (gh api on the PR review comments) and
-   do not duplicate anything already posted.
-4. Post exactly one review-level summary via gh pr review $pr_url --comment --body.
-   For findings tied to specific lines, add inline comments via
-   gh api repos/{owner}/{repo}/pulls/{number}/comments with path, line, side, body.
-5. Comment only. Never approve, never request changes. End the summary with:
+3. Check existing review comments first with: $poster $pr_url list
+   and do not duplicate anything already posted.
+4. Post exactly one review-level summary: $poster $pr_url summary \"<body>\"
+   For findings tied to specific lines: $poster $pr_url inline <path> <line> \"<body>\"
+5. Comment only — the posting script enforces this. End the summary with:
    \"Automated review (spawn-pr-review hook)\"."
 
+# Logs can contain PR content — keep them private to the current user.
+umask 077
 log_dir="${TMPDIR:-/tmp}/bluetemberg-pr-reviews"
 mkdir -p "$log_dir"
+chmod 700 "$log_dir"
 log_file="$log_dir/pr-${pr_url##*/}-$(date +%Y%m%d-%H%M%S).log"
 
 # Comma-separated: rule patterns contain spaces, so space-splitting would
-# mangle them. gh api is scoped to repos/ endpoints; the comment-only policy
-# beyond that is prompt-enforced — the reviewer runs on the author's own
-# credentials, so treat PR content as untrusted when extending this list.
+# mangle them. Write access to GitHub goes only through post-review-comment.sh,
+# which can list/comment but never approve, request changes, merge, or hit
+# other API endpoints — the comment-only invariant holds even if the reviewed
+# diff prompt-injects the model. gh pr view / gh pr diff are read-only.
 nohup "$claude_bin" -p "$prompt" \
-  --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr review:*),Bash(gh api repos/:*),Read,Grep,Glob" \
+  --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash($poster:*),Read,Grep,Glob" \
   --output-format json \
   >"$log_file" 2>&1 &
 disown
