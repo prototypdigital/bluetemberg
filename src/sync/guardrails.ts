@@ -1,10 +1,9 @@
-import { readFileSync, existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 import type { GuardrailFrontmatter, Platform, StackConstraint } from '../types.js';
 import type { Catalog } from '../catalog/index.js';
-import { ensureDir } from '../utils/fs.js';
-import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import type { SyncSink } from './pipeline.js';
+import type { ClaudeHooksSection } from './claude-hooks.js';
 import { mergeSourceFiles } from './extends-loader.js';
 import { describeStackMismatch, matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
 import {
@@ -85,33 +84,26 @@ function buildClaudeCommand(guardrail: GuardrailFrontmatter): string {
   return `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetemberg ${args.map(shellQuote).join(' ')}`;
 }
 
-function readExistingSettings(settingsPath: string): Record<string, unknown> {
-  if (!existsSync(settingsPath)) return {};
-  try {
-    const parsed = JSON.parse(readFileSync(settingsPath, 'utf8'));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // corrupt — start fresh
-  }
-  return {};
-}
-
 /**
  * Reads `guardrails/*.md` from all source dirs (local `llm/`, `extends`,
- * installed packs — same precedence as rules), translates each guardrail into
- * platform-specific hook config, and writes the result.
+ * installed packs — same precedence as rules) and translates each guardrail into
+ * platform-specific hook config.
  *
- * Claude: merges a `hooks` section into `.claude/settings.json`.
+ * Claude: returns the guardrail-generated hook entries for the `hooks` section of
+ * `.claude/settings.json`. The actual write is owned by `syncClaudeHooks`, which composes
+ * these entries with the project's `llm/hooks.claude.json` (see the precedence contract
+ * there). Returns `null` when no guardrail sources exist or `claude` is not targeted; an
+ * empty section means guardrail sources exist but none currently apply (so a previously
+ * managed `hooks` key must be cleared, not left stale).
+ *
  * Other platforms: no-op (not yet supported).
- *
- * The `hooks` section is fully regenerated on each sync — it is bluetemberg-owned.
- * All other keys in `settings.json` (e.g. `extraKnownMarketplaces`) are preserved.
  */
-export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message: string) => void): void {
+export function syncGuardrails(
+  ctx: GuardrailsSyncContext,
+  recordError: (message: string) => void,
+): ClaudeHooksSection | null {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'guardrails', (f) => f.endsWith('.md'));
-  if (merged.size === 0) return;
+  if (merged.size === 0) return null;
 
   const stackMap = buildStackMap(ctx.catalog);
   const guardrails: GuardrailFrontmatter[] = [];
@@ -146,31 +138,12 @@ export function syncGuardrails(ctx: GuardrailsSyncContext, recordError: (message
     }
   }
 
-  // Always run the Claude pass when targeted — even with zero surviving guardrails — so a hooks
-  // section left by an earlier sync is cleared. Otherwise a version-filtered guardrail's hook would
-  // persist in settings.json, silently defeating the hard-exclusion guarantee.
-  if (ctx.platforms.includes('claude')) {
-    syncGuardrailsForClaude(ctx, guardrails, recordError);
-  }
-}
-
-/**
- * Remove the bluetemberg-owned `hooks` section from `.claude/settings.json`, preserving every other
- * key. No-op when the file or the `hooks` key is absent — so a project that never had guardrails is
- * never given an empty settings file.
- */
-function clearManagedHooks(ctx: GuardrailsSyncContext): void {
-  const settingsPath = join(ctx.root, '.claude', 'settings.json');
-  if (!existsSync(settingsPath)) return;
-  const existing = readExistingSettings(settingsPath);
-  if (!Object.prototype.hasOwnProperty.call(existing, 'hooks')) return;
-
-  const cleared = { ...existing };
-  delete cleared.hooks;
-  commitPlannedWrite(ctx, settingsPath, JSON.stringify(cleared, null, 2) + '\n');
-  if (!ctx.checkMode) {
-    ctx.log('Guardrails: cleared previously managed hooks (no applicable guardrails)');
-  }
+  // Always run the Claude pass when targeted — even with zero surviving guardrails — so the
+  // downstream writer knows guardrail sources exist and clears a hooks section left by an earlier
+  // sync. Otherwise a version-filtered guardrail's hook would persist in settings.json, silently
+  // defeating the hard-exclusion guarantee.
+  if (!ctx.platforms.includes('claude')) return null;
+  return buildGuardrailHooksSection(ctx, guardrails, recordError);
 }
 
 /**
@@ -202,19 +175,19 @@ function versionFilterReason(
   return result.matched ? null : describeStackMismatch(result);
 }
 
-function syncGuardrailsForClaude(
+/**
+ * Compile applicable guardrails into hook entries grouped by hook_type (PreToolUse /
+ * PostToolUse). Pure computation — the write into `.claude/settings.json` is owned by
+ * `syncClaudeHooks`, so the file's `hooks` key has exactly one writer per sync.
+ */
+function buildGuardrailHooksSection(
   ctx: GuardrailsSyncContext,
   guardrails: GuardrailFrontmatter[],
   recordError: (message: string) => void,
-): void {
+): ClaudeHooksSection {
   const applicable = guardrails.filter((g) => !g.platforms || (g.platforms as string[]).includes('claude'));
 
-  // Group hook entries by hook_type (PreToolUse / PostToolUse).
-  const byHookType = new Map<
-    string,
-    Array<{ matcher: string; hooks: Array<{ type: string; command: string }> }>
-  >();
-
+  const section: ClaudeHooksSection = {};
   for (const guardrail of applicable) {
     const hookType = guardrail.hook_type ?? 'PreToolUse';
     const command = buildClaudeCommand(guardrail);
@@ -222,36 +195,15 @@ function syncGuardrailsForClaude(
       recordError(`guardrails: ${guardrail.trigger} — no conditions defined, skipping`);
       continue;
     }
-    if (!byHookType.has(hookType)) byHookType.set(hookType, []);
-    byHookType.get(hookType)!.push({
+    (section[hookType] ??= []).push({
       matcher: guardrail.trigger,
       hooks: [{ type: 'command', command }],
     });
   }
 
-  // Nothing to write (all guardrails filtered out, non-Claude, or condition-less): clear any hooks
-  // a prior sync left behind, rather than leaving stale entries active.
-  if (byHookType.size === 0) {
-    clearManagedHooks(ctx);
-    return;
-  }
-
-  const claudeDir = join(ctx.root, '.claude');
-  const settingsPath = join(claudeDir, 'settings.json');
-
-  // Preserve non-hooks keys (e.g. extraKnownMarketplaces written by marketplace sync).
-  const existing = readExistingSettings(settingsPath);
-  const hooksSection: Record<string, unknown> = {};
-  for (const [hookType, entries] of byHookType) {
-    hooksSection[hookType] = entries;
-  }
-
-  const updated: Record<string, unknown> = { ...existing, hooks: hooksSection };
-
-  ensureDir(claudeDir);
-  commitPlannedWrite(ctx, settingsPath, JSON.stringify(updated, null, 2) + '\n');
-
-  if (!ctx.checkMode) {
+  if (!ctx.checkMode && Object.keys(section).length > 0) {
     ctx.log(`Guardrails: ${applicable.length} guardrail(s) -> .claude/settings.json`);
   }
+
+  return section;
 }

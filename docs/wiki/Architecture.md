@@ -23,10 +23,12 @@ flowchart TD
         F -->|prompts| H
         F -->|mcp.json| J[Resolve MCP entries\nper platform]
         F -->|hooks.json| K[Validate\nCursor shape]
+        F -->|hooks.claude.json| K2[Validate events\nproject-local only]
         G --> I[Write target files]
         H --> I
         J --> I
         K --> I
+        K2 --> I
         L --> I
     end
 
@@ -47,6 +49,7 @@ llm/
 │       └── SKILL.md
 ├── mcp.json            # Optional: preset ids and/or inline servers → per-platform mcp.json
 ├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
+├── hooks.claude.json   # Optional: Claude Code hooks → hooks key of .claude/settings.json (project-local only; packs cannot ship these)
 ├── commands/           # Optional: Claude slash commands → .claude/commands/*.md
 └── prompts/            # Optional: Copilot prompts → .github/prompts/*.prompt.md
 ```

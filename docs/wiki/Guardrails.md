@@ -55,7 +55,9 @@ At least one `check` condition is required — a guardrail with none is reported
 | Claude Code | `hooks` section in `.claude/settings.json` (`PreToolUse`/`PostToolUse` command hooks) |
 | Others | Not yet supported — guardrails are skipped |
 
-The `hooks` section in `.claude/settings.json` is bluetemberg-owned and fully regenerated on each sync. All other keys in the file are preserved.
+The `hooks` section in `.claude/settings.json` is bluetemberg-owned whenever guardrail sources or a project-local `llm/hooks.claude.json` exist, and fully regenerated on each sync: guardrail-generated entries come first, followed by entries from `llm/hooks.claude.json` (see [Writing Hooks](Writing-Hooks) for the full precedence contract). All other keys in the file are preserved.
+
+Guardrails are the **only pack-shippable hook surface**: they are declarative single-field checks compiled into a fixed injection-safe script, so packs can never ship arbitrary shell. Free-form command hooks (`llm/hooks.claude.json`) are honored only from the project's own source directory.
 
 ## Official guardrail packs
 
