@@ -1,6 +1,6 @@
 # Bluetemberg :light_blue_heart:
 
-[![npm version](https://img.shields.io/npm/v/bluetemberg.svg)](https://www.npmjs.com/package/bluetemberg) [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/bluetemberg.svg)](https://www.npmjs.com/package/bluetemberg) [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/bluetemberg.svg)](LICENSE)
 
 **Publish AI standards once to npm. Every engineer gets version-locked, integrity-verified rules, agents, and skills — matched to their role — with one command.**
 
@@ -380,3 +380,12 @@ npm test
 The checked-in CLI invokes `dist/` (`init`, catalogs, **`--help --json`**): keep **`npm run build`** up to date locally.
 
 See [Contributing](https://github.com/prototypdigital/bluetemberg/wiki/Contributing) for commit conventions and release process.
+
+## Maintainer
+
+Bluetemberg is written and maintained by
+[Josip Ravas](https://github.com/jravas) — DevOps & Architecture Lead at
+PROTOTYP.
+
+Issues and pull requests welcome. For anything security-related, see
+[SECURITY.md](./SECURITY.md).
