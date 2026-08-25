@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/bluetemberg.svg)](https://www.npmjs.com/package/bluetemberg) [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/bluetemberg.svg)](LICENSE)
 
-**Publish AI standards once to npm. Every engineer gets version-locked, integrity-verified rules, agents, and skills — matched to their role — with one command.**
+**AI coding standards, shipped like a dependency. Version-locked, integrity-verified, signed, and routed to the right engineer and the right stack version. Installed with one command.**
 
 A platform team maintains packs in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). Developers run `bluetemberg init --profile frontend` + `bluetemberg install`. Teammates with no local tooling install a Claude Code Marketplace plugin with one click. Everyone stays in sync.
 
@@ -12,7 +12,15 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 **Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
 
-## Why not a shared AGENTS.md?
+## "But everything is converging on AGENTS.md."
+
+Good. That solves the format, not the distribution.
+
+A shared file still has no versioning, no integrity verification, no
+per-role filtering, and no way to stop a Payload 2 rule from reaching a
+Payload 3 repo. Bluetemberg emits `AGENTS.md` too. It also answers who
+gets which rules, at which version, and how you know the content was not
+tampered with in transit.
 
 |                         | Shared `AGENTS.md` | bluetemberg                                      |
 | ----------------------- | ------------------ | ------------------------------------------------ |
@@ -179,36 +187,6 @@ npx bluetemberg list                             # show installed packs and reso
 
 Run `bluetemberg sync` after any change to regenerate platform files. See [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry) for the manifest format, lockfile, and pack cache layout.
 
-## Sync
-
-After editing anything in `llm/`, regenerate platform files:
-
-```bash
-npx bluetemberg sync
-```
-
-Check mode for CI (exits 1 if out of sync):
-
-```bash
-npx bluetemberg sync --check
-```
-
-Add `--diff` to see _what_ drifted, not just how many files — a per-file unified diff (summary counts + `@@` hunks) under each out-of-sync path. It implies `--check`, honors `--silent`, and never changes counts or the exit code:
-
-```bash
-npx bluetemberg sync --check --diff
-```
-
-**Exit codes:** the CLI exits **1** if sync records **any** error (invalid `llm/hooks.json`, unknown MCP id, adapter failure, etc.), not only when `--check` finds drift. Use the exit code in CI, especially with `--silent`.
-
-Optional **stale output cleanup** after you remove or rename sources under `llm/`:
-
-```bash
-npx bluetemberg sync --prune
-```
-
-`--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
-
 ## Stacks (version-aware routing)
 
 A second routing axis orthogonal to profiles (role): **stacks** answer _what you build with_. Tag a rule or guardrail with a version range and sync delivers it **only where it's correct** — a Payload-2 rule never reaches a Payload-3 repo.
@@ -248,6 +226,36 @@ npx bluetemberg scan-org --repos acme/app,acme/web       # specific repos
 ```
 
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
+
+## Sync
+
+After editing anything in `llm/`, regenerate platform files:
+
+```bash
+npx bluetemberg sync
+```
+
+Check mode for CI (exits 1 if out of sync):
+
+```bash
+npx bluetemberg sync --check
+```
+
+Add `--diff` to see _what_ drifted, not just how many files — a per-file unified diff (summary counts + `@@` hunks) under each out-of-sync path. It implies `--check`, honors `--silent`, and never changes counts or the exit code:
+
+```bash
+npx bluetemberg sync --check --diff
+```
+
+**Exit codes:** the CLI exits **1** if sync records **any** error (invalid `llm/hooks.json`, unknown MCP id, adapter failure, etc.), not only when `--check` finds drift. Use the exit code in CI, especially with `--silent`.
+
+Optional **stale output cleanup** after you remove or rename sources under `llm/`:
+
+```bash
+npx bluetemberg sync --prune
+```
+
+`--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
 
 ## External sources
 
