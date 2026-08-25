@@ -20,6 +20,13 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.10.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.10.0...bluetemberg-v0.10.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* list Prototyp Digital under contributors, not maintainer twice ([ef2b6dc](https://github.com/prototypdigital/bluetemberg/commit/ef2b6dc025c7a4d3152d99a976b27a6f180fe48f))
+
 ## [0.10.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.9.0...bluetemberg-v0.10.0) (2026-08-08)
 
 
