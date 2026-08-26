@@ -28,8 +28,8 @@ vi.mock('../src/registry/installer.js', async (importOriginal) => {
   return { ...actual, installPackVersion: vi.fn(), removePackVersion: vi.fn() };
 });
 
-import { add, install, update } from '../src/registry/index.js';
-import { fetchPackageMetadata } from '../src/registry/client.js';
+import { add, install, search, update } from '../src/registry/index.js';
+import { fetchPackageMetadata, searchPackages } from '../src/registry/client.js';
 import { installPackVersion } from '../src/registry/installer.js';
 import { writeManifest, writeLockfile } from '../src/registry/manifest.js';
 import type { NpmPackageMetadata } from '../src/types.js';
@@ -150,6 +150,48 @@ describe('install-path escape hatches reach installPackVersion', () => {
         skipSignatureVerification: undefined,
         allowExternalTarballHost: undefined,
       }),
+    );
+  });
+});
+
+/**
+ * `search` used to call the client with no registry, so it always hit npmjs.org — the
+ * auth applied inside `searchPackages` was unreachable for a private registry, and
+ * discovery there was impossible. Same dead-option shape as the escape hatches above.
+ */
+describe('search reaches the configured registry', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+    vi.resetAllMocks();
+    vi.mocked(searchPackages).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('passes the manifest registry and root through', async () => {
+    writeManifest(root, { registry: REGISTRY, packages: {} });
+
+    await search('rules', { silent: true, root });
+
+    expect(searchPackages).toHaveBeenCalledWith('rules', {
+      limit: undefined,
+      registryUrl: REGISTRY,
+      root,
+    });
+  });
+
+  it('leaves the registry undefined when the manifest configures none', async () => {
+    writeManifest(root, { packages: {} });
+
+    await search('rules', { silent: true, root });
+
+    expect(searchPackages).toHaveBeenCalledWith(
+      'rules',
+      expect.objectContaining({ registryUrl: undefined, root }),
     );
   });
 });

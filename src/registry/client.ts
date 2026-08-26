@@ -4,10 +4,10 @@ import { pipeline } from 'node:stream/promises';
 import { Readable, Transform } from 'node:stream';
 import type { TransformCallback } from 'node:stream';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
-import { redactCredentials, registryAuthHeaders } from './auth.js';
+import { redactCredentials, registryAuthHeaders, registryCredentialAdvice } from './auth.js';
+import { DEFAULT_REGISTRY } from './constants.js';
 import type { NpmPackageMetadata, NpmRegistryKey, NpmSearchResult } from '../types.js';
 
-const DEFAULT_REGISTRY = 'https://registry.npmjs.org';
 const FETCH_TIMEOUT_MS = 30_000;
 
 interface CachedKeys {
@@ -27,14 +27,19 @@ const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 /**
  * Fetch full package metadata (all versions) from the npm registry.
  *
+ * @param root - Project root whose `.npmrc` supplies credentials (defaults to the cwd).
  * @throws If the HTTP request fails or the package is not found.
  */
-export async function fetchPackageMetadata(name: string, registryUrl?: string): Promise<NpmPackageMetadata> {
+export async function fetchPackageMetadata(
+  name: string,
+  registryUrl?: string,
+  root?: string,
+): Promise<NpmPackageMetadata> {
   const base = (registryUrl || DEFAULT_REGISTRY).replace(/\/$/, '');
   const url = `${base}/${encodePackageName(name)}`;
 
   const res = await fetch(url, {
-    headers: { Accept: 'application/json', ...registryAuthHeaders(base) },
+    headers: { Accept: 'application/json', ...registryAuthHeaders(base, root) },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
@@ -43,8 +48,7 @@ export async function fetchPackageMetadata(name: string, registryUrl?: string): 
   }
   if (res.status === 401 || res.status === 403) {
     throw new Error(
-      `Registry denied access to "${name}" (HTTP ${res.status}). ` +
-        `Configure credentials for ${redactCredentials(base)} via .npmrc (//host/:_authToken=...) or NPM_TOKEN.`,
+      `Registry denied access to "${name}" (HTTP ${res.status}). ` + registryCredentialAdvice(base, root),
     );
   }
   if (!res.ok) {
@@ -62,7 +66,7 @@ export async function fetchPackageMetadata(name: string, registryUrl?: string): 
  */
 export async function searchPackages(
   query: string,
-  options: { registryUrl?: string; limit?: number; raw?: boolean } = {},
+  options: { registryUrl?: string; limit?: number; raw?: boolean; root?: string } = {},
 ): Promise<NpmSearchResult[]> {
   const base = (options.registryUrl || DEFAULT_REGISTRY).replace(/\/$/, '');
   const limit = options.limit ?? 20;
@@ -70,10 +74,16 @@ export async function searchPackages(
   const url = `${base}/-/v1/search?text=${encodeURIComponent(text)}&size=${limit}`;
 
   const res = await fetch(url, {
-    headers: { Accept: 'application/json', ...registryAuthHeaders(base) },
+    headers: { Accept: 'application/json', ...registryAuthHeaders(base, options.root) },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(
+      `Registry denied the search request (HTTP ${res.status}). ` +
+        registryCredentialAdvice(base, options.root),
+    );
+  }
   if (!res.ok) {
     throw new Error(`Registry search failed: ${res.status} ${res.statusText}`);
   }
@@ -90,6 +100,23 @@ export async function searchPackages(
     description: o.package.description,
     keywords: o.package.keywords,
   }));
+}
+
+/**
+ * A tarball download that came back with a non-OK HTTP status.
+ *
+ * Carries the status so a caller can distinguish "not available here" (404/403 — e.g. a
+ * private repo archive that needs a different, authenticated endpoint) from a transport
+ * failure, without matching on the message.
+ */
+export class TarballDownloadError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'TarballDownloadError';
+    this.status = status;
+  }
 }
 
 /** Per-call options for {@link downloadTarball}. */
@@ -125,8 +152,9 @@ export async function downloadTarball(
   });
 
   if (!res.ok) {
-    throw new Error(
+    throw new TarballDownloadError(
       `Failed to download tarball: ${res.status} ${res.statusText} (${redactCredentials(url)})`,
+      res.status,
     );
   }
 
@@ -180,14 +208,14 @@ export function computeFileIntegrity(filePath: string): string {
  * Fetch the ECDSA public keys from the npm registry keys endpoint.
  * Results are cached in memory for one hour.
  */
-export async function fetchRegistryKeys(registryUrl?: string): Promise<NpmRegistryKey[]> {
+export async function fetchRegistryKeys(registryUrl?: string, root?: string): Promise<NpmRegistryKey[]> {
   const base = (registryUrl || DEFAULT_REGISTRY).replace(/\/$/, '');
   const cached = REGISTRY_KEYS_CACHE.get(base);
   if (cached && Date.now() < cached.expiresAt) return cached.keys;
 
   const url = `${base}/-/npm/v1/keys`;
   const res = await fetch(url, {
-    headers: { Accept: 'application/json', ...registryAuthHeaders(base) },
+    headers: { Accept: 'application/json', ...registryAuthHeaders(base, root) },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 

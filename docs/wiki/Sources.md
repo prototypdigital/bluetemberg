@@ -129,11 +129,20 @@ In GitHub Actions the built-in token is enough for repos in the same org:
 ```
 
 The token is read from the environment only — never from project files, and never recorded in the
-manifest or lockfile. Unauthenticated, archives come from `codeload.github.com`, which is not
-subject to the API rate limit. With a token the download goes through the REST archive endpoint
-instead (`/repos/{owner}/{repo}/tarball/{ref}`), the only documented path that works for private
+manifest or lockfile.
+
+Archives always come from `codeload.github.com` first, unauthenticated: it is not subject to the
+API rate limit, and its bytes are what the lockfile's `integrity` pins. Only when codeload answers
+404 or 403 — a private repo — does the download fall back to the authenticated REST archive
+endpoint (`/repos/{owner}/{repo}/tarball/{ref}`), the only documented path that works for private
 repos; it redirects to a short-lived signed URL, and the token is dropped at that cross-origin hop
 rather than being handed to the CDN.
+
+The endpoint is deliberately **not** chosen by whether a token happens to be set. GitHub's two
+archive endpoints return different bytes for the same commit, so doing that would make the recorded
+`integrity` depend on the environment — CI (where `GITHUB_TOKEN` is usually present) and a laptop
+would write different values to `llm/sources-lock.json` for the same public source, and each would
+see a permanent cache miss for the other's.
 
 Registry credentials (`NPM_TOKEN`, `.npmrc`) are never sent to a source, and `GITHUB_TOKEN` is
 never sent to a registry. See [Private registries](Registry#private-registries) for the pack side.

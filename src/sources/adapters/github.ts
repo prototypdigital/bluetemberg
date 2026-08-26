@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { downloadTarball } from '../../registry/client.js';
+import { downloadTarball, TarballDownloadError } from '../../registry/client.js';
 import { extractTarball } from '../tarball.js';
 import { GITHUB_API_BASE, GITHUB_CODELOAD_BASE, SOURCE_FETCH_TIMEOUT_MS } from '../constants.js';
 import { sourceKey } from '../spec.js';
@@ -70,9 +70,8 @@ async function fetchSource(
     tmpdir(),
     `bluetemberg-source-${Date.now()}-${Math.random().toString(36).slice(2)}.tgz`,
   );
-  const { url, headers } = archiveRequest(resolved.resolved, options.token);
   try {
-    const integrity = await downloadTarball(url, tmpFile, { headers });
+    const integrity = await downloadArchive(resolved.resolved, tmpFile, options.token);
     await extractTarball(tmpFile, tmpDir, resolved.key, { strip: 1 });
     const rootSubdir = resolved.spec.type === 'github' ? resolved.spec.path : undefined;
     return { rawDir: tmpDir, rootSubdir: rootSubdir || undefined, integrity };
@@ -82,51 +81,69 @@ async function fetchSource(
 }
 
 /**
- * Pick the archive URL to download from, plus any auth headers.
+ * Download the repo archive, returning its sha512.
  *
- * Unauthenticated, codeload serves public archives directly and is not subject to the
- * REST API rate limit — so keep using it. With a token we must go through the REST
- * archive endpoint (`/repos/{owner}/{repo}/tarball/{ref}`), the only documented path
- * that works for private repos; it answers 302 with a short-lived signed codeload URL.
- * `fetch` follows that redirect and drops the `Authorization` header cross-origin
- * (the signed URL carries its own credentials), so the token never reaches codeload.
+ * codeload is always tried first, unauthenticated, even when a token is available.
+ * GitHub's two archive endpoints return *different bytes* for the same commit, so
+ * choosing between them by token presence would make the recorded integrity depend on
+ * the environment rather than on the content — CI (where `GITHUB_TOKEN` is usually set)
+ * and a laptop would then write different `integrity` values into the lockfile for the
+ * same public source, and each would see a permanent cache miss for the other's.
  *
- * Both codeload flavours wrap their contents in exactly one top-level directory, so the
- * caller's `strip: 1` holds either way.
+ * A private repo answers 404 on codeload; only then do we fall back to the REST archive
+ * endpoint (`/repos/{owner}/{repo}/tarball/{ref}`), the only documented path that works
+ * for private repos. It answers 302 with a short-lived signed codeload URL; `fetch`
+ * follows the redirect and drops `Authorization` cross-origin (the signed URL carries
+ * its own credentials), so the token never reaches the CDN.
+ *
+ * Both flavours wrap their contents in exactly one top-level directory, so the caller's
+ * `strip: 1` holds either way.
  */
-function archiveRequest(
+async function downloadArchive(
   codeloadUrl: string,
+  tmpFile: string,
   token: string | undefined,
-): { url: string; headers?: Record<string, string> } {
-  if (!token) return { url: codeloadUrl };
+): Promise<string> {
+  try {
+    return await downloadTarball(codeloadUrl, tmpFile);
+  } catch (err) {
+    const restUrl = token && isPrivateOrMissing(err) ? restArchiveUrl(codeloadUrl) : undefined;
+    if (!restUrl) throw err;
 
-  const slug = parseCodeloadUrl(codeloadUrl);
-  if (!slug) return { url: codeloadUrl };
+    return downloadTarball(restUrl, tmpFile, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'bluetemberg',
+      },
+    });
+  }
+}
 
-  return {
-    url: `${GITHUB_API_BASE}/repos/${slug.owner}/${slug.repo}/tarball/${slug.ref}`,
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
-      'User-Agent': 'bluetemberg',
-    },
-  };
+/** Whether a failed download could succeed with credentials rather than being broken. */
+function isPrivateOrMissing(err: unknown): boolean {
+  return err instanceof TarballDownloadError && (err.status === 404 || err.status === 403);
 }
 
 /**
- * Split `https://codeload.github.com/<owner>/<repo>/tar.gz/<ref>` back into its parts.
+ * Rewrite a codeload archive URL as its authenticated REST equivalent, or `null` when the
+ * URL is not a codeload one (nothing else may receive the token).
  *
  * Derived from the resolved URL rather than the spec so cursor.directory sources — which
  * delegate resolution here and carry no owner/repo of their own — take the same path.
  */
-function parseCodeloadUrl(url: string): { owner: string; repo: string; ref: string } | null {
+function restArchiveUrl(url: string): string | null {
   const prefix = `${GITHUB_CODELOAD_BASE}/`;
   if (!url.startsWith(prefix)) return null;
 
-  const match = url.slice(prefix.length).match(/^([^/]+)\/([^/]+)\/(?:legacy\.)?tar\.gz\/(.+)$/);
+  const match = url.slice(prefix.length).match(/^([^/]+)\/([^/]+)\/tar\.gz\/(.+)$/);
   if (!match) return null;
 
-  return { owner: match[1], repo: match[2], ref: match[3] };
+  const [, owner, repo, ref] = match;
+  // A ref may legitimately contain `/` (branch names); every other segment character is
+  // encoded so a lockfile entry cannot steer the request to a different API endpoint.
+  const refPath = ref.split('/').map(encodeURIComponent).join('/');
+  return `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/tarball/${refPath}`;
 }
 
 export const githubAdapter: SourceAdapter = {

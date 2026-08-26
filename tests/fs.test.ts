@@ -1,8 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { writeOrCheck, computeCheck, ensureDir, readIfExists, listFiles, listDirs } from '../src/utils/fs.js';
+import {
+  writeOrCheck,
+  computeCheck,
+  ensureDir,
+  readIfExists,
+  listFiles,
+  listDirs,
+  ensureGitignore,
+} from '../src/utils/fs.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bluetemberg-fs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -186,5 +194,57 @@ describe('listDirs', () => {
   it('returns empty array when directory has no subdirectories', () => {
     writeFileSync(join(dir, 'file.txt'), '');
     expect(listDirs(dir)).toEqual([]);
+  });
+});
+
+describe('ensureGitignore', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const read = () => readFileSync(join(dir, '.gitignore'), 'utf8');
+
+  it('does not create a .gitignore for a non-git project', () => {
+    ensureGitignore(dir);
+    expect(existsSync(join(dir, '.gitignore'))).toBe(false);
+  });
+
+  /**
+   * `.npmrc` is where the docs tell users to put registry credentials, so the project
+   * that manages their .gitignore has to ignore it — an accidentally committed token is
+   * the most expensive mistake this tool can invite.
+   */
+  it('ignores both the cache and .npmrc', () => {
+    writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
+    ensureGitignore(dir);
+
+    const content = read();
+    expect(content).toContain('node_modules/');
+    expect(content).toContain('.bluetemberg/');
+    expect(content).toContain('.npmrc');
+  });
+
+  it('adds only what is missing, leaving an existing entry alone', () => {
+    writeFileSync(join(dir, '.gitignore'), '.bluetemberg/\n');
+    ensureGitignore(dir);
+
+    const content = read();
+    expect(content.match(/^\.bluetemberg\/$/gm)).toHaveLength(1);
+    expect(content).toContain('.npmrc');
+  });
+
+  it('is idempotent', () => {
+    writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
+    ensureGitignore(dir);
+    const once = read();
+    ensureGitignore(dir);
+
+    expect(read()).toBe(once);
   });
 });

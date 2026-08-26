@@ -389,8 +389,12 @@ unchanged. In precedence order:
 
 2. **`~/.npmrc`** (or `$NPM_CONFIG_USERCONFIG`) — same format, for machine-wide credentials.
 
-3. **`NPM_TOKEN`** or **`NODE_AUTH_TOKEN`** in the environment. `NODE_AUTH_TOKEN` is what
-   `actions/setup-node` sets, so GitHub Actions works with no extra configuration.
+3. **`NPM_TOKEN`** or **`NODE_AUTH_TOKEN`** in the environment — for `registry.npmjs.org`,
+   or for the registry named by `$NPM_CONFIG_REGISTRY`. Unlike an `.npmrc` entry, a bare
+   env token names no host, so it is **not** sent to an arbitrary registry the manifest
+   configures; see [Where credentials are sent](#where-credentials-are-sent). For any
+   other registry, reference the same variable from a scoped `.npmrc` entry — which is
+   what `actions/setup-node` writes for you.
 
 Supported `.npmrc` credential styles: `_authToken` (bearer), `_auth` (base64 `user:pass`), and
 `username` + base64 `_password`. `${VAR}` references are expanded from the environment; if the
@@ -405,7 +409,8 @@ per-repository:
 ```
 
 Commit `llm/packages.json`; **never** commit an `.npmrc` that contains a literal token. Keep the
-token in the environment and reference it with `${VAR}`.
+token in the environment and reference it with `${VAR}`. Any bluetemberg command that touches
+your `.gitignore` adds `.npmrc` to it, so a new one cannot be committed by accident.
 
 ### Where credentials are sent
 
@@ -415,9 +420,21 @@ manifest — for metadata, search, the signing-keys endpoint, and the tarball do
 - A tarball served from a **different** host than the registry never receives the credential.
   Such a download is refused outright unless you pass `--allow-external-tarball-host`; even then
   the request goes out unauthenticated.
-- Unlike the `.npmrc` forms, `NPM_TOKEN`/`NODE_AUTH_TOKEN` carry no host of their own, so they
-  apply to whatever registry the manifest configures. If your project talks to more than one
-  registry, prefer host-scoped `.npmrc` entries.
+- Unlike the `.npmrc` forms, `NPM_TOKEN`/`NODE_AUTH_TOKEN` carry no host of their own. Because
+  `llm/packages.json` is a committed file, a bare env token is applied **only** to
+  `registry.npmjs.org` or to the registry named by `$NPM_CONFIG_REGISTRY` — otherwise cloning
+  a repository and running `install` would hand your token to whatever host that repository
+  chose. For any other registry, scope the token in `.npmrc`:
+
+  ```ini
+  //acme.jfrog.io/api/npm/npm-local/:_authToken=${NPM_TOKEN}
+  ```
+
+  A credential that was found but withheld says so, and names the scope to add.
+- Credentials go over **https** only. A plain-`http:` registry gets none, so a token cannot be
+  read off the wire — except on loopback (`localhost`, `127.0.0.1`), where the request never
+  leaves the machine. Set `BLUETEMBERG_ALLOW_INSECURE_REGISTRY_AUTH=1` to override for an
+  internal http registry you accept the risk of.
 - External rule sources (see [Sources](Sources)) never receive registry credentials; they use
   `GITHUB_TOKEN` instead.
 - Tokens are never written to the lockfile, the manifest, or any log line. Inline
@@ -440,6 +457,11 @@ bluetemberg verify --skip-signature-verification
 SHA-512 integrity is still enforced on every download. The lockfile records `version` and
 `integrity` as usual and simply omits `keyid` — no signature is fabricated — so a later
 `bluetemberg verify` without the flag will correctly report the pack as unsigned.
+
+### Discovery
+
+`bluetemberg search` queries the registry the manifest configures, not always npmjs.org, and
+authenticates the same way — so a private registry is searchable from the project that uses it.
 
 ### Full example: GitHub Actions against GitHub Packages
 

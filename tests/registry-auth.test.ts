@@ -6,7 +6,12 @@
  * sending a token somewhere it does not belong.
  */
 import { describe, it, expect } from 'vitest';
-import { registryAuthHeader, registryAuthHeaders, redactCredentials } from '../src/registry/auth.js';
+import {
+  registryAuthHeader,
+  registryAuthHeaders,
+  registryCredentialAdvice,
+  redactCredentials,
+} from '../src/registry/auth.js';
 import { isolateRegistryAuth } from './helpers/registry-auth.js';
 
 const npmrc = isolateRegistryAuth();
@@ -52,6 +57,15 @@ describe('registryAuthHeader — .npmrc scopes', () => {
     const encoded = Buffer.from('user:pass').toString('base64');
     npmrc.writeProjectNpmrc(`//acme.example.com/:_auth=${encoded}\n`);
     expect(registryAuthHeader('https://acme.example.com')).toBe(`Basic ${encoded}`);
+  });
+
+  it('uses a plaintext _password as-is rather than decoding it into mojibake', () => {
+    npmrc.writeProjectNpmrc(
+      [`//acme.example.com/:username=alice`, `//acme.example.com/:_password=s3cret!`].join('\n'),
+    );
+    expect(registryAuthHeader('https://acme.example.com')).toBe(
+      `Basic ${Buffer.from('alice:s3cret!').toString('base64')}`,
+    );
   });
 
   it('supports username + base64 _password', () => {
@@ -105,15 +119,43 @@ describe('registryAuthHeader — ${VAR} expansion', () => {
   });
 });
 
+/**
+ * A bare env token names no recipient, and the registry URL comes from a *committed*
+ * `llm/packages.json` — so the registry has to be one the user pointed at outside the
+ * repository, or a cloned repo could redirect the developer's npm token to a host it
+ * chose. These are the tests that stop that.
+ */
 describe('registryAuthHeader — environment fallback', () => {
-  it('uses NPM_TOKEN when no .npmrc scope matches', () => {
+  it('uses NPM_TOKEN for the default registry', () => {
     process.env.NPM_TOKEN = 'env-token';
-    expect(registryAuthHeader('https://acme.example.com')).toBe('Bearer env-token');
+    expect(registryAuthHeader('https://registry.npmjs.org')).toBe('Bearer env-token');
   });
 
   it('uses NODE_AUTH_TOKEN as set by actions/setup-node', () => {
     process.env.NODE_AUTH_TOKEN = 'ci-token';
-    expect(registryAuthHeader('https://acme.example.com')).toBe('Bearer ci-token');
+    expect(registryAuthHeader('https://registry.npmjs.org')).toBe('Bearer ci-token');
+  });
+
+  it('never sends a bare env token to a registry the manifest chose', () => {
+    process.env.NPM_TOKEN = 'env-token';
+    expect(registryAuthHeader('https://evil.example.com')).toBeUndefined();
+  });
+
+  it('sends it to a non-default registry the user named via NPM_CONFIG_REGISTRY', () => {
+    process.env.NPM_TOKEN = 'env-token';
+    process.env.NPM_CONFIG_REGISTRY = 'https://acme.jfrog.io/api/npm/npm-local/';
+    expect(registryAuthHeader('https://acme.jfrog.io/api/npm/npm-local')).toBe('Bearer env-token');
+  });
+
+  it('does not extend NPM_CONFIG_REGISTRY to a different host', () => {
+    process.env.NPM_TOKEN = 'env-token';
+    process.env.NPM_CONFIG_REGISTRY = 'https://acme.jfrog.io/';
+    expect(registryAuthHeader('https://evil.example.com')).toBeUndefined();
+  });
+
+  it('needs no host affirmation for a host-scoped .npmrc entry', () => {
+    npmrc.writeProjectNpmrc('//acme.example.com/:_authToken=npmrc-token\n');
+    expect(registryAuthHeader('https://acme.example.com')).toBe('Bearer npmrc-token');
   });
 
   it('prefers a matching .npmrc scope over the environment', () => {
@@ -124,7 +166,52 @@ describe('registryAuthHeader — environment fallback', () => {
 
   it('ignores a blank environment token', () => {
     process.env.NPM_TOKEN = '   ';
-    expect(registryAuthHeader('https://acme.example.com')).toBeUndefined();
+    expect(registryAuthHeader('https://registry.npmjs.org')).toBeUndefined();
+  });
+});
+
+describe('registryAuthHeader — transport', () => {
+  it('withholds a credential from a plaintext http registry', () => {
+    npmrc.writeProjectNpmrc('//acme.example.com/:_authToken=tok\n');
+    expect(registryAuthHeader('http://acme.example.com')).toBeUndefined();
+  });
+
+  it('sends it over http to loopback, where nothing leaves the machine', () => {
+    npmrc.writeProjectNpmrc('//localhost:4873/:_authToken=verdaccio\n');
+    expect(registryAuthHeader('http://localhost:4873')).toBe('Bearer verdaccio');
+  });
+
+  it('sends it over http when the operator opts in explicitly', () => {
+    npmrc.writeProjectNpmrc('//acme.example.com/:_authToken=tok\n');
+    process.env.BLUETEMBERG_ALLOW_INSECURE_REGISTRY_AUTH = '1';
+    expect(registryAuthHeader('http://acme.example.com')).toBe('Bearer tok');
+  });
+});
+
+describe('registryCredentialAdvice', () => {
+  it('explains a credential withheld for an insecure transport', () => {
+    npmrc.writeProjectNpmrc('//acme.example.com/:_authToken=s3cr3t-value\n');
+    const advice = registryCredentialAdvice('http://acme.example.com');
+    expect(advice).toMatch(/cleartext/);
+    expect(advice).toMatch(/BLUETEMBERG_ALLOW_INSECURE_REGISTRY_AUTH/);
+    expect(advice).not.toMatch(/s3cr3t-value/);
+  });
+
+  it('explains an env token withheld for an unaffirmed host, and how to scope it', () => {
+    process.env.NPM_TOKEN = 'env-token';
+    const advice = registryCredentialAdvice('https://acme.jfrog.io/api/npm/npm-local');
+    expect(advice).toContain('//acme.jfrog.io/api/npm/npm-local/:_authToken=');
+    expect(advice).toMatch(/NPM_CONFIG_REGISTRY/);
+    expect(advice).not.toMatch(/env-token/);
+  });
+
+  it('says the credential was rejected when one was actually sent', () => {
+    npmrc.writeProjectNpmrc('//acme.example.com/:_authToken=tok\n');
+    expect(registryCredentialAdvice('https://acme.example.com')).toMatch(/rejected/);
+  });
+
+  it('tells you what to configure when there is nothing at all', () => {
+    expect(registryCredentialAdvice('https://acme.example.com')).toContain('//acme.example.com/:_authToken=');
   });
 });
 
@@ -142,6 +229,14 @@ describe('registryAuthHeaders', () => {
     process.env.NPM_TOKEN = 'env-token';
     // Without an identifiable host we cannot tell who would receive the token.
     expect(registryAuthHeaders('not a url')).toEqual({});
+  });
+
+  it('reads the project .npmrc from an explicit root, not the cwd', () => {
+    const root = npmrc.writeNpmrcIn('other-project', '//acme.example.com/:_authToken=root-token\n');
+    expect(registryAuthHeaders('https://acme.example.com')).toEqual({});
+    expect(registryAuthHeaders('https://acme.example.com', root)).toEqual({
+      Authorization: 'Bearer root-token',
+    });
   });
 });
 

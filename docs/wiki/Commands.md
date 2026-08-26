@@ -234,8 +234,8 @@ Install all packs from the manifest (`llm/packages.json`). Run after cloning a r
 bluetemberg install
 bluetemberg install --force
 
-# Against a token-gated, unsigned self-hosted registry
-NODE_AUTH_TOKEN=... bluetemberg install --skip-signature-verification
+# Against a token-gated, unsigned self-hosted registry (token scoped in .npmrc)
+NPM_TOKEN=... bluetemberg install --skip-signature-verification
 ```
 
 | Option | Description |
@@ -268,7 +268,9 @@ bluetemberg update --latest
 
 ## `bluetemberg search <query>`
 
-Search npm for rule packs tagged with `bluetemberg-pack`.
+Search for rule packs tagged with `bluetemberg-pack`, in the registry the project's manifest
+configures — so a [private registry](Registry#private-registries) is searchable too, using the
+same credentials as `install`.
 
 ```bash
 bluetemberg search typescript

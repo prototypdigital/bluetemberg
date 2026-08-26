@@ -187,7 +187,7 @@ npx bluetemberg list                             # show installed packs and reso
 
 Run `bluetemberg sync` after any change to regenerate platform files. See [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry) for the manifest format, lockfile, and pack cache layout.
 
-Packs can also come from a **private registry** — a private scope on npmjs.org, GitHub Packages, Verdaccio, Artifactory. Credentials are read from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_TOKEN` exactly as npm reads them, and are only ever sent to the registry the manifest configures. Registries that do not sign need an explicit opt-in:
+Packs can also come from a **private registry** — a private scope on npmjs.org, GitHub Packages, Verdaccio, Artifactory. Credentials are read from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_TOKEN` exactly as npm reads them, and are only ever sent to the host they are scoped to, over https. Registries that do not sign need an explicit opt-in:
 
 ```bash
 NODE_AUTH_TOKEN=... npx bluetemberg install --skip-signature-verification

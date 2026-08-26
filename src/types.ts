@@ -505,6 +505,11 @@ export interface RegistrySearchOptions {
   limit?: number;
   /** Suppress output. */
   silent?: boolean;
+  /**
+   * Project root supplying the configured registry and `.npmrc` credentials.
+   * Defaults to the current working directory.
+   */
+  root?: string;
 }
 
 /** Options for `registry.remove()`. */

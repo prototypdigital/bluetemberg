@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -18,6 +18,7 @@ vi.mock('../src/sources/tarball.js', () => ({
 }));
 
 import { clearRegistryKeysCache, downloadTarball, fetchPackageMetadata } from '../src/registry/client.js';
+import { clearRegistryAuthCache } from '../src/registry/auth.js';
 import { installPackVersion } from '../src/registry/installer.js';
 import { isolateRegistryAuth } from './helpers/registry-auth.js';
 import type { NpmPackageMetadata } from '../src/types.js';
@@ -81,6 +82,37 @@ describe('credential transmission', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  /** Seed the project `.npmrc` where the install actually looks for it: under `root`. */
+  function writeRootNpmrc(contents: string): void {
+    writeFileSync(join(root, '.npmrc'), contents);
+    clearRegistryAuthCache();
+  }
+
+  /**
+   * The registry URL comes from a committed `llm/packages.json`, so a bare env token —
+   * which names no host — must not follow it to whatever host the file chose. Without
+   * this, cloning a repo and running `install` hands it your npm token.
+   */
+  it('never sends a bare env token to a registry the manifest chose', async () => {
+    process.env.NPM_TOKEN = 'env-token';
+    const { seen, fn } = recordingFetch();
+    globalThis.fetch = fn;
+
+    await fetchPackageMetadata('private-pack', 'https://registry.attacker.test');
+
+    expect(seen.get('https://registry.attacker.test/private-pack')).toBeUndefined();
+  });
+
+  it('withholds a credential from a plaintext http registry', async () => {
+    writeRootNpmrc('//insecure.registry.test/:_authToken=reg-token\n');
+    const { seen, fn } = recordingFetch();
+    globalThis.fetch = fn;
+
+    await fetchPackageMetadata('private-pack', 'http://insecure.registry.test', root);
+
+    expect(seen.get('http://insecure.registry.test/private-pack')).toBeUndefined();
+  });
+
   it('sends the credential when fetching metadata from the configured registry', async () => {
     npmrc.writeProjectNpmrc('//private.registry.test/:_authToken=reg-token\n');
     const { seen, fn } = recordingFetch();
@@ -92,7 +124,7 @@ describe('credential transmission', () => {
   });
 
   it('sends the credential when downloading a tarball from the registry host', async () => {
-    npmrc.writeProjectNpmrc('//private.registry.test/:_authToken=reg-token\n');
+    writeRootNpmrc('//private.registry.test/:_authToken=reg-token\n');
     const { seen, fn } = recordingFetch();
     globalThis.fetch = fn;
 
@@ -106,7 +138,7 @@ describe('credential transmission', () => {
   });
 
   it('never sends the credential to a tarball host outside the registry', async () => {
-    npmrc.writeProjectNpmrc('//private.registry.test/:_authToken=reg-token\n');
+    writeRootNpmrc('//private.registry.test/:_authToken=reg-token\n');
     const { seen, fn } = recordingFetch();
     globalThis.fetch = fn;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -124,6 +156,7 @@ describe('credential transmission', () => {
 
   it('never sends a bare env token to a tarball host outside the registry', async () => {
     process.env.NPM_TOKEN = 'env-token';
+    process.env.NPM_CONFIG_REGISTRY = REGISTRY;
     const { seen, fn } = recordingFetch();
     globalThis.fetch = fn;
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -140,7 +173,7 @@ describe('credential transmission', () => {
   });
 
   it('keeps no credential in the lockfile entry', async () => {
-    npmrc.writeProjectNpmrc('//private.registry.test/:_authToken=reg-token\n');
+    writeRootNpmrc('//private.registry.test/:_authToken=reg-token\n');
     const { fn } = recordingFetch();
     globalThis.fetch = fn;
 
@@ -155,17 +188,17 @@ describe('credential transmission', () => {
   });
 
   it('reports a 401 with actionable guidance and no credential echoed back', async () => {
-    npmrc.writeProjectNpmrc('//private.registry.test/:_authToken=reg-token\n');
+    writeRootNpmrc('//private.registry.test/:_authToken=reg-token\n');
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
       statusText: 'Unauthorized',
     }) as unknown as typeof globalThis.fetch;
 
-    await expect(fetchPackageMetadata('private-pack', REGISTRY)).rejects.toThrow(
-      /denied access to "private-pack" \(HTTP 401\).*\.npmrc/s,
+    await expect(fetchPackageMetadata('private-pack', REGISTRY, root)).rejects.toThrow(
+      /denied access to "private-pack" \(HTTP 401\).*rejected it/s,
     );
-    await expect(fetchPackageMetadata('private-pack', REGISTRY)).rejects.not.toThrow(/reg-token/);
+    await expect(fetchPackageMetadata('private-pack', REGISTRY, root)).rejects.not.toThrow(/reg-token/);
   });
 });
 

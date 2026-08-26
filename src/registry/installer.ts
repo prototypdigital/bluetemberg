@@ -10,13 +10,8 @@ import {
 import { join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
-import {
-  downloadTarball,
-  verifyIntegrity,
-  fetchRegistryKeys,
-  verifyRegistrySignature,
-  DEFAULT_REGISTRY,
-} from './client.js';
+import { downloadTarball, verifyIntegrity, fetchRegistryKeys, verifyRegistrySignature } from './client.js';
+import { DEFAULT_REGISTRY } from './constants.js';
 import { redactCredentials, registryAuthHeaders } from './auth.js';
 import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
@@ -187,7 +182,7 @@ export async function installPackVersion(
         // keyid is missing — backfill via signature verification without re-downloading.
         const signatures = versionMeta.dist.signatures ?? [];
         if (signatures.length > 0) {
-          const keys = await fetchRegistryKeys(registryUrl);
+          const keys = await fetchRegistryKeys(registryUrl, root);
           const result = verifyRegistrySignature(metadata.name, version, cachedIntegrity, signatures, keys);
           if (result.verified) {
             writeFileSync(keyidMarkerPath, result.keyid + '\n');
@@ -226,7 +221,7 @@ export async function installPackVersion(
     // Credentials are scoped to the configured registry host. When
     // allowExternalTarballHost redirects the download elsewhere, send none — a CDN on a
     // third-party host must never receive the registry token.
-    const downloadHeaders = tarballOnRegistryHost ? registryAuthHeaders(registryUrl) : {};
+    const downloadHeaders = tarballOnRegistryHost ? registryAuthHeaders(registryUrl, root) : {};
     integrity = await downloadTarball(tarballUrl, tmpFile, { headers: downloadHeaders });
 
     if (!verifyIntegrity(expectedIntegrity, integrity)) {
@@ -245,7 +240,7 @@ export async function installPackVersion(
               : 'Self-hosted registries that do not sign need an explicit opt-in: pass --skip-signature-verification (API: skipSignatureVerification: true).'),
         );
       }
-      const keys = await fetchRegistryKeys(registryUrl);
+      const keys = await fetchRegistryKeys(registryUrl, root);
       const result = verifyRegistrySignature(metadata.name, version, integrity, signatures, keys);
       if (!result.verified) {
         throw new Error(

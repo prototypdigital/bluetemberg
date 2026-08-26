@@ -57,21 +57,33 @@ export function listDirs(dir: string): string[] {
 }
 
 /**
- * Ensure `.bluetemberg/` (the pack + external-source cache) is git-ignored.
+ * Entries bluetemberg keeps out of a consumer's git history.
  *
- * No-op when there is no `.gitignore` (don't create one for a non-git project)
- * or when the marker is already present.
+ * `.npmrc` is here because private-registry credentials live there (see
+ * `docs/wiki/Registry.md`), and an accidentally committed token is the most expensive
+ * mistake this tool can invite. Ignoring it does not untrack an `.npmrc` a project
+ * already commits deliberately.
+ */
+const MANAGED_IGNORES = [
+  { comment: '# Bluetemberg cache', entry: '.bluetemberg/' },
+  { comment: '# Registry credentials — keep tokens in the environment, not in the repo', entry: '.npmrc' },
+] as const;
+
+/**
+ * Ensure the entries bluetemberg manages ({@link MANAGED_IGNORES}) are git-ignored.
+ *
+ * No-op when there is no `.gitignore` (don't create one for a non-git project) or when
+ * every entry is already present; each entry is appended independently, so a project
+ * ignoring only one of them still gets the other.
  */
 export function ensureGitignore(root: string): void {
   const gitignorePath = join(root, '.gitignore');
-  const marker = '.bluetemberg/';
-
   if (!existsSync(gitignorePath)) return;
 
   const content = readFileSync(gitignorePath, 'utf8');
-  if (content.includes(marker)) return;
+  const missing = MANAGED_IGNORES.filter(({ entry }) => !content.includes(entry));
+  if (missing.length === 0) return;
 
-  const lines = content.split('\n');
-  const newContent = [...lines, '', '# Bluetemberg cache', marker, ''].join('\n');
-  writeFileSync(gitignorePath, newContent);
+  const added = missing.flatMap(({ comment, entry }) => ['', comment, entry]);
+  writeFileSync(gitignorePath, [...content.split('\n'), ...added, ''].join('\n'));
 }

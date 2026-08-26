@@ -1,11 +1,17 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, beforeEach } from 'vitest';
 import { clearRegistryAuthCache } from '../../src/registry/auth.js';
 
 /** Env vars the auth resolver consults; cleared so a real CI token never leaks in. */
-const CREDENTIAL_ENV_VARS = ['NPM_TOKEN', 'NODE_AUTH_TOKEN', 'NPM_CONFIG_USERCONFIG'] as const;
+const CREDENTIAL_ENV_VARS = [
+  'NPM_TOKEN',
+  'NODE_AUTH_TOKEN',
+  'NPM_CONFIG_USERCONFIG',
+  'NPM_CONFIG_REGISTRY',
+  'BLUETEMBERG_ALLOW_INSECURE_REGISTRY_AUTH',
+] as const;
 
 /**
  * Isolate registry credential resolution for a test file.
@@ -20,6 +26,7 @@ const CREDENTIAL_ENV_VARS = ['NPM_TOKEN', 'NODE_AUTH_TOKEN', 'NPM_CONFIG_USERCON
 export function isolateRegistryAuth(): {
   writeProjectNpmrc(contents: string): void;
   writeUserNpmrc(contents: string): void;
+  writeNpmrcIn(dirName: string, contents: string): string;
 } {
   let dir: string;
   let originalCwd: string;
@@ -58,6 +65,17 @@ export function isolateRegistryAuth(): {
     writeUserNpmrc(contents: string) {
       writeFileSync(join(dir, 'user.npmrc'), contents);
       clearRegistryAuthCache();
+    },
+    /**
+     * Seed an `.npmrc` in a sibling directory and return its path, for asserting that a
+     * caller-supplied `root` is honoured rather than the cwd.
+     */
+    writeNpmrcIn(dirName: string, contents: string) {
+      const target = join(dir, dirName);
+      mkdirSync(target, { recursive: true });
+      writeFileSync(join(target, '.npmrc'), contents);
+      clearRegistryAuthCache();
+      return target;
     },
   };
 }

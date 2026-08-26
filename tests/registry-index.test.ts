@@ -437,7 +437,7 @@ describe('update', () => {
 
     // pack-b should not have been fetched.
     expect(vi.mocked(fetchPackageMetadata)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(fetchPackageMetadata)).toHaveBeenCalledWith('pack-a', undefined);
+    expect(vi.mocked(fetchPackageMetadata)).toHaveBeenCalledWith('pack-a', undefined, root);
   });
 
   it('prunes stale lockfile entries not present in the manifest on full update', async () => {
