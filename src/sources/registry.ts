@@ -1,4 +1,5 @@
 import { loadConfig } from '../sync/index.js';
+import { resolveGithubToken } from '../stacks/github.js';
 import { ensureGitignore } from '../utils/fs.js';
 import { getAdapter, hasAdapter } from './adapters/index.js';
 import { isSourceCached, removeSourceRef, resolveSourceContentDir } from './cache.js';
@@ -14,11 +15,25 @@ import type {
   SourceLockEntry,
   SourceListOptions,
   SourceRemoveOptions,
+  SourceNetOptions,
   SourceSearchOptions,
   SourceSearchResult,
   SourceSpec,
   SourceUpdateOptions,
 } from './types.js';
+
+/**
+ * Network options shared by every source command.
+ *
+ * The GitHub token is read from the process environment only (never from project
+ * files) and lifts both the unauthenticated rate limit and access to private repos.
+ * cursor.directory sources delegate resolution to the GitHub adapter, so they benefit
+ * from the same token.
+ */
+function netOptions(): SourceNetOptions {
+  const token = resolveGithubToken();
+  return token ? { token } : {};
+}
 
 // ---------------------------------------------------------------------------
 // add
@@ -40,11 +55,13 @@ export async function addSource(
   const key = sourceKey(spec);
   const adapter = getAdapter(spec.type);
 
+  const net = netOptions();
+
   log(`Resolving ${key}...`);
-  const resolved = await adapter.resolve(spec);
+  const resolved = await adapter.resolve(spec, net);
 
   log(`Installing ${key}@${shortRef(resolved.ref)}...`);
-  const entry = await installResolvedSource(root, resolved);
+  const entry = await installResolvedSource(root, resolved, { net });
 
   const manifest = readSourceManifest(root, source);
   const lock = readSourceLock(root, source);
@@ -136,6 +153,7 @@ export async function installSources(
   }
 
   log(`Installing ${keys.length} source(s)...\n`);
+  const net = netOptions();
   const installed: InstalledSource[] = [];
 
   for (const key of keys) {
@@ -152,9 +170,9 @@ export async function installSources(
     const resolved =
       existing && !options.force
         ? resolvedFromLock(spec, key, existing)
-        : await getAdapter(spec.type).resolve(spec);
+        : await getAdapter(spec.type).resolve(spec, net);
     log(`  ${key}@${shortRef(resolved.ref)} (downloading...)`);
-    const entry = await installResolvedSource(root, resolved, { force: options.force });
+    const entry = await installResolvedSource(root, resolved, { force: options.force, net });
     lock.sources[key] = entry;
     installed.push(installedFromEntry(root, key, entry));
   }
@@ -195,6 +213,7 @@ export async function updateSources(
   }
 
   log(`Updating ${keys.length} source(s)...\n`);
+  const net = netOptions();
   const results: InstalledSource[] = [];
 
   for (const k of keys) {
@@ -202,7 +221,7 @@ export async function updateSources(
     const previous = lock.sources[k]?.ref;
 
     log(`  Resolving ${k}...`);
-    const resolved = await getAdapter(spec.type).resolve(spec);
+    const resolved = await getAdapter(spec.type).resolve(spec, net);
 
     if (previous === resolved.ref && isSourceCached(root, k, resolved.ref)) {
       log(`  ${k}@${shortRef(resolved.ref)} (up to date)`);
@@ -212,7 +231,7 @@ export async function updateSources(
 
     const arrow = previous ? ` ${shortRef(previous)} →` : '';
     log(`  ${k}${arrow} ${shortRef(resolved.ref)} (downloading...)`);
-    const entry = await installResolvedSource(root, resolved);
+    const entry = await installResolvedSource(root, resolved, { net });
 
     if (previous && previous !== resolved.ref) {
       removeSourceRef(root, k, previous);
@@ -243,12 +262,13 @@ export async function searchSources(
 
   log(`Searching for "${query}"...\n`);
 
+  const net = netOptions();
   const results: SourceSearchResult[] = [];
   for (const type of types) {
     if (!hasAdapter(type)) continue;
     const adapter = getAdapter(type);
     if (!adapter.search) continue;
-    results.push(...(await adapter.search(query, {})));
+    results.push(...(await adapter.search(query, net)));
   }
 
   const limited = results.slice(0, limit);

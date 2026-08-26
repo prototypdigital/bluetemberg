@@ -77,6 +77,8 @@ export async function add(
 
   const lockEntry = await installPackVersion(root, metadata, version, {
     registryUrl: manifest.registry,
+    skipSignatureVerification: options.skipSignatureVerification,
+    allowExternalTarballHost: options.allowExternalTarballHost,
   });
 
   // Update manifest and lockfile.
@@ -286,6 +288,8 @@ export async function install(
       const lockEntry = await installPackVersion(root, metadata, version, {
         force: options.force,
         registryUrl: manifest.registry,
+        skipSignatureVerification: options.skipSignatureVerification,
+        allowExternalTarballHost: options.allowExternalTarballHost,
       });
 
       lock.packages[name] = lockEntry;
@@ -411,6 +415,8 @@ export async function update(
 
       const lockEntry = await installPackVersion(root, metadata, version, {
         registryUrl: manifest.registry,
+        skipSignatureVerification: options.skipSignatureVerification,
+        allowExternalTarballHost: options.allowExternalTarballHost,
       });
 
       lock.packages[name] = lockEntry;

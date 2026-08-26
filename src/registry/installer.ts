@@ -17,6 +17,7 @@ import {
   verifyRegistrySignature,
   DEFAULT_REGISTRY,
 } from './client.js';
+import { redactCredentials, registryAuthHeaders } from './auth.js';
 import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -115,13 +116,15 @@ export async function installPackVersion(
 
   const tarballUrl = versionMeta.dist.tarball;
 
+  const registryUrl = options.registryUrl ?? DEFAULT_REGISTRY;
+
   // Validate the tarball host matches the configured registry to prevent a
   // compromised registry response from redirecting downloads to an attacker-controlled host.
   let registryHost: string;
   try {
-    registryHost = new URL(options.registryUrl ?? DEFAULT_REGISTRY).hostname;
+    registryHost = new URL(registryUrl).hostname;
   } catch {
-    throw new Error(`Invalid registry URL: ${options.registryUrl ?? DEFAULT_REGISTRY}`);
+    throw new Error(`Invalid registry URL: ${redactCredentials(registryUrl)}`);
   }
   let tarballHost: string;
   try {
@@ -131,16 +134,17 @@ export async function installPackVersion(
       `Invalid tarball URL in registry metadata for "${metadata.name}@${version}": ${tarballUrl}`,
     );
   }
-  if (tarballHost !== registryHost) {
+  const tarballOnRegistryHost = tarballHost === registryHost;
+  if (!tarballOnRegistryHost) {
     if (options.allowExternalTarballHost) {
       console.warn(
         `Warning: Tarball host "${tarballHost}" differs from registry host "${registryHost}" for "${metadata.name}@${version}". ` +
-          `Proceeding because allowExternalTarballHost is enabled.`,
+          `Proceeding because allowExternalTarballHost is enabled. Registry credentials will not be sent to "${tarballHost}".`,
       );
     } else {
       throw new Error(
         `Tarball host "${tarballHost}" does not match registry host "${registryHost}" — refusing to download. ` +
-          `If your registry uses an external CDN, pass allowExternalTarballHost option or configure it to serve tarballs from the same host.`,
+          `If your registry uses an external CDN, pass allowExternalTarballHost (CLI: --allow-external-tarball-host) or configure it to serve tarballs from the same host.`,
       );
     }
   }
@@ -154,7 +158,6 @@ export async function installPackVersion(
   }
 
   // Compute signature policy upfront — needed for both the cache-hit and fresh-install paths.
-  const registryUrl = options.registryUrl ?? DEFAULT_REGISTRY;
   const isDefaultRegistry = registryUrl.replace(/\/$/, '') === DEFAULT_REGISTRY;
   // skipSignatureVerification is only honoured for non-default registries.
   // The default npm registry always signs packages; we always verify there.
@@ -220,7 +223,11 @@ export async function installPackVersion(
   let verifiedKeyid: string | undefined;
 
   try {
-    integrity = await downloadTarball(tarballUrl, tmpFile);
+    // Credentials are scoped to the configured registry host. When
+    // allowExternalTarballHost redirects the download elsewhere, send none — a CDN on a
+    // third-party host must never receive the registry token.
+    const downloadHeaders = tarballOnRegistryHost ? registryAuthHeaders(registryUrl) : {};
+    integrity = await downloadTarball(tarballUrl, tmpFile, { headers: downloadHeaders });
 
     if (!verifyIntegrity(expectedIntegrity, integrity)) {
       throw new Error(
@@ -235,7 +242,7 @@ export async function installPackVersion(
           `Package "${metadata.name}@${version}" has no registry signature. ` +
             (isDefaultRegistry
               ? 'The default npm registry always signs packages; this may indicate a compromised registry response.'
-              : 'Pass skipSignatureVerification: true to allow unsigned packages from self-hosted registries.'),
+              : 'Self-hosted registries that do not sign need an explicit opt-in: pass --skip-signature-verification (API: skipSignatureVerification: true).'),
         );
       }
       const keys = await fetchRegistryKeys(registryUrl);

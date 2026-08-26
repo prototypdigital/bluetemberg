@@ -29,15 +29,33 @@ bluetemberg generates AI tool configuration and writes auto-executing hooks into
 
 When `bluetemberg install` downloads a pack from the npm registry:
 
-| Control                             | Where                                                                                                                                                                                |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **SHA-512 integrity**               | Tarball hashed on download and compared against `dist.integrity` from registry metadata. Mismatches abort and clean up the partial extraction.                                       |
-| **Registry host pinning**           | `dist.tarball` must resolve to the same hostname as the configured registry. A compromised metadata response cannot redirect downloads to an attacker-controlled host.               |
-| **Size cap**                        | Downloads are aborted when they exceed 50 MiB (streamed to temp file; partial temp file is removed by the installer on abort).                                                       |
-| **Path traversal protection**       | Pack names/versions that would resolve outside `.bluetemberg/packs/` are rejected before any extraction.                                                                             |
-| **Symlink rejection**               | The tarball extractor rejects symlinks unconditionally.                                                                                                                              |
-| **Integrity cache marker**          | `.bluetemberg-integrity` written per cached version; re-validated on cache hits.                                                                                                     |
-| **Guardrail shell-injection guard** | Guardrail `check.field` and `check.regex` values are validated to a safe character set and passed as positional arguments to a fixed script, never interpolated onto a command line. |
+| Control                               | Where                                                                                                                                                                                                                                                           |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SHA-512 integrity**                 | Tarball hashed on download and compared against `dist.integrity` from registry metadata. Mismatches abort and clean up the partial extraction.                                                                                                                  |
+| **Registry host pinning**             | `dist.tarball` must resolve to the same hostname as the configured registry. A compromised metadata response cannot redirect downloads to an attacker-controlled host.                                                                                          |
+| **Size cap**                          | Downloads are aborted when they exceed 50 MiB (streamed to temp file; partial temp file is removed by the installer on abort).                                                                                                                                  |
+| **Path traversal protection**         | Pack names/versions that would resolve outside `.bluetemberg/packs/` are rejected before any extraction.                                                                                                                                                        |
+| **Symlink rejection**                 | The tarball extractor rejects symlinks unconditionally.                                                                                                                                                                                                         |
+| **Integrity cache marker**            | `.bluetemberg-integrity` written per cached version; re-validated on cache hits.                                                                                                                                                                                |
+| **Guardrail shell-injection guard**   | Guardrail `check.field` and `check.regex` values are validated to a safe character set and passed as positional arguments to a fixed script, never interpolated onto a command line.                                                                            |
+| **Mandatory signatures on npmjs.org** | The ECDSA signature check cannot be disabled for `registry.npmjs.org`. `--skip-signature-verification` applies only to non-default registries, and never relaxes integrity checking.                                                                            |
+| **Host-scoped credentials**           | Registry credentials are bound to the configured registry's host and are sent only there. A tarball on a different host (`--allow-external-tarball-host`) is fetched unauthenticated, and `GITHUB_TOKEN` used for external sources is never sent to a registry. |
+| **No credentials at rest**            | Tokens are read from `.npmrc` and the environment only. They are never written to the manifest, the lockfile, or log output, and inline `user:pass@host` userinfo is stripped from URLs before they appear in errors or lock entries.                           |
+| **No unsigned-signature forgery**     | A pack installed with signature verification skipped records `version` and `integrity` but no `keyid`, so a later `bluetemberg verify` still reports it as unsigned.                                                                                            |
+
+### Credential handling
+
+Private pack distribution requires transmitting credentials, so the boundaries are explicit:
+
+- Credentials resolve from `<project>/.npmrc`, then `~/.npmrc` (or `$NPM_CONFIG_USERCONFIG`), then
+  `NPM_TOKEN` / `NODE_AUTH_TOKEN`. `.npmrc` entries are host-and-path scoped, most specific first.
+- A `${VAR}` reference that resolves to nothing yields **no** credential rather than a literal
+  placeholder, so a misconfigured CI cannot send `${NPM_TOKEN}` as a bearer token.
+- An unparseable registry URL yields no credential: without an identifiable host there is no way
+  to know who would receive it.
+- Downloads may be redirected to a signed CDN URL. The platform `fetch` drops `Authorization` on a
+  cross-origin redirect; a test asserts this against real HTTP servers so replacing the HTTP client
+  cannot regress it silently.
 
 ### Known limitation
 

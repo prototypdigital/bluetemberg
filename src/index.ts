@@ -48,6 +48,8 @@ export type {
   PackageLockEntry,
   InstalledPackage,
   NpmSearchResult,
+  RegistryAddOptions,
+  RegistryInstallOptions,
   RegistryUpdateOptions,
 } from './types.js';
 export type { AdapterContext, AdapterRecordError, AdapterRunFn } from './sync/adapter-contract.js';

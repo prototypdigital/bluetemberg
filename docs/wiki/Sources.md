@@ -104,6 +104,40 @@ A repo laid out with `rules/`, `agents/`, and/or `skills/` subdirectories is rou
 
 See [Commands](Commands#bluetemberg-source-subcommand) for the full reference: `add`, `remove`, `list`, `install`, `update`, `search`.
 
+## Private repos and rate limits
+
+GitHub-backed sources (and cursor.directory, which resolves through GitHub) read
+`GITHUB_TOKEN` — or `GH_TOKEN` — from the process environment. A token does two things:
+
+- **Lifts the unauthenticated API rate limit** (60 requests/hour), which `source install` on a
+  manifest with several GitHub sources can otherwise exhaust.
+- **Unlocks private repositories**, letting a team distribute internal rules straight from a
+  private repo without publishing a pack.
+
+```bash
+export GITHUB_TOKEN=ghp_...
+bluetemberg source add github:acme/internal-rules:llm/rules
+bluetemberg source install
+```
+
+In GitHub Actions the built-in token is enough for repos in the same org:
+
+```yaml
+- run: npx bluetemberg source install
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+The token is read from the environment only — never from project files, and never recorded in the
+manifest or lockfile. Unauthenticated, archives come from `codeload.github.com`, which is not
+subject to the API rate limit. With a token the download goes through the REST archive endpoint
+instead (`/repos/{owner}/{repo}/tarball/{ref}`), the only documented path that works for private
+repos; it redirects to a short-lived signed URL, and the token is dropped at that cross-origin hop
+rather than being handed to the CDN.
+
+Registry credentials (`NPM_TOKEN`, `.npmrc`) are never sent to a source, and `GITHUB_TOKEN` is
+never sent to a registry. See [Private registries](Registry#private-registries) for the pack side.
+
 ## Security
 
 Repo tarballs are extracted through the same hardened path as npm packs — symlink/hardlink entries and `..` path-traversal segments are rejected (the extraction rejects cleanly rather than writing the offending entry). Downloads are size-capped and total extracted size is bounded, so a hostile or runaway archive can't fill the disk. Cache keys and filenames derived from remote input are sanitized to a single safe path segment.

@@ -11,6 +11,7 @@ vi.mock('../src/registry/client.js', () => ({
 import { githubAdapter } from '../src/sources/adapters/github.js';
 import { assertSafeTarEntry, extractTarball } from '../src/sources/tarball.js';
 import { downloadTarball } from '../src/registry/client.js';
+import type { ResolvedSource } from '../src/sources/types.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-gh-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -116,7 +117,93 @@ describe('githubAdapter.fetch', () => {
     expect(existsSync(join(tmpDir, 'rules', 'clean.mdc'))).toBe(true);
     expect(existsSync(join(tmpDir, 'README.md'))).toBe(true);
   });
+
+  it('downloads from codeload with no auth header when no token is configured', async () => {
+    vi.mocked(downloadTarball).mockImplementation(async (_url: string, destPath: string) => {
+      copyFileSync(fixtureTgz, destPath);
+      return 'sha512-fixture';
+    });
+
+    await githubAdapter.fetch(resolvedFixture(), tmpDir);
+
+    expect(downloadTarball).toHaveBeenCalledWith(
+      'https://codeload.github.com/o/r/tar.gz/deadbeef',
+      expect.any(String),
+      { headers: undefined },
+    );
+  });
+
+  it('downloads through the REST archive endpoint with a token, the only private-repo path', async () => {
+    vi.mocked(downloadTarball).mockImplementation(async (_url: string, destPath: string) => {
+      copyFileSync(fixtureTgz, destPath);
+      return 'sha512-fixture';
+    });
+
+    await githubAdapter.fetch(resolvedFixture(), tmpDir, { token: 'gh-token' });
+
+    expect(downloadTarball).toHaveBeenCalledWith(
+      'https://api.github.com/repos/o/r/tarball/deadbeef',
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer gh-token' }),
+      }),
+    );
+  });
+
+  it('routes a cursor.directory source through the same authenticated path', async () => {
+    vi.mocked(downloadTarball).mockImplementation(async (_url: string, destPath: string) => {
+      copyFileSync(fixtureTgz, destPath);
+      return 'sha512-fixture';
+    });
+
+    // cursor.directory delegates resolution to GitHub, so its resolved URL is a codeload
+    // one even though the spec carries no owner/repo.
+    await githubAdapter.fetch(
+      {
+        spec: { type: 'cursor-directory', slug: 'some-plugin' },
+        key: 'cursor-directory:some-plugin',
+        ref: 'deadbeef',
+        resolved: 'https://codeload.github.com/o/r/tar.gz/deadbeef',
+        integrity: '',
+      },
+      tmpDir,
+      { token: 'gh-token' },
+    );
+
+    expect(downloadTarball).toHaveBeenCalledWith(
+      'https://api.github.com/repos/o/r/tarball/deadbeef',
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer gh-token' }),
+      }),
+    );
+  });
+
+  it('leaves an unrecognised resolved URL alone rather than guessing an API path', async () => {
+    vi.mocked(downloadTarball).mockImplementation(async (_url: string, destPath: string) => {
+      copyFileSync(fixtureTgz, destPath);
+      return 'sha512-fixture';
+    });
+
+    const resolved = { ...resolvedFixture(), resolved: 'https://mirror.example.com/o/r.tgz' };
+    await githubAdapter.fetch(resolved, tmpDir, { token: 'gh-token' });
+
+    expect(downloadTarball).toHaveBeenCalledWith('https://mirror.example.com/o/r.tgz', expect.any(String), {
+      headers: undefined,
+    });
+  });
 });
+
+/** A resolved GitHub source pointing at the codeload archive for `o/r@deadbeef`. */
+function resolvedFixture(): ResolvedSource {
+  return {
+    spec: { type: 'github', owner: 'o', repo: 'r', ref: 'deadbeef', path: 'rules' },
+    key: 'github:o/r:rules',
+    ref: 'deadbeef',
+    resolved: 'https://codeload.github.com/o/r/tar.gz/deadbeef',
+    integrity: '',
+  };
+}
 
 describe('assertSafeTarEntry — extraction security policy', () => {
   it('rejects symlink and hardlink entries', () => {
