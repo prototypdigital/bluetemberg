@@ -1,7 +1,7 @@
 {
   "name": "bluetemberg",
   "version": "0.10.1",
-  "description": "Author AI coding rules, agents, and skills once — sync version-locked, integrity-verified config to Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.",
+  "description": "AI coding standards shipped like a dependency — version-locked, integrity-verified, signed, and routed by role and stack version. Emits AGENTS.md plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.",
   "type": "module",
   "bin": {
     "bluetemberg": "./bin/cli.js"
@@ -42,16 +42,18 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "ai",
-    "llm",
-    "cursor",
-    "claude",
+    "agents-md",
+    "ai-rules",
+    "cursor-rules",
+    "claude-code",
+    "agent-skills",
+    "supply-chain",
+    "mcp",
     "copilot",
     "gemini",
     "windsurf",
     "codex",
-    "agents",
-    "skills",
+    "llm",
     "scaffolding",
     "cli"
   ],
