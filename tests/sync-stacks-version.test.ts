@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
@@ -49,6 +49,22 @@ describe('project sync — version-aware stack gating', () => {
 
     expect(existsSync(join(root, RULE_OUT('payload-collections')))).toBe(false);
     expect(existsSync(join(root, RULE_OUT('git-workflow')))).toBe(true);
+  });
+
+  /**
+   * Pins the two `ensurePlannedDir` calls left in syncRules/syncAgents. Every other output
+   * directory in the engine is created implicitly by `commitPlannedWrite`; these two are the
+   * only ones that must exist when nothing is written into them, so an all-filtered platform
+   * reads as "nothing applies here" rather than "never synced". Delete them and this fails.
+   */
+  it('creates the target dir even when every rule is filtered out by version', async () => {
+    writeRule(root, 'payload-only', 'stacks:\n  payload: ">=3 <4"');
+
+    await sync(root, { config: configWithStacks({ payload: '2.5.0' }), silent: true });
+
+    const outDir = join(root, '.claude', 'rules');
+    expect(existsSync(outDir)).toBe(true);
+    expect(readdirSync(outDir)).toEqual([]);
   });
 
   it('applies the same rule when the detected version satisfies the range', async () => {
@@ -300,6 +316,16 @@ describe('project sync — agent & skill version gating', () => {
 
     expect(existsSync(agentOut('payload-v3-helper'))).toBe(false);
     expect(existsSync(agentOut('universal-helper'))).toBe(true);
+  });
+
+  it('creates the target dir even when every agent is filtered out by version', async () => {
+    writeAgent('payload-only', 'stacks:\n  payload: ">=3 <4"');
+
+    await sync(root, { config: configWithStacks({ payload: '2.5.0' }), silent: true });
+
+    const outDir = join(root, '.claude', 'agents');
+    expect(existsSync(outDir)).toBe(true);
+    expect(readdirSync(outDir)).toEqual([]);
   });
 
   it('applies a version-specific agent when the detected version matches', async () => {

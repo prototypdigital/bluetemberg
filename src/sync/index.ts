@@ -814,6 +814,9 @@ function syncRules(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of ruleTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
+    // Load-bearing: when every rule is filtered out by version the dir is created empty, so
+    // the platform's dir exists and reads as "nothing applies here" rather than "never
+    // synced". Dirs for files actually written are created by `commitPlannedWrite`.
     ensurePlannedDir(ctx, outDir);
 
     for (const [file, sourceDir] of merged) {
@@ -860,6 +863,9 @@ function syncAgents(ctx: SyncContext): void {
 
   for (const [, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
+    // Load-bearing: when every agent is filtered out by version the dir is created empty, so
+    // the platform's dir exists and reads as "nothing applies here" rather than "never
+    // synced". Dirs for files actually written are created by `commitPlannedWrite`.
     ensurePlannedDir(ctx, outDir);
 
     for (const [file, sourceDir] of merged) {
@@ -910,8 +916,6 @@ function syncSkills(ctx: SyncContext): void {
       try {
         const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
-        ensurePlannedDir(ctx, outDir);
-
         const content = readFileSync(srcSkill, 'utf8');
         const outPath = join(outDir, 'SKILL.md');
 
@@ -934,7 +938,6 @@ function syncCopilotInstructions(ctx: SyncContext): void {
 
   try {
     const target = join(ctx.root, '.github', 'copilot-instructions.md');
-    ensurePlannedDir(ctx, join(ctx.root, '.github'));
     // Strip the Codex rules block — Copilot gets scoped rules via .github/instructions/ already.
     const content = stripManagedBlock(readFileSync(agentsMd, 'utf8'), AGENTS_RULES_MARKERS);
 

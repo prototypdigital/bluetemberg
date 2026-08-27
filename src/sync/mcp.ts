@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Platform } from '../types.js';
 import { BUILTIN_MCP_SERVERS, parseLlmMcpServerList } from '../mcp/registry.js';
 import type { SyncSink } from './pipeline.js';
-import { commitPlannedWrite, ensurePlannedDir } from './pipeline.js';
+import { commitPlannedWrite } from './pipeline.js';
 
 export interface McpSyncContext extends SyncSink {
   sourceBase: string;
@@ -49,21 +49,18 @@ export function syncMcp(ctx: McpSyncContext, recordError: (message: string) => v
 
   if (ctx.platforms.includes('claude')) {
     const body = `${JSON.stringify({ mcpServers: configs }, null, 2)}\n`;
-    ensurePlannedDir(ctx, join(ctx.root, '.claude'));
     commitPlannedWrite(ctx, claudeOut, body);
     wrote++;
   }
 
   if (ctx.platforms.includes('copilot')) {
     const body = `${JSON.stringify({ servers: configs }, null, 2)}\n`;
-    ensurePlannedDir(ctx, join(ctx.root, '.github'));
     commitPlannedWrite(ctx, copilotOut, body);
     wrote++;
   }
 
   if (ctx.platforms.includes('cursor')) {
     const body = `${JSON.stringify({ mcpServers: configs }, null, 2)}\n`;
-    ensurePlannedDir(ctx, join(ctx.root, '.cursor'));
     commitPlannedWrite(ctx, cursorOut, body);
     wrote++;
   }

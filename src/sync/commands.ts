@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Platform } from '../types.js';
 import { listFiles } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
-import { commitPlannedWrite, ensurePlannedDir } from './pipeline.js';
+import { commitPlannedWrite } from './pipeline.js';
 
 export interface CommandsSyncContext extends SyncSink {
   sourceBase: string;
@@ -19,7 +19,6 @@ export function syncCommands(ctx: CommandsSyncContext, recordError: (message: st
 
   ctx.log(`Commands: ${files.length} source file(s)`);
   const outDir = join(ctx.root, '.claude', 'commands');
-  ensurePlannedDir(ctx, outDir);
 
   for (const file of files) {
     try {

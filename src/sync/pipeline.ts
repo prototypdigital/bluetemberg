@@ -21,8 +21,14 @@ export interface SyncSink {
  * `sync --check` is a read-only drift gate: it must report what would change without touching the
  * working tree. Directory creation is the one write that bypasses {@link commitPlannedWrite}, so
  * every adapter that pre-creates an output directory must route it through here rather than
- * calling `ensureDir` directly. In write mode this is only needed for directories that may end up
- * empty — `commitPlannedWrite` already creates the parent of every file it writes.
+ * calling `ensureDir` directly (ESLint enforces this for `src/sync/**`).
+ *
+ * In write mode this is only needed for a directory that may end up **empty** —
+ * `commitPlannedWrite` already creates the parent of every file it writes. The engine therefore
+ * calls it in exactly four places (rule and agent target dirs, which survive an all-filtered
+ * version gate, and a plugin's `skills/`/`agents/`, which survive a plugin matching neither);
+ * each is covered by a test that fails if it is removed. If you are adding a fifth, check first
+ * that a `commitPlannedWrite` into that directory does not already cover you.
  */
 export function ensurePlannedDir(sink: Pick<SyncSink, 'checkMode'>, dirPath: string): void {
   if (sink.checkMode) return;
