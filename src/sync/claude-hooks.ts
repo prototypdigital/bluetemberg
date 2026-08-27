@@ -51,9 +51,7 @@ const EXPECTED_SHAPE =
   'expected { "hooks": { "<Event>": [ { "matcher"?: string, "hooks": [ { "type": "command", "command": string, "timeout"?: number } ] } ] } }';
 
 type ManifestResult =
-  | { status: 'absent' }
-  | { status: 'invalid' }
-  | { status: 'ok'; hooks: ClaudeHooksSection };
+  { status: 'absent' } | { status: 'invalid' } | { status: 'ok'; hooks: ClaudeHooksSection };
 
 function isWhitelistedEvent(event: string): boolean {
   return (CLAUDE_HOOK_EVENTS as readonly string[]).includes(event);
