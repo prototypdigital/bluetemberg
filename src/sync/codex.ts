@@ -1,4 +1,4 @@
-import { join, basename } from 'node:path';
+import { join, basename, relative } from 'node:path';
 import matter from 'gray-matter';
 import { stringify as tomlStringify } from 'smol-toml';
 import type { Platform } from '../types.js';
@@ -9,6 +9,7 @@ import { mergeSourceFiles } from './extends-loader.js';
 import { BUILTIN_MCP_SERVERS, parseLlmMcpServerList } from '../mcp/registry.js';
 import type { McpServerConfig } from '../mcp/registry.js';
 import { AGENTS_RULES_MARKERS, CODEX_MCP_MARKERS, injectManagedBlock } from './managed-block.js';
+import type { BlockMarkers } from './managed-block.js';
 
 // Codex has no per-file rule API; see Architecture.md "Special sync" for the full design.
 export interface CodexSyncContext extends SyncSink {
@@ -60,6 +61,27 @@ function getSafeRulesBlock(ctx: CodexSyncContext, recordError: (message: string)
 }
 
 /**
+ * Injects the block, or records a diagnostic and returns `null` when the target file's markers are
+ * malformed. Skipping (rather than guessing) keeps a hand-broken block from growing on every run;
+ * the recorded error names the file and fails `sync` / `sync --check`.
+ */
+function injectOrRecord(
+  ctx: CodexSyncContext,
+  filePath: string,
+  existing: string | null,
+  inner: string,
+  markers: BlockMarkers,
+  recordError: (message: string) => void,
+): string | null {
+  try {
+    return injectManagedBlock(existing, inner, markers, relative(ctx.root, filePath));
+  } catch (err) {
+    recordError(err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+/**
  * Folds `llm/rules/` into a managed block in the root `AGENTS.md`, preserving hand-authored content.
  */
 export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: string) => void): void {
@@ -75,7 +97,8 @@ export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: str
     return;
   }
 
-  const output = injectManagedBlock(existing, block, AGENTS_RULES_MARKERS);
+  const output = injectOrRecord(ctx, agentsPath, existing, block, AGENTS_RULES_MARKERS, recordError);
+  if (output === null) return;
   if (output.length === 0 && existing === null) return;
 
   commitPlannedWrite(ctx, agentsPath, output);
@@ -201,7 +224,8 @@ export function syncCodexConfig(ctx: CodexSyncContext, recordError: (message: st
     return;
   }
 
-  const output = injectManagedBlock(existing, inner, CODEX_MCP_MARKERS);
+  const output = injectOrRecord(ctx, configPath, existing, inner, CODEX_MCP_MARKERS, recordError);
+  if (output === null) return;
   if (output.length === 0 && existing === null) return;
 
   if (!ctx.checkMode) ensureDir(join(ctx.root, '.codex'));

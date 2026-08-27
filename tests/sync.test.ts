@@ -2207,6 +2207,72 @@ describe('codex sync', () => {
     expect(readFileSync(join(root, 'GEMINI.md'), 'utf8')).not.toContain('BEGIN BLUETEMBERG MANAGED RULES');
   });
 
+  it('refuses to sync an AGENTS.md with an unpaired end marker, instead of appending forever', async () => {
+    const broken = '# My file\n\n<!-- END BLUETEMBERG MANAGED RULES -->\n';
+    writeFileSync(join(root, 'AGENTS.md'), broken);
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+
+    const first = await sync(root, { config, silent: true });
+    expect(first.errors).toHaveLength(1);
+    expect(first.errors[0]).toContain('AGENTS.md');
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(broken);
+
+    // The old behaviour appended a fresh block on every pass; the file must not grow.
+    const second = await sync(root, { config, silent: true });
+    expect(second.errors).toHaveLength(1);
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(broken);
+  });
+
+  it('collapses duplicated rules blocks so --check converges', async () => {
+    const dup = [
+      '# My file',
+      '',
+      '<!-- BEGIN BLUETEMBERG MANAGED RULES -->',
+      'stale a',
+      '<!-- END BLUETEMBERG MANAGED RULES -->',
+      '',
+      'Hand-authored middle.',
+      '',
+      '<!-- BEGIN BLUETEMBERG MANAGED RULES -->',
+      'stale b',
+      '<!-- END BLUETEMBERG MANAGED RULES -->',
+      '',
+    ].join('\n');
+    writeFileSync(join(root, 'AGENTS.md'), dup);
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+    expect(results.errors).toHaveLength(0);
+
+    const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+    expect(agents.match(/BEGIN BLUETEMBERG MANAGED RULES/g)).toHaveLength(1);
+    expect(agents).toContain('Hand-authored middle.');
+    expect(agents).not.toContain('stale a');
+    expect(agents).not.toContain('stale b');
+
+    const check = await sync(root, { check: true, config, silent: true });
+    expect(check.outOfSync).toBe(0);
+  });
+
+  it('reports a malformed .codex/config.toml MCP block instead of duplicating it', async () => {
+    mkdirSync(join(root, '.codex'), { recursive: true });
+    const broken = 'model = "gpt-5"\n\n# END BLUETEMBERG MANAGED MCP SERVERS\n';
+    writeFileSync(join(root, '.codex', 'config.toml'), broken);
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('config.toml'))).toBe(true);
+    expect(readFileSync(join(root, '.codex', 'config.toml'), 'utf8')).toBe(broken);
+  });
+
   it('does not write Codex outputs when codex is not in platforms', async () => {
     writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
