@@ -20,6 +20,13 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.12.2](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.1...bluetemberg-v0.12.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **stacks:** make coverage version-aware instead of a name-level boolean ([bdf5a10](https://github.com/prototypdigital/bluetemberg/commit/bdf5a10035d2380984d5bfe53f61a2a8c020cddb))
+
 ## [0.12.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.0...bluetemberg-v0.12.1) (2026-08-27)
 
 
