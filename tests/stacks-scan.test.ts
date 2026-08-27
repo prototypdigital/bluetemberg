@@ -54,6 +54,28 @@ const PAYLOAD_PACK = {
   preview: '',
 };
 
+/** A catalog pack whose content is version-bounded — the version-precise coverage case. */
+const REACT_PACK = {
+  name: 'bluetemberg-rules-react',
+  version: '0.1.0',
+  description: '',
+  kind: 'rules',
+  universal: false,
+  profiles: [],
+  stacks: ['react'],
+  rules: ['effects-r18'],
+  preview: '',
+};
+
+/** Write a rule into the catalog root's own source dir, optionally with a `stacks:` constraint. */
+function writeRule(root: string, name: string, stacks?: string): void {
+  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+  const frontmatter = stacks
+    ? `---\ndescription: r\nstacks:\n  ${stacks}\n---\n`
+    : '---\ndescription: r\n---\n';
+  writeFileSync(join(root, 'llm', 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
+}
+
 function writeCatalog(root: string, packs: unknown[]): void {
   mkdirSync(join(root, '.bluetemberg'), { recursive: true });
   writeFileSync(
@@ -142,6 +164,30 @@ describe('buildScanReport — aggregation + gaps', () => {
     expect(report.gaps).toEqual([{ stack: 'nextjs', version: '14.2.0', count: 2, reason: 'no-coverage' }]);
     const payload = report.histogram.find((h) => h.stack === 'payload');
     expect(payload?.versions[0].covered).toBe(true);
+  });
+
+  it('reports a version-uncovered gap when the catalog root only covers other versions', () => {
+    // The maintainer question this command exists to answer: "we ship react rules, but only for
+    // 18 — how many repos have moved to 19?" Coverage reads the range off the guidance itself.
+    writeCatalog(workdir, [REACT_PACK]);
+    writeRule(workdir, 'effects-r18', 'react: ">=18 <19"');
+    const a = repo('a');
+    const b = repo('b');
+    writeNodeModules(a, 'react', '19.0.0');
+    writeNodeModules(b, 'react', '18.3.1');
+    writeManifest(a, { react: '19' });
+    writeManifest(b, { react: '18' });
+
+    const report = buildScanReport([a, b], workdir);
+    expect(report.gaps).toEqual([
+      { stack: 'react', version: '19.0.0', count: 1, reason: 'version-uncovered' },
+    ]);
+    const react = report.histogram.find((h) => h.stack === 'react');
+    expect(react?.versions.find((v) => v.version === '18.3.1')).toMatchObject({
+      covered: true,
+      matchedRange: '>=18 <19',
+      reason: null,
+    });
   });
 
   it('counts repos with no detectable stacks as empty, not scanned-with-stacks', () => {

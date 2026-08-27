@@ -2,8 +2,10 @@ import { basename } from 'node:path';
 import { coerce, rcompare } from 'semver';
 import { loadCatalogSync } from '../catalog/index.js';
 import { loadConfig } from '../sync/index.js';
+import { collectDeclaredRanges } from './declared.js';
 import { detectStacks, detectStacksFromManifests } from './detect.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
+import type { CoverageGapReason } from './registry.js';
 import { GithubFetchError, fetchOrgRepos, fetchRepoManifests, type SkipReason } from './github.js';
 import type { DetectedStacks, DetectionConfidence } from './match.js';
 
@@ -13,7 +15,12 @@ import type { DetectedStacks, DetectionConfidence } from './match.js';
  * MAINTAINER tooling, not an end-developer command: it answers "which version-eras are worth
  * authoring rules for?" by scanning N repos with the SAME detection that gates rules at sync
  * (reuses {@link detectStacks} / {@link detectStacksFromManifests} — no new detection logic),
- * folding into a `(stack, version) → count` histogram, and ranking uncovered buckets vs the catalog.
+ * folding into a `(stack, version) → count` histogram, and ranking uncovered buckets vs coverage.
+ *
+ * Coverage is version-aware: it reads the `stacks:` ranges declared by the guidance available at
+ * the catalog root (installed packs and its own source dir), falling back to the catalog's
+ * name-level pack tags only for stacks nothing declares a range for. That is what makes
+ * "we ship react rules, but only for 18, and 12 repos moved to 19" expressible.
  *
  * Two sources, one report shape:
  *   - LOCAL: filesystem paths to cloned repos (node_modules → lockfile → coerced; highest confidence).
@@ -52,6 +59,8 @@ export interface VersionBucket {
   confidence: DetectionConfidence;
   covered: boolean;
   matchedRange: string | null;
+  /** Why this bucket is uncovered, when `covered` is false; `null` when covered. */
+  reason: CoverageGapReason | null;
 }
 
 export interface StackHistogramEntry {
@@ -66,7 +75,7 @@ export interface ScanGap {
   stack: string;
   version: string;
   count: number;
-  reason: 'version-uncovered' | 'no-coverage';
+  reason: CoverageGapReason;
 }
 
 /** A remote repo that could not be read; recorded rather than aborting the whole scan. */
@@ -169,7 +178,16 @@ function foldUnits(units: DetectionUnit[]): {
 /** Build the histogram + ranked gap list from folded units (the shared local/remote core). */
 function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot?: string): ScanReport {
   const { acc, empty } = foldUnits(units);
-  const registry = buildStackRegistry(loadCatalogSync(catalogRoot ?? '.'));
+  // The registry is the SUPPLY side (what the maintainer's catalog + installed packs cover); the
+  // scanned repos are the DEMAND side, so their detections are deliberately NOT registered here —
+  // registering them would mark every scanned stack "known" and mask the `no-coverage` reason.
+  const root = catalogRoot ?? '.';
+  const catalog = loadCatalogSync(root);
+  const registry = buildStackRegistry(
+    catalog,
+    undefined,
+    collectDeclaredRanges(root, loadConfig(root), catalog),
+  );
 
   const histogram: StackHistogramEntry[] = [];
   const gaps: ScanGap[] = [];
@@ -187,14 +205,10 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
         confidence: bucket.confidence,
         covered: cov.covered,
         matchedRange: cov.matchedRange ?? null,
+        reason: cov.reason ?? null,
       });
       if (!cov.covered) {
-        gaps.push({
-          stack,
-          version,
-          count: bucket.count,
-          reason: cov.known ? 'version-uncovered' : 'no-coverage',
-        });
+        gaps.push({ stack, version, count: bucket.count, reason: cov.reason ?? 'no-coverage' });
       }
     }
     versions.sort((a, b) => b.count - a.count || compareVersionsDesc(a.version, b.version));
@@ -281,7 +295,7 @@ const CONFIDENCE_MARK: Record<DetectionConfidence, string> = {
 };
 
 function describeCoverage(bucket: VersionBucket): string {
-  if (!bucket.covered) return 'GAP';
+  if (!bucket.covered) return `GAP (${bucket.reason ?? 'no-coverage'})`;
   if (!bucket.matchedRange || bucket.matchedRange === '*') return 'covered (name-level)';
   return `covered (${bucket.matchedRange})`;
 }

@@ -6,6 +6,11 @@ import {
   registerStack,
   queryCoverage,
 } from '../src/stacks/registry.js';
+import type { DeclaredRange } from '../src/stacks/declared.js';
+
+function declared(stack: string, range: string, origin: 'local' | 'catalog' = 'catalog'): DeclaredRange {
+  return { stack, range, origin, from: `rules/${stack}-${range}` };
+}
 
 function catalogWith(packs: Array<{ name: string; stacks?: string[] }>): Catalog {
   return {
@@ -34,6 +39,44 @@ describe('buildStackRegistry', () => {
     const reg = buildStackRegistry(catalogWith([{ name: 'rules-git' }]));
     expect(reg.size).toBe(0);
   });
+
+  it('takes the version ranges declared by available guidance', () => {
+    const reg = buildStackRegistry(catalogWith([]), undefined, [
+      declared('react', '>=18 <19'),
+      declared('react', '>=19'),
+    ]);
+    expect(reg.get('react')?.coveredRanges).toEqual(['>=18 <19', '>=19']);
+  });
+
+  it('drops the name-level wildcard for a stack whose ranges are declared', () => {
+    // Otherwise `*` satisfies every version and coverage collapses back into a name-level boolean.
+    const reg = buildStackRegistry(catalogWith([{ name: 'rules-react', stacks: ['react'] }]), undefined, [
+      declared('react', '>=18 <19'),
+    ]);
+    expect(reg.get('react')?.coveredRanges).toEqual(['>=18 <19']);
+    expect(queryCoverage(reg, 'react', '19.0.0')).toMatchObject({
+      covered: false,
+      reason: 'version-uncovered',
+    });
+  });
+
+  it('keeps the name-level wildcard for a catalog stack nothing declares a range for', () => {
+    const reg = buildStackRegistry(
+      catalogWith([
+        { name: 'rules-react', stacks: ['react'] },
+        { name: 'rules-payload', stacks: ['payload'] },
+      ]),
+      undefined,
+      [declared('react', '>=18 <19')],
+    );
+    expect(reg.get('payload')?.coveredRanges).toEqual(['*']);
+    expect(queryCoverage(reg, 'payload', '2.0.0')).toMatchObject({ covered: true, matchedRange: '*' });
+  });
+
+  it('records where a declared range came from', () => {
+    const reg = buildStackRegistry(catalogWith([]), undefined, [declared('react', '>=19', 'local')]);
+    expect(queryCoverage(reg, 'react', '19.1.0').origins).toEqual(['local']);
+  });
 });
 
 describe('queryCoverage', () => {
@@ -56,10 +99,28 @@ describe('queryCoverage', () => {
     expect(covered.matchedRange).toBe('>=3 <4'); // narrower wins over '*'
   });
 
-  it('reports version-uncovered when no range satisfies', () => {
+  it('reports version-uncovered when the stack is covered but no range satisfies', () => {
     const reg = buildStackRegistry(catalogWith([]));
     addCoverageRange(reg, 'payload', '>=3 <4');
-    expect(queryCoverage(reg, 'payload', '2.30.0')).toMatchObject({ known: true, covered: false });
+    expect(queryCoverage(reg, 'payload', '2.30.0')).toMatchObject({
+      known: true,
+      covered: false,
+      reason: 'version-uncovered',
+    });
+  });
+
+  it('reports no-coverage when nothing targets the stack at all', () => {
+    const reg = buildStackRegistry(catalogWith([]));
+    registerStack(reg, 'astro', '4.0.0', 'detected');
+    // The stack is "known" (detection put it there) but nothing covers it — the reason must come
+    // from the covered ranges, not from registry membership.
+    expect(queryCoverage(reg, 'astro', '4.0.0')).toMatchObject({
+      known: true,
+      covered: false,
+      reason: 'no-coverage',
+    });
+    expect(queryCoverage(reg, 'astro')).toMatchObject({ covered: false, reason: 'no-coverage' });
+    expect(queryCoverage(reg, 'cobol', '85')).toMatchObject({ known: false, reason: 'no-coverage' });
   });
 
   it('merges locally registered + detected origins', () => {

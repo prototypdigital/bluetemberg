@@ -38,7 +38,9 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
     name: 'bluetemberg_query_coverage',
     description:
       'Ask whether version-correct guidance exists for a stack. Returns { query, result } with ' +
-      '`known`, `covered`, and the most-specific matched range.',
+      '`known`, `covered`, the most-specific matched range, and — when uncovered — a `reason` ' +
+      '(`version-uncovered` = guidance exists but not for this version; `no-coverage` = nothing ' +
+      'targets this stack).',
     inputSchema: {
       type: 'object',
       properties: {

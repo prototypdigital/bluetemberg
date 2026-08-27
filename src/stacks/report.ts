@@ -1,9 +1,10 @@
 import { loadCatalogSync } from '../catalog/index.js';
 import { loadConfig } from '../sync/index.js';
+import { collectDeclaredRanges } from './declared.js';
 import { detectStacks } from './detect.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
-import type { DetectionConfidence } from './match.js';
-import type { StackOrigin } from './registry.js';
+import type { DetectedStacks, DetectionConfidence } from './match.js';
+import type { CoverageGapReason, StackOrigin, StackRegistry } from './registry.js';
 
 /**
  * Agent-facing `detect` + `coverage` reports (Stacks epic §4.1–4.2). These are the read surface of
@@ -17,6 +18,8 @@ interface CoverageSummary {
   known: boolean;
   covered: boolean;
   matchedRange: string | null;
+  /** Why coverage is missing, when `covered` is false; `null` when covered. */
+  reason: CoverageGapReason | null;
 }
 
 export interface DetectedReportEntry {
@@ -29,7 +32,7 @@ export interface DetectedReportEntry {
 
 export interface DetectReport {
   detected: DetectedReportEntry[];
-  gaps: Array<{ stack: string; resolvedVersion: string; reason: 'version-uncovered' | 'no-coverage' }>;
+  gaps: Array<{ stack: string; resolvedVersion: string; reason: CoverageGapReason }>;
   warnings: Array<{ stack: string; level: 'low-confidence'; message: string }>;
 }
 
@@ -39,6 +42,8 @@ export interface CoverageReport {
     known: boolean;
     covered: boolean;
     matchedRange: string | null;
+    /** Why coverage is missing, when `covered` is false; `null` when covered. */
+    reason: CoverageGapReason | null;
     coveredRanges: string[];
     origins: StackOrigin[];
   };
@@ -72,21 +77,33 @@ function isLowConfidence(confidence: DetectionConfidence): boolean {
 }
 
 /**
- * Human-readable coverage label. A `*` match is name-level (a pack targets the stack, any version);
- * say so plainly rather than implying version-precise coverage we do not yet model. A concrete
- * matched range is version-precise.
+ * Human-readable coverage label. A `*` match is name-level (a catalogued pack targets the stack but
+ * declares no version range); say so plainly rather than implying version-precise coverage. A
+ * concrete matched range is version-precise, and a gap names why it is uncovered.
  */
 function describeCoverage(cov: CoverageSummary): string {
-  if (!cov.covered) return cov.known ? 'gap: version-uncovered' : 'gap: no coverage';
+  if (!cov.covered) return cov.reason === 'version-uncovered' ? 'gap: version-uncovered' : 'gap: no coverage';
   if (!cov.matchedRange || cov.matchedRange === '*') return 'covered (name-level)';
   return `covered (${cov.matchedRange})`;
 }
 
-/** Build the detect report (pure — no I/O beyond reading the project). Exposed for testing. */
-export function buildDetectReport(root: string): DetectReport {
+/**
+ * The project's coverage registry: catalog pack names, the version ranges declared by the guidance
+ * actually available here (installed packs, `extends`, external sources, and the project's own
+ * source dir), and the stacks detection found. Shared by all three reports so they can never
+ * disagree on what is covered.
+ */
+function projectRegistry(root: string): { registry: StackRegistry; detected: DetectedStacks } {
   const config = loadConfig(root);
   const detected = detectStacks(root, config);
-  const registry = buildStackRegistry(loadCatalogSync(root), detected);
+  const catalog = loadCatalogSync(root);
+  const declared = collectDeclaredRanges(root, config, catalog);
+  return { registry: buildStackRegistry(catalog, detected, declared), detected };
+}
+
+/** Build the detect report (pure — no I/O beyond reading the project). Exposed for testing. */
+export function buildDetectReport(root: string): DetectReport {
+  const { registry, detected } = projectRegistry(root);
 
   const entries: DetectedReportEntry[] = [...detected.entries()].map(([stack, det]) => {
     const cov = queryCoverage(registry, stack, det.version);
@@ -95,7 +112,12 @@ export function buildDetectReport(root: string): DetectReport {
       resolvedVersion: det.version,
       confidence: det.confidence,
       source: det.source,
-      coverage: { known: cov.known, covered: cov.covered, matchedRange: cov.matchedRange ?? null },
+      coverage: {
+        known: cov.known,
+        covered: cov.covered,
+        matchedRange: cov.matchedRange ?? null,
+        reason: cov.reason ?? null,
+      },
     };
   });
 
@@ -104,7 +126,9 @@ export function buildDetectReport(root: string): DetectReport {
     .map((e) => ({
       stack: e.stack,
       resolvedVersion: e.resolvedVersion,
-      reason: e.coverage.known ? ('version-uncovered' as const) : ('no-coverage' as const),
+      // A detected stack is always "known" (detection put it there), so the reason must come from
+      // the covered ranges — otherwise `no-coverage` could never be reported by this command.
+      reason: e.coverage.reason ?? ('no-coverage' as const),
     }));
 
   const warnings = entries
@@ -120,8 +144,7 @@ export function buildDetectReport(root: string): DetectReport {
 
 /** Build the coverage report for one `(stack, version?)` query. Exposed for testing. */
 export function buildCoverageReport(root: string, stack: string, version?: string): CoverageReport {
-  const detected = detectStacks(root, loadConfig(root));
-  const registry = buildStackRegistry(loadCatalogSync(root), detected);
+  const { registry } = projectRegistry(root);
   const result = queryCoverage(registry, stack, version);
   const entry = registry.get(stack);
   return {
@@ -130,6 +153,7 @@ export function buildCoverageReport(root: string, stack: string, version?: strin
       known: result.known,
       covered: result.covered,
       matchedRange: result.matchedRange ?? null,
+      reason: result.reason ?? null,
       coveredRanges: entry?.coveredRanges ?? [],
       origins: result.origins,
     },
@@ -153,8 +177,7 @@ export interface StackListEntry {
  * `list_stacks` tool.
  */
 export function buildStacksList(root: string): StackListEntry[] {
-  const detected = detectStacks(root, loadConfig(root));
-  const registry = buildStackRegistry(loadCatalogSync(root), detected);
+  const { registry } = projectRegistry(root);
   return [...registry.values()].map((entry) => ({
     name: entry.name,
     origins: [...entry.origins],
@@ -191,7 +214,7 @@ function printCoverageHuman(report: CoverageReport, log: (msg: string) => void):
   }
   const matched = report.result.matchedRange;
   const status = !report.result.covered
-    ? 'NOT covered (gap)'
+    ? `NOT covered (gap: ${report.result.reason ?? 'no-coverage'})`
     : !matched || matched === '*'
       ? 'covered (name-level — a pack targets this stack)'
       : `covered (matched ${matched})`;

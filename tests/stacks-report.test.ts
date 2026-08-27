@@ -25,6 +25,15 @@ function writeCatalog(root: string, packs: unknown[]): void {
   );
 }
 
+/** Write a rule into the project source dir, optionally with a `stacks:` constraint. */
+function writeRule(root: string, name: string, stacks?: string): void {
+  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+  const frontmatter = stacks
+    ? `---\ndescription: r\nstacks:\n  ${stacks}\n---\n`
+    : '---\ndescription: r\n---\n';
+  writeFileSync(join(root, 'llm', 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
+}
+
 const PAYLOAD_PACK = {
   name: 'bluetemberg-rules-payload',
   version: '0.1.0',
@@ -34,6 +43,18 @@ const PAYLOAD_PACK = {
   profiles: [],
   stacks: ['payload'],
   rules: ['payload-thing'],
+  preview: '',
+};
+
+const REACT_PACK = {
+  name: 'bluetemberg-rules-react',
+  version: '0.1.0',
+  description: '',
+  kind: 'rules',
+  universal: false,
+  profiles: [],
+  stacks: ['react'],
+  rules: ['effects-r18'],
   preview: '',
 };
 
@@ -56,7 +77,7 @@ describe('buildDetectReport', () => {
     expect(report.warnings).toEqual([]);
   });
 
-  it('lists a detected stack with no covering pack as a gap', () => {
+  it('lists a detected stack with no covering pack as a no-coverage gap', () => {
     writeConfig(root, { nextjs: '15.2.0' });
     writeCatalog(root, [PAYLOAD_PACK]); // catalog covers payload, not nextjs
 
@@ -64,7 +85,35 @@ describe('buildDetectReport', () => {
     expect(report.gaps).toContainEqual({
       stack: 'nextjs',
       resolvedVersion: '15.2.0',
+      reason: 'no-coverage',
+    });
+  });
+
+  it('lists a detected stack whose covered ranges miss its version as a version-uncovered gap', () => {
+    // The motivating case: react guidance exists, but only for 18 — a react 19 project is a gap.
+    writeConfig(root, { react: '19.0.0' });
+    writeCatalog(root, [REACT_PACK]);
+    writeRule(root, 'effects-r18', 'react: ">=18 <19"');
+
+    const report = buildDetectReport(root);
+    expect(report.gaps).toContainEqual({
+      stack: 'react',
+      resolvedVersion: '19.0.0',
       reason: 'version-uncovered',
+    });
+  });
+
+  it('covers a version that a declared range does satisfy', () => {
+    writeConfig(root, { react: '18.3.0' });
+    writeCatalog(root, [REACT_PACK]);
+    writeRule(root, 'effects-r18', 'react: ">=18 <19"');
+
+    const report = buildDetectReport(root);
+    expect(report.gaps).toEqual([]);
+    expect(report.detected.find((e) => e.stack === 'react')?.coverage).toMatchObject({
+      covered: true,
+      matchedRange: '>=18 <19',
+      reason: null,
     });
   });
 
@@ -114,5 +163,20 @@ describe('buildCoverageReport', () => {
     const report = buildCoverageReport(root, 'cobol');
     expect(report.result.known).toBe(false);
     expect(report.result.covered).toBe(false);
+    expect(report.result.reason).toBe('no-coverage');
+  });
+
+  it('answers version-uncovered against the ranges the available guidance declares', () => {
+    writeConfig(root);
+    writeCatalog(root, [REACT_PACK]);
+    writeRule(root, 'effects-r18', 'react: ">=18 <19"');
+
+    const report = buildCoverageReport(root, 'react', '19.0.0');
+    expect(report.result).toMatchObject({
+      known: true,
+      covered: false,
+      reason: 'version-uncovered',
+      coveredRanges: ['>=18 <19'],
+    });
   });
 });
