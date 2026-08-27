@@ -409,8 +409,11 @@ per-repository:
 ```
 
 Commit `llm/packages.json`; **never** commit an `.npmrc` that contains a literal token. Keep the
-token in the environment and reference it with `${VAR}`. Any bluetemberg command that touches
-your `.gitignore` adds `.npmrc` to it, so a new one cannot be committed by accident.
+token in the environment and reference it with `${VAR}`. Once your project `.npmrc` holds a
+credential key (`_authToken`, `_auth`, `_password` — a `${VAR}` reference counts), any
+bluetemberg command that touches your `.gitignore` adds `.npmrc` to it, so a token cannot be
+committed by accident. A tokenless `.npmrc` (`registry=`, scope mappings) is left alone — many
+projects commit one deliberately.
 
 ### Where credentials are sent
 
@@ -419,7 +422,10 @@ manifest — for metadata, search, the signing-keys endpoint, and the tarball do
 
 - A tarball served from a **different** host than the registry never receives the credential.
   Such a download is refused outright unless you pass `--allow-external-tarball-host`; even then
-  the request goes out unauthenticated.
+  the request goes out unauthenticated. The same rule is re-checked against the tarball URL
+  itself: a tarball on the registry's hostname but a different port, or over plain `http:`, is
+  also fetched without the credential — registry metadata cannot downgrade the transport the
+  token travels over.
 - Unlike the `.npmrc` forms, `NPM_TOKEN`/`NODE_AUTH_TOKEN` carry no host of their own. Because
   `llm/packages.json` is a committed file, a bare env token is applied **only** to
   `registry.npmjs.org` or to the registry named by `$NPM_CONFIG_REGISTRY` — otherwise cloning
@@ -454,9 +460,11 @@ bluetemberg update --skip-signature-verification
 bluetemberg verify --skip-signature-verification
 ```
 
-SHA-512 integrity is still enforced on every download. The lockfile records `version` and
-`integrity` as usual and simply omits `keyid` — no signature is fabricated — so a later
-`bluetemberg verify` without the flag will correctly report the pack as unsigned.
+SHA-512 integrity is still enforced on every download. Every install that skips the check says
+so with a warning line, so a CI transcript shows the weakened guarantee at the moment it was
+used. The lockfile records `version` and `integrity` as usual and simply omits `keyid` — no
+signature is fabricated — so a later `bluetemberg verify` without the flag will correctly report
+the pack as unsigned.
 
 ### Discovery
 

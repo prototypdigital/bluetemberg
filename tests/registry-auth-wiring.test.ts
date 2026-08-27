@@ -154,6 +154,44 @@ describe('credential transmission', () => {
     warn.mockRestore();
   });
 
+  /**
+   * Host pinning compares hostnames only, so an https registry's metadata could point
+   * the tarball at plain http on the same hostname. The transport rule is re-checked
+   * against the tarball URL itself — metadata must not be able to downgrade the
+   * credential onto cleartext.
+   */
+  it('withholds the credential from a plaintext http tarball on the registry hostname', async () => {
+    writeRootNpmrc('//private.registry.test/:_authToken=reg-token\n');
+    const { seen, fn } = recordingFetch();
+    globalThis.fetch = fn;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const tarball = 'http://private.registry.test/private-pack/-/private-pack-1.0.0.tgz';
+    await installPackVersion(root, metadataFor(tarball), '1.0.0', {
+      registryUrl: REGISTRY,
+      skipSignatureVerification: true,
+    });
+
+    expect(seen.get(tarball)).toBeUndefined();
+    warn.mockRestore();
+  });
+
+  it('withholds the credential from a tarball on a different port of the registry host', async () => {
+    writeRootNpmrc('//private.registry.test/:_authToken=reg-token\n');
+    const { seen, fn } = recordingFetch();
+    globalThis.fetch = fn;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const tarball = 'https://private.registry.test:8443/private-pack/-/private-pack-1.0.0.tgz';
+    await installPackVersion(root, metadataFor(tarball), '1.0.0', {
+      registryUrl: REGISTRY,
+      skipSignatureVerification: true,
+    });
+
+    expect(seen.get(tarball)).toBeUndefined();
+    warn.mockRestore();
+  });
+
   it('never sends a bare env token to a tarball host outside the registry', async () => {
     process.env.NPM_TOKEN = 'env-token';
     process.env.NPM_CONFIG_REGISTRY = REGISTRY;

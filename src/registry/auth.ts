@@ -181,9 +181,17 @@ function sameHost(registry: URL, other: string): boolean {
   }
 }
 
-function transportAllowsCredentials(registry: URL): boolean {
-  if (registry.protocol === 'https:') return true;
-  if (LOOPBACK_HOSTS.has(registry.hostname)) return true;
+/**
+ * Whether a URL's transport may carry a credential: https always; plain http only to
+ * loopback (the request never leaves the machine) or with the explicit
+ * `BLUETEMBERG_ALLOW_INSECURE_REGISTRY_AUTH=1` opt-in. Applied to the registry URL when
+ * resolving, and re-checked by the installer against the tarball URL itself — the
+ * registry chooses that URL, and its metadata must not be able to downgrade the
+ * transport a credential travels over.
+ */
+export function transportAllowsCredentials(url: URL): boolean {
+  if (url.protocol === 'https:') return true;
+  if (LOOPBACK_HOSTS.has(url.hostname)) return true;
   return process.env[INSECURE_AUTH_ENV] === '1';
 }
 

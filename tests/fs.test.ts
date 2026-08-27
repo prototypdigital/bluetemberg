@@ -215,23 +215,54 @@ describe('ensureGitignore', () => {
     expect(existsSync(join(dir, '.gitignore'))).toBe(false);
   });
 
-  /**
-   * `.npmrc` is where the docs tell users to put registry credentials, so the project
-   * that manages their .gitignore has to ignore it — an accidentally committed token is
-   * the most expensive mistake this tool can invite.
-   */
-  it('ignores both the cache and .npmrc', () => {
+  it('always ignores the cache', () => {
     writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
     ensureGitignore(dir);
 
     const content = read();
     expect(content).toContain('node_modules/');
     expect(content).toContain('.bluetemberg/');
+  });
+
+  /**
+   * `.npmrc` is where the docs tell users to put registry credentials, so once it holds
+   * a credential key the project that manages their .gitignore has to ignore it — an
+   * accidentally committed token is the most expensive mistake this tool can invite.
+   * A `${VAR}` reference counts: that file is where a literal token would land later.
+   */
+  it('ignores .npmrc once it holds a credential key', () => {
+    writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
+    writeFileSync(join(dir, '.npmrc'), '//npm.acme.test/:_authToken=${NPM_TOKEN}\n');
+    ensureGitignore(dir);
+
+    const content = read();
+    expect(content).toContain('.bluetemberg/');
     expect(content).toContain('.npmrc');
+  });
+
+  /**
+   * A tokenless `.npmrc` (registry pointer, scope mappings, save-exact) is a file many
+   * projects commit deliberately — blanket-ignoring it would silently hide a new one
+   * and produce registry drift nobody traces back to this tool.
+   */
+  it('leaves a tokenless .npmrc committable', () => {
+    writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
+    writeFileSync(join(dir, '.npmrc'), 'registry=https://npm.acme.test\nsave-exact=true\n');
+    ensureGitignore(dir);
+
+    expect(read()).not.toContain('.npmrc');
+  });
+
+  it('does not ignore .npmrc when the project has none', () => {
+    writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
+    ensureGitignore(dir);
+
+    expect(read()).not.toContain('.npmrc');
   });
 
   it('adds only what is missing, leaving an existing entry alone', () => {
     writeFileSync(join(dir, '.gitignore'), '.bluetemberg/\n');
+    writeFileSync(join(dir, '.npmrc'), '//npm.acme.test/:_authToken=${NPM_TOKEN}\n');
     ensureGitignore(dir);
 
     const content = read();
@@ -239,8 +270,25 @@ describe('ensureGitignore', () => {
     expect(content).toContain('.npmrc');
   });
 
+  it('treats a root-anchored /.npmrc line as already present', () => {
+    writeFileSync(join(dir, '.gitignore'), '.bluetemberg/\n/.npmrc\n');
+    writeFileSync(join(dir, '.npmrc'), '//npm.acme.test/:_authToken=${NPM_TOKEN}\n');
+    ensureGitignore(dir);
+
+    expect(read().match(/npmrc/g)).toHaveLength(1);
+  });
+
+  it('is not fooled by a line that merely contains the entry as a substring', () => {
+    writeFileSync(join(dir, '.gitignore'), '*.npmrc.bak\n');
+    writeFileSync(join(dir, '.npmrc'), '//npm.acme.test/:_authToken=${NPM_TOKEN}\n');
+    ensureGitignore(dir);
+
+    expect(read().match(/^\.npmrc$/gm)).toHaveLength(1);
+  });
+
   it('is idempotent', () => {
     writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
+    writeFileSync(join(dir, '.npmrc'), '//npm.acme.test/:_authToken=${NPM_TOKEN}\n');
     ensureGitignore(dir);
     const once = read();
     ensureGitignore(dir);

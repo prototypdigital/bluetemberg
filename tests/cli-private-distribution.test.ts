@@ -181,6 +181,9 @@ cliSuite('cli private pack distribution', () => {
       true,
     );
 
+    // The opt-in must leave a trace: the transcript says the check was skipped.
+    expect(r.output).toMatch(/Signature verification skipped/);
+
     // No fabricated signature: `verify` must still be able to call this unsigned.
     const lock = JSON.parse(readFileSync(join(root, 'llm', 'packages-lock.json'), 'utf8')) as {
       packages: Record<string, { integrity?: string; keyid?: string }>;

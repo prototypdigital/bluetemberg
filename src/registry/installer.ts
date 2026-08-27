@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
 import { downloadTarball, verifyIntegrity, fetchRegistryKeys, verifyRegistrySignature } from './client.js';
 import { DEFAULT_REGISTRY } from './constants.js';
-import { redactCredentials, registryAuthHeaders } from './auth.js';
+import { redactCredentials, registryAuthHeaders, transportAllowsCredentials } from './auth.js';
 import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -82,6 +82,19 @@ export function resolveVersion(metadata: NpmPackageMetadata, range: string): str
 }
 
 /**
+ * Every install that lands without a verified signature says so, loudly — a CI
+ * transcript must show the weakened guarantee at the moment it was used, not only when
+ * someone later runs `verify`. Deliberately not routed through a silenceable log sink.
+ */
+function warnSignatureSkipped(name: string, version: string, registryUrl: string): void {
+  console.warn(
+    `Warning: Signature verification skipped for "${name}@${version}" — ` +
+      `skipSignatureVerification is enabled for ${redactCredentials(registryUrl)}. ` +
+      `Integrity was still verified.`,
+  );
+}
+
+/**
  * Download and extract a specific pack version into the local cache.
  *
  * Steps:
@@ -115,20 +128,22 @@ export async function installPackVersion(
 
   // Validate the tarball host matches the configured registry to prevent a
   // compromised registry response from redirecting downloads to an attacker-controlled host.
-  let registryHost: string;
+  let registryParsed: URL;
   try {
-    registryHost = new URL(registryUrl).hostname;
+    registryParsed = new URL(registryUrl);
   } catch {
     throw new Error(`Invalid registry URL: ${redactCredentials(registryUrl)}`);
   }
-  let tarballHost: string;
+  let tarballParsed: URL;
   try {
-    tarballHost = new URL(tarballUrl).hostname;
+    tarballParsed = new URL(tarballUrl);
   } catch {
     throw new Error(
       `Invalid tarball URL in registry metadata for "${metadata.name}@${version}": ${tarballUrl}`,
     );
   }
+  const registryHost = registryParsed.hostname;
+  const tarballHost = tarballParsed.hostname;
   const tarballOnRegistryHost = tarballHost === registryHost;
   if (!tarballOnRegistryHost) {
     if (options.allowExternalTarballHost) {
@@ -171,6 +186,7 @@ export async function installPackVersion(
           : undefined;
 
         if (cachedKeyid || skipSig) {
+          if (!cachedKeyid) warnSignatureSkipped(metadata.name, version, registryUrl);
           return {
             version,
             resolved: tarballUrl,
@@ -218,10 +234,16 @@ export async function installPackVersion(
   let verifiedKeyid: string | undefined;
 
   try {
-    // Credentials are scoped to the configured registry host. When
-    // allowExternalTarballHost redirects the download elsewhere, send none — a CDN on a
-    // third-party host must never receive the registry token.
-    const downloadHeaders = tarballOnRegistryHost ? registryAuthHeaders(registryUrl, root) : {};
+    // Credentials are scoped to the configured registry. Host pinning above ignores
+    // scheme and port, so the credential decision re-checks both: the tarball must sit
+    // on the registry's exact host (port included) over a transport allowed to carry a
+    // credential — metadata pointing at `http://<registry-host>/…` must not downgrade
+    // the token onto cleartext. And when allowExternalTarballHost redirects the
+    // download elsewhere, send none — a CDN on a third-party host must never receive
+    // the registry token.
+    const sendCredentials =
+      tarballParsed.host === registryParsed.host && transportAllowsCredentials(tarballParsed);
+    const downloadHeaders = sendCredentials ? registryAuthHeaders(registryUrl, root) : {};
     integrity = await downloadTarball(tarballUrl, tmpFile, { headers: downloadHeaders });
 
     if (!verifyIntegrity(expectedIntegrity, integrity)) {
@@ -248,6 +270,8 @@ export async function installPackVersion(
         );
       }
       verifiedKeyid = result.keyid;
+    } else {
+      warnSignatureSkipped(metadata.name, version, registryUrl);
     }
 
     // Extract tarball with security filtering (rejects symlinks + path traversal).
