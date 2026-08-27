@@ -117,6 +117,8 @@ Markers are paired positionally: each `BEGIN` is matched with the first `END` **
 
 Duplicated blocks — both sides of a conflict kept, each with a matching pair — need no manual repair: the fenced region is generated content by definition, so sync collapses them into the first block and preserves everything between them.
 
+Sync also refuses to **author** an unpairable block: a rule whose body quotes `<!-- BEGIN BLUETEMBERG MANAGED RULES -->` or its END counterpart verbatim is rejected before the first write, with an error naming the rule file. Without that check the marker would land inside the generated block, and no later run could pair it — not even after the rule was deleted, because the wreckage would already be on disk. Reword the rule so the literal marker does not appear (dropping the comment delimiters is enough).
+
 ## Check mode
 
 `bluetemberg sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. No files are written. Comparisons **normalize line endings** (CRLF vs LF) so check mode is less sensitive to platform checkout settings.

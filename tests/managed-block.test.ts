@@ -50,6 +50,16 @@ describe('injectManagedBlock', () => {
     expect(injectManagedBlock('just content\n', '', M, F)).toBe('just content\n');
   });
 
+  it('does not grow the file across repeated passes', () => {
+    let content = '# My file\n';
+    const sizes: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      content = injectManagedBlock(content, 'GEN', M, F);
+      sizes.push(content.length);
+    }
+    expect(new Set(sizes).size).toBe(1);
+  });
+
   it('replaces a block that sits before hand-authored content, keeping order', () => {
     const existing = `${M.begin}\nv1\n${M.end}\n\n# Tail section\n`;
     const out = injectManagedBlock(existing, 'v2', M, F);
@@ -108,7 +118,7 @@ describe('injectManagedBlock with malformed markers', () => {
     ].join('\n');
 
     const out = injectManagedBlock(existing, 'fresh', M, F);
-    expect(out.match(new RegExp(M.begin, 'g'))?.length).toBe(1);
+    expect(out.split(M.begin).length - 1).toBe(1);
     expect(out).toContain('# Head');
     expect(out).toContain('Hand-authored middle.');
     expect(out).toContain('# Tail');
@@ -118,15 +128,37 @@ describe('injectManagedBlock with malformed markers', () => {
     // Converged: a second pass is a no-op.
     expect(injectManagedBlock(out, 'fresh', M, F)).toBe(out);
   });
+});
 
-  it('does not grow the file across repeated passes', () => {
-    let content = '# My file\n';
-    const sizes: number[] = [];
-    for (let i = 0; i < 4; i++) {
-      content = injectManagedBlock(content, 'GEN', M, F);
-      sizes.push(content.length);
+describe('injectManagedBlock with a marker in the generated content', () => {
+  it('refuses inner content that quotes the end marker', () => {
+    const inner = `Never hand-edit between ${M.begin} and ${M.end}.`;
+    expect(() => injectManagedBlock('# Head\n', inner, M, F)).toThrow(ManagedBlockError);
+  });
+
+  it('refuses inner content that quotes only the begin marker', () => {
+    expect(() => injectManagedBlock('# Head\n', `see ${M.begin}`, M, F)).toThrow(ManagedBlockError);
+  });
+
+  it('refuses it for a missing file too, rather than creating a wedged one', () => {
+    expect(() => injectManagedBlock(null, `x ${M.end}`, M, F)).toThrow(ManagedBlockError);
+  });
+
+  it('names the file and the offending marker', () => {
+    let message = '';
+    try {
+      injectManagedBlock('# Head\n', `x ${M.end}`, M, 'AGENTS.md');
+    } catch (e) {
+      message = (e as ManagedBlockError).message;
     }
-    expect(new Set(sizes).size).toBe(1);
+    expect(message).toContain('AGENTS.md');
+    expect(message).toContain(M.end);
+    expect(message).not.toContain('merge conflict');
+  });
+
+  it('still accepts inner content that only mentions the marker text partially', () => {
+    const out = injectManagedBlock('# Head\n', 'Do not edit inside BLUETEMBERG MANAGED RULES.', M, F);
+    expect(out).toContain('BLUETEMBERG MANAGED RULES.');
   });
 });
 

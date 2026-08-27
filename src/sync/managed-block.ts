@@ -47,8 +47,9 @@ interface BlockRange {
 }
 
 const REPAIR_HINT =
-  'This usually comes from a merge conflict resolved by hand. Repair the markers (delete the ' +
-  'stray one, or restore its pair), then re-run bluetemberg sync.';
+  'Markers must appear in matched pairs — commonly a merge conflict resolved by hand, or marker ' +
+  'text quoted into the file. Repair the markers (delete the stray one, or restore its pair), ' +
+  'then re-run bluetemberg sync.';
 
 function malformed(filePath: string, detail: string): ManagedBlockError {
   return new ManagedBlockError(`${filePath}: malformed managed block — ${detail}. ${REPAIR_HINT}`);
@@ -92,6 +93,24 @@ function findManagedBlocks(content: string, markers: BlockMarkers, filePath: str
   return ranges;
 }
 
+/**
+ * Rejects generated content that carries a marker of its own.
+ *
+ * Emitting it writes a block no later run can pair, so sync would refuse the file from then on —
+ * and deleting the source that introduced the marker does not heal it, because the wreckage is
+ * already on disk. Sync must never author that state, so this fails before the first write.
+ */
+function assertMarkerFreeInner(inner: string, markers: BlockMarkers, filePath: string): void {
+  for (const marker of [markers.begin, markers.end]) {
+    if (!inner.includes(marker)) continue;
+    throw new ManagedBlockError(
+      `${filePath}: generated content contains the managed-block marker \`${marker}\`. Writing it ` +
+        'would produce a block that cannot be paired on the next run. Reword the source so the ' +
+        'literal marker does not appear in it.',
+    );
+  }
+}
+
 /** Joins non-empty sections with a blank line and a single trailing newline (stable shape). */
 function rejoin(...sections: string[]): string {
   const parts = sections.map((s) => s.trim()).filter((s) => s.length > 0);
@@ -132,7 +151,8 @@ export function stripManagedBlock(content: string, markers: BlockMarkers, filePa
  * @param filePath - Label for diagnostics (a path relative to the project root).
  * @returns The new file content. Empty string means "nothing to write" (caller should skip when
  *          the file did not previously exist).
- * @throws {ManagedBlockError} when `existing` has malformed markers.
+ * @throws {ManagedBlockError} when `existing` has malformed markers, or when `inner` itself
+ *         contains a marker (which would wedge the file on the next run).
  */
 export function injectManagedBlock(
   existing: string | null,
@@ -141,6 +161,7 @@ export function injectManagedBlock(
   filePath: string,
 ): string {
   const trimmed = inner.trim();
+  assertMarkerFreeInner(trimmed, markers, filePath);
   const block = trimmed.length > 0 ? `${markers.begin}\n${trimmed}\n${markers.end}` : '';
 
   if (existing === null) {
