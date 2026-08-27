@@ -4,6 +4,7 @@ import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 import { parse as tomlParse } from 'smol-toml';
 import { sync, loadConfig, shouldExitWithFailure } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
@@ -2285,7 +2286,9 @@ describe('codex sync', () => {
       );
       writeFileSync(
         join(root, 'llm', 'hooks.claude.json'),
-        JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Write', hooks: [{ command: 'echo hi' }] }] } }),
+        JSON.stringify({
+          hooks: { PostToolUse: [{ matcher: 'Write', hooks: [{ type: 'command', command: 'echo hi' }] }] },
+        }),
       );
       writeFileSync(join(root, 'AGENTS.md'), '# Agents\n');
 
@@ -2297,39 +2300,83 @@ describe('codex sync', () => {
       };
     }
 
-    /** Every path under `dir`, relative and sorted — the snapshot the check run must not change. */
-    function treeSnapshot(dir: string): string[] {
+    /**
+     * Every path under `dir`, relative and sorted, each file tagged with a hash of its bytes.
+     * Paths alone would miss a check run that *overwrote* an existing file rather than creating
+     * one — the clobber case the third test below covers.
+     */
+    function fingerprint(dir: string): string[] {
       const walk = (current: string, prefix: string): string[] =>
         readdirSync(current, { withFileTypes: true })
           .flatMap((entry) => {
             const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-            return entry.isDirectory() ? [`${rel}/`, ...walk(join(current, entry.name), rel)] : [rel];
+            if (entry.isDirectory()) return [`${rel}/`, ...walk(join(current, entry.name), rel)];
+            const hash = createHash('sha256')
+              .update(readFileSync(join(current, entry.name)))
+              .digest('hex');
+            return [`${rel}\t${hash}`];
           })
           .sort();
       return walk(dir, '');
     }
 
+    /** Appends a sentinel to every generated Markdown output, simulating hand-edited drift. */
+    function handEditGeneratedOutput(): number {
+      const walk = (current: string): string[] =>
+        readdirSync(current, { withFileTypes: true }).flatMap((entry) => {
+          const abs = join(current, entry.name);
+          if (entry.isDirectory()) return walk(abs);
+          return entry.name.endsWith('.md') || entry.name.endsWith('.mdc') ? [abs] : [];
+        });
+
+      // Only the generated trees — `llm/` and root AGENTS.md are sources, not outputs.
+      const generated = ['.cursor', '.claude', '.github', '.windsurf', '.gemini', '.agents', 'plugins']
+        .map((d) => join(root, d))
+        .filter((d) => existsSync(d))
+        .flatMap(walk);
+
+      for (const file of generated) {
+        writeFileSync(file, `${readFileSync(file, 'utf8')}\n<!-- hand-edited -->\n`);
+      }
+      return generated.length;
+    }
+
     it('leaves the filesystem untouched on a repo with no generated output', async () => {
       const config = seedAllSources();
-      const before = treeSnapshot(root);
+      const before = fingerprint(root);
 
       const results = await sync(root, { check: true, config, silent: true });
 
-      // Guard against a vacuous pass: the run must actually have had work to report.
+      // Guard against a vacuous pass: every adapter must have run and had work to report.
+      expect(results.errors).toEqual([]);
       expect(results.outOfSync).toBeGreaterThan(0);
       expect(results.synced).toBe(0);
-      expect(treeSnapshot(root)).toEqual(before);
+      expect(fingerprint(root)).toEqual(before);
     });
 
     it('leaves the filesystem untouched on an already-synced repo', async () => {
       const config = seedAllSources();
       await sync(root, { config, silent: true });
-      const before = treeSnapshot(root);
+      const before = fingerprint(root);
 
       const results = await sync(root, { check: true, config, silent: true });
 
       expect(results.outOfSync).toBe(0);
-      expect(treeSnapshot(root)).toEqual(before);
+      expect(fingerprint(root)).toEqual(before);
+    });
+
+    it('does not overwrite hand-edited generated output', async () => {
+      const config = seedAllSources();
+      await sync(root, { config, silent: true });
+      const edited = handEditGeneratedOutput();
+      expect(edited).toBeGreaterThan(0);
+      const before = fingerprint(root);
+
+      const results = await sync(root, { check: true, config, silent: true });
+
+      // The drift is reported, and every hand-edit survives byte-for-byte.
+      expect(results.outOfSync).toBeGreaterThan(0);
+      expect(fingerprint(root)).toEqual(before);
     });
   });
 });
