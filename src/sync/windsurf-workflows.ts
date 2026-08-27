@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Platform } from '../types.js';
-import { ensureDir, listFiles } from '../utils/fs.js';
+import { listFiles } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
-import { commitPlannedWrite } from './pipeline.js';
+import { commitPlannedWrite, ensurePlannedDir } from './pipeline.js';
 
 export interface WindsurfWorkflowsSyncContext extends SyncSink {
   sourceBase: string;
@@ -22,7 +22,7 @@ export function syncWindsurfWorkflows(
 
   ctx.log(`Windsurf workflows: ${files.length} source file(s)`);
   const outDir = join(ctx.root, '.windsurf', 'workflows');
-  ensureDir(outDir);
+  ensurePlannedDir(ctx, outDir);
 
   for (const file of files) {
     try {

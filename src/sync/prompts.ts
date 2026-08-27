@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Platform } from '../types.js';
-import { ensureDir, listFiles } from '../utils/fs.js';
+import { listFiles } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
-import { commitPlannedWrite } from './pipeline.js';
+import { commitPlannedWrite, ensurePlannedDir } from './pipeline.js';
 
 export interface PromptsSyncContext extends SyncSink {
   sourceBase: string;
@@ -35,7 +35,7 @@ export function syncCopilotPrompts(ctx: PromptsSyncContext, recordError: (messag
 
   ctx.log(`Prompts: ${toSync.length} source file(s) (Copilot)`);
   const outDir = join(ctx.root, '.github', 'prompts');
-  ensureDir(outDir);
+  ensurePlannedDir(ctx, outDir);
 
   for (const { file, outName } of toSync) {
     try {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -2250,5 +2250,86 @@ describe('codex sync', () => {
     await sync(root, { check: true, config, silent: true });
 
     expect(existsSync(join(root, '.codex'))).toBe(false);
+  });
+
+  describe('check mode is read-only', () => {
+    /**
+     * Seeds every source kind an adapter can emit from, so a check run exercises all of them.
+     * Keep this in step with the adapters: an adapter whose sources are missing never runs, and
+     * a directory it creates would slip past the read-only assertion below.
+     */
+    function seedAllSources(): BlueprintConfig {
+      mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+      mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+      mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
+      mkdirSync(join(root, 'llm', 'prompts'), { recursive: true });
+      mkdirSync(join(root, 'llm', 'guardrails'), { recursive: true });
+      mkdirSync(join(root, 'llm', 'skills', 'my-skill'), { recursive: true });
+
+      writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+      writeFileSync(join(root, 'llm', 'agents', 'a.md'), '---\nname: a\ndescription: A\n---\n\n# A\n');
+      writeFileSync(join(root, 'llm', 'commands', 'c.md'), '# C\n');
+      writeFileSync(join(root, 'llm', 'prompts', 'p.md'), '# P\n');
+      writeFileSync(
+        join(root, 'llm', 'skills', 'my-skill', 'SKILL.md'),
+        '---\nname: my-skill\ndescription: S\n---\n\n# S\n',
+      );
+      writeFileSync(
+        join(root, 'llm', 'guardrails', 'g.md'),
+        '---\ntrigger: Write\ncheck:\n  field: file_path\n  matches: "\\\\.env$"\nmessage: nope\n---\n\n# G\n',
+      );
+      writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
+      writeFileSync(
+        join(root, 'llm', 'hooks.json'),
+        JSON.stringify({ version: 1, hooks: { afterFileEdit: [{ command: 'echo hi' }] } }),
+      );
+      writeFileSync(
+        join(root, 'llm', 'hooks.claude.json'),
+        JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Write', hooks: [{ command: 'echo hi' }] }] } }),
+      );
+      writeFileSync(join(root, 'AGENTS.md'), '# Agents\n');
+
+      return {
+        platforms: ['cursor', 'claude', 'copilot', 'gemini', 'windsurf', 'codex', 'claude-marketplace'],
+        source: 'llm',
+        targets: {},
+        marketplace: { remote: 'prototypdigital/marketplace' },
+      };
+    }
+
+    /** Every path under `dir`, relative and sorted — the snapshot the check run must not change. */
+    function treeSnapshot(dir: string): string[] {
+      const walk = (current: string, prefix: string): string[] =>
+        readdirSync(current, { withFileTypes: true })
+          .flatMap((entry) => {
+            const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+            return entry.isDirectory() ? [`${rel}/`, ...walk(join(current, entry.name), rel)] : [rel];
+          })
+          .sort();
+      return walk(dir, '');
+    }
+
+    it('leaves the filesystem untouched on a repo with no generated output', async () => {
+      const config = seedAllSources();
+      const before = treeSnapshot(root);
+
+      const results = await sync(root, { check: true, config, silent: true });
+
+      // Guard against a vacuous pass: the run must actually have had work to report.
+      expect(results.outOfSync).toBeGreaterThan(0);
+      expect(results.synced).toBe(0);
+      expect(treeSnapshot(root)).toEqual(before);
+    });
+
+    it('leaves the filesystem untouched on an already-synced repo', async () => {
+      const config = seedAllSources();
+      await sync(root, { config, silent: true });
+      const before = treeSnapshot(root);
+
+      const results = await sync(root, { check: true, config, silent: true });
+
+      expect(results.outOfSync).toBe(0);
+      expect(treeSnapshot(root)).toEqual(before);
+    });
   });
 });

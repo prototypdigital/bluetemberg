@@ -1,8 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
-import { ensureDir } from '../utils/fs.js';
-import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import { commitPlannedWrite, ensurePlannedDir, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
 import type { Catalog } from '../catalog/index.js';
@@ -268,10 +267,10 @@ function emitPlugin(
   const agentsDir = join(pluginDir, 'agents');
   const manifestDir = join(pluginDir, '.claude-plugin');
 
-  ensureDir(pluginDir);
-  ensureDir(skillsDir);
-  ensureDir(agentsDir);
-  ensureDir(manifestDir);
+  ensurePlannedDir(ctx, pluginDir);
+  ensurePlannedDir(ctx, skillsDir);
+  ensurePlannedDir(ctx, agentsDir);
+  ensurePlannedDir(ctx, manifestDir);
 
   const skillEntries: ManifestEntry[] = [];
   const agentEntries: ManifestEntry[] = [];
@@ -303,7 +302,7 @@ function emitPlugin(
 
     const srcPath = join(sourceParent, dirName, 'SKILL.md');
     const outSkillDir = join(skillsDir, dirName);
-    ensureDir(outSkillDir);
+    ensurePlannedDir(ctx, outSkillDir);
 
     try {
       const content = readFileSync(srcPath, 'utf8');
@@ -341,7 +340,7 @@ function emitPlugin(
   let hooks: string | undefined;
   if (hooksContent !== null) {
     const hooksDir = join(pluginDir, 'hooks');
-    ensureDir(hooksDir);
+    ensurePlannedDir(ctx, hooksDir);
     const hooksOutPath = join(hooksDir, 'hooks.json');
     commitPlannedWrite(ctx, hooksOutPath, hooksContent);
     hooks = `plugins/${plugin.name}/hooks/hooks.json`;
@@ -387,7 +386,7 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
     `Marketplace: ${ctx.plugins.length} plugin(s), ${allRules.size} rule(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)${hooksContent !== null ? ', hooks' : ''}`,
   );
 
-  ensureDir(join(ctx.root, '.claude-plugin'));
+  ensurePlannedDir(ctx, join(ctx.root, '.claude-plugin'));
 
   const pluginManifests: PluginManifest[] = [];
 

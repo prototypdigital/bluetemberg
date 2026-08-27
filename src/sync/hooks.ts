@@ -1,9 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Platform } from '../types.js';
-import { ensureDir } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
-import { commitPlannedWrite } from './pipeline.js';
+import { commitPlannedWrite, ensurePlannedDir } from './pipeline.js';
 
 export interface HooksSyncContext extends SyncSink {
   sourceBase: string;
@@ -77,7 +76,7 @@ export function syncHooks(ctx: HooksSyncContext, recordError: (message: string) 
 
   const outPath = join(ctx.root, '.cursor', 'hooks.json');
   const body = `${JSON.stringify({ version: parsed.version, hooks: parsed.hooks }, null, 2)}\n`;
-  ensureDir(join(ctx.root, '.cursor'));
+  ensurePlannedDir(ctx, join(ctx.root, '.cursor'));
   commitPlannedWrite(ctx, outPath, body);
 
   if (!ctx.checkMode) {

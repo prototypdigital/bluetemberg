@@ -1,7 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { ensureDir } from '../utils/fs.js';
-import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import { commitPlannedWrite, ensurePlannedDir, type SyncSink } from './pipeline.js';
 
 export interface ClaudeSettingsSyncContext extends SyncSink {
   /** `owner/repo` shorthand for the remote marketplace. */
@@ -47,7 +46,7 @@ export function syncClaudeSettings(ctx: ClaudeSettingsSyncContext): void {
     extraKnownMarketplaces: [...current, ctx.remote],
   };
 
-  ensureDir(claudeDir);
+  ensurePlannedDir(ctx, claudeDir);
   commitPlannedWrite(ctx, settingsPath, JSON.stringify(updated, null, 2) + '\n');
 
   if (!ctx.checkMode) {

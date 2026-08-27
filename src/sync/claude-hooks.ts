@@ -1,8 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Platform } from '../types.js';
-import { ensureDir } from '../utils/fs.js';
-import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import { commitPlannedWrite, ensurePlannedDir, type SyncSink } from './pipeline.js';
 
 /** Source manifest filename, read exclusively from the project's own source dir (`llm/`). */
 export const CLAUDE_HOOKS_MANIFEST = 'hooks.claude.json';
@@ -298,7 +297,7 @@ export function syncClaudeHooks(
   const existing = readExistingSettings(settingsPath);
   const updated: Record<string, unknown> = { ...existing, hooks: combined };
 
-  ensureDir(claudeDir);
+  ensurePlannedDir(ctx, claudeDir);
   commitPlannedWrite(ctx, settingsPath, JSON.stringify(updated, null, 2) + '\n');
 
   if (!ctx.checkMode && projectHooks !== null) {
