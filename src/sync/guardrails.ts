@@ -1,10 +1,11 @@
 import { basename, join } from 'node:path';
 import matter from 'gray-matter';
-import type { GuardrailFrontmatter, Platform, StackConstraint } from '../types.js';
+import type { GuardrailCheck, GuardrailFrontmatter, Platform, StackConstraint } from '../types.js';
 import type { Catalog } from '../catalog/index.js';
 import type { SyncSink } from './pipeline.js';
 import type { ClaudeHooksSection } from './claude-hooks.js';
 import { mergeSourceFiles } from './extends-loader.js';
+import { ereIssue } from './ere.js';
 import { describeStackMismatch, matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
 import {
   buildStackMap,
@@ -37,7 +38,41 @@ function isGuardrailFrontmatter(data: unknown): data is GuardrailFrontmatter {
   if (typeof d.message !== 'string' || !d.message) return false;
   if (!d.check || typeof d.check !== 'object' || Array.isArray(d.check)) return false;
   const check = d.check as Record<string, unknown>;
-  return typeof check.field === 'string' && SAFE_FIELD.test(check.field);
+  if (typeof check.field !== 'string' || !SAFE_FIELD.test(check.field)) return false;
+  // A non-string regex (a YAML number, list, or map) would reach `shellQuote` as a
+  // non-string and fail there with a type error; reject the shape up front instead.
+  return isOptionalString(check.matches) && isOptionalString(check.not_matches);
+}
+
+/** True when a frontmatter value is absent (missing or an empty YAML key) or a string. */
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === 'string';
+}
+
+/**
+ * Returns the reason a guardrail's condition regexes cannot be trusted, or `null` when both
+ * are valid POSIX ERE.
+ *
+ * A pattern that is not valid ERE cannot be evaluated by the generated hook. The
+ * `not_matches` test used to read the resulting bash status 2 as "no match" and allow the
+ * tool call, so a guardrail could read as protective in review and never fire
+ * (GHSA-grpx-fj8v-q8g9). The hook now fails closed, but that alone turns an author's typo
+ * into a hook that denies every matching tool call — rejecting the pattern here is the
+ * layer that names the offending regex instead, at the point it can still be fixed.
+ */
+function guardrailRegexIssue(check: GuardrailCheck): string | null {
+  const conditions = [
+    ['matches', check.matches],
+    ['not_matches', check.not_matches],
+  ] as const;
+
+  for (const [key, pattern] of conditions) {
+    if (!pattern) continue;
+    const issue = ereIssue(pattern);
+    if (issue) return `check.${key} is not valid POSIX ERE — ${issue}`;
+  }
+
+  return null;
 }
 
 /** Wrap an arbitrary string as a single POSIX shell token (`'...'`, with embedded `'` escaped). */
@@ -50,13 +85,23 @@ function shellQuote(value: string): string {
  * and message arrive as positional parameters ($1..$5), so untrusted pack content
  * is never parsed as shell or jq code. `$2`/`$3` are used as the right-hand side of
  * `=~` (bash treats a variable RHS as a regex literal, not as code to evaluate).
+ *
+ * Each `=~` status is captured explicitly rather than folded into an `&&` chain, because
+ * bash returns 2 — not 1 — when the pattern fails to compile. Read through `&&` that status
+ * is falsey, so a `not_matches` whose regex was not valid ERE exited 0 and allowed the call
+ * (GHSA-grpx-fj8v-q8g9). A condition that cannot be evaluated now blocks: status 1 (a clean
+ * non-match) is the only outcome that lets `not_matches` pass, and status 0 the only one
+ * that lets `matches` pass. The compile failure is reported as itself, not as the
+ * guardrail's message, so a broken pattern is not mistaken for a violated rule.
  */
 const CLAUDE_HOOK_SCRIPT = [
   'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
   'fail=',
+  'bad=',
   'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
-  'if [ -n "$2" ] && [[ "$v" =~ $2 ]]; then fail=1; fi',
-  'if [ -n "$3" ] && ! [[ "$v" =~ $3 ]]; then fail=1; fi',
+  'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
+  'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
+  'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
   'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
 ].join('; ');
 
@@ -114,7 +159,14 @@ export function syncGuardrails(
       // Capture the raw record before the type guard narrows `data` to GuardrailFrontmatter.
       const record = data as Record<string, unknown>;
       if (!isGuardrailFrontmatter(data)) {
-        recordError(`guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message`);
+        recordError(
+          `guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message; check.matches/not_matches must be strings when present`,
+        );
+        continue;
+      }
+      const regexIssue = guardrailRegexIssue(data.check);
+      if (regexIssue !== null) {
+        recordError(`guardrails/${file}: ${regexIssue}`);
         continue;
       }
       const reason = versionFilterReason(ctx, file, record, stackMap);
