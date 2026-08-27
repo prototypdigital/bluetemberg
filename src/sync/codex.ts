@@ -1,4 +1,4 @@
-import { join, basename } from 'node:path';
+import { join, basename, relative } from 'node:path';
 import matter from 'gray-matter';
 import { stringify as tomlStringify } from 'smol-toml';
 import type { Platform } from '../types.js';
@@ -8,7 +8,13 @@ import { commitPlannedWrite } from './pipeline.js';
 import { mergeSourceFiles } from './extends-loader.js';
 import { BUILTIN_MCP_SERVERS, parseLlmMcpServerList } from '../mcp/registry.js';
 import type { McpServerConfig } from '../mcp/registry.js';
-import { AGENTS_RULES_MARKERS, CODEX_MCP_MARKERS, injectManagedBlock } from './managed-block.js';
+import {
+  AGENTS_RULES_MARKERS,
+  CODEX_MCP_MARKERS,
+  ManagedBlockError,
+  injectManagedBlock,
+} from './managed-block.js';
+import type { BlockMarkers } from './managed-block.js';
 
 // Codex has no per-file rule API; see Architecture.md "Special sync" for the full design.
 export interface CodexSyncContext extends SyncSink {
@@ -31,6 +37,24 @@ function scopeAnnotation(scope: string | string[] | undefined): string {
   return `_Applies to: ${meaningful.map((g) => `\`${g}\``).join(', ')}_`;
 }
 
+/**
+ * Rejects a rule whose body quotes a managed-block marker verbatim.
+ *
+ * Every rule lands in one shared block, so a single marker in a single body would wedge AGENTS.md
+ * for good. Failing here names the rule that has to change; letting it through would only name
+ * AGENTS.md, long after the cause.
+ */
+function assertRuleQuotesNoMarker(file: string, body: string): void {
+  for (const marker of [AGENTS_RULES_MARKERS.begin, AGENTS_RULES_MARKERS.end]) {
+    if (!body.includes(marker)) continue;
+    throw new Error(
+      `rules/${file} quotes the managed-block marker \`${marker}\` verbatim, which would wedge the ` +
+        'AGENTS.md block on the next sync. Reword the rule so the literal marker does not appear ' +
+        '(dropping the comment delimiters is enough).',
+    );
+  }
+}
+
 /** Builds the inner body of the AGENTS.md rules block (empty when there are no rules). */
 function buildRulesBlock(ctx: CodexSyncContext): string {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
@@ -43,7 +67,9 @@ function buildRulesBlock(ctx: CodexSyncContext): string {
   for (const [file, sourceDir] of [...merged].sort(byFilename)) {
     const parsed = matter.read(join(sourceDir, file));
     const scope = parsed.data.scope as string | string[] | undefined;
-    sections.push([scopeAnnotation(scope), parsed.content.trim()].filter(Boolean).join('\n\n'));
+    const section = [scopeAnnotation(scope), parsed.content.trim()].filter(Boolean).join('\n\n');
+    assertRuleQuotesNoMarker(file, section);
+    sections.push(section);
   }
 
   return sections.join('\n\n');
@@ -60,6 +86,35 @@ function getSafeRulesBlock(ctx: CodexSyncContext, recordError: (message: string)
 }
 
 /**
+ * Injects the block, or records a diagnostic and returns `null` when the target file's markers are
+ * malformed. Skipping (rather than guessing) keeps a hand-broken block from growing on every run;
+ * the recorded error names the file and fails `sync` / `sync --check`.
+ */
+function injectOrRecord(
+  ctx: CodexSyncContext,
+  filePath: string,
+  existing: string | null,
+  inner: string,
+  markers: BlockMarkers,
+  recordError: (message: string) => void,
+): string | null {
+  try {
+    return injectManagedBlock(existing, inner, markers, relative(ctx.root, filePath));
+  } catch (err) {
+    // Anything that is not a marker problem is a bug in here, not bad input — let it surface.
+    if (!(err instanceof ManagedBlockError)) throw err;
+    recordError(err.message);
+    return null;
+  }
+}
+
+/** True when the file exists and carries either marker — a block, or the wreckage of one. */
+function hasAnyMarker(existing: string | null, markers: BlockMarkers): boolean {
+  if (existing === null) return false;
+  return existing.includes(markers.begin) || existing.includes(markers.end);
+}
+
+/**
  * Folds `llm/rules/` into a managed block in the root `AGENTS.md`, preserving hand-authored content.
  */
 export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: string) => void): void {
@@ -71,11 +126,10 @@ export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: str
   const block = getSafeRulesBlock(ctx, recordError);
   if (block === null) return;
 
-  if (block.length === 0 && (existing === null || !existing.includes(AGENTS_RULES_MARKERS.begin))) {
-    return;
-  }
+  if (block.length === 0 && !hasAnyMarker(existing, AGENTS_RULES_MARKERS)) return;
 
-  const output = injectManagedBlock(existing, block, AGENTS_RULES_MARKERS);
+  const output = injectOrRecord(ctx, agentsPath, existing, block, AGENTS_RULES_MARKERS, recordError);
+  if (output === null) return;
   if (output.length === 0 && existing === null) return;
 
   commitPlannedWrite(ctx, agentsPath, output);
@@ -197,11 +251,10 @@ export function syncCodexConfig(ctx: CodexSyncContext, recordError: (message: st
   const inner = buildMcpInner(ctx.sourceBase, recordError);
   if (inner === null) return;
 
-  if (inner.length === 0 && (existing === null || !existing.includes(CODEX_MCP_MARKERS.begin))) {
-    return;
-  }
+  if (inner.length === 0 && !hasAnyMarker(existing, CODEX_MCP_MARKERS)) return;
 
-  const output = injectManagedBlock(existing, inner, CODEX_MCP_MARKERS);
+  const output = injectOrRecord(ctx, configPath, existing, inner, CODEX_MCP_MARKERS, recordError);
+  if (output === null) return;
   if (output.length === 0 && existing === null) return;
 
   if (!ctx.checkMode) ensureDir(join(ctx.root, '.codex'));
