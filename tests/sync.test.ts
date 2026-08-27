@@ -1801,6 +1801,75 @@ message: "Branch name required"
     expect(existsSync(marker)).toBe(false); // neither payload executed
     expect(stdout).toContain('; touch'); // message printed as literal data
   });
+
+  it('rejects a guardrail whose condition regex is not valid POSIX ERE', async () => {
+    // A JS lookahead does not compile as ERE. Before GHSA-grpx-fj8v-q8g9 this synced
+    // cleanly and produced a hook that never fired.
+    writeGuardrail(
+      'bad-regex',
+      VALID_GUARDRAIL.replace('not_matches: "^claude/"', 'not_matches: "(?!claude/)"'),
+    );
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('bad-regex') && e.includes('POSIX ERE'))).toBe(true);
+    expect(readPreToolUseHooks()).toHaveLength(0);
+  });
+
+  it('rejects a JS-idiom regex that compiles as ERE but checks the wrong thing', async () => {
+    // `\d` is not a digit class in ERE: BSD libc compiles it to a literal `d`, so this
+    // pattern compiles and then silently never matches. No runtime check can catch that,
+    // because nothing failed — only refusing the idiom at its source can.
+    writeGuardrail('js-idiom', VALID_GUARDRAIL.replace('not_matches: "^claude/"', "not_matches: '\\d+'"));
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('js-idiom') && e.includes('[[:digit:]]'))).toBe(true);
+    expect(readPreToolUseHooks()).toHaveLength(0);
+  });
+
+  it('generated hook blocks rather than allows when its regex fails to compile', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const generated = String(readPreToolUseHooks()[0].hooks[0].command);
+    const input = JSON.stringify({ name: 'feat/branch' });
+
+    // Baseline: a name that satisfies the condition is allowed, so a non-zero exit below is
+    // the malformed regex being caught and not the guardrail simply denying everything.
+    expect(runHook(generated, input)).toBe(0);
+
+    // Sync now refuses to emit a non-compiling pattern, so substitute one into the shipped
+    // command — the hand-edited settings.json and different-libc cases the runtime check
+    // exists for. `[[ =~ ]]` returns 2, not 1, on a pattern that fails to compile; read
+    // through an `&&` chain that status was falsey and the hook exited 0, allowing the call.
+    for (const bad of ['[', '(?!x)', 'a{3,2}', '*x']) {
+      const command = generated.replace(`'^claude/'`, `'${bad}'`);
+      expect(command).not.toBe(generated);
+      expect(runHook(command, input), `not_matches=${bad} must block, not allow`).toBe(2);
+    }
+  });
+
+  /** PreToolUse entries in the generated settings.json, or `[]` when none were written. */
+  function readPreToolUseHooks(): { hooks: { command: string }[] }[] {
+    const settingsPath = join(root, '.claude', 'settings.json');
+    if (!existsSync(settingsPath)) return [];
+    return JSON.parse(readFileSync(settingsPath, 'utf8')).hooks?.PreToolUse ?? [];
+  }
+
+  /** Exit code of a generated hook command run exactly as Claude Code would run it. */
+  function runHook(command: string, input: string): number {
+    try {
+      execSync(command, { input, encoding: 'utf8', stdio: 'pipe' });
+      return 0;
+    } catch (err) {
+      return (err as { status?: number }).status ?? -1;
+    }
+  }
 });
 
 describe('claude hooks sync', () => {
