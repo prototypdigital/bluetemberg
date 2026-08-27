@@ -20,6 +20,17 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.12.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.0...bluetemberg-v0.12.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **guardrails:** fail closed when a condition regex is not valid ERE ([46fc15a](https://github.com/prototypdigital/bluetemberg/commit/46fc15acddef3290316a966d4e1d11ced5423bef))
+* **guardrails:** fail closed when a condition regex is not valid ERE ([1506301](https://github.com/prototypdigital/bluetemberg/commit/15063014741cf84731d683b711cd61630c42d2e4))
+* **sync:** pair managed-block markers instead of taking the first of each ([f47d834](https://github.com/prototypdigital/bluetemberg/commit/f47d83417f0e1e1634643b4601614a849521fe26))
+* **sync:** pair managed-block markers instead of taking the first of each ([effdc47](https://github.com/prototypdigital/bluetemberg/commit/effdc47fbbbe1b8e4c9528dfc4452ac553fdd574)), closes [#241](https://github.com/prototypdigital/bluetemberg/issues/241)
+* **sync:** reject managed-block markers in generated content ([66f09ec](https://github.com/prototypdigital/bluetemberg/commit/66f09ec010daf4447b4d3cba165eb4975e8dd86b))
+
 ## [0.12.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.11.0...bluetemberg-v0.12.0) (2026-08-27)
 
 
