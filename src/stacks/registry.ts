@@ -1,6 +1,7 @@
 import type { Catalog } from '../catalog/index.js';
 import type { Stack } from '../types.js';
-import { compareSpecificity, versionSatisfies, type DetectedStacks } from './match.js';
+import type { DeclaredRange } from './declared.js';
+import { compareSpecificity, isWildcardRange, versionSatisfies, type DetectedStacks } from './match.js';
 
 /**
  * The live stack registry + coverage query (Milestone M5).
@@ -10,17 +11,33 @@ import { compareSpecificity, versionSatisfies, type DetectedStacks } from './mat
  *   - stacks registered locally at runtime (`registerStack`)
  *   - stacks discovered by detection in the current project
  *
- * Coverage answers "do we have version-correct guidance for (stack, version)?". Pack-level
- * catalog membership contributes a wildcard `*` range (name-level coverage); version-precise
- * ranges (from rule frontmatter, or a future scanner) are added via {@link addCoverageRange}.
+ * Coverage answers "do we have version-correct guidance for (stack, version)?". The version-precise
+ * ranges come from the `stacks:` frontmatter of the guidance actually available (harvested by
+ * `collectDeclaredRanges`), added via {@link addCoverageRange}. A catalogued pack whose
+ * content declares no range for a stack contributes the wildcard `*` — name-level coverage, the
+ * coarse fallback the catalog alone can express.
  */
 
 export type StackOrigin = 'catalog' | 'local' | 'detected';
 
+/** Why a `(stack, version)` is not covered. */
+export type CoverageGapReason = 'version-uncovered' | 'no-coverage';
+
+/**
+ * How precisely covering guidance matched. `version` = a declared range satisfied the version;
+ * `name-level` = only a wildcard `*` matched, i.e. a pack targets the stack but nothing declares
+ * guidance for this version era. Both are covered — but only one is version-correct guidance, so
+ * they must not rank equally in an authoring priority list.
+ */
+export type CoveragePrecision = 'version' | 'name-level';
+
 export interface StackRegistryEntry {
   name: Stack;
   origins: Set<StackOrigin>;
-  /** Version ranges known to be covered for this stack (`"*"` = any version, from name-level packs). */
+  /**
+   * Version ranges known to be covered for this stack (`"*"` = any version, from a name-level
+   * pack), most-specific first — a deterministic order, never harvest/filesystem order.
+   */
   coveredRanges: string[];
   /** Version observed locally/by detection, if any. */
   version?: string;
@@ -37,11 +54,26 @@ function ensureEntry(registry: StackRegistry, name: Stack): StackRegistryEntry {
   return entry;
 }
 
-/** Add a covered version range to a stack (deduplicated). */
-export function addCoverageRange(registry: StackRegistry, name: Stack, range: string): void {
+/**
+ * Add a covered version range to a stack (deduplicated), keeping {@link StackRegistryEntry.coveredRanges}
+ * sorted most-specific-first.
+ *
+ * The sort is not cosmetic: the list is part of the `--json` contract, and it is harvested in
+ * `readdirSync` order across merged source dirs — i.e. filesystem-dependent. Ordering it by the
+ * same {@link compareSpecificity} that resolves matches keeps the emitted contract stable across
+ * machines, exactly as range resolution already is.
+ */
+export function addCoverageRange(
+  registry: StackRegistry,
+  name: Stack,
+  range: string,
+  origin: StackOrigin = 'catalog',
+): void {
   const entry = ensureEntry(registry, name);
-  entry.origins.add('catalog');
-  if (!entry.coveredRanges.includes(range)) entry.coveredRanges.push(range);
+  entry.origins.add(origin);
+  if (entry.coveredRanges.includes(range)) return;
+  entry.coveredRanges.push(range);
+  entry.coveredRanges.sort(compareSpecificity);
 }
 
 /** Register a stack discovered locally (e.g. detection found it, or an explicit `register`). */
@@ -57,18 +89,35 @@ export function registerStack(
 }
 
 /**
- * Build the live registry from the catalog and (optionally) detected stacks. Each catalog pack
- * that declares `stacks` contributes those names with a wildcard coverage range.
+ * Build the live registry from the catalog, the ranges declared by available guidance, and
+ * (optionally) detected stacks.
+ *
+ * Precedence mirrors the sync gate: a declared range wins over the catalog's name-level tag. A
+ * catalogued pack contributes the wildcard `*` for a stack **only when no range was declared for
+ * that stack** — otherwise `*` would satisfy every version and flatten coverage back into a
+ * name-level boolean ("some react pack exists"), which is precisely what it must not report.
  */
-export function buildStackRegistry(catalog: Catalog, detected?: DetectedStacks): StackRegistry {
+export function buildStackRegistry(
+  catalog: Catalog,
+  detected?: DetectedStacks,
+  declared?: readonly DeclaredRange[],
+): StackRegistry {
   const registry: StackRegistry = new Map();
+
+  const declaredStacks = new Set<Stack>();
+  for (const { stack, range, origin } of declared ?? []) {
+    addCoverageRange(registry, stack, range, origin);
+    declaredStacks.add(stack);
+  }
+
   for (const pack of catalog.packs) {
     for (const stack of pack.stacks ?? []) {
       const entry = ensureEntry(registry, stack);
       entry.origins.add('catalog');
-      if (!entry.coveredRanges.includes('*')) entry.coveredRanges.push('*');
+      if (!declaredStacks.has(stack)) addCoverageRange(registry, stack, '*');
     }
   }
+
   if (detected) {
     for (const [name, det] of detected) registerStack(registry, name, det.version, 'detected');
   }
@@ -80,14 +129,31 @@ export interface CoverageResult {
   /** The stack label exists in the live registry. */
   known: boolean;
   /**
-   * A covering pack exists: with a version, at least one covered range satisfies it; with no
+   * Covering guidance exists: with a version, at least one covered range satisfies it; with no
    * version, at least one covered range exists at all. A stack that is only *known* (detected or
-   * registered locally) with no covering pack is `covered: false` — i.e. a coverage gap.
+   * registered locally) with nothing covering it is `covered: false` — i.e. a coverage gap.
    */
   covered: boolean;
+  /**
+   * Why coverage is missing, when `covered` is false: `no-coverage` when nothing targets the stack
+   * at all, `version-uncovered` when it is targeted but no covered range satisfies the version.
+   * Absent when `covered` is true. Derived from the covered ranges, never from *how* the stack
+   * entered the registry — so a detected-but-uncovered stack reports `no-coverage`, not a spurious
+   * `version-uncovered`.
+   */
+  reason?: CoverageGapReason;
+  /**
+   * How precise the covering match was. Absent when `covered` is false. With no version queried,
+   * `name-level` means every covered range is a wildcard.
+   */
+  precision?: CoveragePrecision;
   /** The most-specific covered range that satisfied the version, when a version was queried. */
   matchedRange?: string;
   origins: StackOrigin[];
+}
+
+function gapReason(entry: StackRegistryEntry): CoverageGapReason {
+  return entry.coveredRanges.length > 0 ? 'version-uncovered' : 'no-coverage';
 }
 
 /**
@@ -98,14 +164,28 @@ export interface CoverageResult {
  */
 export function queryCoverage(registry: StackRegistry, stack: Stack, version?: string): CoverageResult {
   const entry = registry.get(stack);
-  if (!entry) return { stack, known: false, covered: false, origins: [] };
+  if (!entry) return { stack, known: false, covered: false, reason: 'no-coverage', origins: [] };
   const origins = [...entry.origins];
   if (version === undefined) {
-    return { stack, known: true, covered: entry.coveredRanges.length > 0, origins };
+    if (entry.coveredRanges.length === 0) {
+      return { stack, known: true, covered: false, reason: 'no-coverage', origins };
+    }
+    const precision = entry.coveredRanges.every(isWildcardRange) ? 'name-level' : 'version';
+    return { stack, known: true, covered: true, precision, origins };
   }
   const satisfying = entry.coveredRanges
     .filter((range) => versionSatisfies(version, range))
     .sort(compareSpecificity);
-  if (satisfying.length === 0) return { stack, known: true, covered: false, origins };
-  return { stack, known: true, covered: true, matchedRange: satisfying[0], origins };
+  if (satisfying.length === 0) {
+    return { stack, known: true, covered: false, reason: gapReason(entry), origins };
+  }
+  const matchedRange = satisfying[0];
+  return {
+    stack,
+    known: true,
+    covered: true,
+    precision: isWildcardRange(matchedRange) ? 'name-level' : 'version',
+    matchedRange,
+    origins,
+  };
 }

@@ -54,6 +54,28 @@ const PAYLOAD_PACK = {
   preview: '',
 };
 
+/** A catalog pack whose content is version-bounded — the version-precise coverage case. */
+const REACT_PACK = {
+  name: 'bluetemberg-rules-react',
+  version: '0.1.0',
+  description: '',
+  kind: 'rules',
+  universal: false,
+  profiles: [],
+  stacks: ['react'],
+  rules: ['effects-r18'],
+  preview: '',
+};
+
+/** Write a rule into the catalog root's own source dir, optionally with a `stacks:` constraint. */
+function writeRule(root: string, name: string, stacks?: string): void {
+  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+  const frontmatter = stacks
+    ? `---\ndescription: r\nstacks:\n  ${stacks}\n---\n`
+    : '---\ndescription: r\n---\n';
+  writeFileSync(join(root, 'llm', 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
+}
+
 function writeCatalog(root: string, packs: unknown[]): void {
   mkdirSync(join(root, '.bluetemberg'), { recursive: true });
   writeFileSync(
@@ -142,6 +164,111 @@ describe('buildScanReport — aggregation + gaps', () => {
     expect(report.gaps).toEqual([{ stack: 'nextjs', version: '14.2.0', count: 2, reason: 'no-coverage' }]);
     const payload = report.histogram.find((h) => h.stack === 'payload');
     expect(payload?.versions[0].covered).toBe(true);
+  });
+
+  it('reports a version-uncovered gap when the catalog root only covers other versions', () => {
+    // The maintainer question this command exists to answer: "we ship react rules, but only for
+    // 18 — how many repos have moved to 19?" Coverage reads the range off the guidance itself.
+    writeCatalog(workdir, [REACT_PACK]);
+    writeRule(workdir, 'effects-r18', 'react: ">=18 <19"');
+    const a = repo('a');
+    const b = repo('b');
+    writeNodeModules(a, 'react', '19.0.0');
+    writeNodeModules(b, 'react', '18.3.1');
+    writeManifest(a, { react: '19' });
+    writeManifest(b, { react: '18' });
+
+    const report = buildScanReport([a, b], workdir);
+    expect(report.gaps).toEqual([
+      { stack: 'react', version: '19.0.0', count: 1, reason: 'version-uncovered' },
+    ]);
+    const react = report.histogram.find((h) => h.stack === 'react');
+    expect(react?.versions.find((v) => v.version === '18.3.1')).toMatchObject({
+      covered: true,
+      matchedRange: '>=18 <19',
+      reason: null,
+    });
+  });
+
+  it('ranks name-level-only buckets as their own tier instead of hiding them under covered', () => {
+    // One unbounded sibling in the react pack re-opens `*`, so react 19 is covered — generically.
+    // It belongs in weakCoverage (the second authoring list), never silently in the covered set.
+    writeCatalog(workdir, [{ ...REACT_PACK, rules: ['effects-r18', 'naming'] }]);
+    writeRule(workdir, 'effects-r18', 'react: ">=18 <19"');
+    writeRule(workdir, 'naming'); // no stacks: → inherits the pack's name-level tag
+    const a = repo('a');
+    const b = repo('b');
+    const c = repo('c');
+    writeNodeModules(a, 'react', '19.0.0');
+    writeNodeModules(b, 'react', '19.0.0');
+    writeNodeModules(c, 'react', '18.3.1');
+    for (const r of [a, b, c]) writeManifest(r, { react: '*' });
+
+    const report = buildScanReport([a, b, c], workdir);
+    expect(report.gaps).toEqual([]);
+    expect(report.weakCoverage).toEqual([{ stack: 'react', version: '19.0.0', count: 2 }]);
+    const react = report.histogram.find((h) => h.stack === 'react');
+    expect(react?.versions.find((v) => v.version === '19.0.0')).toMatchObject({
+      covered: true,
+      precision: 'name-level',
+    });
+    expect(react?.versions.find((v) => v.version === '18.3.1')).toMatchObject({
+      covered: true,
+      precision: 'version',
+      matchedRange: '>=18 <19',
+    });
+  });
+
+  it('ranks weak coverage by usage, like gaps', () => {
+    writeCatalog(workdir, [PAYLOAD_PACK, { ...REACT_PACK, rules: ['naming'] }]);
+    const repos = ['a', 'b', 'c'].map((n) => repo(n));
+    writeNodeModules(repos[0], 'payload', '3.4.1');
+    writeNodeModules(repos[1], 'react', '19.0.0');
+    writeNodeModules(repos[2], 'react', '19.0.0');
+    writeManifest(repos[0], { payload: '*' });
+    writeManifest(repos[1], { react: '*' });
+    writeManifest(repos[2], { react: '*' });
+
+    const report = buildScanReport(repos, workdir);
+    expect(report.weakCoverage).toEqual([
+      { stack: 'react', version: '19.0.0', count: 2 },
+      { stack: 'payload', version: '3.4.1', count: 1 },
+    ]);
+  });
+
+  it('never reads a scanned repo as the coverage corpus when catalogRoot is omitted', () => {
+    // A scanned repo's own rules must not count as org-wide coverage: that would mask the very
+    // gaps the scan exists to find. The default is the cwd (the maintainer), never roots[0].
+    const a = repo('a');
+    writeNodeModules(a, 'react', '19.0.0');
+    writeManifest(a, { react: '^19' });
+    mkdirSync(join(a, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(a, 'llm', 'rules', 'local-react.md'),
+      '---\ndescription: local\nstacks:\n  react: ">=19"\n---\nbody\n',
+    );
+
+    const defaulted = buildScanReport([a]);
+    const explicitCwd = buildScanReport([a], process.cwd());
+    expect(defaulted.gaps).toEqual(explicitCwd.gaps);
+
+    // Pointing the corpus AT the scanned repo is what makes its own rule count — the old default.
+    expect(buildScanReport([a], a).gaps).toEqual([]);
+  });
+
+  it('degrades to catalog-only coverage (with a warning) when the corpus cannot be read', () => {
+    writeCatalog(workdir, [PAYLOAD_PACK]);
+    mkdirSync(join(workdir, 'llm'), { recursive: true });
+    writeFileSync(join(workdir, 'llm', 'packages.json'), 'this is not json');
+    const a = repo('a');
+    writeNodeModules(a, 'payload', '3.4.1');
+    writeManifest(a, { payload: '^3' });
+
+    const report = buildScanReport([a], workdir);
+    expect(report.scanned).toBe(1);
+    expect(report.warnings.some((w) => /packages\.json could not be read/.test(w))).toBe(true);
+    // Catalog coverage still applies, so the scan stays useful instead of reporting phantom gaps.
+    expect(report.gaps).toEqual([]);
   });
 
   it('counts repos with no detectable stacks as empty, not scanned-with-stacks', () => {

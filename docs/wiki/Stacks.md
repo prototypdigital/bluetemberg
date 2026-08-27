@@ -87,6 +87,25 @@ Three guarantees back this up — guidance is **never silently dropped**:
   ```
 - **Every exclusion lists its reason** (rules, guardrails, agents, and skills alike), so you can audit that wrong-version content was correctly withheld — hidden, not wrong-here.
 
+## Coverage: the same model, asked backwards
+
+Gating asks *"does this file apply to my project?"*. Coverage asks the inverse — *"is there guidance for what I build with?"* — and answers it from the same declared ranges, so the two can never disagree.
+
+The **covered ranges** for a stack are the `stacks:` ranges declared by the guidance actually available (the project's own source dir, `extends` entries, installed packs, external sources), resolved with the same precedence the gate uses: a file's own range wins, else the catalog pack-level tag (`*`, name-level), else stack-agnostic (contributes nothing). A stack with any declared range never falls back to `*` — otherwise the wildcard would satisfy every version and flatten coverage back into "does a react pack exist?".
+
+A query for `(stack, version)` therefore has four outcomes:
+
+| Outcome | Meaning |
+|---|---|
+| `covered` (matched range) | A declared range satisfies the version — e.g. `react: ">=18 <19"` covers `18.3.1` |
+| `covered` (name-level, `*`) | A catalogued pack targets the stack, but nothing declares a version range for it — real guidance, not *version* guidance, so it ranks in its own `weakCoverage` tier |
+| gap: `version-uncovered` | Guidance for the stack exists, but no covered range satisfies this version — *"we ship React 18 rules; this repo is on 19"* |
+| gap: `no-coverage` | Nothing targets this stack at all |
+
+Note the third row carefully: a single stack-agnostic file inside a pack the catalog tags `["react"]` covers *every* React version. Coverage says so honestly — that file really does apply — but a version era whose only guidance is generic is not the same as one with a rule written for it, so those buckets are ranked separately rather than folded into "covered".
+
+Read it with [`bluetemberg detect`](Commands#bluetemberg-detect-directory) and [`bluetemberg coverage`](Commands#bluetemberg-coverage-stackversion-directory) for one project, or [`bluetemberg scan-org`](Commands#bluetemberg-scan-org-paths) to rank across N repos by how many are affected: `gaps` first (nothing covers them), then `weakCoverage` (covered name-level only).
+
 ## Versioning strategy: two tiers, mirroring the ecosystem
 
 When a stack's guidance differs across versions, there are two established ways to model it. Bluetemberg follows both, at different scales — the same pattern TypeScript and DefinitelyTyped use:

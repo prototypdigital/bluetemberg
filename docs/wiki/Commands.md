@@ -109,7 +109,7 @@ Report the technology stacks and versions detected in the project, each with its
 
 | Option | Description |
 | ------ | ----------- |
-| `--json` | Emit machine-readable JSON: `detected[]`, `gaps[]` (stacks with no covering pack), `warnings[]` (low-confidence detections) |
+| `--json` | Emit machine-readable JSON: `detected[]` (each with `coverage.precision` and a `coverage.reason` when uncovered), `gaps[]` (stacks whose detected version has no covering guidance), `weakCoverage[]` (stacks covered only name-level), `warnings[]` |
 | `--silent` | Suppress all output |
 
 ```bash
@@ -117,13 +117,17 @@ npx bluetemberg detect
 npx bluetemberg detect --json
 ```
 
+Each `warnings[]` entry carries a `level`: `low-confidence` names the stack whose version was coerced, while `coverage-source` (with `stack: null`) means a source of covered ranges could not be read — a malformed `llm/packages.json`, say — so coverage may under-report. A broken manifest degrades the report to catalog-only coverage; it never aborts it.
+
 ## `bluetemberg coverage <stack>[@version] [directory]`
 
-Answer "do we have version-correct guidance for this stack?" against the installed catalog and detected stacks. Reports whether the stack is `known`, whether it is `covered`, and the most-specific covered range. A `*` match is **name-level** (a pack targets the stack, any version) — version-precise per-rule coverage is a planned refinement.
+Answer "do we have version-correct guidance for this stack?" against the guidance available here and the detected stacks. Reports whether the stack is `known`, whether it is `covered`, the most-specific covered range, and — when it is not covered — a `reason`.
+
+Covered ranges are read from the `stacks:` frontmatter of the guidance actually available to the project (its own source dir, `extends` entries, installed packs, external sources), resolved exactly as the sync gate resolves it. So a pack shipping `react: ">=18 <19"` covers React 18 and reports React 19 as a `version-uncovered` gap. A `*` range is **name-level** — a catalogued pack targets the stack but nothing declares a version range for it, so coverage is only "some guidance exists". Name-level is the fallback, not the default: a stack with any declared range never falls back to `*`.
 
 | Option | Description |
 | ------ | ----------- |
-| `--json` | Emit machine-readable JSON (`query` + `result`) |
+| `--json` | Emit machine-readable JSON (`query`, `result` — including `precision` — and `warnings[]` for coverage sources that could not be read) |
 | `--silent` | Suppress all output |
 
 ```bash
@@ -140,7 +144,7 @@ Two sources, one report — and they can be combined in a single run:
 - **Local** — pass filesystem paths to cloned repos. Detection precedence is `node_modules` → `package-lock.json` → coerced `package.json` range, so installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`.
 - **Remote** — `--org`/`--repos` read each repo's `package.json` (and `package-lock.json` when present) over the GitHub Contents API **without cloning**. Detection precedence is `package-lock.json` → coerced `package.json` range (there is no `node_modules` over the API).
 
-The catalog it compares against is loaded from the current working directory (project cache → committed snapshot), not from the scanned repos.
+The corpus it compares against is read from the current working directory — its catalog (project cache → committed snapshot) plus the version ranges its available guidance declares — never from the scanned repos, whose own rules would otherwise count as org-wide coverage and mask the gaps you are looking for.
 
 | Option | Description |
 | ------ | ----------- |
@@ -166,7 +170,10 @@ Progress is written to **stderr**, so `--json` output on stdout stays clean for 
 
 ### Behaviour notes
 
-- The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` (`version-uncovered` when the stack is known but the version isn't, `no-coverage` when no pack targets the stack at all).
+- The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` — `version-uncovered` when guidance for the stack exists but no covered range satisfies that version (e.g. you ship `react: ">=18 <19"` and 12 repos moved to 19), `no-coverage` when nothing targets the stack at all.
+- The `weakCoverage` array is the **second** priority list, ranked the same way: buckets that are covered, but only by a name-level wildcard. One stack-agnostic file in a pack the catalog tags `["react"]` covers every React version, so without this tier a version era with no guidance of its own would disappear into "covered". These repos do get guidance — just not version-correct guidance.
+- Coverage compares against the catalog **and** the version ranges declared by the guidance available in the working directory, so `scan-org` answers the version-era question, not just "does a pack for this stack exist". Install the packs you publish into the directory you scan from to get version-precise buckets; an uninstalled catalogued pack can only contribute name-level (`*`) coverage.
+- If that corpus cannot be read (a malformed manifest, say), the scan degrades to catalog-only coverage and records why in `warnings` — every gap it then reports may be a false positive.
 - Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.
 - Remote detection only reads `package-lock.json`; repos using `yarn.lock`/`pnpm-lock.yaml` resolve to `coerced` confidence from the manifest range (still useful for a histogram). Scan a local clone for `exact` versions across any package manager.
 
@@ -179,7 +186,7 @@ Tools:
 | Tool | Args | Returns |
 | ---- | ---- | ------- |
 | `bluetemberg_detect_stacks` | — | Detected stacks, versions, confidence, coverage, gaps, warnings |
-| `bluetemberg_query_coverage` | `stack`, optional `version` | Whether version-correct guidance exists for the stack |
+| `bluetemberg_query_coverage` | `stack`, optional `version` | Whether version-correct guidance exists for the stack, with the gap `reason` when it does not |
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
 | `bluetemberg_org_histogram` | `roots` (array of repo paths) | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
 
