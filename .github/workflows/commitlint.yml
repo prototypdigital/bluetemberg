@@ -9,6 +9,10 @@ permissions: read-all
 
 jobs:
   commitlint:
+    # Dependabot's PR titles ("Bump x from y to z") are a fixed template we
+    # don't control and always trip the subject-case rule — skip rather than
+    # block every dependency PR forever.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
