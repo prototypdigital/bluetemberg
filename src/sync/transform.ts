@@ -28,11 +28,7 @@ interface WindsurfFrontmatter {
 }
 
 export type TransformedFrontmatter =
-  | CursorFrontmatter
-  | ClaudeFrontmatter
-  | CopilotFrontmatter
-  | GeminiFrontmatter
-  | WindsurfFrontmatter;
+  CursorFrontmatter | ClaudeFrontmatter | CopilotFrontmatter | GeminiFrontmatter | WindsurfFrontmatter;
 
 export function transformFrontmatter(data: RuleFrontmatter, platform: Platform): TransformedFrontmatter {
   const description = data.description || '';

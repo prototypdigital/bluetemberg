@@ -1,24 +1,11 @@
 export type Platform =
-  | 'cursor'
-  | 'claude'
-  | 'copilot'
-  | 'gemini'
-  | 'windsurf'
-  | 'codex'
-  | 'claude-marketplace';
+  'cursor' | 'claude' | 'copilot' | 'gemini' | 'windsurf' | 'codex' | 'claude-marketplace';
 export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
 export type TeamProfile =
-  | 'frontend'
-  | 'backend'
-  | 'fullstack'
-  | 'devops'
-  | 'pure-infra'
-  | 'agentic'
-  | 'design-engineer'
-  | 'custom';
+  'frontend' | 'backend' | 'fullstack' | 'devops' | 'pure-infra' | 'agentic' | 'design-engineer' | 'custom';
 
 /**
  * A technology stack identifier (e.g. `"nextjs"`, `"payload"`, `"react"`). Orthogonal to
