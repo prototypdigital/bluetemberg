@@ -20,6 +20,13 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.12.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.11.0...bluetemberg-v0.12.0) (2026-08-27)
+
+
+### Features
+
+* **sync:** recursive monorepo sync keyed off discovered configs ([5ca6b51](https://github.com/prototypdigital/bluetemberg/commit/5ca6b51962ba699121b85a7aa64c531028ce5b29))
+
 ## [0.11.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.10.1...bluetemberg-v0.11.0) (2026-08-27)
 
 
