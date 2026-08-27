@@ -42,16 +42,50 @@ function isContentFile(filename: string): boolean {
 }
 
 /**
- * The source dirs coverage reads, in sync's priority order: local source → `extends` → installed
- * packs → external sources. Warnings are intentionally dropped here — coverage is a read-only
- * report, and sync already surfaces unresolvable entries.
+ * Resolve one group of source dirs, degrading to none when its manifest cannot be read.
+ *
+ * `resolvePackSourceDirs` / `resolveExternalSourceDirs` throw on a malformed `packages.json` or
+ * `sources.json`. That is right for sync (it writes files and must not act on a broken manifest),
+ * but wrong here: these reports are read-only diagnostics an agent calls at session start, and a
+ * corrupt manifest must not make detection unreadable too. Degrade — and warn, so the caller can
+ * say coverage is incomplete rather than reporting phantom gaps.
  */
-function coverageSourceDirs(root: string, config: BlueprintConfig): { local: string; dirs: string[] } {
+function resolveGroup(
+  label: string,
+  resolve: () => { dirs: string[] },
+  onWarning: (message: string) => void,
+): string[] {
+  try {
+    return resolve().dirs;
+  } catch (err) {
+    const raw = err instanceof Error ? err.message : String(err);
+    // JSON parse errors embed the offending snippet verbatim, newlines and all — flatten it so a
+    // warning stays one line in the terminal and one field in `--json`.
+    const message = raw.replace(/\s+/g, ' ').trim();
+    onWarning(`${label} could not be read (${message}) — coverage may under-report until it is fixed`);
+    return [];
+  }
+}
+
+/**
+ * The source dirs coverage reads, in sync's priority order: local source → `extends` → installed
+ * packs → external sources. Unresolvable *entries* are intentionally dropped (sync already
+ * surfaces those); an unreadable *manifest* is warned about, never thrown.
+ */
+function coverageSourceDirs(
+  root: string,
+  config: BlueprintConfig,
+  onWarning: (message: string) => void,
+): { local: string; dirs: string[] } {
   const source = config.source || 'llm';
   const local = join(root, source);
   const { dirs: extended } = resolveExtendedSourceDirs(config.extends, root);
-  const { dirs: packs } = resolvePackSourceDirs(root, source);
-  const { dirs: external } = resolveExternalSourceDirs(root, source);
+  const packs = resolveGroup(`${source}/packages.json`, () => resolvePackSourceDirs(root, source), onWarning);
+  const external = resolveGroup(
+    `${source}/sources.json`,
+    () => resolveExternalSourceDirs(root, source),
+    onWarning,
+  );
   return { local, dirs: [local, ...extended, ...packs, ...external] };
 }
 
@@ -75,13 +109,17 @@ function readConstraint(
  *
  * Files are merged across source dirs with sync's priority semantics, so a local override of a
  * pack rule contributes *its* range, not the pack's — coverage reports what would actually apply.
+ *
+ * @param onWarning - Called when a source of ranges could not be read, so the caller can report
+ * that coverage is incomplete instead of silently degrading to name-level.
  */
 export function collectDeclaredRanges(
   root: string,
   config: BlueprintConfig,
   catalog: Catalog,
+  onWarning: (message: string) => void = () => {},
 ): DeclaredRange[] {
-  const { local, dirs } = coverageSourceDirs(root, config);
+  const { local, dirs } = coverageSourceDirs(root, config, onWarning);
   const stackMap = buildStackMap(catalog);
   const declared: DeclaredRange[] = [];
 

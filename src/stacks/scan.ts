@@ -5,7 +5,8 @@ import { loadConfig } from '../sync/index.js';
 import { collectDeclaredRanges } from './declared.js';
 import { detectStacks, detectStacksFromManifests } from './detect.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
-import type { CoverageGapReason } from './registry.js';
+import type { CoverageGapReason, StackRegistry } from './registry.js';
+import type { Catalog } from '../catalog/index.js';
 import { GithubFetchError, fetchOrgRepos, fetchRepoManifests, type SkipReason } from './github.js';
 import type { DetectedStacks, DetectionConfidence } from './match.js';
 
@@ -96,6 +97,8 @@ export interface ScanReport {
   histogram: StackHistogramEntry[];
   /** Uncovered `(stack, version)` buckets ranked by usage — the authoring priority list. */
   gaps: ScanGap[];
+  /** Sources of covered ranges that could not be read — every gap below may be a false positive. */
+  warnings: string[];
 }
 
 export interface ScanOptions {
@@ -112,8 +115,10 @@ export interface ScanOptions {
    */
   progress?: (message: string) => void;
   /**
-   * Root to load the catalog from (typically the maintainer's cwd). Resolves to the project cache
-   * or the committed snapshot — never the scanned repos. Defaults to the first local root.
+   * Root the coverage corpus is read from (typically the maintainer's cwd): its catalog (project
+   * cache → committed snapshot) plus the version ranges its available guidance declares. Defaults
+   * to `process.cwd()` — never a scanned repo, whose own rules would otherwise count as org-wide
+   * coverage and mask real gaps.
    */
   catalogRoot?: string;
   /** Remote: scan every non-fork, non-archived repo in this GitHub org. */
@@ -175,19 +180,34 @@ function foldUnits(units: DetectionUnit[]): {
   return { acc, empty };
 }
 
+/**
+ * Build the coverage corpus for `root`: its catalog plus the ranges its available guidance declares.
+ *
+ * Detection of the scanned repos is deliberately NOT registered — the registry is the SUPPLY side
+ * and the scanned repos are the DEMAND side; registering them would mark every scanned stack
+ * "known" and mask the `no-coverage` reason. Best-effort: an unreadable config or manifest degrades
+ * to catalog-only (name-level) coverage with a warning, never an aborted scan.
+ */
+function coverageRegistry(root: string, catalog: Catalog, warn: (m: string) => void): StackRegistry {
+  try {
+    return buildStackRegistry(
+      catalog,
+      undefined,
+      collectDeclaredRanges(root, loadConfig(root), catalog, warn),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    warn(`coverage sources at ${root} could not be read (${message}) — coverage is catalog-only`);
+    return buildStackRegistry(catalog);
+  }
+}
+
 /** Build the histogram + ranked gap list from folded units (the shared local/remote core). */
-function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot?: string): ScanReport {
+function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot: string): ScanReport {
   const { acc, empty } = foldUnits(units);
-  // The registry is the SUPPLY side (what the maintainer's catalog + installed packs cover); the
-  // scanned repos are the DEMAND side, so their detections are deliberately NOT registered here —
-  // registering them would mark every scanned stack "known" and mask the `no-coverage` reason.
-  const root = catalogRoot ?? '.';
-  const catalog = loadCatalogSync(root);
-  const registry = buildStackRegistry(
-    catalog,
-    undefined,
-    collectDeclaredRanges(root, loadConfig(root), catalog),
-  );
+  const warnings: string[] = [];
+  const catalog = loadCatalogSync(catalogRoot);
+  const registry = coverageRegistry(catalogRoot, catalog, (m) => warnings.push(m));
 
   const histogram: StackHistogramEntry[] = [];
   const gaps: ScanGap[] = [];
@@ -221,7 +241,15 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
       b.count - a.count || a.stack.localeCompare(b.stack) || compareVersionsDesc(a.version, b.version),
   );
 
-  return { roots: units.map((u) => u.id), scanned: units.length, empty, skipped, histogram, gaps };
+  return {
+    roots: units.map((u) => u.id),
+    scanned: units.length,
+    empty,
+    skipped,
+    histogram,
+    gaps,
+    warnings,
+  };
 }
 
 /**
@@ -231,7 +259,7 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
  */
 export function buildScanReport(roots: string[], catalogRoot?: string): ScanReport {
   const units = roots.map((root) => ({ id: root, detected: detectStacks(root, loadConfig(root)) }));
-  return buildReport(units, [], catalogRoot ?? roots[0]);
+  return buildReport(units, [], catalogRoot ?? process.cwd());
 }
 
 /** Run async tasks with a bounded concurrency window (no dependency; politeness vs GitHub limits). */
@@ -306,6 +334,8 @@ function printScanHuman(report: ScanReport, log: (msg: string) => void): void {
   log(
     `Scanned ${report.scanned} repo(s): ${withStacks} with stacks, ${report.empty.length} empty${skippedNote}.`,
   );
+  // Printed up front: an unreadable coverage source means every gap below may be a false positive.
+  for (const w of report.warnings) log(`WARN: ${w}`);
 
   if (report.histogram.length === 0) {
     log('No stacks detected in any scanned repo.');
@@ -366,7 +396,7 @@ export async function runScanOrg(localRoots: string[], opts: ScanOptions = {}): 
     skipped = remote.skipped;
   }
 
-  const report = buildReport([...localUnits, ...remoteUnits], skipped, opts.catalogRoot ?? localRoots[0]);
+  const report = buildReport([...localUnits, ...remoteUnits], skipped, opts.catalogRoot ?? process.cwd());
   if (opts.json) {
     log(JSON.stringify(report, null, 2));
   } else {

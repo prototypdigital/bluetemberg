@@ -54,8 +54,9 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
   {
     name: 'bluetemberg_list_stacks',
     description:
-      "List the live stack registry (catalog-declared ∪ detected) with each stack's covered ranges, " +
-      'detected version, and origins.',
+      'List the live stack registry — catalog-declared stacks, stacks any available guidance ' +
+      "declares a version range for, and detected stacks — with each stack's covered ranges " +
+      '(most-specific first), detected version, and origins.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {

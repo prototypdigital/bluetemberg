@@ -26,7 +26,10 @@ export type CoverageGapReason = 'version-uncovered' | 'no-coverage';
 export interface StackRegistryEntry {
   name: Stack;
   origins: Set<StackOrigin>;
-  /** Version ranges known to be covered for this stack (`"*"` = any version, from a name-level pack). */
+  /**
+   * Version ranges known to be covered for this stack (`"*"` = any version, from a name-level
+   * pack), most-specific first — a deterministic order, never harvest/filesystem order.
+   */
   coveredRanges: string[];
   /** Version observed locally/by detection, if any. */
   version?: string;
@@ -43,7 +46,15 @@ function ensureEntry(registry: StackRegistry, name: Stack): StackRegistryEntry {
   return entry;
 }
 
-/** Add a covered version range to a stack (deduplicated). */
+/**
+ * Add a covered version range to a stack (deduplicated), keeping {@link StackRegistryEntry.coveredRanges}
+ * sorted most-specific-first.
+ *
+ * The sort is not cosmetic: the list is part of the `--json` contract, and it is harvested in
+ * `readdirSync` order across merged source dirs — i.e. filesystem-dependent. Ordering it by the
+ * same {@link compareSpecificity} that resolves matches keeps the emitted contract stable across
+ * machines, exactly as range resolution already is.
+ */
 export function addCoverageRange(
   registry: StackRegistry,
   name: Stack,
@@ -52,7 +63,9 @@ export function addCoverageRange(
 ): void {
   const entry = ensureEntry(registry, name);
   entry.origins.add(origin);
-  if (!entry.coveredRanges.includes(range)) entry.coveredRanges.push(range);
+  if (entry.coveredRanges.includes(range)) return;
+  entry.coveredRanges.push(range);
+  entry.coveredRanges.sort(compareSpecificity);
 }
 
 /** Register a stack discovered locally (e.g. detection found it, or an explicit `register`). */

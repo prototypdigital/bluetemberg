@@ -73,6 +73,18 @@ describe('buildStackRegistry', () => {
     expect(queryCoverage(reg, 'payload', '2.0.0')).toMatchObject({ covered: true, matchedRange: '*' });
   });
 
+  it('keeps covered ranges in a deterministic most-specific-first order', () => {
+    // They are harvested in readdir order (filesystem-dependent) but emitted in `--json`, so the
+    // order must not depend on where the declaring files happened to sit.
+    const reg = buildStackRegistry(catalogWith([{ name: 'rules-react', stacks: ['react'] }]), undefined, [
+      declared('react', '>=19'),
+      declared('react', '18.2.0'),
+      declared('react', '*'),
+      declared('react', '>=18 <19'),
+    ]);
+    expect(reg.get('react')?.coveredRanges).toEqual(['18.2.0', '>=18 <19', '>=19', '*']);
+  });
+
   it('records where a declared range came from', () => {
     const reg = buildStackRegistry(catalogWith([]), undefined, [declared('react', '>=19', 'local')]);
     expect(queryCoverage(reg, 'react', '19.1.0').origins).toEqual(['local']);

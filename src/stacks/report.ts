@@ -30,10 +30,21 @@ export interface DetectedReportEntry {
   coverage: CoverageSummary;
 }
 
+/**
+ * A detect-time warning. `low-confidence` is about one detected stack; `coverage-source` is about
+ * the coverage corpus itself (a source of ranges could not be read, so coverage may under-report)
+ * and carries no stack.
+ */
+export interface DetectWarning {
+  stack: string | null;
+  level: 'low-confidence' | 'coverage-source';
+  message: string;
+}
+
 export interface DetectReport {
   detected: DetectedReportEntry[];
   gaps: Array<{ stack: string; resolvedVersion: string; reason: CoverageGapReason }>;
-  warnings: Array<{ stack: string; level: 'low-confidence'; message: string }>;
+  warnings: DetectWarning[];
 }
 
 export interface CoverageReport {
@@ -47,6 +58,8 @@ export interface CoverageReport {
     coveredRanges: string[];
     origins: StackOrigin[];
   };
+  /** Sources of covered ranges that could not be read — coverage may under-report until fixed. */
+  warnings: string[];
 }
 
 interface ReportOptions {
@@ -93,17 +106,22 @@ function describeCoverage(cov: CoverageSummary): string {
  * source dir), and the stacks detection found. Shared by all three reports so they can never
  * disagree on what is covered.
  */
-function projectRegistry(root: string): { registry: StackRegistry; detected: DetectedStacks } {
+function projectRegistry(root: string): {
+  registry: StackRegistry;
+  detected: DetectedStacks;
+  warnings: string[];
+} {
   const config = loadConfig(root);
   const detected = detectStacks(root, config);
   const catalog = loadCatalogSync(root);
-  const declared = collectDeclaredRanges(root, config, catalog);
-  return { registry: buildStackRegistry(catalog, detected, declared), detected };
+  const warnings: string[] = [];
+  const declared = collectDeclaredRanges(root, config, catalog, (message) => warnings.push(message));
+  return { registry: buildStackRegistry(catalog, detected, declared), detected, warnings };
 }
 
 /** Build the detect report (pure — no I/O beyond reading the project). Exposed for testing. */
 export function buildDetectReport(root: string): DetectReport {
-  const { registry, detected } = projectRegistry(root);
+  const { registry, detected, warnings: sourceWarnings } = projectRegistry(root);
 
   const entries: DetectedReportEntry[] = [...detected.entries()].map(([stack, det]) => {
     const cov = queryCoverage(registry, stack, det.version);
@@ -131,20 +149,24 @@ export function buildDetectReport(root: string): DetectReport {
       reason: e.coverage.reason ?? ('no-coverage' as const),
     }));
 
-  const warnings = entries
-    .filter((e) => isLowConfidence(e.confidence))
-    .map((e) => ({
-      stack: e.stack,
-      level: 'low-confidence' as const,
-      message: `resolved ${e.resolvedVersion} from ${e.source}; pin a version in bluetemberg.config.json for precision`,
-    }));
+  const warnings: DetectWarning[] = [
+    // Coverage-source warnings come first: they change how every gap below should be read.
+    ...sourceWarnings.map((message) => ({ stack: null, level: 'coverage-source' as const, message })),
+    ...entries
+      .filter((e) => isLowConfidence(e.confidence))
+      .map((e) => ({
+        stack: e.stack,
+        level: 'low-confidence' as const,
+        message: `resolved ${e.resolvedVersion} from ${e.source}; pin a version in bluetemberg.config.json for precision`,
+      })),
+  ];
 
   return { detected: entries, gaps, warnings };
 }
 
 /** Build the coverage report for one `(stack, version?)` query. Exposed for testing. */
 export function buildCoverageReport(root: string, stack: string, version?: string): CoverageReport {
-  const { registry } = projectRegistry(root);
+  const { registry, warnings } = projectRegistry(root);
   const result = queryCoverage(registry, stack, version);
   const entry = registry.get(stack);
   return {
@@ -157,6 +179,7 @@ export function buildCoverageReport(root: string, stack: string, version?: strin
       coveredRanges: entry?.coveredRanges ?? [],
       origins: result.origins,
     },
+    warnings,
   };
 }
 
@@ -172,9 +195,12 @@ export interface StackListEntry {
 }
 
 /**
- * List the live stack registry — the union of catalog-declared stacks and stacks detected in the
- * project — with each one's coverage ranges and detected version. Exposed for testing and the MCP
- * `list_stacks` tool.
+ * List the live stack registry — catalog-declared stacks ∪ stacks any available guidance declares a
+ * range for ∪ stacks detection found — with each one's coverage ranges and detected version.
+ * Exposed for testing and the MCP `list_stacks` tool.
+ *
+ * Returns the list alone: a source of ranges that could not be read is reported by
+ * {@link buildDetectReport} and {@link buildCoverageReport}, which have a slot for warnings.
  */
 export function buildStacksList(root: string): StackListEntry[] {
   const { registry } = projectRegistry(root);
@@ -201,13 +227,17 @@ function printDetectHuman(report: DetectReport, log: (msg: string) => void): voi
   }
   if (report.warnings.length > 0) {
     log('Warnings:');
-    for (const w of report.warnings) log(`  ${w.stack} — ${w.level}: ${w.message}`);
+    for (const w of report.warnings) {
+      log(`  ${w.stack ? `${w.stack} — ` : ''}${w.level}: ${w.message}`);
+    }
   }
 }
 
 function printCoverageHuman(report: CoverageReport, log: (msg: string) => void): void {
   const { stack, version } = report.query;
   const label = version ? `${stack}@${version}` : stack;
+  // Emitted before the verdict: an unreadable source is often *why* a stack reads as unknown.
+  for (const w of report.warnings) log(`WARN: ${w}`);
   if (!report.result.known) {
     log(`${label} — unknown: no installed pack or detected dependency knows this stack.`);
     return;

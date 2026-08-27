@@ -109,13 +109,15 @@ Report the technology stacks and versions detected in the project, each with its
 
 | Option | Description |
 | ------ | ----------- |
-| `--json` | Emit machine-readable JSON: `detected[]` (each with a `coverage.reason` when uncovered), `gaps[]` (stacks whose detected version has no covering guidance), `warnings[]` (low-confidence detections) |
+| `--json` | Emit machine-readable JSON: `detected[]` (each with a `coverage.reason` when uncovered), `gaps[]` (stacks whose detected version has no covering guidance), `warnings[]` |
 | `--silent` | Suppress all output |
 
 ```bash
 npx bluetemberg detect
 npx bluetemberg detect --json
 ```
+
+Each `warnings[]` entry carries a `level`: `low-confidence` names the stack whose version was coerced, while `coverage-source` (with `stack: null`) means a source of covered ranges could not be read — a malformed `llm/packages.json`, say — so coverage may under-report. A broken manifest degrades the report to catalog-only coverage; it never aborts it.
 
 ## `bluetemberg coverage <stack>[@version] [directory]`
 
@@ -125,7 +127,7 @@ Covered ranges are read from the `stacks:` frontmatter of the guidance actually 
 
 | Option | Description |
 | ------ | ----------- |
-| `--json` | Emit machine-readable JSON (`query` + `result`) |
+| `--json` | Emit machine-readable JSON (`query`, `result`, and `warnings[]` for coverage sources that could not be read) |
 | `--silent` | Suppress all output |
 
 ```bash
@@ -142,7 +144,7 @@ Two sources, one report — and they can be combined in a single run:
 - **Local** — pass filesystem paths to cloned repos. Detection precedence is `node_modules` → `package-lock.json` → coerced `package.json` range, so installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`.
 - **Remote** — `--org`/`--repos` read each repo's `package.json` (and `package-lock.json` when present) over the GitHub Contents API **without cloning**. Detection precedence is `package-lock.json` → coerced `package.json` range (there is no `node_modules` over the API).
 
-The catalog it compares against is loaded from the current working directory (project cache → committed snapshot), not from the scanned repos.
+The corpus it compares against is read from the current working directory — its catalog (project cache → committed snapshot) plus the version ranges its available guidance declares — never from the scanned repos, whose own rules would otherwise count as org-wide coverage and mask the gaps you are looking for.
 
 | Option | Description |
 | ------ | ----------- |
@@ -169,7 +171,8 @@ Progress is written to **stderr**, so `--json` output on stdout stays clean for 
 ### Behaviour notes
 
 - The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` — `version-uncovered` when guidance for the stack exists but no covered range satisfies that version (e.g. you ship `react: ">=18 <19"` and 12 repos moved to 19), `no-coverage` when nothing targets the stack at all.
-- Coverage compares against the catalog **and** the version ranges declared by the guidance available at the catalog root, so `scan-org` answers the version-era question, not just "does a pack for this stack exist". Install the packs you publish into the root you scan from to get version-precise buckets; an uninstalled catalogued pack can only contribute name-level (`*`) coverage.
+- Coverage compares against the catalog **and** the version ranges declared by the guidance available in the working directory, so `scan-org` answers the version-era question, not just "does a pack for this stack exist". Install the packs you publish into the directory you scan from to get version-precise buckets; an uninstalled catalogued pack can only contribute name-level (`*`) coverage.
+- If that corpus cannot be read (a malformed manifest, say), the scan degrades to catalog-only coverage and records why in `warnings` — every gap it then reports may be a false positive.
 - Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.
 - Remote detection only reads `package-lock.json`; repos using `yarn.lock`/`pnpm-lock.yaml` resolve to `coerced` confidence from the manifest range (still useful for a histogram). Scan a local clone for `exact` versions across any package manager.
 

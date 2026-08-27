@@ -190,6 +190,41 @@ describe('buildScanReport — aggregation + gaps', () => {
     });
   });
 
+  it('never reads a scanned repo as the coverage corpus when catalogRoot is omitted', () => {
+    // A scanned repo's own rules must not count as org-wide coverage: that would mask the very
+    // gaps the scan exists to find. The default is the cwd (the maintainer), never roots[0].
+    const a = repo('a');
+    writeNodeModules(a, 'react', '19.0.0');
+    writeManifest(a, { react: '^19' });
+    mkdirSync(join(a, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(a, 'llm', 'rules', 'local-react.md'),
+      '---\ndescription: local\nstacks:\n  react: ">=19"\n---\nbody\n',
+    );
+
+    const defaulted = buildScanReport([a]);
+    const explicitCwd = buildScanReport([a], process.cwd());
+    expect(defaulted.gaps).toEqual(explicitCwd.gaps);
+
+    // Pointing the corpus AT the scanned repo is what makes its own rule count — the old default.
+    expect(buildScanReport([a], a).gaps).toEqual([]);
+  });
+
+  it('degrades to catalog-only coverage (with a warning) when the corpus cannot be read', () => {
+    writeCatalog(workdir, [PAYLOAD_PACK]);
+    mkdirSync(join(workdir, 'llm'), { recursive: true });
+    writeFileSync(join(workdir, 'llm', 'packages.json'), 'this is not json');
+    const a = repo('a');
+    writeNodeModules(a, 'payload', '3.4.1');
+    writeManifest(a, { payload: '^3' });
+
+    const report = buildScanReport([a], workdir);
+    expect(report.scanned).toBe(1);
+    expect(report.warnings.some((w) => /packages\.json could not be read/.test(w))).toBe(true);
+    // Catalog coverage still applies, so the scan stays useful instead of reporting phantom gaps.
+    expect(report.gaps).toEqual([]);
+  });
+
   it('counts repos with no detectable stacks as empty, not scanned-with-stacks', () => {
     const a = repo('a');
     const empty = repo('empty');

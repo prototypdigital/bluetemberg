@@ -131,6 +131,21 @@ describe('buildDetectReport', () => {
     expect(report.warnings.some((w) => w.stack === 'payload' && w.level === 'low-confidence')).toBe(true);
   });
 
+  it('degrades to catalog-only coverage (with a warning) when a manifest cannot be read', () => {
+    // `detect` is a read-only diagnostic an agent calls at session start — a corrupt manifest must
+    // not make detection unreadable too, and must not silently shrink coverage either.
+    writeConfig(root, { payload: '3.4.1' });
+    writeCatalog(root, [PAYLOAD_PACK]);
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'packages.json'), 'this is not json');
+
+    const report = buildDetectReport(root);
+    expect(report.detected.find((e) => e.stack === 'payload')?.resolvedVersion).toBe('3.4.1');
+    const warning = report.warnings.find((w) => w.level === 'coverage-source');
+    expect(warning?.stack).toBeNull();
+    expect(warning?.message).toMatch(/packages\.json could not be read/);
+  });
+
   it('reports no stacks when none are declared or present', () => {
     writeConfig(root);
     const report = buildDetectReport(root);
@@ -164,6 +179,17 @@ describe('buildCoverageReport', () => {
     expect(report.result.known).toBe(false);
     expect(report.result.covered).toBe(false);
     expect(report.result.reason).toBe('no-coverage');
+  });
+
+  it('surfaces an unreadable coverage source rather than answering from a shrunken corpus', () => {
+    writeConfig(root);
+    writeCatalog(root, [PAYLOAD_PACK]);
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'packages.json'), 'this is not json');
+
+    const report = buildCoverageReport(root, 'payload', '3.4.1');
+    expect(report.warnings).toHaveLength(1);
+    expect(report.warnings[0]).toMatch(/packages\.json could not be read/);
   });
 
   it('answers version-uncovered against the ranges the available guidance declares', () => {
