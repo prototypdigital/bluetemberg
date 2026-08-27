@@ -70,13 +70,15 @@ export async function add(
 
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
-  const metadata = await fetchPackageMetadata(name, manifest.registry);
+  const metadata = await fetchPackageMetadata(name, manifest.registry, root);
   const version = resolveVersion(metadata, range);
 
   log(`Installing ${name}@${version}...`);
 
   const lockEntry = await installPackVersion(root, metadata, version, {
     registryUrl: manifest.registry,
+    skipSignatureVerification: options.skipSignatureVerification,
+    allowExternalTarballHost: options.allowExternalTarballHost,
   });
 
   // Update manifest and lockfile.
@@ -207,7 +209,7 @@ async function dryRunInstall(
         log(`  ${name}@${existingLock.version} (cached ✓)`);
         continue;
       }
-      const metadata = await fetchPackageMetadata(name, manifest.registry);
+      const metadata = await fetchPackageMetadata(name, manifest.registry, root);
       const version = resolveVersion(metadata, existingLock && !options.force ? existingLock.version : range);
       log(`  ${name}@${version} (would download)`);
     } catch (err) {
@@ -273,11 +275,11 @@ export async function install(
           continue;
         }
         // Cached files missing — re-download the locked version.
-        metadata = await fetchPackageMetadata(name, manifest.registry);
+        metadata = await fetchPackageMetadata(name, manifest.registry, root);
         version = existingLock.version;
       } else {
         // No lock entry or force mode — resolve from registry.
-        metadata = await fetchPackageMetadata(name, manifest.registry);
+        metadata = await fetchPackageMetadata(name, manifest.registry, root);
         version = resolveVersion(metadata, range);
       }
 
@@ -286,6 +288,8 @@ export async function install(
       const lockEntry = await installPackVersion(root, metadata, version, {
         force: options.force,
         registryUrl: manifest.registry,
+        skipSignatureVerification: options.skipSignatureVerification,
+        allowExternalTarballHost: options.allowExternalTarballHost,
       });
 
       lock.packages[name] = lockEntry;
@@ -392,7 +396,7 @@ export async function update(
     try {
       log(`  Resolving ${name}@${range}...`);
 
-      const metadata = await fetchPackageMetadata(name, manifest.registry);
+      const metadata = await fetchPackageMetadata(name, manifest.registry, root);
       const version = resolveVersion(metadata, range);
 
       if (previousVersion === version && isPackCached(root, name, version)) {
@@ -411,6 +415,8 @@ export async function update(
 
       const lockEntry = await installPackVersion(root, metadata, version, {
         registryUrl: manifest.registry,
+        skipSignatureVerification: options.skipSignatureVerification,
+        allowExternalTarballHost: options.allowExternalTarballHost,
       });
 
       lock.packages[name] = lockEntry;
@@ -491,13 +497,23 @@ export async function update(
 
 /**
  * Search the npm registry for bluetemberg packs.
+ *
+ * Searches the registry the project configures, not always npmjs.org — a private
+ * registry is unusable for discovery otherwise, and credentials for it would never be
+ * applied.
  */
 export async function search(query: string, options: RegistrySearchOptions = {}): Promise<NpmSearchResult[]> {
   const log = options.silent ? () => {} : console.log;
 
   log(`Searching for "${query}"...\n`);
 
-  const results = await searchPackages(query, { limit: options.limit });
+  const root = options.root ?? process.cwd();
+  const manifest = readManifest(root, loadConfig(root).source || 'llm');
+  const results = await searchPackages(query, {
+    limit: options.limit,
+    registryUrl: manifest.registry,
+    root,
+  });
 
   if (results.length === 0) {
     log('No packs found. Packs must include "bluetemberg-pack" in their keywords.');
@@ -588,8 +604,9 @@ async function verifyPackSignature(
   integrity: string,
   lockedKeyid: string | undefined,
   registryUrl: string | undefined,
+  root: string,
 ): Promise<PackVerifyResult> {
-  const metadata = await fetchPackageMetadata(name, registryUrl);
+  const metadata = await fetchPackageMetadata(name, registryUrl, root);
   const versionMeta = metadata.versions[version];
   if (!versionMeta) {
     return {
@@ -618,7 +635,7 @@ async function verifyPackSignature(
     };
   }
 
-  const keys = await fetchRegistryKeys(registryUrl);
+  const keys = await fetchRegistryKeys(registryUrl, root);
   const { verified } = verifyRegistrySignature(name, version, integrity, signatures, keys);
 
   if (!verified) {
@@ -698,7 +715,7 @@ export async function verify(root: string, options: RegistryVerifyOptions = {}):
     }
 
     try {
-      const result = await verifyPackSignature(name, version, integrity, keyid, manifest.registry);
+      const result = await verifyPackSignature(name, version, integrity, keyid, manifest.registry, root);
       results.push(result);
       if (result.status === 'ok') {
         log(`  ✓ ${name}@${version} — ok`);

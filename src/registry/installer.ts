@@ -10,13 +10,9 @@ import {
 import { join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
 import { maxSatisfying } from 'semver';
-import {
-  downloadTarball,
-  verifyIntegrity,
-  fetchRegistryKeys,
-  verifyRegistrySignature,
-  DEFAULT_REGISTRY,
-} from './client.js';
+import { downloadTarball, verifyIntegrity, fetchRegistryKeys, verifyRegistrySignature } from './client.js';
+import { DEFAULT_REGISTRY } from './constants.js';
+import { redactCredentials, registryAuthHeaders, transportAllowsCredentials } from './auth.js';
 import { extractTarball } from '../sources/tarball.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -86,6 +82,19 @@ export function resolveVersion(metadata: NpmPackageMetadata, range: string): str
 }
 
 /**
+ * Every install that lands without a verified signature says so, loudly — a CI
+ * transcript must show the weakened guarantee at the moment it was used, not only when
+ * someone later runs `verify`. Deliberately not routed through a silenceable log sink.
+ */
+function warnSignatureSkipped(name: string, version: string, registryUrl: string): void {
+  console.warn(
+    `Warning: Signature verification skipped for "${name}@${version}" — ` +
+      `skipSignatureVerification is enabled for ${redactCredentials(registryUrl)}. ` +
+      `Integrity was still verified.`,
+  );
+}
+
+/**
  * Download and extract a specific pack version into the local cache.
  *
  * Steps:
@@ -115,32 +124,37 @@ export async function installPackVersion(
 
   const tarballUrl = versionMeta.dist.tarball;
 
+  const registryUrl = options.registryUrl ?? DEFAULT_REGISTRY;
+
   // Validate the tarball host matches the configured registry to prevent a
   // compromised registry response from redirecting downloads to an attacker-controlled host.
-  let registryHost: string;
+  let registryParsed: URL;
   try {
-    registryHost = new URL(options.registryUrl ?? DEFAULT_REGISTRY).hostname;
+    registryParsed = new URL(registryUrl);
   } catch {
-    throw new Error(`Invalid registry URL: ${options.registryUrl ?? DEFAULT_REGISTRY}`);
+    throw new Error(`Invalid registry URL: ${redactCredentials(registryUrl)}`);
   }
-  let tarballHost: string;
+  let tarballParsed: URL;
   try {
-    tarballHost = new URL(tarballUrl).hostname;
+    tarballParsed = new URL(tarballUrl);
   } catch {
     throw new Error(
       `Invalid tarball URL in registry metadata for "${metadata.name}@${version}": ${tarballUrl}`,
     );
   }
-  if (tarballHost !== registryHost) {
+  const registryHost = registryParsed.hostname;
+  const tarballHost = tarballParsed.hostname;
+  const tarballOnRegistryHost = tarballHost === registryHost;
+  if (!tarballOnRegistryHost) {
     if (options.allowExternalTarballHost) {
       console.warn(
         `Warning: Tarball host "${tarballHost}" differs from registry host "${registryHost}" for "${metadata.name}@${version}". ` +
-          `Proceeding because allowExternalTarballHost is enabled.`,
+          `Proceeding because allowExternalTarballHost is enabled. Registry credentials will not be sent to "${tarballHost}".`,
       );
     } else {
       throw new Error(
         `Tarball host "${tarballHost}" does not match registry host "${registryHost}" — refusing to download. ` +
-          `If your registry uses an external CDN, pass allowExternalTarballHost option or configure it to serve tarballs from the same host.`,
+          `If your registry uses an external CDN, pass allowExternalTarballHost (CLI: --allow-external-tarball-host) or configure it to serve tarballs from the same host.`,
       );
     }
   }
@@ -154,7 +168,6 @@ export async function installPackVersion(
   }
 
   // Compute signature policy upfront — needed for both the cache-hit and fresh-install paths.
-  const registryUrl = options.registryUrl ?? DEFAULT_REGISTRY;
   const isDefaultRegistry = registryUrl.replace(/\/$/, '') === DEFAULT_REGISTRY;
   // skipSignatureVerification is only honoured for non-default registries.
   // The default npm registry always signs packages; we always verify there.
@@ -173,6 +186,7 @@ export async function installPackVersion(
           : undefined;
 
         if (cachedKeyid || skipSig) {
+          if (!cachedKeyid) warnSignatureSkipped(metadata.name, version, registryUrl);
           return {
             version,
             resolved: tarballUrl,
@@ -184,7 +198,7 @@ export async function installPackVersion(
         // keyid is missing — backfill via signature verification without re-downloading.
         const signatures = versionMeta.dist.signatures ?? [];
         if (signatures.length > 0) {
-          const keys = await fetchRegistryKeys(registryUrl);
+          const keys = await fetchRegistryKeys(registryUrl, root);
           const result = verifyRegistrySignature(metadata.name, version, cachedIntegrity, signatures, keys);
           if (result.verified) {
             writeFileSync(keyidMarkerPath, result.keyid + '\n');
@@ -220,7 +234,17 @@ export async function installPackVersion(
   let verifiedKeyid: string | undefined;
 
   try {
-    integrity = await downloadTarball(tarballUrl, tmpFile);
+    // Credentials are scoped to the configured registry. Host pinning above ignores
+    // scheme and port, so the credential decision re-checks both: the tarball must sit
+    // on the registry's exact host (port included) over a transport allowed to carry a
+    // credential — metadata pointing at `http://<registry-host>/…` must not downgrade
+    // the token onto cleartext. And when allowExternalTarballHost redirects the
+    // download elsewhere, send none — a CDN on a third-party host must never receive
+    // the registry token.
+    const sendCredentials =
+      tarballParsed.host === registryParsed.host && transportAllowsCredentials(tarballParsed);
+    const downloadHeaders = sendCredentials ? registryAuthHeaders(registryUrl, root) : {};
+    integrity = await downloadTarball(tarballUrl, tmpFile, { headers: downloadHeaders });
 
     if (!verifyIntegrity(expectedIntegrity, integrity)) {
       throw new Error(
@@ -235,10 +259,10 @@ export async function installPackVersion(
           `Package "${metadata.name}@${version}" has no registry signature. ` +
             (isDefaultRegistry
               ? 'The default npm registry always signs packages; this may indicate a compromised registry response.'
-              : 'Pass skipSignatureVerification: true to allow unsigned packages from self-hosted registries.'),
+              : 'Self-hosted registries that do not sign need an explicit opt-in: pass --skip-signature-verification (API: skipSignatureVerification: true).'),
         );
       }
-      const keys = await fetchRegistryKeys(registryUrl);
+      const keys = await fetchRegistryKeys(registryUrl, root);
       const result = verifyRegistrySignature(metadata.name, version, integrity, signatures, keys);
       if (!result.verified) {
         throw new Error(
@@ -246,6 +270,8 @@ export async function installPackVersion(
         );
       }
       verifiedKeyid = result.keyid;
+    } else {
+      warnSignatureSkipped(metadata.name, version, registryUrl);
     }
 
     // Extract tarball with security filtering (rejects symlinks + path traversal).

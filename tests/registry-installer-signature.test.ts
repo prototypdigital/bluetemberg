@@ -182,7 +182,10 @@ describe('installPackVersion — signature verification', () => {
       },
     };
 
-    // Should not throw even though there are no signatures.
+    // Should not throw even though there are no signatures — but must say so: the
+    // acceptance bar for the escape hatch is a log line at the moment the weakened
+    // guarantee is used, so a CI transcript shows it without anyone running `verify`.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const entry = await installPackVersion(root, metadata, '2.0.0', {
       registryUrl: customRegistry,
       skipSignatureVerification: true,
@@ -190,6 +193,32 @@ describe('installPackVersion — signature verification', () => {
 
     expect(entry.integrity).toBe(FAKE_INTEGRITY);
     expect(entry.keyid).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/Signature verification skipped for "internal-pack@2\.0\.0"/),
+    );
+
+    // The cache-hit path makes the same promise: reinstalling the unsigned pack from
+    // cache still announces that no signature ever covered it.
+    warn.mockClear();
+    await installPackVersion(root, metadata, '2.0.0', {
+      registryUrl: customRegistry,
+      skipSignatureVerification: true,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/Signature verification skipped for "internal-pack@2\.0\.0"/),
+    );
+    warn.mockRestore();
+  });
+
+  it('does not warn when a signature was actually verified', async () => {
+    globalThis.fetch = buildFetchMock();
+    const metadata = makeMetadata('my-pack', '1.0.0');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await installPackVersion(root, metadata, '1.0.0');
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('always verifies signature on default registry even when skipSignatureVerification: true', async () => {

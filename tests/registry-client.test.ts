@@ -13,7 +13,12 @@ import {
   clearRegistryKeysCache,
   DEFAULT_REGISTRY,
 } from '../src/registry/client.js';
+import { isolateRegistryAuth } from './helpers/registry-auth.js';
 import type { NpmRegistryKey } from '../src/types.js';
+
+// Credentials are resolved from `.npmrc`/env, so pin them to an empty temp config —
+// otherwise these header assertions depend on whoever runs the suite.
+isolateRegistryAuth();
 
 // ---------------------------------------------------------------------------
 // verifyIntegrity (pure, no mocking needed)
@@ -263,7 +268,7 @@ describe('downloadTarball', () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, body: readable });
 
-    await expect(downloadTarball('https://example.com/big.tgz', tmpFile, 512)).rejects.toThrow(
+    await expect(downloadTarball('https://example.com/big.tgz', tmpFile, { maxBytes: 512 })).rejects.toThrow(
       'exceeds the maximum allowed size',
     );
   });

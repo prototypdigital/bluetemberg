@@ -56,22 +56,61 @@ export function listDirs(dir: string): string[] {
     .map((d) => d.name);
 }
 
+const CACHE_IGNORE = { comment: '# Bluetemberg cache', entry: '.bluetemberg/' };
+const NPMRC_IGNORE = {
+  comment: '# Registry credentials — keep tokens in the environment, not in the repo',
+  entry: '.npmrc',
+};
+
+/** npm config key suffixes that mark an `.npmrc` line as credential-bearing. */
+const NPMRC_CREDENTIAL_KEY = /(^|:)_(authToken|auth|password)\s*=/m;
+
 /**
- * Ensure `.bluetemberg/` (the pack + external-source cache) is git-ignored.
+ * Whether the project `.npmrc` declares a credential (see `docs/wiki/Registry.md`).
+ * A `${VAR}` reference counts: it holds no secret itself, but the file is where one
+ * would land the day someone pastes a literal token in place of the reference.
+ */
+function npmrcHoldsCredential(root: string): boolean {
+  const npmrcPath = join(root, '.npmrc');
+  if (!existsSync(npmrcPath)) return false;
+  try {
+    return NPMRC_CREDENTIAL_KEY.test(readFileSync(npmrcPath, 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the `.gitignore` content already carries `entry` as its own line (optionally root-anchored). */
+function hasIgnoreEntry(content: string, entry: string): boolean {
+  return content.split(/\r?\n/).some((line) => {
+    const trimmed = line.trim();
+    return trimmed === entry || trimmed === `/${entry}`;
+  });
+}
+
+/**
+ * Ensure the entries bluetemberg manages are git-ignored.
  *
- * No-op when there is no `.gitignore` (don't create one for a non-git project)
- * or when the marker is already present.
+ * `.bluetemberg/` (the pack + external-source cache) is always managed. `.npmrc` is
+ * ignored only once the project's `.npmrc` actually holds a credential key
+ * (`_authToken` / `_auth` / `_password`): an accidentally committed token is the most
+ * expensive mistake this tool can invite, but a tokenless `.npmrc` (`registry=`, scope
+ * mappings) is a file many projects commit deliberately, and blanket-ignoring it would
+ * silently hide those. Ignoring never untracks an `.npmrc` that is already committed.
+ *
+ * No-op when there is no `.gitignore` (don't create one for a non-git project) or when
+ * every applicable entry is already present; each entry is appended independently, so a
+ * project ignoring only one of them still gets the other.
  */
 export function ensureGitignore(root: string): void {
   const gitignorePath = join(root, '.gitignore');
-  const marker = '.bluetemberg/';
-
   if (!existsSync(gitignorePath)) return;
 
+  const managed = npmrcHoldsCredential(root) ? [CACHE_IGNORE, NPMRC_IGNORE] : [CACHE_IGNORE];
   const content = readFileSync(gitignorePath, 'utf8');
-  if (content.includes(marker)) return;
+  const missing = managed.filter(({ entry }) => !hasIgnoreEntry(content, entry));
+  if (missing.length === 0) return;
 
-  const lines = content.split('\n');
-  const newContent = [...lines, '', '# Bluetemberg cache', marker, ''].join('\n');
-  writeFileSync(gitignorePath, newContent);
+  const added = missing.flatMap(({ comment, entry }) => ['', comment, entry]);
+  writeFileSync(gitignorePath, [...content.split('\n'), ...added, ''].join('\n'));
 }

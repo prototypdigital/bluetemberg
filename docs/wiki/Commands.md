@@ -204,6 +204,12 @@ bluetemberg add @company/rules-frontend@^1.2.0
 bluetemberg add bluetemberg-rules-typescript bluetemberg-agents-code-reviewer
 ```
 
+| Option | Description |
+| ------ | ----------- |
+| `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
+| `--silent` | Suppress all output |
+
 ## `bluetemberg remove <package>`
 
 Remove a rule pack from the project.
@@ -227,7 +233,21 @@ Install all packs from the manifest (`llm/packages.json`). Run after cloning a r
 ```bash
 bluetemberg install
 bluetemberg install --force
+
+# Against a token-gated, unsigned self-hosted registry (token scoped in .npmrc)
+NPM_TOKEN=... bluetemberg install --skip-signature-verification
 ```
+
+| Option | Description |
+| ------ | ----------- |
+| `--force` | Force re-download even if cached |
+| `--dry-run` | Resolve packs and print the install plan without writing files |
+| `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
+| `--silent` | Suppress all output |
+
+Credentials for a private registry come from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_TOKEN` — see
+[Private registries](Registry#private-registries).
 
 ## `bluetemberg update [package]`
 
@@ -242,11 +262,15 @@ bluetemberg update --latest
 | Option | Description |
 | ------ | ----------- |
 | `--latest` | Widen ranges to `"latest"` in manifest, not just re-resolve current range |
+| `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
 | `--silent` | Suppress all output |
 
 ## `bluetemberg search <query>`
 
-Search npm for rule packs tagged with `bluetemberg-pack`.
+Search for rule packs tagged with `bluetemberg-pack`, in the registry the project's manifest
+configures — so a [private registry](Registry#private-registries) is searchable too, using the
+same credentials as `install`.
 
 ```bash
 bluetemberg search typescript

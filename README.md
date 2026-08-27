@@ -187,6 +187,14 @@ npx bluetemberg list                             # show installed packs and reso
 
 Run `bluetemberg sync` after any change to regenerate platform files. See [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry) for the manifest format, lockfile, and pack cache layout.
 
+Packs can also come from a **private registry** — a private scope on npmjs.org, GitHub Packages, Verdaccio, Artifactory. Credentials are read from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_TOKEN` exactly as npm reads them, and are only ever sent to the host they are scoped to, over https. Registries that do not sign need an explicit opt-in:
+
+```bash
+NODE_AUTH_TOKEN=... npx bluetemberg install --skip-signature-verification
+```
+
+Signature verification stays mandatory for `registry.npmjs.org`. See [Private registries](https://github.com/prototypdigital/bluetemberg/wiki/Registry#private-registries).
+
 ## Stacks (version-aware routing)
 
 A second routing axis orthogonal to profiles (role): **stacks** answer _what you build with_. Tag a rule or guardrail with a version range and sync delivers it **only where it's correct** — a Payload-2 rule never reaches a Payload-3 repo.
