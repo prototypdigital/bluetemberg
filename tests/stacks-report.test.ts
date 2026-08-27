@@ -103,6 +103,24 @@ describe('buildDetectReport', () => {
     });
   });
 
+  it('ranks a version covered only by a wildcard as weak coverage, not as covered-and-done', () => {
+    // The masking case: one unbounded sibling in the same pack re-opens `*`, so react 19 is
+    // covered — but only generically. It must not vanish into "covered" alongside react 18.
+    writeConfig(root, { react: '19.0.0' });
+    writeCatalog(root, [{ ...REACT_PACK, rules: ['effects-r18', 'naming'] }]);
+    writeRule(root, 'effects-r18', 'react: ">=18 <19"');
+    writeRule(root, 'naming'); // no stacks: → inherits the pack's name-level tag
+
+    const report = buildDetectReport(root);
+    expect(report.gaps).toEqual([]);
+    expect(report.weakCoverage).toEqual([{ stack: 'react', resolvedVersion: '19.0.0' }]);
+    expect(report.detected.find((e) => e.stack === 'react')?.coverage).toMatchObject({
+      covered: true,
+      precision: 'name-level',
+      matchedRange: '*',
+    });
+  });
+
   it('covers a version that a declared range does satisfy', () => {
     writeConfig(root, { react: '18.3.0' });
     writeCatalog(root, [REACT_PACK]);
@@ -110,9 +128,11 @@ describe('buildDetectReport', () => {
 
     const report = buildDetectReport(root);
     expect(report.gaps).toEqual([]);
+    expect(report.weakCoverage).toEqual([]);
     expect(report.detected.find((e) => e.stack === 'react')?.coverage).toMatchObject({
       covered: true,
       matchedRange: '>=18 <19',
+      precision: 'version',
       reason: null,
     });
   });

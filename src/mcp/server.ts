@@ -30,17 +30,19 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
     name: 'bluetemberg_detect_stacks',
     description:
       "Detect the project's technology stacks and resolved versions, each with detection confidence " +
-      'and coverage. Returns { detected, gaps, warnings }. Call once at session start to self-select ' +
-      'version-correct guidance.',
+      'and coverage. Returns { detected, gaps, weakCoverage, warnings } — `weakCoverage` lists stacks ' +
+      'covered only name-level (no guidance declares a range for that version). Call once at session ' +
+      'start to self-select version-correct guidance.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'bluetemberg_query_coverage',
     description:
-      'Ask whether version-correct guidance exists for a stack. Returns { query, result } with ' +
-      '`known`, `covered`, the most-specific matched range, and — when uncovered — a `reason` ' +
-      '(`version-uncovered` = guidance exists but not for this version; `no-coverage` = nothing ' +
-      'targets this stack).',
+      'Ask whether version-correct guidance exists for a stack. Returns { query, result, warnings } ' +
+      'with `known`, `covered`, the most-specific matched range, a `precision` (`version` = a ' +
+      'declared range matched; `name-level` = only a wildcard did), and — when uncovered — a ' +
+      '`reason` (`version-uncovered` = guidance exists but not for this version; `no-coverage` = ' +
+      'nothing targets this stack).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -65,8 +67,9 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
       '[maintainer] Build a (stack, version) usage histogram vs catalog coverage. Accepts any ' +
       'combination of local roots, a GitHub org slug, or specific owner/repo pairs. Remote scanning ' +
       'reads GITHUB_TOKEN or GH_TOKEN from the MCP server process environment (never from tool ' +
-      'args). Read-only. Returns { roots, scanned, empty, skipped, histogram, gaps } — `gaps` is ' +
-      'the authoring priority list (uncovered buckets ranked by usage).',
+      'args). Read-only. Returns { roots, scanned, empty, skipped, histogram, gaps, weakCoverage, ' +
+      'warnings } — `gaps` is the authoring priority list (uncovered buckets ranked by usage) and ' +
+      '`weakCoverage` is the second list (buckets covered only name-level, also ranked by usage).',
     inputSchema: {
       type: 'object',
       properties: {

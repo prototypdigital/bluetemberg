@@ -121,6 +121,35 @@ describe('queryCoverage', () => {
     });
   });
 
+  it('reports how precisely a covering range matched', () => {
+    const reg = buildStackRegistry(catalogWith([]));
+    addCoverageRange(reg, 'react', '>=18 <19');
+    addCoverageRange(reg, 'react', '*');
+    // 18 has a declared range; 19 falls through to the wildcard — covered, but not version-correct.
+    expect(queryCoverage(reg, 'react', '18.3.1')).toMatchObject({
+      covered: true,
+      precision: 'version',
+      matchedRange: '>=18 <19',
+    });
+    expect(queryCoverage(reg, 'react', '19.0.0')).toMatchObject({
+      covered: true,
+      precision: 'name-level',
+      matchedRange: '*',
+    });
+  });
+
+  it('reports name-level precision without a version only when every range is a wildcard', () => {
+    const wildcardOnly = buildStackRegistry(catalogWith([{ name: 'rules-react', stacks: ['react'] }]));
+    expect(queryCoverage(wildcardOnly, 'react').precision).toBe('name-level');
+
+    const withRange = buildStackRegistry(
+      catalogWith([{ name: 'rules-react', stacks: ['react'] }]),
+      undefined,
+      [declared('react', '>=18 <19')],
+    );
+    expect(queryCoverage(withRange, 'react').precision).toBe('version');
+  });
+
   it('reports no-coverage when nothing targets the stack at all', () => {
     const reg = buildStackRegistry(catalogWith([]));
     registerStack(reg, 'astro', '4.0.0', 'detected');

@@ -27,13 +27,22 @@ export interface DetectedStack {
 export type DetectedStacks = Map<string, DetectedStack>;
 
 /**
+ * True when `range` is the name-level wildcard: `"*"` (or empty) = any version of this stack.
+ * A wildcard is real coverage, but not *version* coverage — callers that rank guidance by
+ * precision key on this rather than string-matching `"*"` themselves.
+ */
+export function isWildcardRange(range: string): boolean {
+  return range === '' || range === '*';
+}
+
+/**
  * True when `range` is a valid semver range (or the wildcard `"*"`/empty = any version).
  * Note: the `"auto"` sentinel is intentionally NOT valid here — it belongs only in blueprint
  * `stacks` detection config, never in a rule's `stacks:` constraint (where it would silently
  * become match-all).
  */
 export function isValidStackRange(range: string): boolean {
-  if (range === '' || range === '*') return true;
+  if (isWildcardRange(range)) return true;
   return validRange(range) !== null;
 }
 
@@ -42,7 +51,7 @@ export function isValidStackRange(range: string): boolean {
  * canary/rc matches its major. An invalid range returns false (never an accidental match).
  */
 export function versionSatisfies(version: string, range: string): boolean {
-  if (range === '' || range === '*') return true;
+  if (isWildcardRange(range)) return true;
   if (validRange(range) === null) return false;
   const v = coerce(version, { includePrerelease: true });
   if (!v) return false;
@@ -115,7 +124,7 @@ export function describeStackMismatch(result: StackMatchResult): string {
  */
 export function compareSpecificity(a: string, b: string): number {
   const weight = (r: string): number => {
-    if (r === '' || r === '*') return 0;
+    if (isWildcardRange(r)) return 0;
     if (valid(r) !== null) return 3; // an exact version pin is the most specific
     if (/[~^]/.test(r)) return 2; // caret/tilde bound both ends
     return (r.match(/[<>]=?/g) ?? []).length; // each explicit comparator is one bound

@@ -190,6 +190,52 @@ describe('buildScanReport — aggregation + gaps', () => {
     });
   });
 
+  it('ranks name-level-only buckets as their own tier instead of hiding them under covered', () => {
+    // One unbounded sibling in the react pack re-opens `*`, so react 19 is covered — generically.
+    // It belongs in weakCoverage (the second authoring list), never silently in the covered set.
+    writeCatalog(workdir, [{ ...REACT_PACK, rules: ['effects-r18', 'naming'] }]);
+    writeRule(workdir, 'effects-r18', 'react: ">=18 <19"');
+    writeRule(workdir, 'naming'); // no stacks: → inherits the pack's name-level tag
+    const a = repo('a');
+    const b = repo('b');
+    const c = repo('c');
+    writeNodeModules(a, 'react', '19.0.0');
+    writeNodeModules(b, 'react', '19.0.0');
+    writeNodeModules(c, 'react', '18.3.1');
+    for (const r of [a, b, c]) writeManifest(r, { react: '*' });
+
+    const report = buildScanReport([a, b, c], workdir);
+    expect(report.gaps).toEqual([]);
+    expect(report.weakCoverage).toEqual([{ stack: 'react', version: '19.0.0', count: 2 }]);
+    const react = report.histogram.find((h) => h.stack === 'react');
+    expect(react?.versions.find((v) => v.version === '19.0.0')).toMatchObject({
+      covered: true,
+      precision: 'name-level',
+    });
+    expect(react?.versions.find((v) => v.version === '18.3.1')).toMatchObject({
+      covered: true,
+      precision: 'version',
+      matchedRange: '>=18 <19',
+    });
+  });
+
+  it('ranks weak coverage by usage, like gaps', () => {
+    writeCatalog(workdir, [PAYLOAD_PACK, { ...REACT_PACK, rules: ['naming'] }]);
+    const repos = ['a', 'b', 'c'].map((n) => repo(n));
+    writeNodeModules(repos[0], 'payload', '3.4.1');
+    writeNodeModules(repos[1], 'react', '19.0.0');
+    writeNodeModules(repos[2], 'react', '19.0.0');
+    writeManifest(repos[0], { payload: '*' });
+    writeManifest(repos[1], { react: '*' });
+    writeManifest(repos[2], { react: '*' });
+
+    const report = buildScanReport(repos, workdir);
+    expect(report.weakCoverage).toEqual([
+      { stack: 'react', version: '19.0.0', count: 2 },
+      { stack: 'payload', version: '3.4.1', count: 1 },
+    ]);
+  });
+
   it('never reads a scanned repo as the coverage corpus when catalogRoot is omitted', () => {
     // A scanned repo's own rules must not count as org-wide coverage: that would mask the very
     // gaps the scan exists to find. The default is the cwd (the maintainer), never roots[0].

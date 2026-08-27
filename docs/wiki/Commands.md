@@ -109,7 +109,7 @@ Report the technology stacks and versions detected in the project, each with its
 
 | Option | Description |
 | ------ | ----------- |
-| `--json` | Emit machine-readable JSON: `detected[]` (each with a `coverage.reason` when uncovered), `gaps[]` (stacks whose detected version has no covering guidance), `warnings[]` |
+| `--json` | Emit machine-readable JSON: `detected[]` (each with `coverage.precision` and a `coverage.reason` when uncovered), `gaps[]` (stacks whose detected version has no covering guidance), `weakCoverage[]` (stacks covered only name-level), `warnings[]` |
 | `--silent` | Suppress all output |
 
 ```bash
@@ -127,7 +127,7 @@ Covered ranges are read from the `stacks:` frontmatter of the guidance actually 
 
 | Option | Description |
 | ------ | ----------- |
-| `--json` | Emit machine-readable JSON (`query`, `result`, and `warnings[]` for coverage sources that could not be read) |
+| `--json` | Emit machine-readable JSON (`query`, `result` — including `precision` — and `warnings[]` for coverage sources that could not be read) |
 | `--silent` | Suppress all output |
 
 ```bash
@@ -171,6 +171,7 @@ Progress is written to **stderr**, so `--json` output on stdout stays clean for 
 ### Behaviour notes
 
 - The `gaps` array is the authoring priority list: each entry is an uncovered `(stack, version)` with its usage `count` and a `reason` — `version-uncovered` when guidance for the stack exists but no covered range satisfies that version (e.g. you ship `react: ">=18 <19"` and 12 repos moved to 19), `no-coverage` when nothing targets the stack at all.
+- The `weakCoverage` array is the **second** priority list, ranked the same way: buckets that are covered, but only by a name-level wildcard. One stack-agnostic file in a pack the catalog tags `["react"]` covers every React version, so without this tier a version era with no guidance of its own would disappear into "covered". These repos do get guidance — just not version-correct guidance.
 - Coverage compares against the catalog **and** the version ranges declared by the guidance available in the working directory, so `scan-org` answers the version-era question, not just "does a pack for this stack exist". Install the packs you publish into the directory you scan from to get version-precise buckets; an uninstalled catalogued pack can only contribute name-level (`*`) coverage.
 - If that corpus cannot be read (a malformed manifest, say), the scan degrades to catalog-only coverage and records why in `warnings` — every gap it then reports may be a false positive.
 - Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.

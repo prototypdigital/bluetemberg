@@ -1,7 +1,7 @@
 import type { Catalog } from '../catalog/index.js';
 import type { Stack } from '../types.js';
 import type { DeclaredRange } from './declared.js';
-import { compareSpecificity, versionSatisfies, type DetectedStacks } from './match.js';
+import { compareSpecificity, isWildcardRange, versionSatisfies, type DetectedStacks } from './match.js';
 
 /**
  * The live stack registry + coverage query (Milestone M5).
@@ -22,6 +22,14 @@ export type StackOrigin = 'catalog' | 'local' | 'detected';
 
 /** Why a `(stack, version)` is not covered. */
 export type CoverageGapReason = 'version-uncovered' | 'no-coverage';
+
+/**
+ * How precisely covering guidance matched. `version` = a declared range satisfied the version;
+ * `name-level` = only a wildcard `*` matched, i.e. a pack targets the stack but nothing declares
+ * guidance for this version era. Both are covered — but only one is version-correct guidance, so
+ * they must not rank equally in an authoring priority list.
+ */
+export type CoveragePrecision = 'version' | 'name-level';
 
 export interface StackRegistryEntry {
   name: Stack;
@@ -134,6 +142,11 @@ export interface CoverageResult {
    * `version-uncovered`.
    */
   reason?: CoverageGapReason;
+  /**
+   * How precise the covering match was. Absent when `covered` is false. With no version queried,
+   * `name-level` means every covered range is a wildcard.
+   */
+  precision?: CoveragePrecision;
   /** The most-specific covered range that satisfied the version, when a version was queried. */
   matchedRange?: string;
   origins: StackOrigin[];
@@ -157,7 +170,8 @@ export function queryCoverage(registry: StackRegistry, stack: Stack, version?: s
     if (entry.coveredRanges.length === 0) {
       return { stack, known: true, covered: false, reason: 'no-coverage', origins };
     }
-    return { stack, known: true, covered: true, origins };
+    const precision = entry.coveredRanges.every(isWildcardRange) ? 'name-level' : 'version';
+    return { stack, known: true, covered: true, precision, origins };
   }
   const satisfying = entry.coveredRanges
     .filter((range) => versionSatisfies(version, range))
@@ -165,5 +179,13 @@ export function queryCoverage(registry: StackRegistry, stack: Stack, version?: s
   if (satisfying.length === 0) {
     return { stack, known: true, covered: false, reason: gapReason(entry), origins };
   }
-  return { stack, known: true, covered: true, matchedRange: satisfying[0], origins };
+  const matchedRange = satisfying[0];
+  return {
+    stack,
+    known: true,
+    covered: true,
+    precision: isWildcardRange(matchedRange) ? 'name-level' : 'version',
+    matchedRange,
+    origins,
+  };
 }

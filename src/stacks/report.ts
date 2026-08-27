@@ -4,7 +4,7 @@ import { collectDeclaredRanges } from './declared.js';
 import { detectStacks } from './detect.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
 import type { DetectedStacks, DetectionConfidence } from './match.js';
-import type { CoverageGapReason, StackOrigin, StackRegistry } from './registry.js';
+import type { CoverageGapReason, CoveragePrecision, StackOrigin, StackRegistry } from './registry.js';
 
 /**
  * Agent-facing `detect` + `coverage` reports (Stacks epic §4.1–4.2). These are the read surface of
@@ -18,6 +18,8 @@ interface CoverageSummary {
   known: boolean;
   covered: boolean;
   matchedRange: string | null;
+  /** How precisely the covering guidance matched; `null` when uncovered. */
+  precision: CoveragePrecision | null;
   /** Why coverage is missing, when `covered` is false; `null` when covered. */
   reason: CoverageGapReason | null;
 }
@@ -44,6 +46,11 @@ export interface DetectWarning {
 export interface DetectReport {
   detected: DetectedReportEntry[];
   gaps: Array<{ stack: string; resolvedVersion: string; reason: CoverageGapReason }>;
+  /**
+   * Detected stacks that ARE covered, but only name-level: a pack targets the stack while nothing
+   * declares guidance for this version. Not a gap, not version-correct guidance — its own tier.
+   */
+  weakCoverage: Array<{ stack: string; resolvedVersion: string }>;
   warnings: DetectWarning[];
 }
 
@@ -53,6 +60,8 @@ export interface CoverageReport {
     known: boolean;
     covered: boolean;
     matchedRange: string | null;
+    /** How precisely the covering guidance matched; `null` when uncovered. */
+    precision: CoveragePrecision | null;
     /** Why coverage is missing, when `covered` is false; `null` when covered. */
     reason: CoverageGapReason | null;
     coveredRanges: string[];
@@ -96,7 +105,7 @@ function isLowConfidence(confidence: DetectionConfidence): boolean {
  */
 function describeCoverage(cov: CoverageSummary): string {
   if (!cov.covered) return cov.reason === 'version-uncovered' ? 'gap: version-uncovered' : 'gap: no coverage';
-  if (!cov.matchedRange || cov.matchedRange === '*') return 'covered (name-level)';
+  if (cov.precision === 'name-level') return 'covered (name-level only)';
   return `covered (${cov.matchedRange})`;
 }
 
@@ -134,6 +143,7 @@ export function buildDetectReport(root: string): DetectReport {
         known: cov.known,
         covered: cov.covered,
         matchedRange: cov.matchedRange ?? null,
+        precision: cov.precision ?? null,
         reason: cov.reason ?? null,
       },
     };
@@ -149,6 +159,10 @@ export function buildDetectReport(root: string): DetectReport {
       reason: e.coverage.reason ?? ('no-coverage' as const),
     }));
 
+  const weakCoverage = entries
+    .filter((e) => e.coverage.precision === 'name-level')
+    .map((e) => ({ stack: e.stack, resolvedVersion: e.resolvedVersion }));
+
   const warnings: DetectWarning[] = [
     // Coverage-source warnings come first: they change how every gap below should be read.
     ...sourceWarnings.map((message) => ({ stack: null, level: 'coverage-source' as const, message })),
@@ -161,7 +175,7 @@ export function buildDetectReport(root: string): DetectReport {
       })),
   ];
 
-  return { detected: entries, gaps, warnings };
+  return { detected: entries, gaps, weakCoverage, warnings };
 }
 
 /** Build the coverage report for one `(stack, version?)` query. Exposed for testing. */
@@ -175,6 +189,7 @@ export function buildCoverageReport(root: string, stack: string, version?: strin
       known: result.known,
       covered: result.covered,
       matchedRange: result.matchedRange ?? null,
+      precision: result.precision ?? null,
       reason: result.reason ?? null,
       coveredRanges: entry?.coveredRanges ?? [],
       origins: result.origins,
@@ -242,12 +257,11 @@ function printCoverageHuman(report: CoverageReport, log: (msg: string) => void):
     log(`${label} — unknown: no installed pack or detected dependency knows this stack.`);
     return;
   }
-  const matched = report.result.matchedRange;
   const status = !report.result.covered
     ? `NOT covered (gap: ${report.result.reason ?? 'no-coverage'})`
-    : !matched || matched === '*'
-      ? 'covered (name-level — a pack targets this stack)'
-      : `covered (matched ${matched})`;
+    : report.result.precision === 'name-level'
+      ? 'covered name-level ONLY — a pack targets this stack, but nothing declares a version range'
+      : `covered (matched ${report.result.matchedRange})`;
   log(`${label} — known, ${status}`);
   if (report.result.coveredRanges.length > 0) {
     log(`  covered ranges: ${report.result.coveredRanges.join(', ')}`);
