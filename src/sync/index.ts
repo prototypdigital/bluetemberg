@@ -1,5 +1,5 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { join, basename, dirname, resolve } from 'node:path';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
 import { ensureDir } from '../utils/fs.js';
@@ -24,7 +24,12 @@ import { resolveExternalSourceDirs } from '../sources/registry.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
-import { describeStackMismatch, matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
+import {
+  describeStackMismatch,
+  isValidStackRange,
+  matchStackConstraint,
+  type DetectedStacks,
+} from '../stacks/match.js';
 import {
   buildStackMap,
   frontmatterStackIssues,
@@ -171,6 +176,21 @@ function validateConfig(
     throw new Error(`Invalid config in ${configPath}: "root" must be a boolean`);
   }
 
+  // Validate stack pins so a typo (e.g. "15.x.0") errors loudly instead of silently hard-excluding
+  // every versioned rule. Each value must be the "auto" sentinel or a valid semver version/range.
+  if (cfg.stacks !== undefined) {
+    if (!cfg.stacks || typeof cfg.stacks !== 'object' || Array.isArray(cfg.stacks)) {
+      throw new Error(`Invalid config in ${configPath}: "stacks" must be an object`);
+    }
+    for (const [name, value] of Object.entries(cfg.stacks as Record<string, unknown>)) {
+      if (typeof value !== 'string' || (value !== 'auto' && !isValidStackRange(value))) {
+        throw new Error(
+          `Invalid config in ${configPath}: stacks.${name} must be "auto" or a valid semver version/range (got ${JSON.stringify(value)})`,
+        );
+      }
+    }
+  }
+
   // A lenient pass (an individual file in an inheritance chain) also allows partial target entries
   // whose missing fields are supplied by an ancestor; the merged result is validated completely.
   validateTargets(cfg.targets, configPath, requirePlatforms);
@@ -238,6 +258,56 @@ function collectConfigFiles(start: string): { path: string; raw: unknown }[] {
     }
     dir = parent;
   }
+}
+
+/**
+ * Heavy / generated directories never worth descending into when discovering package configs.
+ * A pragmatic denylist (plus all dotfolders, skipped at the call site) — a package config is never
+ * expected inside these, and crawling them (especially `node_modules`) would be slow. Dependency
+ * artifact dirs across ecosystems (`target` = Rust/JVM, `vendor` = Go/PHP) are included so the walk
+ * stays cheap in polyglot monorepos.
+ */
+const DISCOVERY_SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'build',
+  'coverage',
+  'out',
+  '.next',
+  '.turbo',
+  'target',
+  'vendor',
+]);
+
+/**
+ * Discover every directory at or below `root` that holds a `bluetemberg.config.json` — the inverse
+ * of {@link collectConfigFiles}. The config tree IS the workspace map: a package opts into sync by
+ * having a config, so recursive sync needs no npm/pnpm/yarn workspace parsing. Skips heavy/generated
+ * dirs and dotfolders. Returns absolute paths, root-first then lexical, for deterministic ordering.
+ */
+function discoverConfigDirs(root: string): string[] {
+  const start = resolve(root);
+  const found: string[] = [];
+  const pending = [start];
+
+  while (pending.length > 0) {
+    const dir = pending.pop();
+    if (dir === undefined) break; // unreachable given the loop guard; satisfies the type narrowing
+    if (existsSync(join(dir, CONFIG_FILENAME))) found.push(dir);
+
+    try {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        if (entry.name.startsWith('.') || DISCOVERY_SKIP_DIRS.has(entry.name)) continue;
+        pending.push(join(dir, entry.name));
+      }
+    } catch {
+      // Unreadable directory (permissions, race) — skip it, never fail discovery.
+    }
+  }
+
+  return found.sort((a, b) => (a === start ? -1 : b === start ? 1 : a.localeCompare(b)));
 }
 
 /**
@@ -440,7 +510,7 @@ function gateByVersion(
  * const results = await sync(process.cwd(), { config: loadConfig(process.cwd()) });
  * ```
  */
-export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
+async function syncSingle(root: string, options: SyncOptions, orchestrated = false): Promise<SyncResults> {
   const checkMode = options.check || false;
   const verbose = Boolean(options.verbose) && !options.silent;
   // A diff is only meaningful in check mode (write mode produces the in-sync state outright).
@@ -469,7 +539,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const catalog = loadCatalogSync(root);
   const detectedStacks = detectStacks(root, config);
 
-  log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
+  if (!orchestrated) log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
   const ctx: SyncContext = {
     root,
@@ -582,6 +652,13 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     });
   }
 
+  if (!orchestrated) printSummary(log, results, checkMode);
+
+  return results;
+}
+
+/** Print the trailing summary (Done / out-of-sync, plus warning and error counts). */
+function printSummary(log: (msg: string) => void, results: SyncResults, checkMode: boolean): void {
   if (checkMode) {
     if (results.outOfSync > 0) {
       log(`\n${results.outOfSync} file(s) out of sync. Run: npx bluetemberg sync`);
@@ -600,8 +677,44 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   if (results.errors.length > 0) {
     log(`\n${results.errors.length} error(s) occurred during sync.`);
   }
+}
 
-  return results;
+/**
+ * Public sync entry point. In a monorepo, discovers every configured package at or below `root`
+ * (the config tree is the workspace map) and syncs each against its own detected stacks, so a
+ * single `bluetemberg sync` keeps the whole workspace in sync — no flag to forget, no CI false-green.
+ *
+ * Falls back to a single-package sync (byte-identical to before) when recursion is disabled, a
+ * caller passes an explicit `config` (a deliberate single target), or there is nothing but the
+ * root config to sync. See {@link SyncOptions.recursive}.
+ */
+export async function sync(root: string, options: SyncOptions = {}): Promise<SyncResults> {
+  const single = options.recursive === false || Boolean(options.config);
+  if (single) return syncSingle(root, options);
+
+  const configDirs = discoverConfigDirs(root);
+  const onlyRoot = configDirs.length === 1 && configDirs[0] === resolve(root);
+  if (configDirs.length === 0 || onlyRoot) return syncSingle(root, options);
+
+  const log = options.silent ? () => {} : console.log;
+  const checkMode = options.check || false;
+  log(`${checkMode ? 'Checking' : 'Syncing'} AI config across ${configDirs.length} package(s)...\n`);
+
+  const aggregate: SyncResults = { synced: 0, outOfSync: 0, errors: [], warnings: [] };
+  for (const dir of configDirs) {
+    log(`── ${relative(root, dir) || '.'} ──`);
+    // Each package loads and merges its OWN config (drop any inherited `config` override) and
+    // detects its own stacks; the orchestrator owns the header and summary.
+    const r = await syncSingle(dir, { ...options, config: undefined }, true);
+    aggregate.synced += r.synced;
+    aggregate.outOfSync += r.outOfSync;
+    aggregate.errors.push(...r.errors);
+    aggregate.warnings.push(...r.warnings);
+    log('');
+  }
+
+  printSummary(log, aggregate, checkMode);
+  return aggregate;
 }
 
 /** Returns a short label for a resolved source dir path, relative to root. */
@@ -620,12 +733,17 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
 }
 
 /**
- * Resolve which rules are version-filtered out of this project. A rule is excluded when its stack
- * constraint (frontmatter `stacks:` > catalog pack-level) names a stack that is absent or whose
- * detected version is outside the declared range — the version-aware gate. Returns `file → reason`
- * for the excluded rules; the decision is platform-independent so it is computed once.
+ * Resolve which `.md` files (rules or agents) are version-filtered out of this project. A file is
+ * excluded when its stack constraint (frontmatter `stacks:` > catalog pack-level) names a stack that
+ * is absent or whose detected version is outside the declared range — the version-aware gate.
+ * Returns `file → reason` for the excluded files; the decision is platform-independent so it is
+ * computed once. Used for both rules and agents so version-specific guidance is withheld uniformly.
  */
-function resolveExcludedRules(ctx: SyncContext, merged: Map<string, string>): Map<string, string> {
+function resolveExcludedFiles(
+  ctx: SyncContext,
+  merged: Map<string, string>,
+  kind: 'rules' | 'agents',
+): Map<string, string> {
   const stackMap = buildStackMap(ctx.catalog);
   const excluded = new Map<string, string>();
   for (const [file, sourceDir] of merged) {
@@ -635,28 +753,53 @@ function resolveExcludedRules(ctx: SyncContext, merged: Map<string, string>): Ma
     } catch {
       // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `rules/${file}`);
+    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `${kind}/${file}`);
     if (!gate.matched) excluded.set(file, gate.reason);
   }
   return excluded;
+}
+
+/**
+ * Resolve which skill directories are version-filtered out. A skill is gated on the `stacks:`
+ * frontmatter of its `SKILL.md` (id = directory name), mirroring rules/agents so a version-specific
+ * skill is withheld on projects it does not target. Returns `dirName → reason` for excluded skills.
+ */
+function resolveExcludedSkills(ctx: SyncContext, merged: Map<string, string>): Map<string, string> {
+  const stackMap = buildStackMap(ctx.catalog);
+  const excluded = new Map<string, string>();
+  for (const [dirName, sourceParent] of merged) {
+    let data: Record<string, unknown> = {};
+    try {
+      data = matter.read(join(sourceParent, dirName, 'SKILL.md')).data as Record<string, unknown>;
+    } catch {
+      // Unreadable SKILL.md → treat as stack-agnostic; the write loop reports the read error.
+    }
+    const gate = gateByVersion(ctx, dirName, data, stackMap, `skills/${dirName}`);
+    if (!gate.matched) excluded.set(dirName, gate.reason);
+  }
+  return excluded;
+}
+
+/** Log the shared "applied · filtered out by version" summary for a synced kind (id → reason). */
+function logVersionFiltered(ctx: SyncContext, appliedCount: number, excluded: Map<string, string>): void {
+  if (excluded.size === 0) return;
+  // Making the exclusion visible turns the gate into a trust signal: the user can audit that
+  // wrong-version content was correctly withheld (hidden, not wrong-here).
+  ctx.log(`  ${appliedCount} applied · ${excluded.size} filtered out by version`);
+  for (const [id, reason] of excluded) {
+    ctx.log(`    - ${id.replace(/\.md$/, '')}: ${reason}`);
+  }
 }
 
 function syncRules(ctx: SyncContext): void {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedRules(ctx, merged);
+  const excluded = resolveExcludedFiles(ctx, merged, 'rules');
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Rules: ${merged.size} source files`);
-  if (excluded.size > 0) {
-    // Making the exclusion visible turns the gate into a trust signal: the user can audit that
-    // wrong-version rules were correctly withheld (hidden, not wrong-here).
-    ctx.log(`  ${appliedCount} applied · ${excluded.size} filtered out by version`);
-    for (const [file, reason] of excluded) {
-      ctx.log(`    - ${basename(file, '.md')}: ${reason}`);
-    }
-  }
+  logVersionFiltered(ctx, appliedCount, excluded);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -698,7 +841,11 @@ function syncAgents(ctx: SyncContext): void {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
   if (merged.size === 0) return;
 
+  const excluded = resolveExcludedFiles(ctx, merged, 'agents');
+  const appliedCount = merged.size - excluded.size;
+
   ctx.log(`Agents: ${merged.size} source files`);
+  logVersionFiltered(ctx, appliedCount, excluded);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -717,6 +864,7 @@ function syncAgents(ctx: SyncContext): void {
     ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
+      if (excluded.has(file)) continue;
       try {
         const content = readFileSync(join(sourceDir, file), 'utf8');
         const outName = file.replace(/\.md$/, targetConfig.ext);
@@ -729,7 +877,7 @@ function syncAgents(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} files)`);
   }
 }
 
@@ -739,12 +887,16 @@ function syncSkills(ctx: SyncContext): void {
   );
   if (merged.size === 0) return;
 
+  const excluded = resolveExcludedSkills(ctx, merged);
+  const appliedCount = merged.size - excluded.size;
+
   const skillTargets = filterTargets<SkillTargetConfig>(
     ctx.config.targets?.skills || DEFAULT_TARGETS.skills,
     ctx.platforms,
   );
 
   ctx.log(`Skills: ${merged.size} source directories`);
+  logVersionFiltered(ctx, appliedCount, excluded);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -755,6 +907,7 @@ function syncSkills(ctx: SyncContext): void {
 
   for (const [, targetConfig] of skillTargets) {
     for (const [dirName, sourceParent] of merged) {
+      if (excluded.has(dirName)) continue;
       try {
         const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
@@ -770,7 +923,7 @@ function syncSkills(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${merged.size} skills)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} skills)`);
   }
 }
 

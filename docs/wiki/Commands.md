@@ -84,8 +84,11 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | `--silent` | Suppress all output (useful in scripts and CI) |
 | `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
 | `--verbose` | Emit debug output: resolved source directories (including `extends` entries), per-file origin when multiple sources are active, and any non-fatal warnings |
+| `--no-recursive` | Sync only the invocation directory; do not descend into configured workspace packages (see **Monorepos** below) |
 
 Before first use of `--prune`, read the short pre-flight list and platform notes under **Stale generated files** in [Configuration](Configuration).
+
+**Monorepos (recursive by default):** sync discovers every `bluetemberg.config.json` at or below the directory you run it in — the config tree is the workspace map — and syncs each configured package against **its own** detected stacks. So one `bluetemberg sync` (or `sync --check` in CI) keeps a whole monorepo in sync: `packages/web` gated on its React, `packages/legacy` on its own, with no flag to forget and no false-green check. A repo with no sub-package configs is unaffected (single-package path). Pass `--no-recursive` to sync only the current directory. Discovery skips `node_modules`, dot-folders, and build dirs. See [Stacks & Versioning](Stacks) and [Monorepo config inheritance](Configuration#monorepo-config-inheritance).
 
 **Version-aware stack filtering:** sync detects the project's technology stacks and versions, then **hard-excludes** any rule or guardrail whose `stacks:` constraint is not satisfied — a `payload: ">=3 <4"` rule never reaches a Payload-2 project. Excluded rules are listed under a `filtered out by version` line so you can audit them. Low-confidence detection (a version coerced from a `package.json` range) warns but still applies — never silently dropped. Content with no `stacks:` is stack-agnostic and always applies, so a project that declares no stacks syncs exactly as before. See [Configuration](Configuration) (the `stacks` field) and [Writing Rules](Writing-Rules).
 

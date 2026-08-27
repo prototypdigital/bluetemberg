@@ -1,4 +1,4 @@
-import { coerce, satisfies, validRange } from 'semver';
+import { coerce, satisfies, valid, validRange } from 'semver';
 import type { StackConstraint } from '../types.js';
 
 /**
@@ -8,8 +8,8 @@ import type { StackConstraint } from '../types.js';
  *  - A range is matched with semver `satisfies`, prereleases included, so `15.0.0-canary.3`
  *    matches `>=15`.
  *  - No match = HARD EXCLUDE (the caller drops the guidance), never an advisory no-op.
- *  - Invalid ranges never silently match — they are reported by {@link invalidRanges} so the
- *    caller can warn, and treated as non-matching here.
+ *  - Invalid ranges never silently match — they are dropped here (and surfaced as a warning by the
+ *    sync gate via `frontmatterStackIssues`), never an accidental match.
  *  - Absolute semver ranges only; `"*"` (or empty) means "any version of this stack".
  */
 
@@ -47,13 +47,6 @@ export function versionSatisfies(version: string, range: string): boolean {
   const v = coerce(version, { includePrerelease: true });
   if (!v) return false;
   return satisfies(v, range, { includePrerelease: true });
-}
-
-/** The invalid ranges in a constraint, so the caller can warn and drop them. */
-export function invalidRanges(constraint: StackConstraint): string[] {
-  return Object.entries(constraint)
-    .filter(([, range]) => !isValidStackRange(range))
-    .map(([name, range]) => `${name}: "${range}"`);
 }
 
 export interface StackMatchResult {
@@ -112,15 +105,20 @@ export function describeStackMismatch(result: StackMatchResult): string {
 
 /**
  * Compare two ranges by specificity for deterministic "most-specific-wins" resolution.
- * Returns a negative number when `a` is more specific (narrower) than `b`. Specificity is the
- * count of comparator clauses (a proxy for boundedness); ties break lexically on the raw range
- * so the result is stable across machines and never depends on declaration order.
+ * Returns a negative number when `a` is more specific (narrower) than `b`. Specificity is ranked by
+ * boundedness — an exact version pin (3) > a caret/tilde range bounded both ends (2) > the count of
+ * explicit comparators, each one bound (`>=15 <16` = 2) > wildcard/any (0). Ties break lexically on
+ * the raw range so the result is stable across machines and never depends on declaration order.
+ *
+ * Note: this counts *bounds*, not digits — a longer version string is not "more specific" than a
+ * tighter range (the prior digit-counting heuristic got that wrong).
  */
 export function compareSpecificity(a: string, b: string): number {
   const weight = (r: string): number => {
     if (r === '' || r === '*') return 0;
-    // More comparators (>=, <, etc.) ⇒ more bounded ⇒ more specific.
-    return (r.match(/[<>]=?|\^|~|\b\d/g) ?? []).length;
+    if (valid(r) !== null) return 3; // an exact version pin is the most specific
+    if (/[~^]/.test(r)) return 2; // caret/tilde bound both ends
+    return (r.match(/[<>]=?/g) ?? []).length; // each explicit comparator is one bound
   };
   const diff = weight(b) - weight(a);
   return diff !== 0 ? diff : a.localeCompare(b);

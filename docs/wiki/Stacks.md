@@ -16,7 +16,7 @@ This appears in three places:
 | Where | Field | Shape | Purpose |
 |---|---|---|---|
 | A project | [`stacks` config](Configuration#stacks) | `{ "react": "15.2.0" \| "auto" }` | Declares/pins what the project builds on |
-| A rule / guardrail | [`stacks:` frontmatter](Writing-Rules#stacks-optional) | `{ react: ">=15 <16" }` | Declares which versions the content applies to |
+| A rule, guardrail, agent, or skill | [`stacks:` frontmatter](Writing-Rules#stacks-optional) | `{ react: ">=15 <16" }` | Declares which versions the content applies to |
 | A catalog pack | `stacks` (name-only) | `["react"]` → `{ react: "*" }` | Coarse name-level routing; a file's own range refines it |
 
 A file applies **iff every named stack is present in the project AND its detected version satisfies the range**. An absent/empty constraint is stack-agnostic and always applies — so a project with no stack-tagged content behaves exactly as a stackless project always did.
@@ -85,7 +85,7 @@ Three guarantees back this up — guidance is **never silently dropped**:
   ```
   WARN: rules/payload-collections.md: matched via low-confidence detection for payload — pin a version in bluetemberg.config.json for precision
   ```
-- **Every exclusion lists its reason** (rules and guardrails alike), so you can audit that wrong-version content was correctly withheld — hidden, not wrong-here.
+- **Every exclusion lists its reason** (rules, guardrails, agents, and skills alike), so you can audit that wrong-version content was correctly withheld — hidden, not wrong-here.
 
 ## Versioning strategy: two tiers, mirroring the ecosystem
 
@@ -104,8 +104,7 @@ The switch rule both ecosystems use: **use the in-artifact selector (Tier 1) unt
 
 Version-aware routing is maturing. Tracked in [issue #212](https://github.com/prototypdigital/bluetemberg/issues/212):
 
-- **One version per stack name, per repo root.** A monorepo with `react@14` in one package and `react@15` in another resolves to a single version at the root, so per-package gating is not yet correct. Pin per-package via [config inheritance](Configuration#config-inheritance) as an interim measure.
-- **Agents and skills are not version-gated** — only rules and guardrails. Stack-specific agent/skill advice cannot yet be withheld by version.
+- **Monorepos: solved per-package, not per-version-within-a-package.** A monorepo with `react@14` in one package and `react@15` in another is handled — `bluetemberg sync` [fans out](Commands#bluetemberg-sync-directory) and gates each package against its own detected stacks. What's still not expressible is *two versions of one stack inside a single package* (the detection model resolves one version per stack name per directory).
 - **Cross-stack matching is AND-only.** "applies to A≥3 *or* B≥2" across two different stacks is not expressible (OR *within* one stack via `||` is).
 
 ## See also

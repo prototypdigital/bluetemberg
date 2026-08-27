@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   isValidStackRange,
   versionSatisfies,
-  invalidRanges,
   matchStackConstraint,
   compareSpecificity,
   type DetectedStacks,
@@ -48,13 +47,6 @@ describe('versionSatisfies', () => {
   });
 });
 
-describe('invalidRanges', () => {
-  it('reports only the malformed entries', () => {
-    expect(invalidRanges({ payload: '>=3 <4', next: 'garbage' })).toEqual(['next: "garbage"']);
-    expect(invalidRanges({ payload: '>=3' })).toEqual([]);
-  });
-});
-
 describe('matchStackConstraint', () => {
   it('matches when every stack is present and in range (agnostic = always)', () => {
     expect(matchStackConstraint(undefined, detected({})).matched).toBe(true);
@@ -89,5 +81,14 @@ describe('compareSpecificity', () => {
   });
   it('is stable for equal specificity (lexical tie-break)', () => {
     expect(compareSpecificity('>=3 <4', '>=3 <4')).toBe(0);
+  });
+  it('ranks an exact version pin as the most specific', () => {
+    const sorted = ['*', '>=15', '^15.0.0', '15.2.0'].sort(compareSpecificity);
+    expect(sorted[0]).toBe('15.2.0'); // exact pin wins
+    expect(sorted[sorted.length - 1]).toBe('*'); // wildcard last
+  });
+  it('counts bounds, not digits — a longer version string is not "more specific"', () => {
+    // Prior heuristic counted digit runs, so ">=15.2.3" wrongly outranked the tighter ">=2 <3".
+    expect(compareSpecificity('>=2 <3', '>=15.2.3')).toBeLessThan(0); // ">=2 <3" is more specific
   });
 });

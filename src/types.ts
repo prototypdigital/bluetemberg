@@ -267,6 +267,13 @@ export interface SyncOptions {
    * (implied when set), and silenced by {@link SyncOptions.silent}. No effect on counts or exit code.
    */
   diff?: boolean;
+  /**
+   * In a monorepo, sync discovers every `bluetemberg.config.json` at or below `root` and syncs each
+   * configured package against its own detected stacks (the config tree is the workspace map).
+   * Defaults to `true`. Set `false` (CLI `--no-recursive`) to sync only the invocation directory.
+   * No effect when there are no sub-package configs, so single-package repos are unaffected.
+   */
+  recursive?: boolean;
 }
 
 export interface SyncResults {

@@ -265,3 +265,66 @@ describe('project sync — audible stack filtering', () => {
     expect(lines.some((l) => l.includes('payload-only') && l.includes("you're on 2.0.0"))).toBe(true);
   });
 });
+
+describe('project sync — agent & skill version gating', () => {
+  let root: string;
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  function writeAgent(name: string, frontmatter = ''): void {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'agents', `${name}.md`),
+      `---\nname: ${name}\ndescription: ${name}${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n`,
+    );
+  }
+
+  function writeSkill(name: string, frontmatter = ''): void {
+    mkdirSync(join(root, 'llm', 'skills', name), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'skills', name, 'SKILL.md'),
+      `---\nname: ${name}\ndescription: ${name}${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n`,
+    );
+  }
+
+  const agentOut = (name: string): string => join(root, '.claude', 'agents', `${name}.md`);
+  const skillOut = (name: string): string => join(root, '.claude', 'skills', name, 'SKILL.md');
+
+  it('hard-excludes a version-specific agent the project does not match', async () => {
+    writeAgent('payload-v3-helper', 'stacks:\n  payload: ">=3 <4"');
+    writeAgent('universal-helper'); // stack-agnostic
+
+    await sync(root, { config: configWithStacks({ payload: '2.5.0' }), silent: true });
+
+    expect(existsSync(agentOut('payload-v3-helper'))).toBe(false);
+    expect(existsSync(agentOut('universal-helper'))).toBe(true);
+  });
+
+  it('applies a version-specific agent when the detected version matches', async () => {
+    writeAgent('payload-v3-helper', 'stacks:\n  payload: ">=3 <4"');
+
+    await sync(root, { config: configWithStacks({ payload: '3.4.1' }), silent: true });
+
+    expect(existsSync(agentOut('payload-v3-helper'))).toBe(true);
+  });
+
+  it('hard-excludes a version-specific skill the project does not match', async () => {
+    writeSkill('payload-v3-skill', 'stacks:\n  payload: ">=3 <4"');
+    writeSkill('universal-skill'); // stack-agnostic
+
+    await sync(root, { config: configWithStacks({ payload: '2.5.0' }), silent: true });
+
+    expect(existsSync(skillOut('payload-v3-skill'))).toBe(false);
+    expect(existsSync(skillOut('universal-skill'))).toBe(true);
+  });
+
+  it('applies a version-specific skill when the detected version matches', async () => {
+    writeSkill('payload-v3-skill', 'stacks:\n  payload: ">=3 <4"');
+
+    await sync(root, { config: configWithStacks({ payload: '3.4.1' }), silent: true });
+
+    expect(existsSync(skillOut('payload-v3-skill'))).toBe(true);
+  });
+});

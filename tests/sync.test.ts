@@ -1053,6 +1053,29 @@ describe('loadConfig', () => {
     expect(() => loadConfig(root)).toThrow('"platforms" must be a non-empty array');
   });
 
+  it('throws on a malformed stack version pin (instead of silently hard-excluding)', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['claude'], source: 'llm', targets: {}, stacks: { react: '15.x.0' } }),
+    );
+
+    expect(() => loadConfig(root)).toThrow('stacks.react must be "auto" or a valid semver');
+  });
+
+  it('accepts valid stack pins and the "auto" sentinel', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['claude'],
+        source: 'llm',
+        targets: {},
+        stacks: { react: '15.2.0', payload: 'auto', nextjs: '>=13.4' },
+      }),
+    );
+
+    expect(() => loadConfig(root)).not.toThrow();
+  });
+
   it('throws on unknown platform', () => {
     writeFileSync(
       join(root, 'bluetemberg.config.json'),
