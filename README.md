@@ -1,8 +1,8 @@
 # Bluetemberg :light_blue_heart:
 
-[![npm version](https://img.shields.io/npm/v/bluetemberg.svg)](https://www.npmjs.com/package/bluetemberg) [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/bluetemberg.svg)](https://www.npmjs.com/package/bluetemberg) [![CI](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml/badge.svg)](https://github.com/prototypdigital/bluetemberg/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/bluetemberg.svg)](LICENSE)
 
-**Publish AI standards once to npm. Every engineer gets version-locked, integrity-verified rules, agents, and skills — matched to their role — with one command.**
+**AI coding standards, shipped like a dependency. Version-locked, integrity-verified, signed, and routed to the right engineer and the right stack version. Installed with one command.**
 
 A platform team maintains packs in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). Developers run `bluetemberg init --profile frontend` + `bluetemberg install`. Teammates with no local tooling install a Claude Code Marketplace plugin with one click. Everyone stays in sync.
 
@@ -12,7 +12,15 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 **Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
 
-## Why not a shared AGENTS.md?
+## "But everything is converging on AGENTS.md."
+
+Good. That solves the format, not the distribution.
+
+A shared file still has no versioning, no integrity verification, no
+per-role filtering, and no way to stop a Payload 2 rule from reaching a
+Payload 3 repo. Bluetemberg emits `AGENTS.md` too. It also answers who
+gets which rules, at which version, and how you know the content was not
+tampered with in transit.
 
 |                         | Shared `AGENTS.md` | bluetemberg                                      |
 | ----------------------- | ------------------ | ------------------------------------------------ |
@@ -69,7 +77,7 @@ The interactive wizard will ask you to pick:
 - MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)
 - **External rule sources** (optional) — pull rules from a GitHub repo, PRPM, or cursor.directory, translated to native format and pinned in `llm/rule-sources.json` (`--sources <csv>` in headless runs)
 
-You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/commands/*.md`** (Claude slash commands), **`llm/prompts/*.md`** (Copilot `*.prompt.md`), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
+You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/hooks.claude.json`** (Claude Code hooks — honored from the project's own `llm/` only; packs cannot ship them), **`llm/commands/*.md`** (Claude slash commands), **`llm/prompts/*.md`** (Copilot `*.prompt.md`), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
 
 It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-specific files, and patches `.prettierignore` to protect your prose files from the formatter.
 
@@ -87,6 +95,7 @@ your-project/
 │   ├── skills/                 # On-demand skill workflows
 │   ├── mcp.json                # Optional — MCP presets and/or inline servers (if you add it)
 │   ├── hooks.json              # Optional — Cursor hooks (if you add it)
+│   ├── hooks.claude.json       # Optional — Claude Code hooks (project-local only)
 │   ├── commands/               # Optional — Claude slash commands (if you add it)
 │   └── prompts/                # Optional — Copilot prompt sources (if you add it)
 ├── .cursor/rules/              # Generated — do not edit
@@ -178,35 +187,13 @@ npx bluetemberg list                             # show installed packs and reso
 
 Run `bluetemberg sync` after any change to regenerate platform files. See [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry) for the manifest format, lockfile, and pack cache layout.
 
-## Sync
-
-After editing anything in `llm/`, regenerate platform files:
+Packs can also come from a **private registry** — a private scope on npmjs.org, GitHub Packages, Verdaccio, Artifactory. Credentials are read from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_TOKEN` exactly as npm reads them, and are only ever sent to the host they are scoped to, over https. Registries that do not sign need an explicit opt-in:
 
 ```bash
-npx bluetemberg sync
+NODE_AUTH_TOKEN=... npx bluetemberg install --skip-signature-verification
 ```
 
-Check mode for CI (exits 1 if out of sync):
-
-```bash
-npx bluetemberg sync --check
-```
-
-Add `--diff` to see _what_ drifted, not just how many files — a per-file unified diff (summary counts + `@@` hunks) under each out-of-sync path. It implies `--check`, honors `--silent`, and never changes counts or the exit code:
-
-```bash
-npx bluetemberg sync --check --diff
-```
-
-**Exit codes:** the CLI exits **1** if sync records **any** error (invalid `llm/hooks.json`, unknown MCP id, adapter failure, etc.), not only when `--check` finds drift. Use the exit code in CI, especially with `--silent`.
-
-Optional **stale output cleanup** after you remove or rename sources under `llm/`:
-
-```bash
-npx bluetemberg sync --prune
-```
-
-`--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
+Signature verification stays mandatory for `registry.npmjs.org`. See [Private registries](https://github.com/prototypdigital/bluetemberg/wiki/Registry#private-registries).
 
 ## Stacks (version-aware routing)
 
@@ -247,6 +234,36 @@ npx bluetemberg scan-org --repos acme/app,acme/web       # specific repos
 ```
 
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
+
+## Sync
+
+After editing anything in `llm/`, regenerate platform files:
+
+```bash
+npx bluetemberg sync
+```
+
+Check mode for CI (exits 1 if out of sync):
+
+```bash
+npx bluetemberg sync --check
+```
+
+Add `--diff` to see _what_ drifted, not just how many files — a per-file unified diff (summary counts + `@@` hunks) under each out-of-sync path. It implies `--check`, honors `--silent`, and never changes counts or the exit code:
+
+```bash
+npx bluetemberg sync --check --diff
+```
+
+**Exit codes:** the CLI exits **1** if sync records **any** error (invalid `llm/hooks.json`, unknown MCP id, adapter failure, etc.), not only when `--check` finds drift. Use the exit code in CI, especially with `--silent`.
+
+Optional **stale output cleanup** after you remove or rename sources under `llm/`:
+
+```bash
+npx bluetemberg sync --prune
+```
+
+`--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
 
 ## External sources
 
@@ -379,3 +396,12 @@ npm test
 The checked-in CLI invokes `dist/` (`init`, catalogs, **`--help --json`**): keep **`npm run build`** up to date locally.
 
 See [Contributing](https://github.com/prototypdigital/bluetemberg/wiki/Contributing) for commit conventions and release process.
+
+## Maintainer
+
+Bluetemberg is written and maintained by
+[Josip Ravas](https://github.com/jravas) — DevOps & Architecture Lead at
+PROTOTYP.
+
+Issues and pull requests welcome. For anything security-related, see
+[SECURITY.md](./SECURITY.md).

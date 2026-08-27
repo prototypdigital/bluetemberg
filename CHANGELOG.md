@@ -20,6 +20,88 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.11.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.10.1...bluetemberg-v0.11.0) (2026-08-27)
+
+
+### Features
+
+* **registry:** private pack distribution — auth, install-side unsigned opt-in, source tokens ([f4d86d8](https://github.com/prototypdigital/bluetemberg/commit/f4d86d8044708cb90ef40714016727e0c0228c3b))
+* **registry:** support private pack distribution ([fcc27f0](https://github.com/prototypdigital/bluetemberg/commit/fcc27f02b9d9c10126b3ba7f51cb577007c3959a))
+
+
+### Bug Fixes
+
+* **ci:** skip commitlint for dependabot prs ([688ced1](https://github.com/prototypdigital/bluetemberg/commit/688ced12c65f013b6525b7ac6da70da52fb819dd))
+* **ci:** skip commitlint for dependabot PRs ([652a733](https://github.com/prototypdigital/bluetemberg/commit/652a73363dd682b623a00155c6e42b0602a16d0f))
+* **registry:** scope credentials to affirmed hosts, stabilise source archives ([dd91a98](https://github.com/prototypdigital/bluetemberg/commit/dd91a985138281bd70870672aea5fab75d486833))
+* **registry:** warn on skipped signatures, re-check tarball transport, gate .npmrc ignore ([b1c07b3](https://github.com/prototypdigital/bluetemberg/commit/b1c07b39cb3f657bdb365502cd1ebb020b9cfa45))
+
+## [0.10.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.10.0...bluetemberg-v0.10.1) (2026-08-25)
+
+
+### Bug Fixes
+
+* list Prototyp Digital under contributors, not maintainer twice ([ef2b6dc](https://github.com/prototypdigital/bluetemberg/commit/ef2b6dc025c7a4d3152d99a976b27a6f180fe48f))
+
+## [0.10.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.9.0...bluetemberg-v0.10.0) (2026-08-08)
+
+
+### Features
+
+* **hooks:** automatic session audit on SessionEnd ([c3f5d5e](https://github.com/prototypdigital/bluetemberg/commit/c3f5d5e1ad9760b1006b6c399222914ac406cd19))
+* **hooks:** automatic session audit on SessionEnd + hooks.claude.json migration ([9765456](https://github.com/prototypdigital/bluetemberg/commit/97654566c4752f53981421bebbbece1a23ed863d))
+
+
+### Bug Fixes
+
+* **hooks:** address CodeRabbit findings on PR [#231](https://github.com/prototypdigital/bluetemberg/issues/231) ([20d71d3](https://github.com/prototypdigital/bluetemberg/commit/20d71d35f314069639f430000dbfc1fcd51c6164))
+
+## [0.9.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.8.1...bluetemberg-v0.9.0) (2026-08-08)
+
+
+### Features
+
+* **hooks:** spawn background PR reviewer when an agent opens a PR ([895d431](https://github.com/prototypdigital/bluetemberg/commit/895d431a80f5c51d30ef4c08e6fe0b01168a0254))
+* **hooks:** spawn background PR reviewer when an agent opens a PR ([1e67699](https://github.com/prototypdigital/bluetemberg/commit/1e676991d137f26ac2c3477f6d7470d7e42e658c))
+* **hooks:** wire spawn-pr-review into PostToolUse Bash hook ([144ed74](https://github.com/prototypdigital/bluetemberg/commit/144ed7481a6a3574953c23964f53633fb44623a2))
+* **sync:** sync Claude Code hooks from llm/hooks.claude.json ([8ce8c08](https://github.com/prototypdigital/bluetemberg/commit/8ce8c08b534ee552595a7d26351e2449a9c7eea1))
+* **sync:** sync Claude Code hooks from llm/hooks.claude.json ([38ae582](https://github.com/prototypdigital/bluetemberg/commit/38ae582cf59213c6bb5665c40fc43c4490ce4753)), closes [#225](https://github.com/prototypdigital/bluetemberg/issues/225)
+
+
+### Bug Fixes
+
+* **hooks:** address dogfood review findings on spawn-pr-review ([65939c9](https://github.com/prototypdigital/bluetemberg/commit/65939c95a460eb9574c157d4817f9156eeb3a6c7))
+* **hooks:** enforce comment-only reviews structurally via posting wrapper ([a81b04a](https://github.com/prototypdigital/bluetemberg/commit/a81b04a21f17aa90f9165d2bf718d601e6d2c4cf))
+
+## [0.8.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.8.0...bluetemberg-v0.8.1) (2026-07-30)
+
+
+### Bug Fixes
+
+* **marketplace:** emit required owner field in marketplace.json ([57269c7](https://github.com/prototypdigital/bluetemberg/commit/57269c753944bbb9112adae315b23d260c016b23))
+* **marketplace:** emit required owner field in marketplace.json ([aa43f89](https://github.com/prototypdigital/bluetemberg/commit/aa43f893a2802c6d6350aa14cc002a2f511b8969))
+
+## [0.8.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.7.0...bluetemberg-v0.8.0) (2026-07-30)
+
+
+### Features
+
+* **mcp:** extend bluetemberg_org_histogram to support remote scanning ([0187617](https://github.com/prototypdigital/bluetemberg/commit/0187617a4e8172a8b7a9c39ff3445eec2be05005))
+* **stacks:** --since &lt;days&gt; filters scan-org to recently active repos ([6e746bf](https://github.com/prototypdigital/bluetemberg/commit/6e746bf09cbce809999dfbc7c67e2b9dbcd3a66a))
+* **stacks:** m6 — org-repo (stack,version) scanner and coverage histogram ([c250551](https://github.com/prototypdigital/bluetemberg/commit/c250551095aa9ee3b74ea588d453f6d7507ac9cc))
+* **stacks:** M6 — org-repo (stack,version) scanner and coverage histogram ([d371d9f](https://github.com/prototypdigital/bluetemberg/commit/d371d9f492996f634b5b48c6b5fd77646be74b38))
+* **stacks:** scan-org remote scanning via the GitHub API ([ea9f7ee](https://github.com/prototypdigital/bluetemberg/commit/ea9f7ee8070f4ace1ca7d01e14009f5e37b069ad))
+* **sync:** make stack version filtering audible ([7a97b2e](https://github.com/prototypdigital/bluetemberg/commit/7a97b2eca6d7ad8c3353169eb48a24c7e635d5f3))
+* **sync:** make stack version filtering audible ([38a195a](https://github.com/prototypdigital/bluetemberg/commit/38a195adbae5d57f05ee96c81245d8f0dc4c201b))
+
+
+### Bug Fixes
+
+* **marketplace:** conform generated output to Claude Code's plugin schema ([987c6ca](https://github.com/prototypdigital/bluetemberg/commit/987c6ca811c8387dd6df1b2c620dd14741aba838))
+* **marketplace:** conform generated output to Claude Code's plugin schema ([6075a03](https://github.com/prototypdigital/bluetemberg/commit/6075a030ecb5bcac915e440808ac499c539e5170))
+* **stacks:** address review findings in M6 scan-org ([74d11de](https://github.com/prototypdigital/bluetemberg/commit/74d11de056c0e842007412b53d34aac70e4f40a8))
+* **sync:** align guardrail output format and checkMode behaviour with rules ([89f3638](https://github.com/prototypdigital/bluetemberg/commit/89f3638df914ca038a9999646feb68abadc343de))
+
 ## [0.7.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.6.0...bluetemberg-v0.7.0) (2026-06-16)
 
 

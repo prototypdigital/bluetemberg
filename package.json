@@ -1,7 +1,7 @@
 {
   "name": "bluetemberg",
-  "version": "0.7.0",
-  "description": "Author AI coding rules, agents, and skills once — sync version-locked, integrity-verified config to Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.",
+  "version": "0.11.0",
+  "description": "AI coding standards shipped like a dependency — version-locked, integrity-verified, signed, and routed by role and stack version. Emits AGENTS.md plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.",
   "type": "module",
   "bin": {
     "bluetemberg": "./bin/cli.js"
@@ -15,8 +15,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/prototypdigital/bluetemberg.git"
+    "url": "git+https://github.com/prototypdigital/bluetemberg.git"
   },
+  "bugs": {
+    "url": "https://github.com/prototypdigital/bluetemberg/issues"
+  },
+  "homepage": "https://prototypdigital.github.io/bluetemberg/",
   "publishConfig": {
     "access": "public"
   },
@@ -38,20 +42,25 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "ai",
-    "llm",
-    "cursor",
-    "claude",
+    "agents-md",
+    "ai-rules",
+    "cursor-rules",
+    "claude-code",
+    "agent-skills",
+    "supply-chain",
+    "mcp",
     "copilot",
     "gemini",
     "windsurf",
     "codex",
-    "agents",
-    "skills",
+    "llm",
     "scaffolding",
     "cli"
   ],
-  "author": "Prototyp Digital",
+  "author": "Josip Ravas (https://github.com/jravas)",
+  "contributors": [
+    "Prototyp Digital (https://prototyp.digital)"
+  ],
   "license": "MIT",
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",

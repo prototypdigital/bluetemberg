@@ -4,13 +4,19 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { create } from 'tar';
 
-vi.mock('../src/registry/client.js', () => ({
-  downloadTarball: vi.fn(),
-}));
+// Keep the real module (notably `TarballDownloadError`, which the adapter branches on)
+// and stub only the download itself.
+vi.mock('../src/registry/client.js', async (importOriginal) => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  type ClientModule = typeof import('../src/registry/client.js');
+  const actual = await importOriginal<ClientModule>();
+  return { ...actual, downloadTarball: vi.fn() };
+});
 
 import { githubAdapter } from '../src/sources/adapters/github.js';
 import { assertSafeTarEntry, extractTarball } from '../src/sources/tarball.js';
-import { downloadTarball } from '../src/registry/client.js';
+import { downloadTarball, TarballDownloadError } from '../src/registry/client.js';
+import type { ResolvedSource } from '../src/sources/types.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-gh-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -116,7 +122,157 @@ describe('githubAdapter.fetch', () => {
     expect(existsSync(join(tmpDir, 'rules', 'clean.mdc'))).toBe(true);
     expect(existsSync(join(tmpDir, 'README.md'))).toBe(true);
   });
+
+  it('downloads from codeload with no auth header when no token is configured', async () => {
+    serveFixture();
+
+    await githubAdapter.fetch(resolvedFixture(), tmpDir);
+
+    expect(downloadTarball).toHaveBeenCalledTimes(1);
+    expect(downloadTarball).toHaveBeenCalledWith(
+      'https://codeload.github.com/o/r/tar.gz/deadbeef',
+      expect.any(String),
+    );
+  });
+
+  /**
+   * The endpoint must not be chosen by token presence: the two GitHub archive endpoints
+   * return different bytes for the same commit, so doing so would make the recorded
+   * integrity depend on the environment (CI sets `GITHUB_TOKEN`, a laptop often does
+   * not) rather than on the content.
+   */
+  it('still downloads from codeload unauthenticated when a token IS available', async () => {
+    serveFixture();
+
+    await githubAdapter.fetch(resolvedFixture(), tmpDir, { token: 'gh-token' });
+
+    expect(downloadTarball).toHaveBeenCalledTimes(1);
+    expect(downloadTarball).toHaveBeenCalledWith(
+      'https://codeload.github.com/o/r/tar.gz/deadbeef',
+      expect.any(String),
+    );
+  });
+
+  it('falls back to the authenticated REST archive endpoint when codeload 404s', async () => {
+    failCodeloadThenServeFixture(404);
+
+    await githubAdapter.fetch(resolvedFixture(), tmpDir, { token: 'gh-token' });
+
+    expect(downloadTarball).toHaveBeenNthCalledWith(
+      2,
+      'https://api.github.com/repos/o/r/tarball/deadbeef',
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer gh-token' }),
+      }),
+    );
+  });
+
+  it('routes a cursor.directory source through the same fallback', async () => {
+    failCodeloadThenServeFixture(404);
+
+    // cursor.directory delegates resolution to GitHub, so its resolved URL is a codeload
+    // one even though the spec carries no owner/repo.
+    await githubAdapter.fetch(
+      {
+        spec: { type: 'cursor-directory', slug: 'some-plugin' },
+        key: 'cursor-directory:some-plugin',
+        ref: 'deadbeef',
+        resolved: 'https://codeload.github.com/o/r/tar.gz/deadbeef',
+        integrity: '',
+      },
+      tmpDir,
+      { token: 'gh-token' },
+    );
+
+    expect(downloadTarball).toHaveBeenNthCalledWith(
+      2,
+      'https://api.github.com/repos/o/r/tarball/deadbeef',
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer gh-token' }),
+      }),
+    );
+  });
+
+  it('does not retry when codeload fails for a reason credentials cannot fix', async () => {
+    vi.mocked(downloadTarball).mockRejectedValue(
+      new TarballDownloadError('Failed to download tarball: 500 Server Error', 500),
+    );
+
+    await expect(githubAdapter.fetch(resolvedFixture(), tmpDir, { token: 'gh-token' })).rejects.toThrow(
+      '500',
+    );
+    expect(downloadTarball).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry without a token, so no unauthenticated request is duplicated', async () => {
+    vi.mocked(downloadTarball).mockRejectedValue(
+      new TarballDownloadError('Failed to download tarball: 404 Not Found', 404),
+    );
+
+    await expect(githubAdapter.fetch(resolvedFixture(), tmpDir)).rejects.toThrow('404');
+    expect(downloadTarball).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves an unrecognised resolved URL alone rather than guessing an API path', async () => {
+    vi.mocked(downloadTarball).mockRejectedValue(
+      new TarballDownloadError('Failed to download tarball: 404 Not Found', 404),
+    );
+
+    const resolved = { ...resolvedFixture(), resolved: 'https://mirror.example.com/o/r.tgz' };
+    await expect(githubAdapter.fetch(resolved, tmpDir, { token: 'gh-token' })).rejects.toThrow('404');
+
+    expect(downloadTarball).toHaveBeenCalledTimes(1);
+    expect(downloadTarball).toHaveBeenCalledWith('https://mirror.example.com/o/r.tgz', expect.any(String));
+  });
+
+  it('encodes each path segment of the REST fallback URL', async () => {
+    failCodeloadThenServeFixture(404);
+
+    await githubAdapter.fetch(
+      { ...resolvedFixture(), resolved: 'https://codeload.github.com/o/..%2Fx/tar.gz/feat/a b' },
+      tmpDir,
+      { token: 'gh-token' },
+    );
+
+    expect(downloadTarball).toHaveBeenNthCalledWith(
+      2,
+      'https://api.github.com/repos/o/..%252Fx/tarball/feat/a%20b',
+      expect.any(String),
+      expect.anything(),
+    );
+  });
+
+  /** Make the download succeed, writing the codeload-shaped fixture to the temp path. */
+  function serveFixture(): void {
+    vi.mocked(downloadTarball).mockImplementation(async (_url: string, destPath: string) => {
+      copyFileSync(fixtureTgz, destPath);
+      return 'sha512-fixture';
+    });
+  }
+
+  /** Fail the first (codeload) attempt with `status`, then serve the fixture. */
+  function failCodeloadThenServeFixture(status: number): void {
+    vi.mocked(downloadTarball)
+      .mockRejectedValueOnce(new TarballDownloadError(`Failed to download tarball: ${status}`, status))
+      .mockImplementation(async (_url: string, destPath: string) => {
+        copyFileSync(fixtureTgz, destPath);
+        return 'sha512-fixture';
+      });
+  }
 });
+
+/** A resolved GitHub source pointing at the codeload archive for `o/r@deadbeef`. */
+function resolvedFixture(): ResolvedSource {
+  return {
+    spec: { type: 'github', owner: 'o', repo: 'r', ref: 'deadbeef', path: 'rules' },
+    key: 'github:o/r:rules',
+    ref: 'deadbeef',
+    resolved: 'https://codeload.github.com/o/r/tar.gz/deadbeef',
+    integrity: '',
+  };
+}
 
 describe('assertSafeTarEntry — extraction security policy', () => {
   it('rejects symlink and hardlink entries', () => {

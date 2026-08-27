@@ -1803,6 +1803,220 @@ message: "Branch name required"
   });
 });
 
+describe('claude hooks sync', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  const CLAUDE_CONFIG: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+
+  const VALID_MANIFEST = {
+    hooks: {
+      PostToolUse: [
+        {
+          matcher: 'Bash',
+          hooks: [{ type: 'command', command: './scripts/after-bash.sh', timeout: 30 }],
+        },
+      ],
+      SessionEnd: [{ hooks: [{ type: 'command', command: './scripts/retro.sh' }] }],
+    },
+  };
+
+  function writeManifest(doc: unknown, dir = join(root, 'llm')): void {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'hooks.claude.json'), JSON.stringify(doc, null, 2));
+  }
+
+  interface SettingsShape {
+    hooks?: Record<string, { matcher?: string; hooks: { type: string; command: string }[] }[]>;
+    extraKnownMarketplaces?: string[];
+  }
+
+  function readSettings(): SettingsShape {
+    return JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8')) as SettingsShape;
+  }
+
+  const GUARDRAIL = `---
+description: Test guardrail
+trigger: EnterWorktree
+hook_type: PreToolUse
+check:
+  field: name
+  not_empty: true
+message: "Branch name required"
+---
+
+# Test
+`;
+
+  it('writes llm/hooks.claude.json hooks into .claude/settings.json', async () => {
+    writeManifest(VALID_MANIFEST);
+
+    const results = await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    expect(results.errors).toEqual([]);
+    const settings = readSettings();
+    expect(settings.hooks.PostToolUse).toEqual([
+      { matcher: 'Bash', hooks: [{ type: 'command', command: './scripts/after-bash.sh', timeout: 30 }] },
+    ]);
+    expect(settings.hooks.SessionEnd).toEqual([
+      { hooks: [{ type: 'command', command: './scripts/retro.sh' }] },
+    ]);
+  });
+
+  it('rejects a manifest with a non-whitelisted event', async () => {
+    writeManifest({
+      hooks: { Notification: [{ hooks: [{ type: 'command', command: 'echo hi' }] }] },
+    });
+
+    const results = await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    expect(results.errors.some((e) => e.includes('Notification') && e.includes('hooks.claude.json'))).toBe(
+      true,
+    );
+    expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+  });
+
+  it('rejects a manifest with a non-command hook type', async () => {
+    writeManifest({ hooks: { Stop: [{ hooks: [{ type: 'prompt', command: 'echo hi' }] }] } });
+
+    const results = await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    expect(results.errors.some((e) => e.includes('only "type": "command"'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+  });
+
+  it('skips a pack-contributed hooks.claude.json with a warning (security boundary)', async () => {
+    writeManifest(VALID_MANIFEST, join(root, 'shared-pack', 'llm'));
+
+    const config: BlueprintConfig = { ...CLAUDE_CONFIG, extends: ['./shared-pack'] };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors).toEqual([]);
+    expect(results.warnings.some((w) => w.includes('hooks.claude.json') && w.includes('shared-pack'))).toBe(
+      true,
+    );
+    // The pack's hooks are never written anywhere.
+    expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+  });
+
+  it('local manifest is honored while a pack-contributed one is skipped', async () => {
+    writeManifest(VALID_MANIFEST);
+    writeManifest(
+      { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'evil' }] }] } },
+      join(root, 'shared-pack', 'llm'),
+    );
+
+    const config: BlueprintConfig = { ...CLAUDE_CONFIG, extends: ['./shared-pack'] };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.warnings.some((w) => w.includes('shared-pack'))).toBe(true);
+    const settings = readSettings();
+    expect(settings.hooks.Stop).toBeUndefined();
+    expect(settings.hooks.PostToolUse).toHaveLength(1);
+  });
+
+  it('coexists with guardrails: guardrail entries first, project entries appended', async () => {
+    mkdirSync(join(root, 'llm', 'guardrails'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'guardrails', 'test-guardrail.md'), GUARDRAIL);
+    writeManifest({
+      hooks: {
+        PreToolUse: [{ matcher: 'Write', hooks: [{ type: 'command', command: './scripts/pre-write.sh' }] }],
+        SessionEnd: [{ hooks: [{ type: 'command', command: './scripts/retro.sh' }] }],
+      },
+    });
+
+    const results = await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    expect(results.errors).toEqual([]);
+    const settings = readSettings();
+    expect(settings.hooks.PreToolUse).toHaveLength(2);
+    expect(settings.hooks.PreToolUse[0].matcher).toBe('EnterWorktree'); // guardrail first
+    expect(String(settings.hooks.PreToolUse[0].hooks[0].command)).toContain('jq');
+    expect(settings.hooks.PreToolUse[1].matcher).toBe('Write'); // project entry appended
+    expect(settings.hooks.SessionEnd).toHaveLength(1);
+  });
+
+  it('an invalid manifest does not clobber guardrail hooks already in settings.json', async () => {
+    mkdirSync(join(root, 'llm', 'guardrails'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'guardrails', 'test-guardrail.md'), GUARDRAIL);
+    await sync(root, { config: CLAUDE_CONFIG, silent: true });
+    const before = readSettings();
+
+    writeFileSync(join(root, 'llm', 'hooks.claude.json'), 'not json');
+    const results = await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    expect(results.errors.some((e) => e.includes('hooks.claude.json'))).toBe(true);
+    expect(readSettings()).toEqual(before);
+  });
+
+  it('does not write settings.json when claude is not in platforms', async () => {
+    writeManifest(VALID_MANIFEST);
+
+    const config: BlueprintConfig = { platforms: ['cursor'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
+    expect(existsSync(join(root, '.cursor', 'hooks.json'))).toBe(false);
+  });
+
+  it('preserves hand-written hooks when neither guardrails nor a manifest exist', async () => {
+    mkdirSync(join(root, '.claude'), { recursive: true });
+    const handWritten = {
+      hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo done' }] }] },
+    };
+    writeFileSync(join(root, '.claude', 'settings.json'), JSON.stringify(handWritten, null, 2));
+
+    await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    expect(readSettings()).toEqual(handWritten);
+  });
+
+  it('preserves non-hooks settings keys when writing', async () => {
+    mkdirSync(join(root, '.claude'), { recursive: true });
+    writeFileSync(
+      join(root, '.claude', 'settings.json'),
+      JSON.stringify({ extraKnownMarketplaces: ['owner/repo'] }, null, 2),
+    );
+    writeManifest(VALID_MANIFEST);
+
+    await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    const settings = readSettings();
+    expect(settings.extraKnownMarketplaces).toEqual(['owner/repo']);
+    expect(settings.hooks.PostToolUse).toHaveLength(1);
+  });
+
+  it('clears a previously managed hooks key when the manifest empties out', async () => {
+    writeManifest(VALID_MANIFEST);
+    await sync(root, { config: CLAUDE_CONFIG, silent: true });
+    expect(readSettings().hooks).toBeDefined();
+
+    writeManifest({ hooks: {} });
+    await sync(root, { config: CLAUDE_CONFIG, silent: true });
+
+    expect(readSettings().hooks).toBeUndefined();
+  });
+
+  it('is idempotent and clean in check mode after a sync', async () => {
+    mkdirSync(join(root, 'llm', 'guardrails'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'guardrails', 'test-guardrail.md'), GUARDRAIL);
+    writeManifest(VALID_MANIFEST);
+
+    await sync(root, { config: CLAUDE_CONFIG, silent: true });
+    const results = await sync(root, { config: CLAUDE_CONFIG, silent: true, check: true });
+
+    expect(results.errors).toEqual([]);
+    expect(results.outOfSync).toBe(0);
+  });
+});
+
 describe('codex sync', () => {
   let root: string;
 

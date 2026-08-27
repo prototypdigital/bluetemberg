@@ -508,6 +508,14 @@ program
   .command('add')
   .description('Add one or more packs (rules, agents, skills, guardrails) from the npm registry')
   .argument('<packages...>', 'Package name(s) with optional @version (e.g. my-rules@^1.0.0)')
+  .option(
+    '--skip-signature-verification',
+    'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
+  )
+  .option(
+    '--allow-external-tarball-host',
+    'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
+  )
   .option('--silent', 'Suppress all output')
   .action(async (packages, options) => {
     const { add } = await import('../dist/registry/index.js');
@@ -518,6 +526,8 @@ program
       try {
         await add(process.cwd(), packageSpec, {
           silent: options.silent,
+          skipSignatureVerification: options.skipSignatureVerification,
+          allowExternalTarballHost: options.allowExternalTarballHost,
         });
       } catch (err) {
         if (!options.silent) {
@@ -585,6 +595,14 @@ program
   .description('Install all packs from llm/packages.json (like npm ci)')
   .option('--force', 'Force re-download even if cached')
   .option('--dry-run', 'Resolve packs and print install plan without writing files')
+  .option(
+    '--skip-signature-verification',
+    'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
+  )
+  .option(
+    '--allow-external-tarball-host',
+    'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
+  )
   .option('--silent', 'Suppress all output')
   .action(async (options) => {
     const { install } = await import('../dist/registry/index.js');
@@ -593,6 +611,8 @@ program
         force: options.force,
         silent: options.silent,
         dryRun: options.dryRun,
+        skipSignatureVerification: options.skipSignatureVerification,
+        allowExternalTarballHost: options.allowExternalTarballHost,
       });
       if (!options.dryRun) {
         const { refreshCatalogCache } = await import('../dist/catalog/index.js');
@@ -616,6 +636,14 @@ program
   .description('Update packs to the latest version satisfying their manifest range')
   .argument('[package]', 'Package name to update (updates all when omitted)')
   .option('--latest', 'Widen ranges to "latest" in manifest, not just re-resolve current range')
+  .option(
+    '--skip-signature-verification',
+    'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
+  )
+  .option(
+    '--allow-external-tarball-host',
+    'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
+  )
   .option('--silent', 'Suppress all output')
   .action(async (packageName, options) => {
     const { update } = await import('../dist/registry/index.js');
@@ -623,6 +651,8 @@ program
       await update(process.cwd(), packageName, {
         latest: options.latest,
         silent: options.silent,
+        skipSignatureVerification: options.skipSignatureVerification,
+        allowExternalTarballHost: options.allowExternalTarballHost,
       });
       const { refreshCatalogCache } = await import('../dist/catalog/index.js');
       const refreshed = await refreshCatalogCache(process.cwd());

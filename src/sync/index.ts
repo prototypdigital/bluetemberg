@@ -16,6 +16,7 @@ import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
 import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails } from './guardrails.js';
+import { syncClaudeHooks } from './claude-hooks.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
@@ -587,7 +588,15 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncSkills(ctx);
   syncCopilotInstructions(ctx);
   syncGeminiInstructions(ctx);
-  syncGuardrails(ctx, (msg) => recordError(ctx, msg));
+  // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
+  // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
+  const guardrailClaudeHooks = syncGuardrails(ctx, (msg) => recordError(ctx, msg));
+  syncClaudeHooks(
+    ctx,
+    guardrailClaudeHooks,
+    (msg) => recordError(ctx, msg),
+    (msg) => recordWarning(ctx, msg),
+  );
   syncMcp(ctx, (msg) => recordError(ctx, msg));
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
@@ -602,7 +611,16 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
     ];
-    syncMarketplace({ ...ctx, plugins: pluginDefs, catalog }, (msg) => recordError(ctx, msg));
+    syncMarketplace(
+      {
+        ...ctx,
+        plugins: pluginDefs,
+        catalog,
+        owner: ctx.config.marketplace?.owner,
+        remote: ctx.config.marketplace?.remote,
+      },
+      (msg) => recordError(ctx, msg),
+    );
 
     const remote = ctx.config.marketplace?.remote;
     if (remote) {

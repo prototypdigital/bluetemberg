@@ -112,6 +112,52 @@ describe('syncMarketplace', () => {
     expect(marketplaceJson.plugins[1].name).toBe('devops');
   });
 
+  describe('marketplace.json owner (required by Claude Code at add time)', () => {
+    it('uses marketplace.owner from config when set', async () => {
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          owner: { name: 'Prototyp', email: 'dev@prototyp.digital' },
+          plugins: [{ name: 'frontend' }],
+        },
+      };
+
+      await sync(root, { config, silent: true });
+
+      const marketplaceJson = JSON.parse(readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'));
+      expect(marketplaceJson.owner).toEqual({ name: 'Prototyp', email: 'dev@prototyp.digital' });
+    });
+
+    it('falls back to the owner segment of marketplace.remote', async () => {
+      writeSkill(root, 'api-design');
+
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          remote: 'prototypdigital/claude-marketplace',
+          plugins: [{ name: 'frontend' }],
+        },
+      };
+
+      await sync(root, { config, silent: true });
+
+      const marketplaceJson = JSON.parse(readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'));
+      expect(marketplaceJson.owner).toEqual({ name: 'prototypdigital' });
+    });
+
+    it('falls back to the project directory name when neither owner nor remote is set', async () => {
+      writeSkill(root, 'api-design');
+
+      const projectName = basename(root);
+      await sync(root, { config: BASE_CONFIG, silent: true });
+
+      const marketplaceJson = JSON.parse(readFileSync(join(root, '.claude-plugin/marketplace.json'), 'utf8'));
+      expect(marketplaceJson.owner).toEqual({ name: projectName });
+    });
+  });
+
   it('emits multiple plugins from marketplace config', async () => {
     writeSkill(root, 'api-design');
     writeAgent(root, 'backend-specialist');

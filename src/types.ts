@@ -65,6 +65,12 @@ export interface MarketplacePluginDefinition {
   stacks?: Stack[];
 }
 
+export interface MarketplaceOwner {
+  name: string;
+  email?: string;
+  url?: string;
+}
+
 export interface MarketplaceConfig {
   /**
    * GitHub repository in `owner/repo` format that hosts the published marketplace output.
@@ -74,6 +80,12 @@ export interface MarketplaceConfig {
    * value to push generated `plugins/` and `.claude-plugin/` output to that repo.
    */
   remote?: string;
+  /**
+   * Marketplace owner written to `.claude-plugin/marketplace.json`. Claude Code REJECTS a
+   * marketplace without `owner` at add time ("Invalid schema: owner: Required"). When omitted,
+   * bluetemberg falls back to the owner segment of `remote`, then to the project directory name.
+   */
+  owner?: MarketplaceOwner;
   /**
    * Plugin definitions. Each entry becomes one installable plugin in the marketplace.
    * When omitted, bluetemberg emits a single plugin named after the project containing
@@ -433,7 +445,10 @@ export interface PackVerifyResult {
 export interface RegistryVerifyOptions {
   /** Suppress all output. */
   silent?: boolean;
-  /** Skip ECDSA signature check (for self-hosted registries without signing). */
+  /**
+   * Skip the ECDSA signature check (for self-hosted registries without signing).
+   * Ignored for npmjs.org, which always signs.
+   */
   skipSignatureVerification?: boolean;
 }
 
@@ -454,6 +469,17 @@ export interface RegistryAddOptions {
   version?: string;
   /** Suppress output. */
   silent?: boolean;
+  /**
+   * Allow unsigned packs from a **non-default** registry. Ignored for npmjs.org, which
+   * always signs — verification there is mandatory and cannot be turned off.
+   */
+  skipSignatureVerification?: boolean;
+  /**
+   * Allow a pack's tarball to be served from a host other than the configured registry
+   * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
+   * sent to that host.
+   */
+  allowExternalTarballHost?: boolean;
 }
 
 /** Options for `registry.install()`. */
@@ -467,6 +493,17 @@ export interface RegistryInstallOptions {
    * Exits non-zero if any pack would fail to resolve.
    */
   dryRun?: boolean;
+  /**
+   * Allow unsigned packs from a **non-default** registry. Ignored for npmjs.org, which
+   * always signs — verification there is mandatory and cannot be turned off.
+   */
+  skipSignatureVerification?: boolean;
+  /**
+   * Allow a pack's tarball to be served from a host other than the configured registry
+   * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
+   * sent to that host.
+   */
+  allowExternalTarballHost?: boolean;
 }
 
 /** Options for `registry.search()`. */
@@ -475,6 +512,11 @@ export interface RegistrySearchOptions {
   limit?: number;
   /** Suppress output. */
   silent?: boolean;
+  /**
+   * Project root supplying the configured registry and `.npmrc` credentials.
+   * Defaults to the current working directory.
+   */
+  root?: string;
 }
 
 /** Options for `registry.remove()`. */
@@ -495,4 +537,15 @@ export interface RegistryUpdateOptions {
   silent?: boolean;
   /** Widen each package's range to "latest" in the manifest, not just re-resolve the current range. */
   latest?: boolean;
+  /**
+   * Allow unsigned packs from a **non-default** registry. Ignored for npmjs.org, which
+   * always signs — verification there is mandatory and cannot be turned off.
+   */
+  skipSignatureVerification?: boolean;
+  /**
+   * Allow a pack's tarball to be served from a host other than the configured registry
+   * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
+   * sent to that host.
+   */
+  allowExternalTarballHost?: boolean;
 }

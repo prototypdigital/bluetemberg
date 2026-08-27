@@ -110,6 +110,8 @@ end and the command exits non-zero.
 
 | Option | Description |
 | ------ | ----------- |
+| `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org`. See [Private registries](#private-registries) |
+| `--allow-external-tarball-host` | Allow a pack tarball served from a host other than the configured registry. No credentials are sent to that host |
 | `--silent` | Suppress all output |
 
 To pin a version, use the `name@range` syntax in the package argument rather than a flag.
@@ -160,6 +162,9 @@ Run this after cloning a repo or when the lockfile has new entries from a teamma
 | Option | Description |
 | ------ | ----------- |
 | `--force` | Force re-download even if cached |
+| `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org`. See [Private registries](#private-registries) |
+| `--allow-external-tarball-host` | Allow a pack tarball served from a host other than the configured registry. No credentials are sent to that host |
+| `--dry-run` | Resolve every pack and print the install plan without writing files |
 | `--silent` | Suppress all output |
 
 ### `bluetemberg update [package]`
@@ -188,6 +193,8 @@ After updating, run `bluetemberg sync` to apply the changes.
 | Option | Description |
 | ------ | ----------- |
 | `--latest` | Widen each pack's range to `"latest"` in the manifest, not just re-resolve the current range |
+| `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--allow-external-tarball-host` | Allow a pack tarball served from a host other than the configured registry |
 | `--silent` | Suppress all output |
 
 ### `bluetemberg verify`
@@ -252,7 +259,7 @@ Every pack install goes through two layers of verification:
 
 The default npm registry (`registry.npmjs.org`) always signs packages. Bluetemberg enforces this: an unsigned package from the default registry is rejected as a potential supply-chain attack, even if the integrity hash matches.
 
-For **self-hosted or private registries** that do not produce signatures, pass `--skip-signature-verification` to `bluetemberg verify`. This flag has no effect against the default registry.
+For **self-hosted or private registries** that do not produce signatures, pass `--skip-signature-verification` to `install`, `add`, `update`, or `verify`. The flag has no effect against the default registry, and integrity checking is never skipped. See [Private registries](#private-registries).
 
 Run `bluetemberg verify` at any time to re-check all installed packs without re-downloading them.
 
@@ -356,7 +363,7 @@ To publish your own rule pack:
 
 ## Private registries
 
-Set the `registry` field in `llm/packages.json` to use a private npm registry:
+Set the `registry` field in `llm/packages.json` to point at a private npm registry:
 
 ```json
 {
@@ -365,6 +372,122 @@ Set the `registry` field in `llm/packages.json` to use a private npm registry:
     "@company/internal-rules": "^1.0.0"
   }
 }
+```
+
+A private scoped package on `registry.npmjs.org` needs no `registry` field at all — just credentials.
+
+### Credentials
+
+Credentials are resolved the same way npm resolves them, so an existing setup usually works
+unchanged. In precedence order:
+
+1. **`<project>/.npmrc`** — a host-scoped entry (what npm calls a "nerf dart"):
+
+   ```ini
+   //npm.pkg.github.com/:_authToken=${GH_PACKAGES_TOKEN}
+   ```
+
+2. **`~/.npmrc`** (or `$NPM_CONFIG_USERCONFIG`) — same format, for machine-wide credentials.
+
+3. **`NPM_TOKEN`** or **`NODE_AUTH_TOKEN`** in the environment — for `registry.npmjs.org`,
+   or for the registry named by `$NPM_CONFIG_REGISTRY`. Unlike an `.npmrc` entry, a bare
+   env token names no host, so it is **not** sent to an arbitrary registry the manifest
+   configures; see [Where credentials are sent](#where-credentials-are-sent). For any
+   other registry, reference the same variable from a scoped `.npmrc` entry — which is
+   what `actions/setup-node` writes for you.
+
+Supported `.npmrc` credential styles: `_authToken` (bearer), `_auth` (base64 `user:pass`), and
+`username` + base64 `_password`. `${VAR}` references are expanded from the environment; if the
+variable is unset the entry is skipped rather than sending a literal `${VAR}` as a token.
+
+The most specific path scope wins, so a registry serving several repositories can be scoped
+per-repository:
+
+```ini
+//acme.jfrog.io/:_authToken=${ARTIFACTORY_READ}
+//acme.jfrog.io/api/npm/npm-internal/:_authToken=${ARTIFACTORY_INTERNAL}
+```
+
+Commit `llm/packages.json`; **never** commit an `.npmrc` that contains a literal token. Keep the
+token in the environment and reference it with `${VAR}`. Once your project `.npmrc` holds a
+credential key (`_authToken`, `_auth`, `_password` — a `${VAR}` reference counts), any
+bluetemberg command that touches your `.gitignore` adds `.npmrc` to it, so a token cannot be
+committed by accident. A tokenless `.npmrc` (`registry=`, scope mappings) is left alone — many
+projects commit one deliberately.
+
+### Where credentials are sent
+
+Credentials are bound to a host. Bluetemberg sends them only to the registry configured in the
+manifest — for metadata, search, the signing-keys endpoint, and the tarball download.
+
+- A tarball served from a **different** host than the registry never receives the credential.
+  Such a download is refused outright unless you pass `--allow-external-tarball-host`; even then
+  the request goes out unauthenticated. The same rule is re-checked against the tarball URL
+  itself: a tarball on the registry's hostname but a different port, or over plain `http:`, is
+  also fetched without the credential — registry metadata cannot downgrade the transport the
+  token travels over.
+- Unlike the `.npmrc` forms, `NPM_TOKEN`/`NODE_AUTH_TOKEN` carry no host of their own. Because
+  `llm/packages.json` is a committed file, a bare env token is applied **only** to
+  `registry.npmjs.org` or to the registry named by `$NPM_CONFIG_REGISTRY` — otherwise cloning
+  a repository and running `install` would hand your token to whatever host that repository
+  chose. For any other registry, scope the token in `.npmrc`:
+
+  ```ini
+  //acme.jfrog.io/api/npm/npm-local/:_authToken=${NPM_TOKEN}
+  ```
+
+  A credential that was found but withheld says so, and names the scope to add.
+- Credentials go over **https** only. A plain-`http:` registry gets none, so a token cannot be
+  read off the wire — except on loopback (`localhost`, `127.0.0.1`), where the request never
+  leaves the machine. Set `BLUETEMBERG_ALLOW_INSECURE_REGISTRY_AUTH=1` to override for an
+  internal http registry you accept the risk of.
+- External rule sources (see [Sources](Sources)) never receive registry credentials; they use
+  `GITHUB_TOKEN` instead.
+- Tokens are never written to the lockfile, the manifest, or any log line. Inline
+  `https://user:pass@host` credentials in a registry URL are stripped from error messages, but
+  prefer `.npmrc` — the manifest is committed.
+
+### Registries that do not sign
+
+`registry.npmjs.org` signs every package and Bluetemberg always verifies that — the check cannot
+be disabled for the default registry. Self-hosted registries (Verdaccio, Artifactory, Nexus,
+GitHub Packages) generally do not sign, so installing from one needs an explicit opt-in:
+
+```bash
+bluetemberg install --skip-signature-verification
+bluetemberg add @company/internal-rules --skip-signature-verification
+bluetemberg update --skip-signature-verification
+bluetemberg verify --skip-signature-verification
+```
+
+SHA-512 integrity is still enforced on every download. Every install that skips the check says
+so with a warning line, so a CI transcript shows the weakened guarantee at the moment it was
+used. The lockfile records `version` and `integrity` as usual and simply omits `keyid` — no
+signature is fabricated — so a later `bluetemberg verify` without the flag will correctly report
+the pack as unsigned.
+
+### Discovery
+
+`bluetemberg search` queries the registry the manifest configures, not always npmjs.org, and
+authenticates the same way — so a private registry is searchable from the project that uses it.
+
+### Full example: GitHub Actions against GitHub Packages
+
+`llm/packages.json`:
+
+```json
+{
+  "registry": "https://npm.pkg.github.com",
+  "packages": { "@acme/internal-rules": "^1.0.0" }
+}
+```
+
+Workflow step:
+
+```yaml
+- run: npx bluetemberg install --skip-signature-verification
+  env:
+    NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_READ_TOKEN }}
 ```
 
 ## Programmatic API
