@@ -20,6 +20,22 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.11.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.10.1...bluetemberg-v0.11.0) (2026-08-27)
+
+
+### Features
+
+* **registry:** private pack distribution — auth, install-side unsigned opt-in, source tokens ([f4d86d8](https://github.com/prototypdigital/bluetemberg/commit/f4d86d8044708cb90ef40714016727e0c0228c3b))
+* **registry:** support private pack distribution ([fcc27f0](https://github.com/prototypdigital/bluetemberg/commit/fcc27f02b9d9c10126b3ba7f51cb577007c3959a))
+
+
+### Bug Fixes
+
+* **ci:** skip commitlint for dependabot prs ([688ced1](https://github.com/prototypdigital/bluetemberg/commit/688ced12c65f013b6525b7ac6da70da52fb819dd))
+* **ci:** skip commitlint for dependabot PRs ([652a733](https://github.com/prototypdigital/bluetemberg/commit/652a73363dd682b623a00155c6e42b0602a16d0f))
+* **registry:** scope credentials to affirmed hosts, stabilise source archives ([dd91a98](https://github.com/prototypdigital/bluetemberg/commit/dd91a985138281bd70870672aea5fab75d486833))
+* **registry:** warn on skipped signatures, re-check tarball transport, gate .npmrc ignore ([b1c07b3](https://github.com/prototypdigital/bluetemberg/commit/b1c07b39cb3f657bdb365502cd1ebb020b9cfa45))
+
 ## [0.10.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.10.0...bluetemberg-v0.10.1) (2026-08-25)
 
 
