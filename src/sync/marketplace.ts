@@ -1,8 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
-import { ensureDir } from '../utils/fs.js';
-import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import { commitPlannedWrite, ensurePlannedDir, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
 import type { Catalog } from '../catalog/index.js';
@@ -266,12 +265,12 @@ function emitPlugin(
   const pluginDir = join(ctx.root, 'plugins', plugin.name);
   const skillsDir = join(pluginDir, 'skills');
   const agentsDir = join(pluginDir, 'agents');
-  const manifestDir = join(pluginDir, '.claude-plugin');
 
-  ensureDir(pluginDir);
-  ensureDir(skillsDir);
-  ensureDir(agentsDir);
-  ensureDir(manifestDir);
+  // Load-bearing, unlike every other output dir here: a plugin that matched no skills (or no
+  // agents) still gets the empty directory, so every plugin has the same layout and a consumer
+  // never has to special-case a missing one. The rest are created by `commitPlannedWrite`.
+  ensurePlannedDir(ctx, skillsDir);
+  ensurePlannedDir(ctx, agentsDir);
 
   const skillEntries: ManifestEntry[] = [];
   const agentEntries: ManifestEntry[] = [];
@@ -303,7 +302,6 @@ function emitPlugin(
 
     const srcPath = join(sourceParent, dirName, 'SKILL.md');
     const outSkillDir = join(skillsDir, dirName);
-    ensureDir(outSkillDir);
 
     try {
       const content = readFileSync(srcPath, 'utf8');
@@ -341,7 +339,6 @@ function emitPlugin(
   let hooks: string | undefined;
   if (hooksContent !== null) {
     const hooksDir = join(pluginDir, 'hooks');
-    ensureDir(hooksDir);
     const hooksOutPath = join(hooksDir, 'hooks.json');
     commitPlannedWrite(ctx, hooksOutPath, hooksContent);
     hooks = `plugins/${plugin.name}/hooks/hooks.json`;
@@ -386,8 +383,6 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
   ctx.log(
     `Marketplace: ${ctx.plugins.length} plugin(s), ${allRules.size} rule(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)${hooksContent !== null ? ', hooks' : ''}`,
   );
-
-  ensureDir(join(ctx.root, '.claude-plugin'));
 
   const pluginManifests: PluginManifest[] = [];
 

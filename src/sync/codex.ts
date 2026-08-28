@@ -2,7 +2,7 @@ import { join, basename, relative } from 'node:path';
 import matter from 'gray-matter';
 import { stringify as tomlStringify } from 'smol-toml';
 import type { Platform } from '../types.js';
-import { ensureDir, readIfExists } from '../utils/fs.js';
+import { readIfExists } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
 import { commitPlannedWrite } from './pipeline.js';
 import { mergeSourceFiles } from './extends-loader.js';
@@ -175,7 +175,6 @@ export function syncCodexAgents(ctx: CodexSyncContext, recordError: (message: st
   if (merged.size === 0) return;
 
   const outDir = join(ctx.root, '.codex', 'agents');
-  if (!ctx.checkMode) ensureDir(outDir);
 
   const count = [...merged]
     .sort(byFilename)
@@ -257,7 +256,6 @@ export function syncCodexConfig(ctx: CodexSyncContext, recordError: (message: st
   if (output === null) return;
   if (output.length === 0 && existing === null) return;
 
-  if (!ctx.checkMode) ensureDir(join(ctx.root, '.codex'));
   commitPlannedWrite(ctx, configPath, output);
   if (!ctx.checkMode) ctx.log('Codex MCP: merged into .codex/config.toml');
 }

@@ -43,6 +43,8 @@ Nothing runs your hooks or MCP at sync time: the CLI only writes files. `sync --
 
 Use the **`AdapterContext`** type from `bluetemberg` (or `bluetemberg/sync/adapter-contract`). For drift-safe writes inside an adapter, import **`commitPlannedWrite`** from `bluetemberg/sync/pipeline` so `--check` stays accurate.
 
+**Creating directories:** `commitPlannedWrite` already creates the parent directory of every file it writes, so most adapters need nothing else. If yours must pre-create a directory that may end up empty, use **`ensurePlannedDir(ctx, dir)`** from the same module rather than `mkdir`/`ensureDir` — it is a no-op under `--check`, which must leave the working tree untouched.
+
 **Output paths:** Always pass an **absolute** path, or build one with `join(ctx.root, 'relative', 'path')`. Do **not** pass a bare relative path: `commitPlannedWrite` resolves paths for pruning and drift checks, and a relative path is resolved against the process working directory, not the project root—so `--check` and `sync --prune` can mis-track adapter outputs.
 
 The programmatic **`sync()`** API is **async** (it `await`s adapter modules).

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync, shouldExitWithFailure } from '../src/sync/index.js';
@@ -87,6 +87,22 @@ describe('syncMarketplace', () => {
     expect(pluginJson.agents).toHaveLength(1);
     expect(pluginJson.agents[0].name).toBe('backend-specialist');
     expect(pluginJson.agents[0].path).toBe(`plugins/${projectName}/agents/backend-specialist.md`);
+  });
+
+  /**
+   * Pins the two `ensurePlannedDir` calls left in emitPlugin. Every plugin gets the same layout
+   * whether or not it matched anything, so a consumer never has to special-case a missing
+   * `skills/` or `agents/`. Nothing is written into them here, so `commitPlannedWrite` cannot
+   * create them — delete those calls and this fails.
+   */
+  it('gives every plugin a skills/ and agents/ dir even when one side matched nothing', async () => {
+    writeAgent(root, 'backend-specialist'); // agents only — no rules, no skills
+
+    await sync(root, { config: BASE_CONFIG, silent: true });
+
+    const pluginDir = join(root, 'plugins', basename(root));
+    expect(readdirSync(join(pluginDir, 'skills'))).toEqual([]);
+    expect(readdirSync(join(pluginDir, 'agents'))).toEqual(['backend-specialist.md']);
   });
 
   it('marketplace.json lists all plugins', async () => {

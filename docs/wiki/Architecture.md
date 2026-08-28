@@ -121,7 +121,9 @@ Sync also refuses to **author** an unpairable block: a rule whose body quotes `<
 
 ## Check mode
 
-`bluetemberg sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. No files are written. Comparisons **normalize line endings** (CRLF vs LF) so check mode is less sensitive to platform checkout settings.
+`bluetemberg sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. Comparisons **normalize line endings** (CRLF vs LF) so check mode is less sensitive to platform checkout settings.
+
+A check run is **read-only**: it creates no files and no directories, so gating CI on it — or running it locally on a repo that has never been synced — leaves the working tree byte-for-byte unchanged. Both writes funnel through `src/sync/pipeline.ts`: `commitPlannedWrite` for files, `ensurePlannedDir` for directories. An adapter that calls `mkdir` (or `ensureDir`) directly breaks the guarantee, so ESLint restricts both imports inside `src/sync/**` — a fixture-driven test cannot catch a new adapter whose sources the test does not seed, but the lint rule can.
 
 ## Prune (optional)
 
