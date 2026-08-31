@@ -55,6 +55,18 @@ Claude Code **hooks** are configured with JSON at `llm/hooks.claude.json`. Sync 
 - **`hooks`** — Object whose keys are Claude Code event names. Each value is an array of entries with an optional **`matcher`** string and a **`hooks`** array of command objects.
 - **Command objects** — `type` must be `"command"` (nothing else is accepted), `command` a non-empty string, and `timeout` (optional) a positive number of seconds.
 
+### Where the scripts themselves live: not under `.claude/`
+
+Sync manages the hook **registration** (this manifest → the `hooks` key of `.claude/settings.json`). It never manages the **implementation** — the executable your `command` points at. There is no `llm/` source directory for hook scripts, and sync cannot create one: it writes with no file mode, so a synced script would land non-executable and the hook would fail on a fresh clone. Hook scripts are hand-authored, committed files that you own.
+
+Keep them **outside `.claude/`** — `scripts/hooks/` is the convention this repo uses. `.claude/` is where sync writes its output (`rules/`, `agents/`, `skills/`, and the `hooks` key of `settings.json`), so a hand-authored script sitting in `.claude/hooks/` reads as generated when it is not, and invites an editor — human or agent — to treat it as disposable. Nothing technically requires the `.claude/` prefix: `command` takes any path, and `$CLAUDE_PROJECT_DIR` resolves from the repo root.
+
+```json
+{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/spawn-pr-review.sh" }
+```
+
+Scripts that resolve their siblings should do so relative to their own location (`hook_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)`) rather than hardcoding a repo path, so the whole directory stays relocatable.
+
 ### Event whitelist
 
 Only these events are accepted; anything else is a sync **error** naming the offending event:
