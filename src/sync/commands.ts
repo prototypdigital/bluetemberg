@@ -4,6 +4,7 @@ import type { Platform } from '../types.js';
 import { ensureDir, listFiles } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
 import { commitPlannedWrite } from './pipeline.js';
+import { withGeneratedBanner } from './banner.js';
 
 export interface CommandsSyncContext extends SyncSink {
   sourceBase: string;
@@ -23,7 +24,7 @@ export function syncCommands(ctx: CommandsSyncContext, recordError: (message: st
 
   for (const file of files) {
     try {
-      const content = readFileSync(join(sourceDir, file), 'utf8');
+      const content = withGeneratedBanner(readFileSync(join(sourceDir, file), 'utf8'), `commands/${file}`);
       const outPath = join(outDir, file);
       commitPlannedWrite(ctx, outPath, content);
     } catch (err) {
