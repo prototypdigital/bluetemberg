@@ -2,6 +2,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
+import { withGeneratedBanner } from './banner.js';
 import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { pruneStaleOutputs } from './prune.js';
@@ -822,7 +823,7 @@ function syncRules(ctx: SyncContext): void {
       try {
         const source = matter.read(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
-        const output = matter.stringify(source.content, transformed);
+        const output = withGeneratedBanner(matter.stringify(source.content, transformed), `rules/${file}`);
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
@@ -866,7 +867,7 @@ function syncAgents(ctx: SyncContext): void {
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
       try {
-        const content = readFileSync(join(sourceDir, file), 'utf8');
+        const content = withGeneratedBanner(readFileSync(join(sourceDir, file), 'utf8'), `agents/${file}`);
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
@@ -913,7 +914,7 @@ function syncSkills(ctx: SyncContext): void {
         const outDir = join(ctx.root, targetConfig.dir, dirName);
         ensureDir(outDir);
 
-        const content = readFileSync(srcSkill, 'utf8');
+        const content = withGeneratedBanner(readFileSync(srcSkill, 'utf8'), `skills/${dirName}/SKILL.md`);
         const outPath = join(outDir, 'SKILL.md');
 
         commitPlannedWrite(ctx, outPath, content);

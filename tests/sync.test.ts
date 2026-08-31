@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { parse as tomlParse } from 'smol-toml';
 import { sync, loadConfig, shouldExitWithFailure } from '../src/sync/index.js';
+import { withGeneratedBanner } from '../src/sync/banner.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 function createTmpDir(): string {
@@ -87,7 +88,7 @@ describe('sync', () => {
     expect(content).not.toContain('alwaysApply');
   });
 
-  it('syncs agents verbatim', async () => {
+  it('syncs agents body verbatim under a generated banner', async () => {
     mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
     const agentContent = '---\nname: test-agent\ndescription: Test\n---\n\n# Test Agent\n';
     writeFileSync(join(root, 'llm', 'agents', 'test-agent.md'), agentContent);
@@ -105,11 +106,12 @@ describe('sync', () => {
 
     await sync(root, { config, silent: true });
 
-    expect(readFileSync(join(root, '.claude', 'agents', 'test-agent.md'), 'utf8')).toBe(agentContent);
-    expect(readFileSync(join(root, '.github', 'agents', 'test-agent.agent.md'), 'utf8')).toBe(agentContent);
+    const expected = withGeneratedBanner(agentContent, 'agents/test-agent.md');
+    expect(readFileSync(join(root, '.claude', 'agents', 'test-agent.md'), 'utf8')).toBe(expected);
+    expect(readFileSync(join(root, '.github', 'agents', 'test-agent.agent.md'), 'utf8')).toBe(expected);
   });
 
-  it('syncs skills verbatim', async () => {
+  it('syncs skills body verbatim under a generated banner', async () => {
     mkdirSync(join(root, 'llm', 'skills', 'test-skill'), { recursive: true });
     const skillContent = '---\nname: test-skill\n---\n\n# Test\n';
     writeFileSync(join(root, 'llm', 'skills', 'test-skill', 'SKILL.md'), skillContent);
@@ -125,7 +127,7 @@ describe('sync', () => {
     await sync(root, { config, silent: true });
 
     expect(readFileSync(join(root, '.claude', 'skills', 'test-skill', 'SKILL.md'), 'utf8')).toBe(
-      skillContent,
+      withGeneratedBanner(skillContent, 'skills/test-skill/SKILL.md'),
     );
   });
 
@@ -149,8 +151,12 @@ describe('sync', () => {
 
     const results = await sync(root, { config, silent: true });
     expect(results.synced).toBe(2);
-    expect(readFileSync(join(root, '.cursor', 'agents', 'sub.md'), 'utf8')).toBe(agentContent);
-    expect(readFileSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(skillContent);
+    expect(readFileSync(join(root, '.cursor', 'agents', 'sub.md'), 'utf8')).toBe(
+      withGeneratedBanner(agentContent, 'agents/sub.md'),
+    );
+    expect(readFileSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(
+      withGeneratedBanner(skillContent, 'skills/my-skill/SKILL.md'),
+    );
   });
 
   it('does not write cursor agent/skill files when cursor is not in platforms', async () => {
@@ -588,7 +594,7 @@ describe('sync', () => {
     expect(results.errors.some((e) => e.includes('hooks.json'))).toBe(true);
   });
 
-  it('syncs llm/commands to .claude/commands verbatim', async () => {
+  it('syncs llm/commands to .claude/commands, body verbatim under a generated banner', async () => {
     mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
     const body = '---\ndescription: Test cmd\n---\n\nDo something with $ARGUMENTS\n';
     writeFileSync(join(root, 'llm', 'commands', 'my-cmd.md'), body);
@@ -600,7 +606,9 @@ describe('sync', () => {
     };
 
     await sync(root, { config, silent: true });
-    expect(readFileSync(join(root, '.claude', 'commands', 'my-cmd.md'), 'utf8')).toBe(body);
+    expect(readFileSync(join(root, '.claude', 'commands', 'my-cmd.md'), 'utf8')).toBe(
+      withGeneratedBanner(body, 'commands/my-cmd.md'),
+    );
   });
 
   it('skips commands sync when claude is not enabled', async () => {
@@ -2109,7 +2117,9 @@ describe('codex sync', () => {
     };
 
     await sync(root, { config, silent: true });
-    expect(readFileSync(join(root, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(skill);
+    expect(readFileSync(join(root, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(
+      withGeneratedBanner(skill, 'skills/my-skill/SKILL.md'),
+    );
   });
 
   it('folds rules into a managed block in AGENTS.md, preserving hand-authored content', async () => {
