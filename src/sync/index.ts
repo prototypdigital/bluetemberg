@@ -2,7 +2,8 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
-import { ensureDir } from '../utils/fs.js';
+import { withGeneratedBanner } from './banner.js';
+import { listDirs, listFiles } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { pruneStaleOutputs } from './prune.js';
 import { syncMcp } from './mcp.js';
@@ -11,6 +12,7 @@ import { syncCommands } from './commands.js';
 import { syncWindsurfWorkflows } from './windsurf-workflows.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
+import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
 import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
@@ -18,13 +20,19 @@ import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails } from './guardrails.js';
 import { syncClaudeHooks } from './claude-hooks.js';
 import { filterTargets } from '../utils/target-filtering.js';
-import { resolveExtendedSourceDirs, mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
+import {
+  resolveExtendedSourceDirs,
+  mergeSourceFiles,
+  mergeSourceDirs,
+  findShadowedEntries,
+} from './extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
 import { resolveExternalSourceDirs } from '../sources/registry.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
 import {
+  describeLowConfidence,
   describeStackMismatch,
   isValidStackRange,
   matchStackConstraint,
@@ -35,11 +43,11 @@ import {
   frontmatterStackIssues,
   readFrontmatterStacks,
   resolveStacks,
+  type StackMap,
 } from '../stacks/resolve.js';
 import type {
   Platform,
   BlueprintConfig,
-  StackConstraint,
   SyncOptions,
   SyncResults,
   TargetConfig,
@@ -425,6 +433,8 @@ interface SyncContext extends SyncSink {
   catalog: Catalog;
   /** Technology stacks + resolved versions detected in the project (drives version-aware gating). */
   detectedStacks: DetectedStacks;
+  /** Low-confidence stacks already warned about this sync — the warning fires once per stack. */
+  warnedLowConfidence: Set<string>;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
@@ -455,6 +465,38 @@ function logDetectedStacks(ctx: SyncContext): void {
   ctx.log(`Detected stacks: ${parts.join(', ')}\n`);
 }
 
+/** Per content kind: how to enumerate one source dir's entries, and how to label an entry. */
+const SHADOWABLE_KINDS: ReadonlyArray<{ subdir: string; list: (subPath: string) => string[] }> = [
+  { subdir: 'rules', list: (p) => listFiles(p, (f) => f.endsWith('.md')) },
+  { subdir: 'agents', list: (p) => listFiles(p, (f) => f.endsWith('.md') && f !== 'README.md') },
+  { subdir: 'skills', list: (p) => listDirs(p).filter((d) => existsSync(join(p, d, 'SKILL.md'))) },
+  { subdir: 'guardrails', list: (p) => listFiles(p, (f) => f.endsWith('.md')) },
+];
+
+/**
+ * Report content that more than one source ships under the same name. The highest-priority copy
+ * wins (local > extends > packs > external), which is the documented override mechanism — so a
+ * local override is only noted in verbose mode. But when two *non-local* sources collide (two packs
+ * shipping `rules/testing.md`), the winner is decided by manifest order and the other copy — with
+ * its own `stacks:` range — silently vanishes. That case warns.
+ */
+function reportShadowedContent(ctx: SyncContext): void {
+  const label = (i: number): string => sourceLabel(ctx, ctx.sourceDirs[i]);
+  for (const { subdir, list } of SHADOWABLE_KINDS) {
+    for (const { name, winner, losers } of findShadowedEntries(ctx.sourceDirs, subdir, list)) {
+      const ignored = losers.map(label).join(', ');
+      if (winner === 0) {
+        verboseLog(ctx, `  ${subdir}/${name}: local copy overrides ${ignored}`);
+        continue;
+      }
+      recordWarning(
+        ctx,
+        `${subdir}/${name} is shipped by ${label(winner)} and ${ignored} — ${label(winner)} wins by source order; the other copy is ignored (override it locally to choose explicitly)`,
+      );
+    }
+  }
+}
+
 interface VersionGate {
   /** True when the file's stack constraint is satisfied by the detected stacks (or it is agnostic). */
   matched: boolean;
@@ -464,31 +506,32 @@ interface VersionGate {
 
 /**
  * Decide whether a file applies to this project given its detected stacks. Resolves the effective
- * constraint (frontmatter `stacks:` > catalog pack-level > agnostic), warns once on low-confidence
- * detection, and returns the gate decision. Stack-agnostic files (the default) always match, so a
+ * constraint (frontmatter `stacks:` > catalog pack-level > agnostic), warns once per stack on
+ * low-confidence detection, and returns the gate decision. Stack-agnostic files (the default) always match, so a
  * project with no stack-tagged content behaves exactly as before.
  */
 function gateByVersion(
   ctx: SyncContext,
   id: string,
+  kindDir: string,
   frontmatter: Record<string, unknown>,
-  stackMap: Map<string, StackConstraint>,
+  stackMap: StackMap,
   label: string,
 ): VersionGate {
   const issues = frontmatterStackIssues(frontmatter);
   if (issues.length > 0) {
     recordWarning(
       ctx,
-      `${label}: ignored invalid stack range(s) ${issues.join(', ')} — fix the range or the file may apply to unintended versions`,
+      `${label}: invalid stack range(s) ${issues.join(', ')} — fix the range; until then the file is mis-gated`,
     );
   }
-  const constraint = resolveStacks(id, readFrontmatterStacks(frontmatter), stackMap);
+  const constraint = resolveStacks(id, kindDir, readFrontmatterStacks(frontmatter), stackMap);
   const result = matchStackConstraint(constraint, ctx.detectedStacks);
-  if (result.lowConfidence.length > 0) {
-    recordWarning(
-      ctx,
-      `${label}: matched via low-confidence detection for ${result.lowConfidence.join(', ')} — pin a version in bluetemberg.config.json for precision`,
-    );
+  for (const stack of result.lowConfidence) {
+    if (ctx.warnedLowConfidence.has(stack)) continue;
+    ctx.warnedLowConfidence.add(stack);
+    const det = ctx.detectedStacks.get(stack);
+    if (det) recordWarning(ctx, describeLowConfidence(stack, det, label));
   }
   return { matched: result.matched, reason: result.matched ? '' : describeStackMismatch(result) };
 }
@@ -557,6 +600,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     expectedOutputPaths,
     catalog,
     detectedStacks,
+    warnedLowConfidence: new Set(),
   };
 
   // Surface extends, pack, and external-source resolution warnings before sync output.
@@ -565,6 +609,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   for (const w of externalWarnings) recordWarning(ctx, w);
 
   logDetectedStacks(ctx);
+  reportShadowedContent(ctx);
 
   if (verbose) {
     log(`Source dirs (priority order):`);
@@ -605,6 +650,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
   syncCodexConfig(ctx, (msg) => recordError(ctx, msg));
+  checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {
     const projectName = basename(root);
@@ -753,7 +799,7 @@ function resolveExcludedFiles(
     } catch {
       // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `${kind}/${file}`);
+    const gate = gateByVersion(ctx, basename(file, '.md'), sourceDir, data, stackMap, `${kind}/${file}`);
     if (!gate.matched) excluded.set(file, gate.reason);
   }
   return excluded;
@@ -774,7 +820,7 @@ function resolveExcludedSkills(ctx: SyncContext, merged: Map<string, string>): M
     } catch {
       // Unreadable SKILL.md → treat as stack-agnostic; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, dirName, data, stackMap, `skills/${dirName}`);
+    const gate = gateByVersion(ctx, dirName, sourceParent, data, stackMap, `skills/${dirName}`);
     if (!gate.matched) excluded.set(dirName, gate.reason);
   }
   return excluded;
@@ -815,14 +861,13 @@ function syncRules(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of ruleTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
-    ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
       try {
         const source = matter.read(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
-        const output = matter.stringify(source.content, transformed);
+        const output = withGeneratedBanner(matter.stringify(source.content, transformed), `rules/${file}`);
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
@@ -861,12 +906,11 @@ function syncAgents(ctx: SyncContext): void {
 
   for (const [, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
-    ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
       try {
-        const content = readFileSync(join(sourceDir, file), 'utf8');
+        const content = withGeneratedBanner(readFileSync(join(sourceDir, file), 'utf8'), `agents/${file}`);
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
@@ -911,9 +955,8 @@ function syncSkills(ctx: SyncContext): void {
       try {
         const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
-        ensureDir(outDir);
 
-        const content = readFileSync(srcSkill, 'utf8');
+        const content = withGeneratedBanner(readFileSync(srcSkill, 'utf8'), `skills/${dirName}/SKILL.md`);
         const outPath = join(outDir, 'SKILL.md');
 
         commitPlannedWrite(ctx, outPath, content);
@@ -935,7 +978,6 @@ function syncCopilotInstructions(ctx: SyncContext): void {
 
   try {
     const target = join(ctx.root, '.github', 'copilot-instructions.md');
-    ensureDir(join(ctx.root, '.github'));
     // Strip the Codex rules block — Copilot gets scoped rules via .github/instructions/ already.
     const content = stripManagedBlock(
       readFileSync(agentsMd, 'utf8'),

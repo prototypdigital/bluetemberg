@@ -1,17 +1,23 @@
 import { basename, join } from 'node:path';
 import matter from 'gray-matter';
-import type { GuardrailCheck, GuardrailFrontmatter, Platform, StackConstraint } from '../types.js';
+import type { GuardrailCheck, GuardrailFrontmatter, Platform } from '../types.js';
 import type { Catalog } from '../catalog/index.js';
 import type { SyncSink } from './pipeline.js';
 import type { ClaudeHooksSection } from './claude-hooks.js';
 import { mergeSourceFiles } from './extends-loader.js';
 import { ereIssue } from './ere.js';
-import { describeStackMismatch, matchStackConstraint, type DetectedStacks } from '../stacks/match.js';
+import {
+  describeLowConfidence,
+  describeStackMismatch,
+  matchStackConstraint,
+  type DetectedStacks,
+} from '../stacks/match.js';
 import {
   buildStackMap,
   frontmatterStackIssues,
   readFrontmatterStacks,
   resolveStacks,
+  type StackMap,
 } from '../stacks/resolve.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
@@ -22,6 +28,8 @@ export interface GuardrailsSyncContext extends SyncSink {
   catalog: Catalog;
   /** Detected stacks + versions; a version-mismatched guardrail is hard-excluded. */
   detectedStacks: DetectedStacks;
+  /** Low-confidence stacks already warned about this sync (shared with the rule/agent/skill gate). */
+  warnedLowConfidence: Set<string>;
 }
 
 /**
@@ -169,7 +177,7 @@ export function syncGuardrails(
         recordError(`guardrails/${file}: ${regexIssue}`);
         continue;
       }
-      const reason = versionFilterReason(ctx, file, record, stackMap);
+      const reason = versionFilterReason(ctx, file, sourceDir, record, stackMap);
       if (reason !== null) {
         excluded.set(file, reason);
         continue;
@@ -208,19 +216,23 @@ export function syncGuardrails(
 function versionFilterReason(
   ctx: GuardrailsSyncContext,
   file: string,
+  sourceDir: string,
   data: Record<string, unknown>,
-  stackMap: Map<string, StackConstraint>,
+  stackMap: StackMap,
 ): string | null {
   const issues = frontmatterStackIssues(data);
   if (issues.length > 0) {
-    const msg = `guardrails/${file}: ignored invalid stack range(s) ${issues.join(', ')} — fix the range or the guardrail may apply to unintended versions`;
+    const msg = `guardrails/${file}: invalid stack range(s) ${issues.join(', ')} — fix the range; until then the guardrail is mis-gated`;
     ctx.results.warnings.push(msg);
     ctx.log(`  WARN: ${msg}`);
   }
-  const constraint = resolveStacks(basename(file, '.md'), readFrontmatterStacks(data), stackMap);
+  const constraint = resolveStacks(basename(file, '.md'), sourceDir, readFrontmatterStacks(data), stackMap);
   const result = matchStackConstraint(constraint, ctx.detectedStacks);
-  if (result.lowConfidence.length > 0) {
-    const msg = `guardrails/${file}: matched via low-confidence detection for ${result.lowConfidence.join(', ')} — pin a version in bluetemberg.config.json for precision`;
+  for (const stack of result.lowConfidence) {
+    const det = ctx.detectedStacks.get(stack);
+    if (!det || ctx.warnedLowConfidence.has(stack)) continue;
+    ctx.warnedLowConfidence.add(stack);
+    const msg = describeLowConfidence(stack, det, `guardrails/${file}`);
     ctx.results.warnings.push(msg);
     ctx.log(`  WARN: ${msg}`);
   }

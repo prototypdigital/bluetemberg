@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
+import { installFakePack } from './helpers/installed-pack.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-mkt-stacks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -24,10 +25,10 @@ function expectEmitted(root: string, rel: string, name: string): void {
 }
 
 /** Write a rule with optional extra frontmatter lines (e.g. a `stacks:` block). */
-function writeRule(root: string, name: string, frontmatter = ''): void {
-  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+function writeRule(root: string, name: string, frontmatter = '', sourceDir = join(root, 'llm')): void {
+  mkdirSync(join(sourceDir, 'rules'), { recursive: true });
   writeFileSync(
-    join(root, 'llm', 'rules', `${name}.md`),
+    join(sourceDir, 'rules', `${name}.md`),
     `---\nname: ${name}\ndescription: ${name} description${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n`,
   );
 }
@@ -106,7 +107,8 @@ describe('marketplace stack gating (the leak fix)', () => {
         ],
       }),
     );
-    writeRule(root, 'payload-thing', 'stacks: "payload"'); // malformed: string, not a map
+    const packDir = installFakePack(root, 'bluetemberg-rules-payload');
+    writeRule(root, 'payload-thing', 'stacks: "payload"', packDir); // malformed: string, not a map
 
     const config: BlueprintConfig = {
       ...BASE_CONFIG,

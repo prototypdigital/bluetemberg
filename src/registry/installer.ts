@@ -9,7 +9,7 @@ import {
 } from 'node:fs';
 import { join, relative, isAbsolute } from 'node:path';
 import { tmpdir } from 'node:os';
-import { maxSatisfying } from 'semver';
+import { maxSatisfying, satisfies, validRange } from 'semver';
 import { downloadTarball, verifyIntegrity, fetchRegistryKeys, verifyRegistrySignature } from './client.js';
 import { DEFAULT_REGISTRY } from './constants.js';
 import { redactCredentials, registryAuthHeaders, transportAllowsCredentials } from './auth.js';
@@ -47,6 +47,16 @@ export function packVersionDir(root: string, name: string, version: string): str
 /** Check whether a specific pack version is already extracted in the cache. */
 export function isPackCached(root: string, name: string, version: string): boolean {
   return existsSync(packVersionDir(root, name, version));
+}
+
+/**
+ * True when a locked version still honours the manifest range. Without this check a narrowed range
+ * (`^1` → `^2`) kept installing the stale locked `1.x` forever. A dist-tag range (`latest`, `next`)
+ * is honoured by any locked version — the lock is what makes a tag reproducible; `update` re-floats it.
+ */
+export function lockSatisfiesRange(lockedVersion: string, range: string): boolean {
+  if (validRange(range) === null) return true;
+  return satisfies(lockedVersion, range);
 }
 
 /**

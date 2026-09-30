@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
 import type { Catalog } from '../src/catalog/index.js';
+import { installFakePack } from './helpers/installed-pack.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bluetemberg-leak-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -12,9 +13,9 @@ function createTmpDir(): string {
   return dir;
 }
 
-function writeRule(root: string, name: string): void {
-  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
-  writeFileSync(join(root, 'llm', 'rules', `${name}.md`), `---\ndescription: ${name}\n---\n\n# ${name}\n`);
+function writeRule(root: string, name: string, sourceDir = join(root, 'llm')): void {
+  mkdirSync(join(sourceDir, 'rules'), { recursive: true });
+  writeFileSync(join(sourceDir, 'rules', `${name}.md`), `---\ndescription: ${name}\n---\n\n# ${name}\n`);
 }
 
 function writeCatalog(root: string, packs: Catalog['packs']): void {
@@ -40,8 +41,8 @@ describe('marketplace profile leak closure (catalog-derived)', () => {
   });
 
   it('a profile-scoped pack rule with no frontmatter does not leak into a non-matching plugin', async () => {
-    writeRule(root, 'foo-rule'); // backend-only pack, no frontmatter profiles
-    writeRule(root, 'uni-rule'); // universal pack
+    writeRule(root, 'foo-rule', installFakePack(root, 'bluetemberg-rules-foo')); // backend-only pack, no frontmatter profiles
+    writeRule(root, 'uni-rule', installFakePack(root, 'bluetemberg-rules-uni')); // universal pack
 
     writeCatalog(root, [
       {
@@ -113,5 +114,99 @@ describe('marketplace profile leak closure (catalog-derived)', () => {
     await sync(root, { config, silent: true });
 
     expect(existsSync(join(root, 'plugins/frontend-plugin/skills/rule-override-rule/SKILL.md'))).toBe(true);
+  });
+
+  it("a project's own rule never inherits a catalog pack's profiles through a colliding id (#249)", async () => {
+    writeRule(root, 'code-review'); // local house rule, no frontmatter profiles
+    writeCatalog(root, [
+      {
+        name: 'bluetemberg-skills-code-review',
+        version: '0.1.0',
+        description: '',
+        kind: 'skills',
+        universal: false,
+        profiles: ['backend'],
+        skills: ['code-review'],
+        preview: '',
+      },
+    ]);
+
+    const config: BlueprintConfig = {
+      platforms: ['claude-marketplace'],
+      source: 'llm',
+      targets: {},
+      marketplace: { plugins: [{ name: 'frontend-plugin', profiles: ['frontend'] }] },
+    };
+
+    await sync(root, { config, silent: true });
+
+    // Not installed, not the pack's file → universal, not silently filtered as "backend".
+    expect(existsSync(join(root, 'plugins/frontend-plugin/skills/rule-code-review/SKILL.md'))).toBe(true);
+  });
+
+  it("a pack's profiles do not bleed onto a same-named file from a different pack", async () => {
+    writeRule(root, 'naming', installFakePack(root, 'bluetemberg-rules-other'));
+    writeCatalog(root, [
+      {
+        name: 'bluetemberg-rules-backend',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: false,
+        profiles: ['backend'],
+        rules: ['naming'],
+        preview: '',
+      },
+    ]);
+
+    const config: BlueprintConfig = {
+      platforms: ['claude-marketplace'],
+      source: 'llm',
+      targets: {},
+      marketplace: { plugins: [{ name: 'frontend-plugin', profiles: ['frontend'] }] },
+    };
+
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, 'plugins/frontend-plugin/skills/rule-naming/SKILL.md'))).toBe(true);
+  });
+
+  it('attributes local-path extends packs (packs-monorepo layout) to their catalog entry', async () => {
+    // The packs repo builds the marketplace from `extends: ["./packages/<name>", …]`, each with its
+    // own package.json and an `llm/` source dir.
+    const packRoot = join(root, 'packages', 'bluetemberg-rules-foo');
+    mkdirSync(packRoot, { recursive: true });
+    writeFileSync(join(packRoot, 'package.json'), JSON.stringify({ name: 'bluetemberg-rules-foo' }));
+    writeRule(root, 'foo-rule', join(packRoot, 'llm'));
+    writeCatalog(root, [
+      {
+        name: 'bluetemberg-rules-foo',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: false,
+        profiles: ['backend'],
+        rules: ['foo-rule'],
+        preview: '',
+      },
+    ]);
+
+    const config: BlueprintConfig = {
+      platforms: ['claude-marketplace'],
+      source: 'llm',
+      targets: {},
+      extends: ['./packages/bluetemberg-rules-foo'],
+      marketplace: {
+        plugins: [
+          { name: 'frontend-plugin', profiles: ['frontend'] },
+          { name: 'backend-plugin', profiles: ['backend'] },
+        ],
+      },
+    };
+
+    await sync(root, { config, silent: true });
+
+    expect(existsSync(join(root, 'plugins/frontend-plugin/skills/rule-foo-rule/SKILL.md'))).toBe(false);
+    expect(existsSync(join(root, 'plugins/backend-plugin/skills/rule-foo-rule/SKILL.md'))).toBe(true);
   });
 });

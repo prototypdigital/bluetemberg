@@ -23,6 +23,7 @@ import {
   removePackVersion,
   resolvePackSourceDir,
   isPackCached,
+  lockSatisfiesRange,
   packVersionDir,
 } from './installer.js';
 import type {
@@ -203,7 +204,7 @@ async function dryRunInstall(
   const dryFailed: Array<{ name: string; error: Error }> = [];
   for (const name of names) {
     const range = manifest.packages[name];
-    const existingLock = lock.packages[name];
+    const existingLock = usableLock(name, lock.packages[name], range, log);
     try {
       if (existingLock && !options.force && isPackCached(root, name, existingLock.version)) {
         log(`  ${name}@${existingLock.version} (cached ✓)`);
@@ -223,6 +224,22 @@ async function dryRunInstall(
     log(`\n[dry-run] Would prune ${staleCount} stale lockfile entr${staleCount === 1 ? 'y' : 'ies'}.`);
   log('\nNo files written. Run without --dry-run to apply.');
   if (dryFailed.length > 0) throw new Error(`${dryFailed.length} pack(s) would fail to install.`);
+}
+
+/**
+ * The lock entry to install from, or `undefined` when there is none or it no longer satisfies the
+ * manifest range (the range was narrowed or moved since locking) — then the pack is re-resolved
+ * from the range, like `npm install` does, instead of silently shipping the out-of-range version.
+ */
+function usableLock<T extends { version: string }>(
+  name: string,
+  entry: T | undefined,
+  range: string,
+  log: (msg: string) => void,
+): T | undefined {
+  if (!entry || lockSatisfiesRange(entry.version, range)) return entry;
+  log(`  ${name}: locked ${entry.version} no longer satisfies "${range}" — re-resolving`);
+  return undefined;
 }
 
 export async function install(
@@ -255,7 +272,7 @@ export async function install(
 
   for (const name of names) {
     const range = manifest.packages[name];
-    const existingLock = lock.packages[name];
+    const existingLock = usableLock(name, lock.packages[name], range, log);
 
     try {
       // Use locked version if it satisfies the range, otherwise re-resolve.
