@@ -94,6 +94,7 @@ Three guarantees back this up — guidance is **never silently dropped**:
   ```
 - **Two sources shipping the same file warns.** When two packs (or `extends` entries) both ship `rules/testing.md`, the higher-priority one wins and the other copy — with its own `stacks:` range — is ignored. Sync names both. A local copy is the deliberate override and stays quiet.
 - **Every exclusion lists its reason** (rules, guardrails, agents, and skills alike), so you can audit that wrong-version content was correctly withheld — hidden, not wrong-here.
+- **The gate applies on every platform, Codex included.** A withheld rule stays out of the managed rules block in `AGENTS.md`, and a withheld agent gets no `.codex/agents/*.toml`. Claude Code and Copilot read `AGENTS.md` too, so a rule that leaked into that block would reach them as well.
 
 ## Coverage: the same model, asked backwards
 
