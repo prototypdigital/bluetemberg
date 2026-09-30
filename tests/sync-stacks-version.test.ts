@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
+import { AGENTS_RULES_MARKERS } from '../src/sync/managed-block.js';
 import type { BlueprintConfig } from '../src/types.js';
 import { installFakePack } from './helpers/installed-pack.js';
 
@@ -475,6 +476,18 @@ describe('project sync — version gating reaches Codex', () => {
     await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
 
     expect(existsSync(join(root, 'AGENTS.md'))).toBe(false);
+  });
+
+  it('removes a block it wrote earlier once the stack change filters every rule out', async () => {
+    writeRule(root, 'react18-only', 'stacks:\n  react: ">=18 <19"');
+
+    await sync(root, { config: codexConfig({ react: '18.3.1' }), silent: true });
+    expect(agentsMd()).toContain('# react18-only');
+
+    await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
+
+    expect(agentsMd()).not.toContain('# react18-only');
+    expect(agentsMd()).not.toContain(AGENTS_RULES_MARKERS.begin);
   });
 
   it('does not write a .codex/agents TOML for an agent the version gate withheld', async () => {
