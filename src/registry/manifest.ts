@@ -29,11 +29,19 @@ export function manifestPath(root: string, source = 'llm'): string {
   return join(root, source, MANIFEST_FILE);
 }
 
-export function readManifest(root: string, source = 'llm'): PackageManifest {
+/**
+ * Reads `packages.json` as it is on disk, without folding in legacy kind-split manifests. Use this
+ * when the result is written back and the caller must not persist entries it did not add.
+ */
+export function readUnifiedManifest(root: string, source = 'llm'): PackageManifest {
   const p = manifestPath(root, source);
-  const manifest = existsSync(p)
+  return existsSync(p)
     ? validateManifest(JSON.parse(readFileSync(p, 'utf8')) as unknown, p)
     : { packages: {} as Record<string, string> };
+}
+
+export function readManifest(root: string, source = 'llm'): PackageManifest {
+  const manifest = readUnifiedManifest(root, source);
 
   return mergeLegacyManifests(root, source, manifest);
 }

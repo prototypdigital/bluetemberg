@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -70,6 +70,23 @@ describe('pinDefaultRanges', () => {
     expect(result.pinned).toEqual(['ok']);
     expect(result.unresolved).toEqual(['offline', 'junk']);
     expect(readPackages()).toEqual({ ok: '^0.4.0', offline: 'latest', junk: 'latest' });
+  });
+
+  it('does not fold legacy kind-split manifests into packages.json', async () => {
+    writePackages({ 'pack-a': DEFAULT_PACK_VERSION });
+    writeFileSync(
+      join(root, 'llm', 'rule-packages.json'),
+      JSON.stringify({ registry: 'https://npm.example.test', packages: { 'legacy-pack': '^1.0.0' } }),
+    );
+
+    await pinDefaultRanges(root, ['pack-a'], async () => '0.3.2');
+
+    const written = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    expect(written).toEqual({ packages: { 'pack-a': '^0.3.2' } });
+    expect(existsSync(join(root, 'llm', 'rule-packages.json'))).toBe(true);
   });
 
   it('does not touch the manifest when nothing could be resolved', async () => {

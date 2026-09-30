@@ -1,6 +1,6 @@
 import { valid } from 'semver';
 import { fetchPackageMetadata } from './client.js';
-import { DEFAULT_PACK_VERSION, readManifest, writeManifest } from './manifest.js';
+import { DEFAULT_PACK_VERSION, readUnifiedManifest, writeManifest } from './manifest.js';
 
 /** Looks up the newest published version of a package; `undefined` when it cannot be determined. */
 export type LatestVersionResolver = (packageName: string) => Promise<string | undefined>;
@@ -40,7 +40,9 @@ export async function pinDefaultRanges(
   packageNames: string[],
   resolve: LatestVersionResolver = latestPublishedVersion(root),
 ): Promise<PinDefaultRangesResult> {
-  const manifest = readManifest(root);
+  // Not readManifest: it folds legacy kind-split manifests in, and writing that back would persist
+  // entries this call never added.
+  const manifest = readUnifiedManifest(root);
   const candidates = packageNames.filter((name) => manifest.packages[name] === DEFAULT_PACK_VERSION);
   if (candidates.length === 0) return { pinned: [], unresolved: [] };
 

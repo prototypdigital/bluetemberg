@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
 import { pinDefaultRanges } from '../registry/default-ranges.js';
-import { readManifest } from '../registry/manifest.js';
+import { readUnifiedManifest } from '../registry/manifest.js';
 import { sync } from '../sync/index.js';
 import type { InitAnswers, InitRunOptions } from '../types.js';
 import { finalizeNonInteractiveAnswers } from './init-answers-from-profile.js';
@@ -86,7 +86,7 @@ export async function init(targetPath?: string, run?: InitRunOptions): Promise<v
 
   const { unresolved } = await pinDefaultRanges(
     targetDir,
-    Object.keys(readManifest(targetDir).packages),
+    Object.keys(readUnifiedManifest(targetDir).packages),
     run?.resolveLatestVersion,
   );
   if (unresolved.length > 0) {
