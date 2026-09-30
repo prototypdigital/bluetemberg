@@ -1,7 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
-import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
@@ -13,29 +12,22 @@ import type {
   StackConstraint,
   TeamProfile,
 } from '../types.js';
-import { buildStackMap, readFrontmatterStacks, resolveStacks } from '../stacks/resolve.js';
+import { buildStackMap, readFrontmatterStacks, resolveStacks, type StackMap } from '../stacks/resolve.js';
+import { buildPackItemMap, type PackItemMap } from '../catalog/ownership.js';
 
 const VALID_PROFILE_IDS: ReadonlySet<string> = new Set(TEAM_PROFILES.map((p) => p.id));
 
+type ProfileMap = PackItemMap<TeamProfile[]>;
+
 /**
- * Build an id → profiles map from the catalog: every rule/agent/skill/guardrail id a pack ships
+ * Build a pack-scoped profiles map from the catalog: every rule/agent/skill/guardrail a pack ships
  * maps to that pack's profiles (universal packs → [] → included in every plugin). This is the
- * single source of truth for marketplace profile filtering. A file with no catalog entry (e.g. a
- * local project rule) falls back to [] (universal); a file's own `profiles:` frontmatter always wins.
+ * single source of truth for marketplace profile filtering. It only applies to files that come from
+ * that pack's own source dir; any other file (e.g. a local project rule, even one whose id collides
+ * with a pack item) falls back to [] (universal). A file's own `profiles:` frontmatter always wins.
  */
-function buildProfileMap(catalog: Catalog): Map<string, TeamProfile[]> {
-  const map = new Map<string, TeamProfile[]>();
-  for (const pack of catalog.packs) {
-    const profiles = pack.universal ? [] : pack.profiles;
-    const ids = [
-      ...(pack.rules ?? []),
-      ...(pack.agents ?? []),
-      ...(pack.skills ?? []),
-      ...(pack.guardrails ?? []),
-    ];
-    for (const id of ids) map.set(id, profiles);
-  }
-  return map;
+function buildProfileMap(catalog: Catalog): ProfileMap {
+  return buildPackItemMap(catalog, (pack) => (pack.universal ? [] : pack.profiles));
 }
 
 export interface MarketplaceSyncContext extends SyncSink {
@@ -103,18 +95,19 @@ function readFrontmatterProfiles(data: Record<string, unknown>): TeamProfile[] |
 
 function resolveProfiles(
   id: string,
+  kindDir: string,
   frontmatterProfiles: TeamProfile[] | undefined,
-  profileMap: Map<string, TeamProfile[]>,
+  profileMap: ProfileMap,
 ): TeamProfile[] {
   if (frontmatterProfiles !== undefined) return frontmatterProfiles;
-  return profileMap.get(id) ?? [];
+  return profileMap.get(kindDir, id) ?? [];
 }
 
 function readRuleMeta(
   ruleFile: string,
   sourceDir: string,
-  profileMap: Map<string, TeamProfile[]>,
-  stackMap: Map<string, StackConstraint>,
+  profileMap: ProfileMap,
+  stackMap: StackMap,
 ): FileMeta {
   const rulePath = join(sourceDir, ruleFile);
   const id = basename(ruleFile, '.md');
@@ -124,15 +117,15 @@ function readRuleMeta(
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, readFrontmatterProfiles(record), profileMap),
-      stacks: resolveStacks(id, readFrontmatterStacks(record), stackMap),
+      profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), profileMap),
+      stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), stackMap),
     };
   } catch {
     return {
       name: id,
       description: '',
-      profiles: resolveProfiles(id, undefined, profileMap),
-      stacks: resolveStacks(id, undefined, stackMap),
+      profiles: resolveProfiles(id, sourceDir, undefined, profileMap),
+      stacks: resolveStacks(id, sourceDir, undefined, stackMap),
     };
   }
 }
@@ -140,8 +133,8 @@ function readRuleMeta(
 function readSkillMeta(
   skillDir: string,
   sourceParent: string,
-  profileMap: Map<string, TeamProfile[]>,
-  stackMap: Map<string, StackConstraint>,
+  profileMap: ProfileMap,
+  stackMap: StackMap,
 ): FileMeta {
   const skillPath = join(sourceParent, skillDir, 'SKILL.md');
   try {
@@ -150,15 +143,15 @@ function readSkillMeta(
     return {
       name: (data.name as string) || skillDir,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(skillDir, readFrontmatterProfiles(record), profileMap),
-      stacks: resolveStacks(skillDir, readFrontmatterStacks(record), stackMap),
+      profiles: resolveProfiles(skillDir, sourceParent, readFrontmatterProfiles(record), profileMap),
+      stacks: resolveStacks(skillDir, sourceParent, readFrontmatterStacks(record), stackMap),
     };
   } catch {
     return {
       name: skillDir,
       description: '',
-      profiles: resolveProfiles(skillDir, undefined, profileMap),
-      stacks: resolveStacks(skillDir, undefined, stackMap),
+      profiles: resolveProfiles(skillDir, sourceParent, undefined, profileMap),
+      stacks: resolveStacks(skillDir, sourceParent, undefined, stackMap),
     };
   }
 }
@@ -166,8 +159,8 @@ function readSkillMeta(
 function readAgentMeta(
   agentFile: string,
   sourceDir: string,
-  profileMap: Map<string, TeamProfile[]>,
-  stackMap: Map<string, StackConstraint>,
+  profileMap: ProfileMap,
+  stackMap: StackMap,
 ): FileMeta {
   const agentPath = join(sourceDir, agentFile);
   const id = basename(agentFile, '.md');
@@ -177,15 +170,15 @@ function readAgentMeta(
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, readFrontmatterProfiles(record), profileMap),
-      stacks: resolveStacks(id, readFrontmatterStacks(record), stackMap),
+      profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), profileMap),
+      stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), stackMap),
     };
   } catch {
     return {
       name: id,
       description: '',
-      profiles: resolveProfiles(id, undefined, profileMap),
-      stacks: resolveStacks(id, undefined, stackMap),
+      profiles: resolveProfiles(id, sourceDir, undefined, profileMap),
+      stacks: resolveStacks(id, sourceDir, undefined, stackMap),
     };
   }
 }
@@ -260,18 +253,12 @@ function emitPlugin(
   allAgents: Map<string, string>,
   hooksContent: string | null,
   recordError: (msg: string) => void,
-  profileMap: Map<string, TeamProfile[]>,
-  stackMap: Map<string, StackConstraint>,
+  profileMap: ProfileMap,
+  stackMap: StackMap,
 ): PluginManifest {
   const pluginDir = join(ctx.root, 'plugins', plugin.name);
   const skillsDir = join(pluginDir, 'skills');
   const agentsDir = join(pluginDir, 'agents');
-  const manifestDir = join(pluginDir, '.claude-plugin');
-
-  ensureDir(pluginDir);
-  ensureDir(skillsDir);
-  ensureDir(agentsDir);
-  ensureDir(manifestDir);
 
   const skillEntries: ManifestEntry[] = [];
   const agentEntries: ManifestEntry[] = [];
@@ -303,7 +290,6 @@ function emitPlugin(
 
     const srcPath = join(sourceParent, dirName, 'SKILL.md');
     const outSkillDir = join(skillsDir, dirName);
-    ensureDir(outSkillDir);
 
     try {
       const content = readFileSync(srcPath, 'utf8');
@@ -341,7 +327,6 @@ function emitPlugin(
   let hooks: string | undefined;
   if (hooksContent !== null) {
     const hooksDir = join(pluginDir, 'hooks');
-    ensureDir(hooksDir);
     const hooksOutPath = join(hooksDir, 'hooks.json');
     commitPlannedWrite(ctx, hooksOutPath, hooksContent);
     hooks = `plugins/${plugin.name}/hooks/hooks.json`;
@@ -386,8 +371,6 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
   ctx.log(
     `Marketplace: ${ctx.plugins.length} plugin(s), ${allRules.size} rule(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)${hooksContent !== null ? ', hooks' : ''}`,
   );
-
-  ensureDir(join(ctx.root, '.claude-plugin'));
 
   const pluginManifests: PluginManifest[] = [];
 

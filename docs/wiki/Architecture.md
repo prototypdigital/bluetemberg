@@ -147,7 +147,7 @@ Sync also refuses to **author** an unpairable block: a rule whose body quotes `<
 
 ## Check mode
 
-`bluetemberg sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. No files are written. Comparisons **normalize line endings** (CRLF vs LF) so check mode is less sensitive to platform checkout settings.
+`bluetemberg sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. No files are written and no directories are created — the check leaves the working tree byte-for-byte untouched. Comparisons **normalize line endings** (CRLF vs LF) so check mode is less sensitive to platform checkout settings.
 
 ## Prune (optional)
 

@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildScanReport, runScanOrg } from '../src/stacks/scan.js';
+import { installFakePack } from './helpers/installed-pack.js';
 
 /**
  * M6 scanner tests. The fold is net-new code, so each detection source (node_modules → exact,
@@ -68,12 +69,12 @@ const REACT_PACK = {
 };
 
 /** Write a rule into the catalog root's own source dir, optionally with a `stacks:` constraint. */
-function writeRule(root: string, name: string, stacks?: string): void {
-  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+function writeRule(root: string, name: string, stacks?: string, sourceDir = join(root, 'llm')): void {
+  mkdirSync(join(sourceDir, 'rules'), { recursive: true });
   const frontmatter = stacks
     ? `---\ndescription: r\nstacks:\n  ${stacks}\n---\n`
     : '---\ndescription: r\n---\n';
-  writeFileSync(join(root, 'llm', 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
+  writeFileSync(join(sourceDir, 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
 }
 
 function writeCatalog(root: string, packs: unknown[]): void {
@@ -194,8 +195,9 @@ describe('buildScanReport — aggregation + gaps', () => {
     // One unbounded sibling in the react pack re-opens `*`, so react 19 is covered — generically.
     // It belongs in weakCoverage (the second authoring list), never silently in the covered set.
     writeCatalog(workdir, [{ ...REACT_PACK, rules: ['effects-r18', 'naming'] }]);
-    writeRule(workdir, 'effects-r18', 'react: ">=18 <19"');
-    writeRule(workdir, 'naming'); // no stacks: → inherits the pack's name-level tag
+    const packDir = installFakePack(workdir, REACT_PACK.name);
+    writeRule(workdir, 'effects-r18', 'react: ">=18 <19"', packDir);
+    writeRule(workdir, 'naming', undefined, packDir); // no stacks: → inherits the pack's name-level tag
     const a = repo('a');
     const b = repo('b');
     const c = repo('c');

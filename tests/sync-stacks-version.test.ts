@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
 import type { BlueprintConfig } from '../src/types.js';
+import { installFakePack } from './helpers/installed-pack.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-sync-stacks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -12,10 +13,10 @@ function createTmpDir(): string {
 }
 
 /** Write a rule with optional extra frontmatter lines (e.g. a `stacks:` block). */
-function writeRule(root: string, name: string, frontmatter = ''): void {
-  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+function writeRule(root: string, name: string, frontmatter = '', sourceDir = join(root, 'llm')): void {
+  mkdirSync(join(sourceDir, 'rules'), { recursive: true });
   writeFileSync(
-    join(root, 'llm', 'rules', `${name}.md`),
+    join(sourceDir, 'rules', `${name}.md`),
     `---\ndescription: ${name}${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n`,
   );
 }
@@ -101,7 +102,8 @@ describe('project sync — version-aware stack gating', () => {
         preview: '',
       },
     ]);
-    writeRule(root, 'payload-thing'); // no frontmatter stacks → inherits catalog pack-level {payload:'*'}
+    const packDir = installFakePack(root, 'bluetemberg-rules-payload');
+    writeRule(root, 'payload-thing', '', packDir); // no frontmatter stacks → inherits catalog pack-level {payload:'*'}
 
     // Project without Payload → excluded.
     await sync(root, { config: configWithStacks(), silent: true });
@@ -111,6 +113,49 @@ describe('project sync — version-aware stack gating', () => {
     rmSync(join(root, '.claude'), { recursive: true, force: true });
     await sync(root, { config: configWithStacks({ payload: '3.4.1' }), silent: true });
     expect(existsSync(join(root, RULE_OUT('payload-thing')))).toBe(true);
+  });
+
+  it("never withholds a project's own rule because a catalog pack claims the same id (#249)", async () => {
+    writeCatalog(root, [
+      {
+        name: 'bluetemberg-rules-react',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: false,
+        profiles: [],
+        stacks: ['react'],
+        rules: ['naming'],
+        preview: '',
+      },
+    ]);
+    writeRule(root, 'naming'); // the project's own conventions — not the react pack's file
+
+    const results = await sync(root, { config: configWithStacks(), silent: true });
+
+    expect(existsSync(join(root, RULE_OUT('naming')))).toBe(true);
+    expect(results.warnings).toEqual([]);
+  });
+
+  it("does not gate one pack's file by another pack's stacks when their ids collide", async () => {
+    writeCatalog(root, [
+      {
+        name: 'bluetemberg-rules-react',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: false,
+        profiles: [],
+        stacks: ['react'],
+        rules: ['naming'],
+        preview: '',
+      },
+    ]);
+    writeRule(root, 'naming', '', installFakePack(root, 'bluetemberg-rules-general'));
+
+    await sync(root, { config: configWithStacks(), silent: true });
+
+    expect(existsSync(join(root, RULE_OUT('naming')))).toBe(true);
   });
 
   it('warns (never silently drops) when the version came from a low-confidence source', async () => {

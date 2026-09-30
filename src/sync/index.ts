@@ -2,7 +2,6 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
-import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { pruneStaleOutputs } from './prune.js';
 import { syncMcp } from './mcp.js';
@@ -36,11 +35,11 @@ import {
   frontmatterStackIssues,
   readFrontmatterStacks,
   resolveStacks,
+  type StackMap,
 } from '../stacks/resolve.js';
 import type {
   Platform,
   BlueprintConfig,
-  StackConstraint,
   SyncOptions,
   SyncResults,
   TargetConfig,
@@ -472,8 +471,9 @@ interface VersionGate {
 function gateByVersion(
   ctx: SyncContext,
   id: string,
+  kindDir: string,
   frontmatter: Record<string, unknown>,
-  stackMap: Map<string, StackConstraint>,
+  stackMap: StackMap,
   label: string,
 ): VersionGate {
   const issues = frontmatterStackIssues(frontmatter);
@@ -483,7 +483,7 @@ function gateByVersion(
       `${label}: ignored invalid stack range(s) ${issues.join(', ')} — fix the range or the file may apply to unintended versions`,
     );
   }
-  const constraint = resolveStacks(id, readFrontmatterStacks(frontmatter), stackMap);
+  const constraint = resolveStacks(id, kindDir, readFrontmatterStacks(frontmatter), stackMap);
   const result = matchStackConstraint(constraint, ctx.detectedStacks);
   if (result.lowConfidence.length > 0) {
     recordWarning(
@@ -755,7 +755,7 @@ function resolveExcludedFiles(
     } catch {
       // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `${kind}/${file}`);
+    const gate = gateByVersion(ctx, basename(file, '.md'), sourceDir, data, stackMap, `${kind}/${file}`);
     if (!gate.matched) excluded.set(file, gate.reason);
   }
   return excluded;
@@ -776,7 +776,7 @@ function resolveExcludedSkills(ctx: SyncContext, merged: Map<string, string>): M
     } catch {
       // Unreadable SKILL.md → treat as stack-agnostic; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, dirName, data, stackMap, `skills/${dirName}`);
+    const gate = gateByVersion(ctx, dirName, sourceParent, data, stackMap, `skills/${dirName}`);
     if (!gate.matched) excluded.set(dirName, gate.reason);
   }
   return excluded;
@@ -817,7 +817,6 @@ function syncRules(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of ruleTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
-    ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
@@ -863,7 +862,6 @@ function syncAgents(ctx: SyncContext): void {
 
   for (const [, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
-    ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
@@ -913,7 +911,6 @@ function syncSkills(ctx: SyncContext): void {
       try {
         const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
-        ensureDir(outDir);
 
         const content = readFileSync(srcSkill, 'utf8');
         const outPath = join(outDir, 'SKILL.md');
@@ -937,7 +934,6 @@ function syncCopilotInstructions(ctx: SyncContext): void {
 
   try {
     const target = join(ctx.root, '.github', 'copilot-instructions.md');
-    ensureDir(join(ctx.root, '.github'));
     // Strip the Codex rules block — Copilot gets scoped rules via .github/instructions/ already.
     const content = stripManagedBlock(
       readFileSync(agentsMd, 'utf8'),
