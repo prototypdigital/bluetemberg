@@ -27,16 +27,18 @@ if [[ -z "$claude_bin" ]]; then
 fi
 
 hook_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+reader="$hook_dir/read-pr-context.sh"
 poster="$hook_dir/post-review-comment.sh"
 
 prompt="You are an automated PR reviewer. Review $pr_url and post your review on GitHub.
 
-1. Fetch context: gh pr view $pr_url --json title,body,baseRefName,headRefName,files
-   and gh pr diff $pr_url.
+1. Fetch context: $reader $pr_url view
+   and $reader $pr_url diff.
 2. Follow this repository's code-review skill (.claude/skills/code-review/SKILL.md):
    intent-first, diff-focused, severity-tiered findings, Conventional Comments
    labels (issue/warning/suggestion/nitpick/praise). Substance over style.
-3. Check existing review comments first with: $poster $pr_url list
+3. Check existing feedback first: $reader $pr_url comments
+   and $poster $pr_url list
    and do not duplicate anything already posted.
 4. Post exactly one review-level summary: $poster $pr_url summary \"<body>\"
    For findings tied to specific lines: $poster $pr_url inline <path> <line> \"<body>\"
@@ -55,10 +57,14 @@ log_file="$log_dir/pr-${pr_url##*/}-$(date +%Y%m%d-%H%M%S).log"
 # which can list/comment but never approve, request changes, merge, or hit
 # other API endpoints, and (via EXPECTED_PR_URL above) never target a PR other
 # than this one — the comment-only, this-PR-only invariant holds even if the
-# reviewed diff prompt-injects the model. gh pr view / gh pr diff are read-only.
+# reviewed diff prompt-injects the model. Read access is scoped the same way,
+# through read-pr-context.sh: gh pr view / gh pr diff are read-only, but
+# unrestricted they'd still let a prompt-injected diff use this session's own
+# gh credentials to read an unrelated private PR — read-pr-context.sh pins
+# reads to $pr_url exactly like post-review-comment.sh pins writes.
 # stderr goes to its own file so the JSON result stays parseable.
 "$claude_bin" -p "$prompt" \
-  --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash($poster:*),Read,Grep,Glob" \
+  --allowedTools "Bash($reader:*),Bash($poster:*),Read,Grep,Glob" \
   --output-format json \
   >"$log_file" 2>"$log_file.err" || exit 0
 
