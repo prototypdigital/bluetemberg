@@ -19,6 +19,8 @@ This appears in three places:
 | A rule, guardrail, agent, or skill | [`stacks:` frontmatter](Writing-Rules#stacks-optional) | `{ react: ">=15 <16" }` | Declares which versions the content applies to |
 | A catalog pack | `stacks` (name-only) | `["react"]` → `{ react: "*" }` | Coarse name-level routing; a file's own range refines it |
 
+A catalog pack's `stacks` only apply to **that pack's own files** — ones found in a source dir whose `package.json` names the pack (installed packs, npm or local-path `extends`). A project's own `llm/rules/naming.md` is never withheld because some React pack also ships a `naming` rule, and it contributes no coverage for React either.
+
 A file applies **iff every named stack is present in the project AND its detected version satisfies the range**. An absent/empty constraint is stack-agnostic and always applies — so a project with no stack-tagged content behaves exactly as a stackless project always did.
 
 ### React 14 and React 15, both valid — in one pack
@@ -54,7 +56,7 @@ Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetember
 flowchart TD
   A[sync starts] --> B[detect stacks<br/>config / node_modules / lockfile / package.json]
   B --> C{file has stacks: range?}
-  C -->|no| D[catalog pack-level name-only gate]
+  C -->|no| D[owning pack's catalog<br/>name-only gate, if any]
   C -->|yes| E{every stack present<br/>AND version in range?}
   D --> E
   E -->|yes| F[apply file]

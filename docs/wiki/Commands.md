@@ -43,7 +43,7 @@ Then, for **every** run:
 
 4. Creates `llm/` with the resolved starter content
 5. Generates `bluetemberg.config.json`
-6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude is among selected platforms), and `GEMINI.md` (if Gemini is selected — via the initial sync)
+6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude is among selected platforms; it imports `@AGENTS.md` so Claude Code loads both, see [Architecture](Architecture#claude-code-and-agentsmd)), and `GEMINI.md` (if Gemini is selected — via the initial sync)
 7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync generates `.claude/mcp.json`, `.github/mcp.json`, and/or `.cursor/mcp.json` from that manifest (per selected platforms)
 8. Adds `sync:llm-config` scripts to `package.json`
 9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
@@ -320,7 +320,7 @@ Each `add`/`update`/`install` writes `.bluetemberg/sources/` (git-ignored cache)
 | 0 | Sync finished with no recorded errors, and (if `--check`) all generated files match the expected content |
 | 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, malformed managed-block markers in `AGENTS.md` / `.codex/config.toml`, etc.), **or** `--check` found one or more files out of sync |
 
-**Warnings vs errors:** Some issues are non-fatal and appear as warnings — for example, an `extends` entry that references a path or package that does not exist. Warnings are logged and included in the programmatic `SyncResults.warnings` array but do **not** cause exit code 1. Use `--verbose` to see all warnings even when there are no errors.
+**Warnings vs errors:** Some issues are non-fatal and appear as warnings — for example, an `extends` entry that references a path or package that does not exist, or (with `claude` selected) a root `CLAUDE.md` / `CLAUDE.local.md` that has no `@AGENTS.md` import and so hides `AGENTS.md` from Claude Code ([details](Architecture#claude-code-and-agentsmd)). Warnings are logged and included in the programmatic `SyncResults.warnings` array but do **not** cause exit code 1. Use `--verbose` to see all warnings even when there are no errors.
 
 Use `--silent` in CI only together with checking `$?` (or equivalent): failures are signaled by the exit code, not only by log lines.
 

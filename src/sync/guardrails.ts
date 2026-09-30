@@ -1,6 +1,6 @@
 import { basename, join } from 'node:path';
 import matter from 'gray-matter';
-import type { GuardrailCheck, GuardrailFrontmatter, Platform, StackConstraint } from '../types.js';
+import type { GuardrailCheck, GuardrailFrontmatter, Platform } from '../types.js';
 import type { Catalog } from '../catalog/index.js';
 import type { SyncSink } from './pipeline.js';
 import type { ClaudeHooksSection } from './claude-hooks.js';
@@ -17,6 +17,7 @@ import {
   frontmatterStackIssues,
   readFrontmatterStacks,
   resolveStacks,
+  type StackMap,
 } from '../stacks/resolve.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
@@ -176,7 +177,7 @@ export function syncGuardrails(
         recordError(`guardrails/${file}: ${regexIssue}`);
         continue;
       }
-      const reason = versionFilterReason(ctx, file, record, stackMap);
+      const reason = versionFilterReason(ctx, file, sourceDir, record, stackMap);
       if (reason !== null) {
         excluded.set(file, reason);
         continue;
@@ -215,8 +216,9 @@ export function syncGuardrails(
 function versionFilterReason(
   ctx: GuardrailsSyncContext,
   file: string,
+  sourceDir: string,
   data: Record<string, unknown>,
-  stackMap: Map<string, StackConstraint>,
+  stackMap: StackMap,
 ): string | null {
   const issues = frontmatterStackIssues(data);
   if (issues.length > 0) {
@@ -224,7 +226,7 @@ function versionFilterReason(
     ctx.results.warnings.push(msg);
     ctx.log(`  WARN: ${msg}`);
   }
-  const constraint = resolveStacks(basename(file, '.md'), readFrontmatterStacks(data), stackMap);
+  const constraint = resolveStacks(basename(file, '.md'), sourceDir, readFrontmatterStacks(data), stackMap);
   const result = matchStackConstraint(constraint, ctx.detectedStacks);
   for (const stack of result.lowConfidence) {
     const det = ctx.detectedStacks.get(stack);

@@ -136,7 +136,7 @@ Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how 
 - `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` writes `extraKnownMarketplaces` into `.claude/settings.json` so Claude Desktop auto-prompts teammates to install plugins.
 - `plugins` — when omitted, a single plugin named after the project directory is emitted.
 
-See [Marketplace](Marketplace) for the full schema, profile filtering behavior, and CI workflow setup.
+See [Marketplace](Marketplace) for the full schema, profile filtering behavior, and publishing setup.
 
 ### `adapters`
 
@@ -328,7 +328,7 @@ Codex reads `AGENTS.md` natively and uses TOML configuration, so it does not fol
 | `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`        | Vendor-neutral path; format unchanged. Configurable via `targets.skills.codex`.             |
 | `llm/mcp.json`          | `[mcp_servers.*]` in `.codex/config.toml` | Fenced managed block; hand-authored config preserved.                                       |
 
-`AGENTS.md` and `.codex/config.toml` are edited in place via managed blocks, so they are **not** removed by `--prune` (the generated `.codex/agents/*.toml` files **are** pruned). If `copilot` or `gemini` are also enabled, the Codex rules block is stripped from their derived `copilot-instructions.md` / `GEMINI.md`, since those platforms receive scoped rules through their own directories.
+`AGENTS.md` and `.codex/config.toml` are edited in place via managed blocks, so they are **not** removed by `--prune` (the generated `.codex/agents/*.toml` files **are** pruned). If `copilot` or `gemini` are also enabled, the Codex rules block is stripped from their derived `copilot-instructions.md` / `GEMINI.md`, since those platforms receive scoped rules through their own directories. The block is written only when `codex` is selected. For the reasoning, and for the overlap when Codex is combined with Claude Code or Cursor (both also read `AGENTS.md`), see [Architecture](Architecture#why-the-rules-block-is-codex-only).
 
 ## Default behavior
 
