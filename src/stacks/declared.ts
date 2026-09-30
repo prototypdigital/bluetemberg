@@ -6,7 +6,7 @@ import type { BlueprintConfig, Stack, StackConstraint } from '../types.js';
 import { mergeSourceDirs, mergeSourceFiles, resolveExtendedSourceDirs } from '../sync/extends-loader.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
 import { resolveExternalSourceDirs } from '../sources/registry.js';
-import { buildStackMap, readFrontmatterStacks, resolveStacks } from './resolve.js';
+import { buildStackMap, readFrontmatterStacks, resolveStacks, type StackMap } from './resolve.js';
 
 /**
  * Harvest the version ranges that the guidance actually available to a project declares.
@@ -90,17 +90,13 @@ function coverageSourceDirs(
 }
 
 /** Read a file's effective stack constraint (frontmatter wins, else the catalog pack-level tag). */
-function readConstraint(
-  filePath: string,
-  id: string,
-  stackMap: Map<string, StackConstraint>,
-): StackConstraint {
+function readConstraint(kindDir: string, file: string, id: string, stackMap: StackMap): StackConstraint {
   try {
-    const { data } = matter.read(filePath);
-    return resolveStacks(id, readFrontmatterStacks(data as Record<string, unknown>), stackMap);
+    const { data } = matter.read(join(kindDir, file));
+    return resolveStacks(id, kindDir, readFrontmatterStacks(data as Record<string, unknown>), stackMap);
   } catch {
     // Unreadable frontmatter → fall back to catalog gating; sync reports the read error itself.
-    return resolveStacks(id, undefined, stackMap);
+    return resolveStacks(id, kindDir, undefined, stackMap);
   }
 }
 
@@ -132,14 +128,14 @@ export function collectDeclaredRanges(
   for (const kind of CONTENT_KINDS) {
     for (const [file, sourceDir] of mergeSourceFiles(dirs, kind, isContentFile)) {
       const id = basename(file, '.md');
-      const constraint = readConstraint(join(sourceDir, file), id, stackMap);
+      const constraint = readConstraint(sourceDir, file, id, stackMap);
       record(constraint, `${kind}/${id}`, sourceDir === join(local, kind));
     }
   }
 
   const skills = mergeSourceDirs(dirs, 'skills', (dirPath) => existsSync(join(dirPath, 'SKILL.md')));
   for (const [name, sourceParent] of skills) {
-    const constraint = readConstraint(join(sourceParent, name, 'SKILL.md'), name, stackMap);
+    const constraint = readConstraint(sourceParent, join(name, 'SKILL.md'), name, stackMap);
     record(constraint, `skills/${name}`, sourceParent === join(local, 'skills'));
   }
 
