@@ -1,8 +1,7 @@
-import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { Platform } from '../types.js';
-import { readIfExists } from '../utils/fs.js';
 
 // Claude Code reads AGENTS.md on its own only when no CLAUDE.md-family file is on the path; any of
 // these at the root suppresses it unless one imports or symlinks AGENTS.md. See Architecture.md
@@ -35,6 +34,15 @@ function resolveImport(fromFile: string, importPath: string): string {
   return resolve(dirname(fromFile), importPath);
 }
 
+/** Reads an import target; directories, unreadable files, and missing paths all mean "no imports". */
+function readImportable(path: string): string | null {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 function realpathOrSelf(path: string): string {
   try {
     return realpathSync(path);
@@ -48,7 +56,7 @@ function importsTarget(file: string, target: string, depth: number, seen: Set<st
   if (depth > MAX_IMPORT_DEPTH || seen.has(file)) return false;
   seen.add(file);
 
-  const content = readIfExists(file);
+  const content = readImportable(file);
   if (content === null) return false;
 
   for (const imported of extractImports(content).map((p) => realpathOrSelf(resolveImport(file, p)))) {

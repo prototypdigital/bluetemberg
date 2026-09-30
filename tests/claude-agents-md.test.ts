@@ -86,6 +86,12 @@ describe('CLAUDE.md -> AGENTS.md import diagnostic', () => {
     expect(await warningsFor()).toEqual([]);
   });
 
+  it('treats an @token that points at a directory as prose, not a crash', async () => {
+    mkdirSync(join(root, 'docs'));
+    writeFileSync(join(root, 'CLAUDE.md'), 'see @docs for details\n');
+    expect(await warningsFor()).toEqual([expect.stringContaining('CLAUDE.md exists')]);
+  });
+
   it('resolves .claude/CLAUDE.md imports relative to that file', async () => {
     mkdirSync(join(root, '.claude'));
     writeFileSync(join(root, '.claude', 'CLAUDE.md'), '@../AGENTS.md\n');
