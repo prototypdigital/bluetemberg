@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { buildDetectReport, buildCoverageReport } from '../src/stacks/report.js';
+import { installFakePack } from './helpers/installed-pack.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-report-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -26,12 +27,12 @@ function writeCatalog(root: string, packs: unknown[]): void {
 }
 
 /** Write a rule into the project source dir, optionally with a `stacks:` constraint. */
-function writeRule(root: string, name: string, stacks?: string): void {
-  mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+function writeRule(root: string, name: string, stacks?: string, sourceDir = join(root, 'llm')): void {
+  mkdirSync(join(sourceDir, 'rules'), { recursive: true });
   const frontmatter = stacks
     ? `---\ndescription: r\nstacks:\n  ${stacks}\n---\n`
     : '---\ndescription: r\n---\n';
-  writeFileSync(join(root, 'llm', 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
+  writeFileSync(join(sourceDir, 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
 }
 
 const PAYLOAD_PACK = {
@@ -108,8 +109,9 @@ describe('buildDetectReport', () => {
     // covered — but only generically. It must not vanish into "covered" alongside react 18.
     writeConfig(root, { react: '19.0.0' });
     writeCatalog(root, [{ ...REACT_PACK, rules: ['effects-r18', 'naming'] }]);
-    writeRule(root, 'effects-r18', 'react: ">=18 <19"');
-    writeRule(root, 'naming'); // no stacks: → inherits the pack's name-level tag
+    const packDir = installFakePack(root, REACT_PACK.name);
+    writeRule(root, 'effects-r18', 'react: ">=18 <19"', packDir);
+    writeRule(root, 'naming', undefined, packDir); // no stacks: → inherits the pack's name-level tag
 
     const report = buildDetectReport(root);
     expect(report.gaps).toEqual([]);

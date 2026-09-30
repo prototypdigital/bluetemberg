@@ -43,7 +43,7 @@ plugins/
 
 ## Dedicated marketplace repo (Option A)
 
-The recommended setup keeps product repos clean by publishing marketplace output to a **separate dedicated repo** — `prototypdigital/claude-marketplace`. Bluetemberg generates the output locally; a CI workflow pushes it to the marketplace repo on every merge to `main`.
+The recommended setup keeps product repos clean by publishing marketplace output to a **separate dedicated repo** — `prototypdigital/claude-marketplace`. Bluetemberg generates the output locally; you publish it to the marketplace repo.
 
 ### Why a dedicated repo
 
@@ -67,17 +67,9 @@ The recommended setup keeps product repos clean by publishing marketplace output
 
 When `remote` is set, `bluetemberg sync` automatically adds `prototypdigital/claude-marketplace` to `extraKnownMarketplaces` in `.claude/settings.json`. This causes Claude Desktop to auto-prompt teammates to install plugins when they open the project folder.
 
-**2. Add `MARKETPLACE_PUSH_TOKEN` and `MARKETPLACE_REPO` to your repo:**
+**2. Publish the output:**
 
-- Go to **Settings → Secrets and variables → Actions**
-- Add secret `MARKETPLACE_PUSH_TOKEN`: a GitHub PAT (or fine-grained token) with `contents: write` on the marketplace repo
-- Add variable `MARKETPLACE_REPO`: `prototypdigital/claude-marketplace`
-
-**3. Scaffold the workflow:**
-
-`bluetemberg init` writes `.github/workflows/sync-marketplace.yml` automatically when `claude-marketplace` is selected. For existing projects, re-run `bluetemberg init` (it preserves your config) or add the workflow by hand — the generated file is plain GitHub Actions YAML with no bluetemberg-specific magic.
-
-The workflow triggers on pushes to `main` that touch `llm/**` or `bluetemberg.config.json`, runs `bluetemberg sync`, then commits and pushes `plugins/` and `.claude-plugin/` to the marketplace repo.
+`bluetemberg sync` writes `plugins/` and `.claude-plugin/` locally. Push them to the marketplace repo yourself, by hand or from a pipeline you own. Bluetemberg does not scaffold CI/CD workflows.
 
 ### `.claude/settings.json`
 
@@ -99,7 +91,6 @@ Defined under `blueprintconfig.marketplace`. Controls how `llm/` content maps to
 
 `owner/repo` shorthand for the dedicated marketplace repo. When set:
 - `extraKnownMarketplaces` is written to `.claude/settings.json` on every sync
-- The scaffolded CI workflow uses `${{ vars.MARKETPLACE_REPO }}` to push output there
 
 ### `owner` field
 
@@ -151,10 +142,12 @@ When a plugin definition includes a `profiles` array, only `llm/` files matching
 
 **Resolution order:**
 1. If the file has a `profiles:` frontmatter field, that value is used.
-2. If no frontmatter field is present but the file's id (directory/basename) appears in the **catalog** (`catalog.json`), the owning pack's profiles are used (a `universal` pack contributes no profiles → universal).
+2. If no frontmatter field is present and the file comes from a **catalog pack** that lists its id (directory/basename), that pack's profiles are used (a `universal` pack contributes no profiles → universal).
 3. If neither applies (e.g. a local project rule not shipped by any pack), the file is treated as **universal** — included in every plugin regardless of profile filters.
 
 The catalog is the single source of truth for this mapping — the engine no longer hand-maintains a preset→profile table, so a pack file can never silently leak into the wrong plugin because its id was missing from the engine.
+
+**Catalog metadata only gates a pack's own files.** A file is attributed to a pack by the npm package that owns its source dir — the `package.json` in that dir or, for the `llm/` layout, its parent. That covers installed packs (`.bluetemberg/packs/<name>/<version>/`), npm `extends`, and local-path `extends` such as `./packages/<name>` in a packs monorepo. A project's own `llm/rules/code-review.md` therefore stays universal even when some catalog pack ships an item called `code-review`, and two packs that share an id never inherit each other's profiles.
 
 ```yaml
 # llm/rules/type-safety.md

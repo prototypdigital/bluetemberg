@@ -252,7 +252,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
   }
 
   const includeGithub = await confirm({
-    message: 'Scaffold GitHub repository files (CI, security scanning, templates)?',
+    message: 'Scaffold GitHub repository files (templates, community docs, Dependabot)?',
     default: true,
   });
 
@@ -295,22 +295,13 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 function buildGithubConfig(selectedIds: string[]): GitHubScaffoldConfig {
   const s = new Set(selectedIds);
   return {
-    ci: s.has('ci'),
-    codeql: s.has('codeql'),
-    dependencyReview: s.has('dependencyReview'),
     dependabot: s.has('dependabot'),
     issueTemplates: s.has('issueTemplates'),
     prTemplate: s.has('prTemplate'),
     codeowners: s.has('codeowners'),
-    releaseWorkflow: s.has('releaseWorkflow'),
-    staleBot: s.has('staleBot'),
-    pagesWorkflow: s.has('pagesWorkflow'),
     contributing: s.has('contributing'),
     license: s.has('license'),
     codeOfConduct: s.has('codeOfConduct'),
     security: s.has('security'),
-    semanticPr: s.has('semanticPr'),
-    autoLabeler: s.has('autoLabeler'),
-    lockClosed: s.has('lockClosed'),
   };
 }
