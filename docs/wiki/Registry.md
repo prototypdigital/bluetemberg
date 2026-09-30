@@ -100,7 +100,7 @@ works per-package, so each pack in a multi-package install can carry its own ran
 4. Verifies the SHA-512 integrity hash.
 5. Verifies the ECDSA registry signature against the npm public keys endpoint.
 6. Updates `llm/packages.json` and `llm/packages-lock.json` (recording the signing `keyid`).
-7. Adds `.bluetemberg/` to `.gitignore` if not already present.
+7. Adds `.bluetemberg/` to an existing `.gitignore` if it isn't already listed. Bluetemberg doesn't create a `.gitignore`, so in a repo without one, add the entry yourself.
 
 After adding, run `bluetemberg sync` to generate platform-specific files that include the new rules.
 
@@ -231,7 +231,7 @@ Search the npm registry for rule packs. By default only returns packages with th
 
 ```bash
 bluetemberg search typescript
-bluetemberg search frontend rules --limit 10
+bluetemberg search "frontend rules" --limit 10
 ```
 
 **Options:**
@@ -269,7 +269,7 @@ Run `bluetemberg verify` at any time to re-check all installed packs without re-
 
 Downloaded packs are extracted to `.bluetemberg/packs/<name>/<version>/`. This directory:
 
-- Should be added to `.gitignore` (done automatically on first `add`/`install`).
+- Should be added to `.gitignore` (done automatically on first `add`/`install` when a `.gitignore` already exists).
 - Can be deleted and restored via `bluetemberg install`.
 - Includes an integrity marker file (`.bluetemberg-integrity`) for cache validation.
 

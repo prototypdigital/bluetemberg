@@ -8,7 +8,7 @@ How to set up a downstream project to use Bluetemberg.
 npx bluetemberg init
 ```
 
-Follow the interactive prompts to select platforms, rules, agents, and skills. Available platforms: **Cursor**, **Claude Code**, **GitHub Copilot**, **Gemini CLI**.
+Follow the interactive prompts to select platforms, rules, agents, and skills. Available platforms: **Cursor**, **Claude Code**, **GitHub Copilot**, **Gemini CLI**, **Windsurf**, **OpenAI Codex**.
 
 **Monorepo or shared rule packs?** Skip `init` on child packages — instead create a `bluetemberg.config.json` manually with an `extends` field pointing to the shared source:
 
