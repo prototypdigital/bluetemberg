@@ -32,6 +32,8 @@ Two files track installed packs:
 
 Both should be committed so the team pins the same versions.
 
+`init` and `switch-profile` write each official pack as `^<version>`, where `<version>` is the newest version published on the registry at that moment (for example `^0.5.0`). When the registry can't be reached they write `latest` instead. `install` then resolves it and records the exact version in the lockfile, so nothing breaks. `add` writes `latest` for the packs you name.
+
 One manifest covers all pack kinds — rules, agents, skills, and guardrails. A pack declares what it ships through its `llm/` directory layout, so a single package can mix kinds (e.g. a framework pack with both rules and a skill).
 
 > **Migrating from kind-split manifests:** projects scaffolded before the unification may still have `rule-packages.json`, `agent-packages.json`, or `skill-packages.json`. They keep working — `sync` merges them in memory with a warning — and the next `bluetemberg install` (or `add`/`update`/`remove`) consolidates them into `packages.json` and deletes the legacy files. Commit the result.

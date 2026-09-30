@@ -28,19 +28,21 @@ const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024;
  * Fetch full package metadata (all versions) from the npm registry.
  *
  * @param root - Project root whose `.npmrc` supplies credentials (defaults to the cwd).
+ * @param timeoutMs - Request timeout; callers doing best-effort lookups pass a short one.
  * @throws If the HTTP request fails or the package is not found.
  */
 export async function fetchPackageMetadata(
   name: string,
   registryUrl?: string,
   root?: string,
+  timeoutMs = FETCH_TIMEOUT_MS,
 ): Promise<NpmPackageMetadata> {
   const base = (registryUrl || DEFAULT_REGISTRY).replace(/\/$/, '');
   const url = `${base}/${encodePackageName(name)}`;
 
   const res = await fetch(url, {
     headers: { Accept: 'application/json', ...registryAuthHeaders(base, root) },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (res.status === 404) {

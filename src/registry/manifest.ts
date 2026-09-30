@@ -13,8 +13,13 @@ const LOCKFILE_FILE = 'packages-lock.json';
 const LEGACY_MANIFEST_FILES = ['rule-packages.json', 'agent-packages.json', 'skill-packages.json'];
 const LEGACY_LOCKFILE_FILES = ['rule-packages-lock.json'];
 
-/** Semver range written for newly added official packs (init wizard, switch-profile). */
-export const DEFAULT_PACK_VERSION = '^0.1.0';
+/**
+ * Range written for newly added official packs (init wizard, switch-profile) before the registry is asked
+ * for their real latest version. `pinDefaultRanges` then narrows each to `^<latest>`; if the registry is
+ * unreachable the entry stays `latest`, which `install` resolves later. A fixed range such as `^0.1.0`
+ * goes stale as soon as a pack ships 0.2.0, because caret on 0.x stops at the next minor.
+ */
+export const DEFAULT_PACK_VERSION = 'latest';
 
 // ---------------------------------------------------------------------------
 // Manifest (llm/packages.json)
@@ -24,11 +29,19 @@ export function manifestPath(root: string, source = 'llm'): string {
   return join(root, source, MANIFEST_FILE);
 }
 
-export function readManifest(root: string, source = 'llm'): PackageManifest {
+/**
+ * Reads `packages.json` as it is on disk, without folding in legacy kind-split manifests. Use this
+ * when the result is written back and the caller must not persist entries it did not add.
+ */
+export function readUnifiedManifest(root: string, source = 'llm'): PackageManifest {
   const p = manifestPath(root, source);
-  const manifest = existsSync(p)
+  return existsSync(p)
     ? validateManifest(JSON.parse(readFileSync(p, 'utf8')) as unknown, p)
     : { packages: {} as Record<string, string> };
+}
+
+export function readManifest(root: string, source = 'llm'): PackageManifest {
+  const manifest = readUnifiedManifest(root, source);
 
   return mergeLegacyManifests(root, source, manifest);
 }

@@ -1,6 +1,8 @@
 import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
+import { pinDefaultRanges } from '../registry/default-ranges.js';
+import { readUnifiedManifest } from '../registry/manifest.js';
 import { sync } from '../sync/index.js';
 import type { InitAnswers, InitRunOptions } from '../types.js';
 import { finalizeNonInteractiveAnswers } from './init-answers-from-profile.js';
@@ -80,6 +82,18 @@ export async function init(targetPath?: string, run?: InitRunOptions): Promise<v
   log(`Created ${created.length} files:\n`);
   for (const f of created) {
     log(`  ${relative(targetDir, f)}`);
+  }
+
+  const { unresolved } = await pinDefaultRanges(
+    targetDir,
+    Object.keys(readUnifiedManifest(targetDir).packages),
+    run?.resolveLatestVersion,
+  );
+  if (unresolved.length > 0) {
+    log(
+      `\n  ⚠ Could not look up the latest version of ${unresolved.length} pack(s) on the registry; ` +
+        'their range is `latest`. `bluetemberg install` resolves it and records the exact version in the lockfile.',
+    );
   }
 
   log('\nRunning initial sync...\n');
