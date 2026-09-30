@@ -111,6 +111,32 @@ flowchart TD
 
 **OpenAI Codex** reads `AGENTS.md` natively, so the monolithic instructions need no derivation. Codex is also the one target whose rules do **not** go through the frontmatter transform: scoped rules from `llm/rules/` are folded into a fenced *managed block* in `AGENTS.md`, agents become per-file TOML under `.codex/agents/`, and MCP servers become a `[mcp_servers.*]` managed block in `.codex/config.toml`. Skills use the vendor-neutral `.agents/skills/`. Managed blocks (`src/sync/managed-block.ts`) preserve hand-authored content outside the markers and keep `sync --check` idempotent; the Codex rules block is stripped from the derived Copilot/Gemini instruction files.
 
+### Why the rules block is Codex-only
+
+The managed rules block is written only when `codex` is in `platforms`. A Claude-, Cursor-, or Copilot-only project's `AGENTS.md` stays hand-authored project context (name, architecture, boundaries) with no rules in it. That is on purpose:
+
+- Every platform with its own scoped-rules directory (`.claude/rules/`, `.cursor/rules/`, `.github/instructions/`, `.gemini/context/`, `.windsurf/rules/`) already gets each rule with its `scope` turned into a path filter, so it loads only for matching files.
+- Most of those tools also read `AGENTS.md` itself. Folding the rules into it would load every rule twice, once scoped and once always-on. That is the same reason the block is stripped from `copilot-instructions.md` and `GEMINI.md`.
+- Codex has no per-file rule API, so `AGENTS.md` is the only place its rules can go.
+
+**Known overlap:** when `codex` is selected alongside `claude` or `cursor`, both read the block through `AGENTS.md` as well as through their own scoped rules. Neither tool offers a way to skip part of `AGENTS.md`, so sync leaves this alone.
+
+### Claude Code and AGENTS.md
+
+Since [v2.1.277](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md), Claude Code reads `AGENTS.md` natively, but only when there is no `CLAUDE.md`. From [Anthropic's docs](https://code.claude.com/docs/en/memory#agents-md):
+
+| Repository has | Claude Code reads |
+| --- | --- |
+| `AGENTS.md`, and no `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` at or above the working directory | `AGENTS.md` |
+| `AGENTS.md` plus any of those files | the `CLAUDE.md` files **only** |
+| a `CLAUDE.md` that imports `@AGENTS.md` (or is a symlink to it) | `CLAUDE.md`, with `AGENTS.md` pulled in once |
+
+`bluetemberg init` scaffolds the third row: a `CLAUDE.md` whose first line is `@AGENTS.md`, followed by Claude-specific notes. Anthropic recommends keeping this pattern. The import never loads `AGENTS.md` twice, and it still works in sessions that can't read `AGENTS.md` natively (Claude Code before v2.1.277, a disabled built-in `agents-md` plugin, or the first session after upgrading). Before v2.1.281, Bedrock, Vertex AI, Foundry, LLM-gateway, and telemetry-disabled sessions were in that group too.
+
+`sync` doesn't own `CLAUDE.md`, but when `claude` is selected it checks the second row. If a root `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` exists and none of them reach `AGENTS.md` by `@` import (followed up to four hops, ignoring code spans and fences) or symlink, sync records a **warning**. It does not fail `--check`. Without the warning, `AGENTS.md` would drop out of Claude's context and nothing would say so. A personal, gitignored `CLAUDE.local.md` with no `CLAUDE.md` beside it is enough to cause this.
+
+**Tip:** To load both files unconditionally, set Claude Code's **Project instructions** to `claude-md-and-agents-md` in `/config`, or under `pluginConfigs["agents-md@builtin"].options.instructionFiles` in `~/.claude/settings.json` or managed settings. Claude Code ignores that key in a project's `.claude/settings.json`, so it's a per-user or per-org choice that sync can't make for a team.
+
 ### Malformed markers
 
 Markers are paired positionally: each `BEGIN` is matched with the first `END` **after** it. An unpaired marker — a stray `END` with no `BEGIN` before it, a `BEGIN` with no `END` after it, or a `BEGIN` nested inside an open block — is what a hand-resolved merge conflict tends to leave behind, and there is no safe way to guess where the generated region was meant to start or stop. Sync therefore records an error naming the file, leaves it byte-for-byte untouched, and exits 1 with the fix in the message. Repair the markers (delete the stray one, or restore its pair) and re-run.
