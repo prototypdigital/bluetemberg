@@ -1,6 +1,9 @@
 import type { Catalog } from '../catalog/index.js';
 import type { StackConstraint } from '../types.js';
-import { isValidStackRange } from './match.js';
+import { buildPackItemMap, type PackItemMap } from '../catalog/ownership.js';
+import { isUnsatisfiableRange, isValidStackRange } from './match.js';
+
+export type StackMap = PackItemMap<StackConstraint>;
 
 /**
  * Shared stack-constraint resolution used by BOTH the marketplace build (name-level gating) and
@@ -9,32 +12,24 @@ import { isValidStackRange } from './match.js';
  *
  * Resolution precedence for any file (rule/agent/skill/guardrail):
  *   1. the file's own `stacks:` frontmatter (version-precise) — wins when present
- *   2. the catalog pack-level `stacks` (coarse, name-only → wildcard `*` range)
+ *   2. the catalog pack-level `stacks` of the pack that owns the file (coarse, name-only → `*`)
  *   3. nothing → stack-agnostic (`{}`) → applies everywhere
  */
 
 /**
- * Build an id → stack-constraint map from the catalog. Pack-level `stacks` are coarse, name-only
- * (`["payload"]`), so each maps to a wildcard range (`{ payload: "*" }`). A file's own `stacks:`
- * frontmatter (with version ranges) overrides this. Files with no stacks anywhere are
- * stack-agnostic and apply everywhere.
+ * Build a pack-scoped stack-constraint map from the catalog. Pack-level `stacks` are coarse,
+ * name-only (`["payload"]`), so each maps to a wildcard range (`{ payload: "*" }`). A file's own
+ * `stacks:` frontmatter (with version ranges) overrides this. The constraint applies only to files
+ * that come from that pack's own source dir — never to a same-named file elsewhere (#249).
  */
-export function buildStackMap(catalog: Catalog): Map<string, StackConstraint> {
-  const map = new Map<string, StackConstraint>();
-  for (const pack of catalog.packs) {
+export function buildStackMap(catalog: Catalog): StackMap {
+  return buildPackItemMap(catalog, (pack) => {
     const stacks = pack.stacks ?? [];
-    if (stacks.length === 0) continue;
+    if (stacks.length === 0) return undefined;
     const constraint: StackConstraint = {};
     for (const s of stacks) constraint[s] = '*';
-    const ids = [
-      ...(pack.rules ?? []),
-      ...(pack.agents ?? []),
-      ...(pack.skills ?? []),
-      ...(pack.guardrails ?? []),
-    ];
-    for (const id of ids) map.set(id, constraint);
-  }
-  return map;
+    return constraint;
+  });
 }
 
 /**
@@ -63,7 +58,8 @@ export function readFrontmatterStacks(data: Record<string, unknown>): StackConst
 
 /**
  * Report the `stacks:` frontmatter entries that {@link readFrontmatterStacks} silently dropped —
- * a range that is not valid semver, or a value that is not a string. Returned as `name: "range"`
+ * a range that is not valid semver, or a value that is not a string — plus valid ranges no version
+ * can satisfy (`>=4 <3`), which are kept but exclude the file forever. Returned as `name: "range"`
  * strings so the caller can warn. Empty when the `stacks:` key is absent or entirely well-formed.
  *
  * Without this, a typo'd range (`">==15"`) vanishes from the constraint with no signal: the file
@@ -81,16 +77,22 @@ export function frontmatterStackIssues(data: Record<string, unknown>): string[] 
       continue;
     }
     if (!isValidStackRange(range)) issues.push(`${name}: "${range}"`);
+    else if (isUnsatisfiableRange(range)) issues.push(`${name}: "${range}" (matches no version)`);
   }
   return issues;
 }
 
-/** Resolve a file's effective stack constraint: frontmatter wins, else catalog, else agnostic. */
+/**
+ * Resolve a file's effective stack constraint: frontmatter wins, else the owning pack's catalog
+ * tag, else agnostic. `kindDir` is the dir the file was found in (`<source>/rules`, …) — it decides
+ * which pack, if any, the file belongs to.
+ */
 export function resolveStacks(
   id: string,
+  kindDir: string,
   frontmatterStacks: StackConstraint | undefined,
-  stackMap: Map<string, StackConstraint>,
+  stackMap: StackMap,
 ): StackConstraint {
   if (frontmatterStacks !== undefined) return frontmatterStacks;
-  return stackMap.get(id) ?? {};
+  return stackMap.get(kindDir, id) ?? {};
 }

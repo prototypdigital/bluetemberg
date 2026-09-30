@@ -16,7 +16,9 @@ export interface SyncSink {
 }
 
 /**
- * Writes or diffs a single generated file. Centralizes counting for synced / outOfSync.
+ * Writes or diffs a single generated file. Centralizes counting for synced / outOfSync, and is the
+ * only place sync creates directories: parent dirs are made in write mode only, so `--check` never
+ * touches disk. Stages must not `mkdir` ahead of calling this.
  *
  * `outPath` should be absolute or rooted under {@link SyncSink.root} (e.g. `join(sink.root, '.cursor', 'x.md')`).
  * A bare relative path resolves against `process.cwd()`, which breaks `--check` and prune tracking.

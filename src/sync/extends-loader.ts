@@ -126,3 +126,33 @@ export function mergeSourceDirs(
 
   return result;
 }
+
+/** A content name shipped by more than one source dir; `winner` is the one that applies. */
+export interface ShadowedEntry {
+  name: string;
+  /** Index (into the priority-ordered dirs) of the source whose copy applies. */
+  winner: number;
+  /** Indexes of the sources whose copies are silently ignored. */
+  losers: number[];
+}
+
+/**
+ * Find names that more than one source dir provides under `subdir` — the collisions
+ * {@link mergeSourceFiles} / {@link mergeSourceDirs} resolve by priority without saying so.
+ * `list` enumerates the entries of one `<dir>/<subdir>` path.
+ */
+export function findShadowedEntries(
+  dirs: string[],
+  subdir: string,
+  list: (subPath: string) => string[],
+): ShadowedEntry[] {
+  const providers = new Map<string, number[]>();
+  dirs.forEach((dir, i) => {
+    for (const name of list(join(dir, subdir))) {
+      providers.set(name, [...(providers.get(name) ?? []), i]);
+    }
+  });
+  return [...providers.entries()]
+    .filter(([, idx]) => idx.length > 1)
+    .map(([name, [winner, ...losers]]) => ({ name, winner, losers }));
+}
