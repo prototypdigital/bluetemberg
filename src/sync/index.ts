@@ -2,7 +2,6 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
-import { ensureDir } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { pruneStaleOutputs } from './prune.js';
 import { syncMcp } from './mcp.js';
@@ -816,7 +815,6 @@ function syncRules(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of ruleTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
-    ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
@@ -862,7 +860,6 @@ function syncAgents(ctx: SyncContext): void {
 
   for (const [, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
-    ensureDir(outDir);
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
@@ -912,7 +909,6 @@ function syncSkills(ctx: SyncContext): void {
       try {
         const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
-        ensureDir(outDir);
 
         const content = readFileSync(srcSkill, 'utf8');
         const outPath = join(outDir, 'SKILL.md');
@@ -936,7 +932,6 @@ function syncCopilotInstructions(ctx: SyncContext): void {
 
   try {
     const target = join(ctx.root, '.github', 'copilot-instructions.md');
-    ensureDir(join(ctx.root, '.github'));
     // Strip the Codex rules block — Copilot gets scoped rules via .github/instructions/ already.
     const content = stripManagedBlock(
       readFileSync(agentsMd, 'utf8'),

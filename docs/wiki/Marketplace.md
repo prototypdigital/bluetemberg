@@ -43,7 +43,7 @@ plugins/
 
 ## Dedicated marketplace repo (Option A)
 
-The recommended setup keeps product repos clean by publishing marketplace output to a **separate dedicated repo** — `prototypdigital/claude-marketplace`. Bluetemberg generates the output locally; a CI workflow pushes it to the marketplace repo on every merge to `main`.
+The recommended setup keeps product repos clean by publishing marketplace output to a **separate dedicated repo** — `prototypdigital/claude-marketplace`. Bluetemberg generates the output locally; you publish it to the marketplace repo.
 
 ### Why a dedicated repo
 
@@ -67,17 +67,9 @@ The recommended setup keeps product repos clean by publishing marketplace output
 
 When `remote` is set, `bluetemberg sync` automatically adds `prototypdigital/claude-marketplace` to `extraKnownMarketplaces` in `.claude/settings.json`. This causes Claude Desktop to auto-prompt teammates to install plugins when they open the project folder.
 
-**2. Add `MARKETPLACE_PUSH_TOKEN` and `MARKETPLACE_REPO` to your repo:**
+**2. Publish the output:**
 
-- Go to **Settings → Secrets and variables → Actions**
-- Add secret `MARKETPLACE_PUSH_TOKEN`: a GitHub PAT (or fine-grained token) with `contents: write` on the marketplace repo
-- Add variable `MARKETPLACE_REPO`: `prototypdigital/claude-marketplace`
-
-**3. Scaffold the workflow:**
-
-`bluetemberg init` writes `.github/workflows/sync-marketplace.yml` automatically when `claude-marketplace` is selected. For existing projects, re-run `bluetemberg init` (it preserves your config) or add the workflow by hand — the generated file is plain GitHub Actions YAML with no bluetemberg-specific magic.
-
-The workflow triggers on pushes to `main` that touch `llm/**` or `bluetemberg.config.json`, runs `bluetemberg sync`, then commits and pushes `plugins/` and `.claude-plugin/` to the marketplace repo.
+`bluetemberg sync` writes `plugins/` and `.claude-plugin/` locally. Push them to the marketplace repo yourself, by hand or from a pipeline you own. Bluetemberg does not scaffold CI/CD workflows.
 
 ### `.claude/settings.json`
 
@@ -99,7 +91,6 @@ Defined under `blueprintconfig.marketplace`. Controls how `llm/` content maps to
 
 `owner/repo` shorthand for the dedicated marketplace repo. When set:
 - `extraKnownMarketplaces` is written to `.claude/settings.json` on every sync
-- The scaffolded CI workflow uses `${{ vars.MARKETPLACE_REPO }}` to push output there
 
 ### `owner` field
 
