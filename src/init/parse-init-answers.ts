@@ -66,23 +66,14 @@ function expectPlatforms(record: Record<string, unknown>, field: string): Platfo
 function parseGithubConfig(val: unknown): GitHubScaffoldConfig | undefined {
   if (!isRecord(val)) return undefined;
   return {
-    ci: expectBoolean(val, 'ci'),
-    codeql: expectBoolean(val, 'codeql'),
-    dependencyReview: expectBoolean(val, 'dependencyReview'),
     dependabot: expectBoolean(val, 'dependabot'),
     issueTemplates: expectBoolean(val, 'issueTemplates'),
     prTemplate: expectBoolean(val, 'prTemplate'),
     codeowners: expectBoolean(val, 'codeowners'),
-    releaseWorkflow: expectBoolean(val, 'releaseWorkflow'),
-    staleBot: expectBoolean(val, 'staleBot'),
-    pagesWorkflow: expectBoolean(val, 'pagesWorkflow'),
     contributing: expectBoolean(val, 'contributing'),
     license: expectBoolean(val, 'license'),
     codeOfConduct: expectBoolean(val, 'codeOfConduct'),
     security: expectBoolean(val, 'security'),
-    semanticPr: expectBoolean(val, 'semanticPr'),
-    autoLabeler: expectBoolean(val, 'autoLabeler'),
-    lockClosed: expectBoolean(val, 'lockClosed'),
   };
 }
 

@@ -22,35 +22,30 @@ Follow the interactive prompts to select platforms, rules, agents, and skills. A
 
 See [Configuration](Configuration) for the full `extends` reference.
 
+**Claude Code:** keep the `@AGENTS.md` line at the top of the scaffolded `CLAUDE.md`. Claude Code reads `AGENTS.md` on its own only when no `CLAUDE.md` or `CLAUDE.local.md` exists, so removing the import hides `AGENTS.md` from Claude. `bluetemberg sync` warns if that happens. To load both files regardless, set **Project instructions** to `claude-md-and-agents-md` in Claude Code's `/config`. This is a per-user setting that a committed `.claude/settings.json` cannot change. See [Architecture](Architecture#claude-code-and-agentsmd).
+
 ## 2. GitHub repository files
 
-`bluetemberg init` asks whether to scaffold GitHub best-practice files for open source projects. All scaffolded features are free for public repositories. Select the ones that fit your project:
+`bluetemberg init` asks whether to scaffold GitHub repository files. Select the ones that fit your project:
 
 | Feature | File(s) | Default |
 |---|---|---|
-| CI workflow | `.github/workflows/ci.yml` | ✓ |
-| CodeQL scanning | `.github/workflows/codeql.yml` | ✓ |
-| Dependency review | `.github/workflows/dependency-review.yml` | ✓ |
 | Dependabot | `.github/dependabot.yml` | ✓ |
 | Issue templates | `.github/ISSUE_TEMPLATE/*.yml` | ✓ |
 | PR template | `.github/pull_request_template.md` | ✓ |
 | CODEOWNERS | `.github/CODEOWNERS` | ✓ |
-| Release workflow | `.github/workflows/release.yml` | ✓ |
 | CONTRIBUTING.md | `CONTRIBUTING.md` | ✓ |
 | LICENSE | `LICENSE` | ✓ |
 | CODE_OF_CONDUCT.md | `CODE_OF_CONDUCT.md` | ✓ |
 | SECURITY.md | `SECURITY.md` | ✓ |
-| Semantic PR check | `.github/workflows/semantic-pr.yml` | ✓ |
-| Stale bot | `.github/workflows/stale.yml` | — |
-| GitHub Pages | `.github/workflows/pages.yml` | — |
-| Auto-labeler | `.github/workflows/label.yml`, `.github/labeler.yml` | — |
-| Lock closed threads | `.github/workflows/lock-closed.yml` | — |
 
-**After init, customize these files** — the CI workflow assumes `typecheck`, `lint`, and `test` scripts; the Pages workflow defaults to VitePress output at `docs/.vitepress/dist`. Update paths to match your project. Replace `@owner` in `CODEOWNERS` with your GitHub username or team. In `LICENSE`, replace `[year]` and `[fullname]` with the current year and your name or organization. In `CODE_OF_CONDUCT.md`, replace the enforcement contact placeholder with an actual email address or link.
+Bluetemberg never writes CI/CD workflows (`.github/workflows/`): your pipeline stays yours.
 
-## 3. Add sync check to CI
+**After init, customize these files** — replace `@owner` in `CODEOWNERS` with your GitHub username or team. In `LICENSE`, replace `[year]` and `[fullname]` with the current year and your name or organization. In `CODE_OF_CONDUCT.md`, replace the enforcement contact placeholder with an actual email address or link.
 
-`bluetemberg init` scaffolds `.github/workflows/sync-check.yml`, which runs `bluetemberg sync --check` on pull requests that touch `llm/` or any generated output. If you set the project up without `init` (e.g. a monorepo child using `extends`), add the step yourself:
+## 3. Add sync check to CI (optional)
+
+To catch drift in pull requests, add this step to a workflow you own:
 
 ```yaml
 - name: Check AI config sync

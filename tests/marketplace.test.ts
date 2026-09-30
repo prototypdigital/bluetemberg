@@ -4,6 +4,7 @@ import { join, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync, shouldExitWithFailure } from '../src/sync/index.js';
 import type { BlueprintConfig, TeamProfile } from '../src/types.js';
+import { installFakePack } from './helpers/installed-pack.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bluetemberg-marketplace-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -11,18 +12,18 @@ function createTmpDir(): string {
   return dir;
 }
 
-function writeSkill(root: string, name: string, frontmatter = ''): void {
-  mkdirSync(join(root, 'llm', 'skills', name), { recursive: true });
+function writeSkill(root: string, name: string, frontmatter = '', sourceDir = join(root, 'llm')): void {
+  mkdirSync(join(sourceDir, 'skills', name), { recursive: true });
   writeFileSync(
-    join(root, 'llm', 'skills', name, 'SKILL.md'),
+    join(sourceDir, 'skills', name, 'SKILL.md'),
     `---\nname: ${name}\ndescription: ${name} description${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n`,
   );
 }
 
-function writeAgent(root: string, name: string, frontmatter = ''): void {
-  mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+function writeAgent(root: string, name: string, frontmatter = '', sourceDir = join(root, 'llm')): void {
+  mkdirSync(join(sourceDir, 'agents'), { recursive: true });
   writeFileSync(
-    join(root, 'llm', 'agents', `${name}.md`),
+    join(sourceDir, 'agents', `${name}.md`),
     `---\nname: ${name}\ndescription: ${name} description${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n`,
   );
 }
@@ -259,8 +260,8 @@ describe('syncMarketplace', () => {
 
   describe('preset-based profile resolution', () => {
     it('skill with a known preset ID and no frontmatter resolves profiles from presets', async () => {
-      // 'patterns' is in SKILL_PRESETS with tags: ['frontend', 'backend', 'fullstack']
-      writeSkill(root, 'patterns'); // no profiles frontmatter
+      // 'patterns' ships in the catalog's bluetemberg-skills-patterns pack (frontend/backend/fullstack)
+      writeSkill(root, 'patterns', '', installFakePack(root, 'bluetemberg-skills-patterns')); // no profiles frontmatter
 
       const config: BlueprintConfig = {
         ...BASE_CONFIG,
@@ -281,8 +282,9 @@ describe('syncMarketplace', () => {
     });
 
     it('agent with a known preset ID and no frontmatter resolves profiles from presets', async () => {
-      // 'frontend-specialist' is in AGENT_PRESETS with tags: ['frontend', 'fullstack']
-      writeAgent(root, 'frontend-specialist'); // no profiles frontmatter
+      // 'frontend-specialist' ships in the catalog's bluetemberg-agents-frontend-specialist pack
+      const packDir = installFakePack(root, 'bluetemberg-agents-frontend-specialist');
+      writeAgent(root, 'frontend-specialist', '', packDir); // no profiles frontmatter
 
       const config: BlueprintConfig = {
         ...BASE_CONFIG,
@@ -363,8 +365,8 @@ describe('syncMarketplace', () => {
     });
 
     it('records an error when a plugin with valid profiles resolves to 0 files', async () => {
-      // 'api-design' resolves to backend/fullstack via preset — devops plugin gets nothing
-      writeSkill(root, 'api-design');
+      // 'api-design' resolves to backend/fullstack via its catalog pack — devops plugin gets nothing
+      writeSkill(root, 'api-design', '', installFakePack(root, 'bluetemberg-skills-api-design'));
 
       const config: BlueprintConfig = {
         ...BASE_CONFIG,
