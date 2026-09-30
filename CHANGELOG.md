@@ -20,6 +20,37 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.13.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.1...bluetemberg-v0.13.0) (2026-09-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* **init:** init answers files that set the removed github keys have them ignored; projects wanting sync --check or marketplace publishing in CI add those steps to a workflow they own.
+* **sync:** the banner changes the bytes of every generated rule/agent/skill/command, so the first `sync --check` after upgrading reports drift for all of them. Run `bluetemberg sync` once and commit. Projects that gitignore their generated output have nothing to do.
+
+### Features
+
+* **init:** stop scaffolding CI/CD workflows ([8504d1e](https://github.com/prototypdigital/bluetemberg/commit/8504d1e0efedc691b69acb00d41256cf5a5fc43f))
+* **sync:** mark generated rules/agents/skills/commands as generated ([1456107](https://github.com/prototypdigital/bluetemberg/commit/145610783243f9ab918be45810da156f890c2486))
+* **sync:** mark generated rules/agents/skills/commands as generated ([282c247](https://github.com/prototypdigital/bluetemberg/commit/282c2478cb2c58f0d82dacada767d90572b1afd9))
+* **sync:** warn when CLAUDE.md hides AGENTS.md from Claude Code ([999d208](https://github.com/prototypdigital/bluetemberg/commit/999d2080855fe94942ab1d5dead867bd8e17b02a))
+* **sync:** warn when CLAUDE.md hides AGENTS.md from Claude Code ([8b4c4de](https://github.com/prototypdigital/bluetemberg/commit/8b4c4dee92fc9c220e77bef9fc45664beead2cc5)), closes [#260](https://github.com/prototypdigital/bluetemberg/issues/260)
+
+
+### Bug Fixes
+
+* **hooks:** scope PR reviewer's read access to the PR being reviewed ([d884725](https://github.com/prototypdigital/bluetemberg/commit/d884725530d03969791c6a97936ba94afb7c0f43))
+* **hooks:** scope PR reviewer's read access to the PR being reviewed ([f817fb0](https://github.com/prototypdigital/bluetemberg/commit/f817fb08f9c56b1192090057c22524ead25b549a))
+* **stacks:** close the remaining silent mis-gates from the [#212](https://github.com/prototypdigital/bluetemberg/issues/212) register ([868c822](https://github.com/prototypdigital/bluetemberg/commit/868c8227f93205f3111a6e4b6ba5d0b43f725567))
+* **stacks:** close the remaining silent mis-gates from the [#212](https://github.com/prototypdigital/bluetemberg/issues/212) register ([394ba0f](https://github.com/prototypdigital/bluetemberg/commit/394ba0f2a0a1539bbede1d0337e32b88d0602a2b))
+* **stacks:** let a range that names a prerelease match its own version ([a49bf11](https://github.com/prototypdigital/bluetemberg/commit/a49bf115021ffe8d7896b0baba7e427826478a1c))
+* **stacks:** make coverage version-aware instead of a name-level boolean ([bdf5a10](https://github.com/prototypdigital/bluetemberg/commit/bdf5a10035d2380984d5bfe53f61a2a8c020cddb))
+* **stacks:** scope catalog profiles/stacks to the owning pack's files ([7a198ac](https://github.com/prototypdigital/bluetemberg/commit/7a198ac6f05b50eb9ca6cfacf7c8700e42fcd05d))
+* **stacks:** scope catalog profiles/stacks to the owning pack's files ([ee46672](https://github.com/prototypdigital/bluetemberg/commit/ee46672e8d13b064ccae7a47193904391d75a11c)), closes [#249](https://github.com/prototypdigital/bluetemberg/issues/249)
+* **sync:** don't crash the AGENTS.md import check on directory [@tokens](https://github.com/tokens) ([39ba721](https://github.com/prototypdigital/bluetemberg/commit/39ba7211a9e6848dde823e2e3801cf263e2fd9ca))
+* **sync:** make sync --check truly read-only ([b87fdc4](https://github.com/prototypdigital/bluetemberg/commit/b87fdc4c16a2edc9ede5fc03e0b985249a018228))
+* **sync:** make sync --check truly read-only ([90943d6](https://github.com/prototypdigital/bluetemberg/commit/90943d66c05fa83d0e85ecb017c7bb2969248937)), closes [#242](https://github.com/prototypdigital/bluetemberg/issues/242)
+
 ## [0.12.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.0...bluetemberg-v0.12.1) (2026-08-27)
 
 
