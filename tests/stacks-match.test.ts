@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  isUnsatisfiableRange,
   isValidStackRange,
   versionSatisfies,
   matchStackConstraint,
@@ -39,6 +40,14 @@ describe('versionSatisfies', () => {
   });
   it('includes prereleases so a canary matches its major', () => {
     expect(versionSatisfies('15.0.0-canary.3', '>=15')).toBe(true);
+  });
+  it('matches a prerelease as the release it previews, however the range is spelled', () => {
+    // semver alone sorts 19.0.0-rc.1 below 19.0.0: an RC matched `>=18 <19.0.0` but not `>=19.0.0`.
+    expect(versionSatisfies('19.0.0-rc.1', '>=19.0.0')).toBe(true);
+    expect(versionSatisfies('19.0.0-rc.1', '>=19.0.0 <20.0.0')).toBe(true);
+    expect(versionSatisfies('19.0.0-rc.1', '>=18 <19.0.0')).toBe(false);
+    expect(versionSatisfies('15.0.0-canary.3', '>=14 <15')).toBe(false);
+    expect(versionSatisfies('15.0.0-canary.3', '15.x')).toBe(true);
   });
   it('wildcard/empty matches anything; invalid range never matches', () => {
     expect(versionSatisfies('1.0.0', '*')).toBe(true);
@@ -90,5 +99,18 @@ describe('compareSpecificity', () => {
   it('counts bounds, not digits — a longer version string is not "more specific"', () => {
     // Prior heuristic counted digit runs, so ">=15.2.3" wrongly outranked the tighter ">=2 <3".
     expect(compareSpecificity('>=2 <3', '>=15.2.3')).toBeLessThan(0); // ">=2 <3" is more specific
+  });
+});
+
+describe('isUnsatisfiableRange', () => {
+  it('flags valid ranges no version can satisfy', () => {
+    expect(isUnsatisfiableRange('>=4 <3')).toBe(true);
+    expect(isUnsatisfiableRange('>=3 <3')).toBe(true);
+  });
+  it('does not flag satisfiable, wildcard, or invalid ranges', () => {
+    expect(isUnsatisfiableRange('>=3 <4')).toBe(false);
+    expect(isUnsatisfiableRange('14.x || 16.x')).toBe(false);
+    expect(isUnsatisfiableRange('*')).toBe(false);
+    expect(isUnsatisfiableRange('garbage')).toBe(false); // invalid is reported separately
   });
 });
