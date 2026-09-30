@@ -29,6 +29,12 @@ describe('isValidStackRange', () => {
 });
 
 describe('versionSatisfies', () => {
+  it('matches a prerelease against a range that names a prerelease', () => {
+    expect(versionSatisfies('19.0.0-rc.1', '19.0.0-rc.1')).toBe(true);
+    expect(versionSatisfies('19.0.0-rc.1', '<19.0.0-rc.3')).toBe(true);
+    expect(versionSatisfies('19.0.0-rc.5', '<19.0.0-rc.3')).toBe(false);
+  });
+
   it('matches versions inside the range', () => {
     expect(versionSatisfies('3.4.1', '>=3 <4')).toBe(true);
     expect(versionSatisfies('17.2.0', '>=17')).toBe(true);

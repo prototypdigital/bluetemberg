@@ -1,4 +1,4 @@
-import { coerce, minVersion, satisfies, valid, validRange } from 'semver';
+import { Range, coerce, minVersion, prerelease, satisfies, valid, validRange } from 'semver';
 import type { StackConstraint } from '../types.js';
 
 /**
@@ -52,14 +52,24 @@ export function isValidStackRange(range: string): boolean {
  * release it previews (`19.0.0-rc.1` → `19.0.0`): semver's own prerelease ordering sorts it *below*
  * `19.0.0`, which made an RC match `>=18 <19.0.0` but not `>=19.0.0` — a team trying the next major
  * silently got the previous major's rules, or none, depending on how each range was spelled. An
- * invalid range returns false (never an accidental match).
+ * invalid range returns false (never an accidental match). The exception is a range that itself
+ * names a prerelease (`19.0.0-rc.x`, `<19.0.0-rc.3`): the author pinned a specific RC/canary, so
+ * the exact version is also tried against it.
  */
 export function versionSatisfies(version: string, range: string): boolean {
   if (isWildcardRange(range)) return true;
   if (validRange(range) === null) return false;
   const v = coerce(version, { includePrerelease: true });
   if (!v) return false;
-  return satisfies(`${v.major}.${v.minor}.${v.patch}`, range);
+  if (satisfies(`${v.major}.${v.minor}.${v.patch}`, range)) return true;
+  return namesPrerelease(range) && satisfies(version, range, { includePrerelease: true });
+}
+
+/** True when any comparator in the (already validated) `range` carries a prerelease tag. */
+function namesPrerelease(range: string): boolean {
+  return new Range(range).set.some((comparators) =>
+    comparators.some((c) => c.semver.version !== undefined && prerelease(c.semver) !== null),
+  );
 }
 
 /**
