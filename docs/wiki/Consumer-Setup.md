@@ -22,6 +22,8 @@ Follow the interactive prompts to select platforms, rules, agents, and skills. A
 
 See [Configuration](Configuration) for the full `extends` reference.
 
+**Claude Code:** keep the `@AGENTS.md` line at the top of the scaffolded `CLAUDE.md`. Claude Code reads `AGENTS.md` on its own only when no `CLAUDE.md` or `CLAUDE.local.md` exists, so removing the import hides `AGENTS.md` from Claude. `bluetemberg sync` warns if that happens. To load both files regardless, set **Project instructions** to `claude-md-and-agents-md` in Claude Code's `/config`. This is a per-user setting that a committed `.claude/settings.json` cannot change. See [Architecture](Architecture#claude-code-and-agentsmd).
+
 ## 2. GitHub repository files
 
 `bluetemberg init` asks whether to scaffold GitHub best-practice files for open source projects. All scaffolded features are free for public repositories. Select the ones that fit your project:

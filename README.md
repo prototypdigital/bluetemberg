@@ -87,7 +87,7 @@ It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-sp
 your-project/
 ├── bluetemberg.config.json     # Platforms, targets, source dir
 ├── AGENTS.md                   # Project context for AI tools (Codex rules block appended if Codex selected)
-├── CLAUDE.md                   # Claude-specific pointer (if Claude selected)
+├── CLAUDE.md                   # `@AGENTS.md` import + Claude-specific notes (if Claude selected)
 ├── GEMINI.md                   # Gemini CLI pointer (if Gemini selected) — do not edit
 ├── llm/
 │   ├── rules/                  # Vendor-neutral rules
@@ -289,7 +289,7 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 
 ¹ Gemini CLI has no native rules API — rules are emitted as plain context files under `.gemini/context/` and prepended to the model context on each request. Agents and skills are not supported by the Gemini CLI extension at this time.
 
-² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
+² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Only Codex gets that block. Every other platform receives scoped rules through its own directory, and most of them also read `AGENTS.md`, so folding rules in for them would load each rule twice. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
 
 ## How sync works
 
@@ -317,6 +317,8 @@ Rules get platform-specific frontmatter transforms:
 - **OpenAI Codex**: none — Codex rules are plain markdown folded into `AGENTS.md` (see below)
 
 Agents and skills are copied verbatim (only the filename extension changes).
+
+**Claude Code and `AGENTS.md`:** Claude Code reads `AGENTS.md` natively (v2.1.277+), but only when there is no `CLAUDE.md`. Once a `CLAUDE.md` exists, `AGENTS.md` is ignored unless the `CLAUDE.md` imports it. That is why the scaffolded `CLAUDE.md` starts with `@AGENTS.md`, the pattern Anthropic recommends. `sync` warns when a root `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` would hide `AGENTS.md` this way. See [Architecture](https://github.com/prototypdigital/bluetemberg/wiki/Architecture#claude-code-and-agentsmd).
 
 **OpenAI Codex** consumes config differently from the table above — it reads `AGENTS.md` natively and uses TOML config rather than per-file rule directories:
 

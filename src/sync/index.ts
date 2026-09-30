@@ -11,6 +11,7 @@ import { syncCommands } from './commands.js';
 import { syncWindsurfWorkflows } from './windsurf-workflows.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
+import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
 import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
@@ -605,6 +606,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
   syncCodexConfig(ctx, (msg) => recordError(ctx, msg));
+  checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {
     const projectName = basename(root);
