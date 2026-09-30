@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import type { Catalog } from '../src/catalog/index.js';
 import { collectDeclaredRanges } from '../src/stacks/declared.js';
 import type { BlueprintConfig } from '../src/types.js';
+import { installFakePack } from './helpers/installed-pack.js';
 
 /**
  * Coverage is only version-aware if the engine reads the real `stacks:` ranges off the guidance
@@ -57,19 +58,6 @@ function writeRule(dir: string, name: string, stacks?: string): void {
   writeFile(join(dir, 'rules', `${name}.md`), `${frontmatter}\nbody\n`);
 }
 
-/** Fake an installed pack: manifest + lockfile entry + extracted content in the pack cache. */
-function installPack(name: string, version: string): string {
-  writeFile(join(root, 'llm', 'packages.json'), JSON.stringify({ packages: { [name]: `^${version}` } }));
-  writeFile(
-    join(root, 'llm', 'packages-lock.json'),
-    JSON.stringify({
-      lockfileVersion: 1,
-      packages: { [name]: { version, resolved: 'https://example.invalid/x.tgz', integrity: 'sha512-x' } },
-    }),
-  );
-  return join(root, '.bluetemberg', 'packs', name, version, 'llm');
-}
-
 describe('collectDeclaredRanges', () => {
   it('harvests a bounded range from the project source dir', () => {
     writeRule(join(root, 'llm'), 'effects-r18', 'react: ">=18 <19"');
@@ -95,7 +83,7 @@ describe('collectDeclaredRanges', () => {
   });
 
   it('reads ranges out of an installed pack, tagged as catalog-origin coverage', () => {
-    const packDir = installPack('bluetemberg-rules-react', '1.0.0');
+    const packDir = installFakePack(root, 'bluetemberg-rules-react', '1.0.0');
     writeRule(packDir, 'effects-r18', 'react: ">=18 <19"');
 
     expect(collectDeclaredRanges(root, CONFIG, catalogWithReactPack(['effects-r18']))).toEqual([
@@ -118,12 +106,18 @@ describe('collectDeclaredRanges', () => {
   });
 
   it('falls back to the catalog pack-level tag (wildcard) for a pack file with no own range', () => {
-    const packDir = installPack('bluetemberg-rules-react', '1.0.0');
+    const packDir = installFakePack(root, 'bluetemberg-rules-react', '1.0.0');
     writeRule(packDir, 'naming'); // no stacks: frontmatter
 
     expect(collectDeclaredRanges(root, CONFIG, catalogWithReactPack(['naming']))).toEqual([
       { stack: 'react', range: '*', origin: 'catalog', from: 'rules/naming' },
     ]);
+  });
+
+  it('a local file with a colliding id does not invent coverage for a stack (#249)', () => {
+    writeRule(join(root, 'llm'), 'naming'); // project's own rule; the react pack is not installed
+
+    expect(collectDeclaredRanges(root, CONFIG, catalogWithReactPack(['naming']))).toEqual([]);
   });
 
   it('contributes nothing for stack-agnostic local content', () => {
@@ -139,7 +133,7 @@ describe('collectDeclaredRanges', () => {
   });
 
   it('a local file overriding a pack file contributes its own range, not the pack version', () => {
-    const packDir = installPack('bluetemberg-rules-react', '1.0.0');
+    const packDir = installFakePack(root, 'bluetemberg-rules-react', '1.0.0');
     writeRule(packDir, 'effects', 'react: ">=18 <19"');
     writeRule(join(root, 'llm'), 'effects', 'react: ">=19"');
 

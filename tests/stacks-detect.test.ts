@@ -73,6 +73,65 @@ describe('detectStacks', () => {
     expect(d.get('nextjs')?.version).toBe('15.3.1');
   });
 
+  it('resolves a hoisted dependency from the workspace root node_modules (Node resolution)', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'mono', workspaces: ['packages/*'] }));
+    writeInstalled(root, 'react', '18.3.1');
+    const web = join(root, 'packages', 'web');
+    mkdirSync(web, { recursive: true });
+    writeManifest(web, { react: '^18.0.0' });
+
+    const d = detectStacks(web);
+    expect(d.get('react')).toEqual({ version: '18.3.1', confidence: 'exact', source: '../../node_modules' });
+  });
+
+  it("prefers a package's own nested install over the hoisted one", () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'mono', workspaces: ['packages/*'] }));
+    writeInstalled(root, 'react', '18.3.1');
+    const legacy = join(root, 'packages', 'legacy');
+    mkdirSync(legacy, { recursive: true });
+    writeManifest(legacy, { react: '^17.0.0' });
+    writeInstalled(legacy, 'react', '17.0.2');
+
+    expect(detectStacks(legacy).get('react')).toEqual({
+      version: '17.0.2',
+      confidence: 'exact',
+      source: 'node_modules',
+    });
+  });
+
+  it('resolves per-package versions from the workspace-root lockfile, nested entries first', () => {
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'mono', workspaces: ['packages/*'] }));
+    writeFileSync(
+      join(root, 'package-lock.json'),
+      JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          'node_modules/react': { version: '18.3.1' },
+          'packages/legacy/node_modules/react': { version: '17.0.2' },
+        },
+      }),
+    );
+    for (const pkg of ['web', 'legacy']) {
+      mkdirSync(join(root, 'packages', pkg), { recursive: true });
+      writeManifest(join(root, 'packages', pkg), { react: '*' });
+    }
+
+    const web = detectStacks(join(root, 'packages', 'web')).get('react');
+    const legacy = detectStacks(join(root, 'packages', 'legacy')).get('react');
+    expect(web).toEqual({ version: '18.3.1', confidence: 'exact', source: '../../package-lock.json' });
+    expect(legacy).toEqual({ version: '17.0.2', confidence: 'exact', source: '../../package-lock.json' });
+  });
+
+  it('never climbs past the project when no repo/workspace boundary is above it', () => {
+    // `root` has no .git / lockfile / workspaces marker, so an ancestor install is not trusted.
+    writeInstalled(root, 'react', '18.3.1');
+    const inner = join(root, 'inner');
+    mkdirSync(inner, { recursive: true });
+    writeManifest(inner, { react: '^17.0.0' });
+
+    expect(detectStacks(inner).get('react')?.confidence).toBe('coerced');
+  });
+
   it('omits stacks that are neither declared nor present', () => {
     writeManifest(root, { lodash: '^4.0.0' });
     const d = detectStacks(root);

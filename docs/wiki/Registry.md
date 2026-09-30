@@ -148,7 +148,7 @@ bluetemberg list
 
 ### `bluetemberg install`
 
-Install all packs from the manifest. Similar to `npm ci` — reads the manifest, uses locked versions when available, and downloads missing packs.
+Install all packs from the manifest. Similar to `npm ci` — reads the manifest, uses locked versions when available, and downloads missing packs. A locked version that no longer satisfies its manifest range (the range was narrowed or moved since locking) is re-resolved from the range, with a log line saying so. Dist-tag ranges (`latest`, `next`) keep their locked version — run `bluetemberg update` to re-float them.
 
 ```bash
 bluetemberg install
