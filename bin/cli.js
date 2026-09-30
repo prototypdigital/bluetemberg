@@ -361,8 +361,10 @@ program
 
     const { switchProfile } = await import('../dist/init/switch-profile.js');
     try {
-      const result = switchProfile(resolve(directory), profile, { silent: options.silent });
-      void result;
+      const root = resolve(directory);
+      const result = switchProfile(root, profile, { silent: options.silent });
+      const { pinDefaultRanges } = await import('../dist/registry/default-ranges.js');
+      await pinDefaultRanges(root, result.added);
     } catch (err) {
       if (!options.silent) {
         console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

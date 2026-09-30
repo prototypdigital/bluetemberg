@@ -214,6 +214,11 @@ export interface InitRunOptions {
   answers?: InitAnswers;
   /** When true, omit progress and success output; forwarded to initial `sync()` as well. */
   silent?: boolean;
+  /**
+   * Looks up the newest published version of a pack so `init` can write `^<version>` instead of `latest`.
+   * Defaults to a short registry request; resolve to `undefined` to keep `latest` (offline callers, tests).
+   */
+  resolveLatestVersion?: (packageName: string) => Promise<string | undefined>;
 }
 
 export interface SyncOptions {

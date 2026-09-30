@@ -13,8 +13,13 @@ const LOCKFILE_FILE = 'packages-lock.json';
 const LEGACY_MANIFEST_FILES = ['rule-packages.json', 'agent-packages.json', 'skill-packages.json'];
 const LEGACY_LOCKFILE_FILES = ['rule-packages-lock.json'];
 
-/** Semver range written for newly added official packs (init wizard, switch-profile). */
-export const DEFAULT_PACK_VERSION = '^0.1.0';
+/**
+ * Range written for newly added official packs (init wizard, switch-profile) before the registry is asked
+ * for their real latest version. `pinDefaultRanges` then narrows each to `^<latest>`; if the registry is
+ * unreachable the entry stays `latest`, which `install` resolves later. A fixed range such as `^0.1.0`
+ * goes stale as soon as a pack ships 0.2.0, because caret on 0.x stops at the next minor.
+ */
+export const DEFAULT_PACK_VERSION = 'latest';
 
 // ---------------------------------------------------------------------------
 // Manifest (llm/packages.json)

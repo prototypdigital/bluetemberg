@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -189,6 +189,8 @@ describe('init headless orchestration', () => {
     mkdirSync(root, { recursive: true });
 
     await init(root, {
+      silent: true,
+      resolveLatestVersion: async () => undefined,
       answers: finalizeNonInteractiveAnswers('fullstack', root, {
         platforms: ['claude'],
         includeMcp: false,
@@ -196,6 +198,47 @@ describe('init headless orchestration', () => {
     });
 
     expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
+  });
+
+  const packagesOf = (root: string): Record<string, string> =>
+    (
+      JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8')) as {
+        packages: Record<string, string>;
+      }
+    ).packages;
+
+  it('writes the registry latest as a caret range for every official pack', async () => {
+    const root = join(
+      tmpdir(),
+      `bluetemberg-init-ranges-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(root, { recursive: true });
+
+    await init(root, {
+      silent: true,
+      resolveLatestVersion: async () => '3.2.1',
+      answers: finalizeNonInteractiveAnswers('fullstack', root, { platforms: ['claude'], includeMcp: false }),
+    });
+
+    const ranges = Object.values(packagesOf(root));
+    expect(ranges.length).toBeGreaterThan(0);
+    expect(new Set(ranges)).toEqual(new Set(['^3.2.1']));
+  });
+
+  it('keeps latest when the registry lookup fails, so install can still resolve it', async () => {
+    const root = join(
+      tmpdir(),
+      `bluetemberg-init-ranges-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(root, { recursive: true });
+
+    await init(root, {
+      silent: true,
+      resolveLatestVersion: async () => undefined,
+      answers: finalizeNonInteractiveAnswers('fullstack', root, { platforms: ['claude'], includeMcp: false }),
+    });
+
+    expect(new Set(Object.values(packagesOf(root)))).toEqual(new Set(['latest']));
   });
 });
 

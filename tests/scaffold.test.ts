@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { scaffold } from '../src/init/scaffold.js';
+import { DEFAULT_PACK_VERSION } from '../src/registry/manifest.js';
 import type { InitAnswers } from '../src/types.js';
 
 function createTmpDir(): string {
@@ -168,12 +169,19 @@ describe('scaffold', () => {
       expect(manifest.packages['bluetemberg-rules-git']).toBeDefined();
     });
 
-    it('writes semver ranges, not exact pins', () => {
+    it('writes the latest placeholder that init then narrows to a caret range', () => {
       scaffold(root, collectionsAnswers);
 
       const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
-      expect(manifest.packages['bluetemberg-rules-typescript']).toBe('^0.1.0');
-      expect(manifest.packages['bluetemberg-rules-git']).toBe('^0.1.0');
+      expect(manifest.packages['bluetemberg-rules-typescript']).toBe(DEFAULT_PACK_VERSION);
+      expect(manifest.packages['bluetemberg-rules-git']).toBe(DEFAULT_PACK_VERSION);
+    });
+
+    it('never writes a fixed range that goes stale when a pack ships its next minor', () => {
+      scaffold(root, collectionsAnswers);
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(Object.values(manifest.packages)).not.toContain('^0.1.0');
     });
 
     it('does not create llm/packages.json when nothing resolves to a package', () => {
@@ -301,7 +309,7 @@ describe('scaffold', () => {
       scaffold(root, { ...agentsOnlyAnswers, includeAgents: true, agents: ['frontend-specialist'] });
 
       const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
-      expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBe('^0.1.0');
+      expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBe(DEFAULT_PACK_VERSION);
     });
 
     it('omits agent packages when includeAgents is false', () => {
@@ -349,7 +357,7 @@ describe('scaffold', () => {
       scaffold(root, { ...skillsOnlyAnswers, includeSkills: true, skills: ['patterns'] });
 
       const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
-      expect(manifest.packages['bluetemberg-skills-patterns']).toBe('^0.1.0');
+      expect(manifest.packages['bluetemberg-skills-patterns']).toBe(DEFAULT_PACK_VERSION);
     });
 
     it('omits skill packages when includeSkills is false', () => {
@@ -672,7 +680,7 @@ describe('scaffold', () => {
       });
 
       const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
-      expect(manifest.packages['bluetemberg-guardrails-git']).toBe('^0.1.0');
+      expect(manifest.packages['bluetemberg-guardrails-git']).toBe(DEFAULT_PACK_VERSION);
     });
 
     it('does not copy guardrail files into llm/guardrails/', () => {

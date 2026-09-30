@@ -41,7 +41,7 @@ From the repo root, `npm run build` must have produced `dist/` first — otherwi
 
 Then, for **every** run:
 
-4. Creates `llm/` with the resolved starter content
+4. Creates `llm/` with the resolved starter content. Packs in `llm/packages.json` get a `^<latest published version>` range looked up from the registry (`latest` if it can't be reached; see [Registry](Registry#manifest-and-lockfile))
 5. Generates `bluetemberg.config.json`
 6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude is among selected platforms; it imports `@AGENTS.md` so Claude Code loads both, see [Architecture](Architecture#claude-code-and-agentsmd)), and `GEMINI.md` (if Gemini is selected — via the initial sync)
 7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync generates `.claude/mcp.json`, `.github/mcp.json`, and/or `.cursor/mcp.json` from that manifest (per selected platforms)
