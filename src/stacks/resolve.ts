@@ -1,7 +1,7 @@
 import type { Catalog } from '../catalog/index.js';
 import type { StackConstraint } from '../types.js';
 import { buildPackItemMap, type PackItemMap } from '../catalog/ownership.js';
-import { isValidStackRange } from './match.js';
+import { isUnsatisfiableRange, isValidStackRange } from './match.js';
 
 export type StackMap = PackItemMap<StackConstraint>;
 
@@ -58,7 +58,8 @@ export function readFrontmatterStacks(data: Record<string, unknown>): StackConst
 
 /**
  * Report the `stacks:` frontmatter entries that {@link readFrontmatterStacks} silently dropped —
- * a range that is not valid semver, or a value that is not a string. Returned as `name: "range"`
+ * a range that is not valid semver, or a value that is not a string — plus valid ranges no version
+ * can satisfy (`>=4 <3`), which are kept but exclude the file forever. Returned as `name: "range"`
  * strings so the caller can warn. Empty when the `stacks:` key is absent or entirely well-formed.
  *
  * Without this, a typo'd range (`">==15"`) vanishes from the constraint with no signal: the file
@@ -76,6 +77,7 @@ export function frontmatterStackIssues(data: Record<string, unknown>): string[] 
       continue;
     }
     if (!isValidStackRange(range)) issues.push(`${name}: "${range}"`);
+    else if (isUnsatisfiableRange(range)) issues.push(`${name}: "${range}" (matches no version)`);
   }
   return issues;
 }

@@ -96,6 +96,8 @@ Supported formats:
 
 **Priority:** The local `source` directory always has the highest priority. If `extends` is an array, earlier entries have higher priority than later ones.
 
+A local file overriding an extended/pack file is the intended override mechanism and is silent (listed with `--verbose`). When two *non-local* sources — two `extends` entries, two packs — ship the same file, sync warns and names the winner, because the losing copy (and its `stacks:` range) is otherwise dropped without a trace. Add a local copy to choose explicitly.
+
 **Monorepo use case:** Place shared rules in the repo root's `llm/` directory, then have each package extend the root:
 
 ```

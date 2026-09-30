@@ -171,6 +171,49 @@ describe('project sync — version-aware stack gating', () => {
     expect(existsSync(join(root, RULE_OUT('payload-collections')))).toBe(true); // still applied
     expect(results.warnings.some((w) => w.includes('low-confidence') && w.includes('payload'))).toBe(true);
   });
+
+  it('warns about a low-confidence stack once per sync, not once per gated file', async () => {
+    for (const name of ['payload-a', 'payload-b', 'payload-c'])
+      writeRule(root, name, 'stacks:\n  payload: ">=3 <4"');
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ name: 'fixture', dependencies: { payload: '^3.4.0' } }),
+    );
+
+    const results = await sync(root, { config: configWithStacks(), silent: true });
+
+    expect(results.warnings.filter((w) => w.includes('low-confidence'))).toHaveLength(1);
+  });
+
+  it('warns when a rule declares a range no version can satisfy', async () => {
+    writeRule(root, 'impossible', 'stacks:\n  payload: ">=4 <3"');
+
+    const results = await sync(root, { config: configWithStacks({ payload: '3.4.1' }), silent: true });
+
+    expect(existsSync(join(root, RULE_OUT('impossible')))).toBe(false);
+    expect(results.warnings.some((w) => w.includes('impossible') && w.includes('matches no version'))).toBe(
+      true,
+    );
+  });
+
+  it('warns when two non-local sources ship the same rule, but not for a local override', async () => {
+    const packA = join(root, 'pack-a');
+    const packB = join(root, 'pack-b');
+    for (const dir of [packA, packB]) {
+      mkdirSync(join(dir, 'rules'), { recursive: true });
+      writeFileSync(join(dir, 'rules', 'testing.md'), '---\ndescription: testing\n---\n\n# testing\n');
+    }
+    const config = { ...configWithStacks(), extends: ['./pack-a', './pack-b'] };
+
+    const shadowed = await sync(root, { config, silent: true });
+    expect(
+      shadowed.warnings.some((w) => w.includes('rules/testing.md') && w.includes('extends[0] wins')),
+    ).toBe(true);
+
+    writeRule(root, 'testing'); // a local copy is the documented override — no warning
+    const overridden = await sync(root, { config, silent: true });
+    expect(overridden.warnings.some((w) => w.includes('rules/testing.md'))).toBe(false);
+  });
 });
 
 describe('project sync — guardrail version gating', () => {
