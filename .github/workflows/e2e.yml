@@ -68,3 +68,49 @@ jobs:
           echo "Synced rules: $RULE_COUNT"
           test "$RULE_COUNT" -gt 0 || (echo "no rules synced to .claude/rules/" && exit 1)
           echo "Sync output verified"
+
+  # A red nightly run that nobody opens is the same as no test. Keep one open issue while the
+  # published CLI + packs are broken, comment on it each night, and close it when the run goes green.
+  report:
+    name: report result
+    needs: e2e
+    if: ${{ always() && github.event_name == 'schedule' && (needs.e2e.result == 'success' || needs.e2e.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RESULT: ${{ needs.e2e.result }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      LABEL: e2e-failure
+    steps:
+      - name: Open, update, or close the tracking issue
+        run: |
+          set -euo pipefail
+
+          gh label create "$LABEL" --color B60205 \
+            --description "Nightly E2E against live npm is failing" 2>/dev/null || true
+
+          OPEN=$(gh issue list --label "$LABEL" --state open --json number --jq '.[0].number // empty')
+
+          if [ "$RESULT" = "success" ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue comment "$OPEN" --body "Green again: $RUN_URL"
+              gh issue close "$OPEN" --reason completed
+            fi
+            exit 0
+          fi
+
+          if [ -n "$OPEN" ]; then
+            gh issue comment "$OPEN" --body "Still failing: $RUN_URL"
+            exit 0
+          fi
+
+          gh issue create --label "$LABEL" \
+            --title "E2E failing: a new user's init + install + sync is broken" \
+            --body "The nightly E2E ran the documented path against the live npm registry (published CLI and published packs) and it failed.
+
+          Run: $RUN_URL
+
+          The failing step is named in each profile's job log. This issue stays open while the run is red, gets a comment each night, and closes itself on the first green run."
