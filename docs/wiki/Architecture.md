@@ -100,7 +100,7 @@ Collections are curated in `src/init/presets.ts` as `RULE_COLLECTION_OVERLAYS` (
 flowchart TD
     A[bluetemberg sync] --> B{bluetemberg.config.json\nexists?}
     B -->|yes| C[Use platforms + source\n+ targets from file]
-    B -->|no| D[Use defaults\nall platforms · llm/ · standard paths]
+    B -->|no| D[Use defaults\ncursor, claude, copilot · llm/ · standard paths]
     C --> E[Run sync]
     D --> E
 ```

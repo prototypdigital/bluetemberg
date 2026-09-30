@@ -158,7 +158,7 @@ function validateNonInteractiveValues(opts) {
   }
 
   if (opts.ruleSource !== undefined && !RULE_SOURCES.has(opts.ruleSource)) {
-    return '--rule-source must be templates, collections, or none.';
+    return '--rule-source must be collections or none.';
   }
 
   return null;
@@ -226,7 +226,7 @@ program
   .option('--project-description <text>')
   .option('--package-manager <id>', 'pnpm | npm | yarn')
   .option('--platforms <csv>', 'Comma-separated platforms (e.g. cursor,claude)')
-  .option('--rule-source <mode>', 'templates | collections | none')
+  .option('--rule-source <mode>', 'collections | none')
   .option(
     '--rules <csv>',
     'Template rule ids (profile universal rules are always merged; pure-infra omits app-code universals)',
