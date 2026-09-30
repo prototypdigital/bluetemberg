@@ -470,24 +470,6 @@ export const PACKAGE_MANAGERS: PackageManagerChoice[] = [
 
 export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
   {
-    id: 'ci',
-    name: 'CI workflow',
-    description: 'Typecheck, lint, test on push and PR',
-    default: true,
-  },
-  {
-    id: 'codeql',
-    name: 'CodeQL scanning',
-    description: 'Static analysis for security vulnerabilities (free for public repos)',
-    default: true,
-  },
-  {
-    id: 'dependencyReview',
-    name: 'Dependency review',
-    description: 'Block PRs that introduce vulnerable or license-incompatible dependencies',
-    default: true,
-  },
-  {
     id: 'dependabot',
     name: 'Dependabot',
     description: 'Auto-update npm and GitHub Actions dependencies weekly',
@@ -510,24 +492,6 @@ export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
     name: 'CODEOWNERS',
     description: 'Assign default PR reviewers by file path',
     default: true,
-  },
-  {
-    id: 'releaseWorkflow',
-    name: 'Release workflow',
-    description: 'Auto-create GitHub Release with notes on version tags',
-    default: true,
-  },
-  {
-    id: 'staleBot',
-    name: 'Stale bot',
-    description: 'Close stale issues and PRs after 60 days of inactivity',
-    default: false,
-  },
-  {
-    id: 'pagesWorkflow',
-    name: 'GitHub Pages',
-    description: 'Deploy a docs site to GitHub Pages on push to main',
-    default: false,
   },
   {
     id: 'contributing',
@@ -553,42 +517,15 @@ export const GITHUB_FEATURE_PRESETS: PresetItem[] = [
     description: 'Vulnerability reporting instructions',
     default: true,
   },
-  {
-    id: 'semanticPr',
-    name: 'Semantic PR check',
-    description: 'Enforce Conventional Commits PR title format (feat/fix/chore/…)',
-    default: true,
-  },
-  {
-    id: 'autoLabeler',
-    name: 'Auto-labeler',
-    description: 'Label PRs automatically by changed file paths',
-    default: false,
-  },
-  {
-    id: 'lockClosed',
-    name: 'Lock closed threads',
-    description: 'Lock closed issues and PRs after inactivity to reduce noise',
-    default: false,
-  },
 ];
 
 export const DEFAULT_GITHUB_CONFIG: GitHubScaffoldConfig = {
-  ci: true,
-  codeql: true,
-  dependencyReview: true,
   dependabot: true,
   issueTemplates: true,
   prTemplate: true,
   codeowners: true,
-  releaseWorkflow: true,
-  staleBot: false,
-  pagesWorkflow: false,
   contributing: true,
   license: true,
   codeOfConduct: true,
   security: true,
-  semanticPr: true,
-  autoLabeler: false,
-  lockClosed: false,
 };

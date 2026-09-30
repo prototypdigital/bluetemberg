@@ -54,9 +54,9 @@ stacks:
 Notes:
 
 - **Version is a constraint on the rule, never part of the stack name.** There is no `payload-3` stack — there is `payload` plus a range.
-- Matching coerces loose versions and includes prereleases, so `15.0.0-canary.3` satisfies `>=15`.
-- When two ranges in one project both match, the **most-specific (narrowest)** range wins, deterministically.
-- Invalid ranges are dropped (never an accidental match); a version resolved from a low-confidence source (a coerced `package.json` range) still applies but emits a warning — guidance is never silently dropped.
+- Matching coerces loose versions, and a prerelease is matched as the release it previews: `15.0.0-canary.3` is treated as `15.0.0`, so it gets the `>=15` / `>=15.0.0` / `15.x` rules and never the `<15` ones — however the range is spelled.
+- Files are gated **independently**: when two files' ranges both match, both apply. Nothing picks a "winner" between them — if two rules contradict each other, give them non-overlapping ranges.
+- Invalid ranges are dropped with a warning (never an accidental match), and a valid range no version can satisfy (`>=4 <3`) warns too, since it would otherwise exclude the file forever. A version resolved from a low-confidence source (a coerced `package.json` range) still applies but emits one warning per stack — guidance is never silently dropped.
 - The same field works on guardrails (`llm/guardrails/`), agents (`llm/agents/`), and skills (`llm/skills/<name>/SKILL.md`) — version-specific content of every kind is gated and withheld uniformly. Pack-level `stacks` in the catalog supply coarse name-only routing; a file's own range is the precision gate.
 
 Run [`bluetemberg detect`](Commands#bluetemberg-detect-directory) to see the detected versions your ranges are matched against, and declare versions in the [`stacks` config field](Configuration#stacks). For the full version-aware model — detection, the gate, and the versioning strategy — see [Stacks & Versioning](Stacks).

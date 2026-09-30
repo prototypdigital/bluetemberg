@@ -6,6 +6,7 @@ import {
   packsCacheDir,
   packVersionDir,
   isPackCached,
+  lockSatisfiesRange,
   resolveVersion,
   resolvePackSourceDir,
   removePackVersion,
@@ -213,5 +214,16 @@ describe('removePackVersion', () => {
 
   it('is a no-op when the pack is not cached', () => {
     expect(() => removePackVersion(root, 'nonexistent', '1.0.0')).not.toThrow();
+  });
+});
+
+describe('lockSatisfiesRange', () => {
+  it('rejects a locked version the (narrowed) manifest range no longer allows', () => {
+    expect(lockSatisfiesRange('1.4.0', '^2.0.0')).toBe(false);
+    expect(lockSatisfiesRange('2.1.0', '^2.0.0')).toBe(true);
+  });
+  it('keeps any locked version for a dist-tag range (the lock is what makes it reproducible)', () => {
+    expect(lockSatisfiesRange('1.4.0', 'latest')).toBe(true);
+    expect(lockSatisfiesRange('3.0.0-beta.1', 'next')).toBe(true);
   });
 });
