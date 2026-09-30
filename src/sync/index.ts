@@ -34,11 +34,11 @@ import {
   frontmatterStackIssues,
   readFrontmatterStacks,
   resolveStacks,
+  type StackMap,
 } from '../stacks/resolve.js';
 import type {
   Platform,
   BlueprintConfig,
-  StackConstraint,
   SyncOptions,
   SyncResults,
   TargetConfig,
@@ -470,8 +470,9 @@ interface VersionGate {
 function gateByVersion(
   ctx: SyncContext,
   id: string,
+  kindDir: string,
   frontmatter: Record<string, unknown>,
-  stackMap: Map<string, StackConstraint>,
+  stackMap: StackMap,
   label: string,
 ): VersionGate {
   const issues = frontmatterStackIssues(frontmatter);
@@ -481,7 +482,7 @@ function gateByVersion(
       `${label}: ignored invalid stack range(s) ${issues.join(', ')} — fix the range or the file may apply to unintended versions`,
     );
   }
-  const constraint = resolveStacks(id, readFrontmatterStacks(frontmatter), stackMap);
+  const constraint = resolveStacks(id, kindDir, readFrontmatterStacks(frontmatter), stackMap);
   const result = matchStackConstraint(constraint, ctx.detectedStacks);
   if (result.lowConfidence.length > 0) {
     recordWarning(
@@ -752,7 +753,7 @@ function resolveExcludedFiles(
     } catch {
       // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, basename(file, '.md'), data, stackMap, `${kind}/${file}`);
+    const gate = gateByVersion(ctx, basename(file, '.md'), sourceDir, data, stackMap, `${kind}/${file}`);
     if (!gate.matched) excluded.set(file, gate.reason);
   }
   return excluded;
@@ -773,7 +774,7 @@ function resolveExcludedSkills(ctx: SyncContext, merged: Map<string, string>): M
     } catch {
       // Unreadable SKILL.md → treat as stack-agnostic; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, dirName, data, stackMap, `skills/${dirName}`);
+    const gate = gateByVersion(ctx, dirName, sourceParent, data, stackMap, `skills/${dirName}`);
     if (!gate.matched) excluded.set(dirName, gate.reason);
   }
   return excluded;

@@ -142,10 +142,12 @@ When a plugin definition includes a `profiles` array, only `llm/` files matching
 
 **Resolution order:**
 1. If the file has a `profiles:` frontmatter field, that value is used.
-2. If no frontmatter field is present but the file's id (directory/basename) appears in the **catalog** (`catalog.json`), the owning pack's profiles are used (a `universal` pack contributes no profiles → universal).
+2. If no frontmatter field is present and the file comes from a **catalog pack** that lists its id (directory/basename), that pack's profiles are used (a `universal` pack contributes no profiles → universal).
 3. If neither applies (e.g. a local project rule not shipped by any pack), the file is treated as **universal** — included in every plugin regardless of profile filters.
 
 The catalog is the single source of truth for this mapping — the engine no longer hand-maintains a preset→profile table, so a pack file can never silently leak into the wrong plugin because its id was missing from the engine.
+
+**Catalog metadata only gates a pack's own files.** A file is attributed to a pack by the npm package that owns its source dir — the `package.json` in that dir or, for the `llm/` layout, its parent. That covers installed packs (`.bluetemberg/packs/<name>/<version>/`), npm `extends`, and local-path `extends` such as `./packages/<name>` in a packs monorepo. A project's own `llm/rules/code-review.md` therefore stays universal even when some catalog pack ships an item called `code-review`, and two packs that share an id never inherit each other's profiles.
 
 ```yaml
 # llm/rules/type-safety.md
