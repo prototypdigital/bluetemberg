@@ -1,12 +1,13 @@
-import { coerce, satisfies, valid, validRange } from 'semver';
+import { Range, coerce, minVersion, prerelease, satisfies, valid, validRange } from 'semver';
 import type { StackConstraint } from '../types.js';
 
 /**
  * Stack version matching (Milestone M3).
  *
  * Semantics (see the Stacks epic):
- *  - A range is matched with semver `satisfies`, prereleases included, so `15.0.0-canary.3`
- *    matches `>=15`.
+ *  - A prerelease matches the window of the release it previews: `15.0.0-canary.3` is matched as
+ *    `15.0.0`, so it gets the `>=15` / `>=15.0.0` / `15.x` rules and never the `<15` ones —
+ *    regardless of how the author spelled the range (see {@link versionSatisfies}).
  *  - No match = HARD EXCLUDE (the caller drops the guidance), never an advisory no-op.
  *  - Invalid ranges never silently match — they are dropped here (and surfaced as a warning by the
  *    sync gate via `frontmatterStackIssues`), never an accidental match.
@@ -27,26 +28,57 @@ export interface DetectedStack {
 export type DetectedStacks = Map<string, DetectedStack>;
 
 /**
+ * True when `range` is the name-level wildcard: `"*"` (or empty) = any version of this stack.
+ * A wildcard is real coverage, but not *version* coverage — callers that rank guidance by
+ * precision key on this rather than string-matching `"*"` themselves.
+ */
+export function isWildcardRange(range: string): boolean {
+  return range === '' || range === '*';
+}
+
+/**
  * True when `range` is a valid semver range (or the wildcard `"*"`/empty = any version).
  * Note: the `"auto"` sentinel is intentionally NOT valid here — it belongs only in blueprint
  * `stacks` detection config, never in a rule's `stacks:` constraint (where it would silently
  * become match-all).
  */
 export function isValidStackRange(range: string): boolean {
-  if (range === '' || range === '*') return true;
+  if (isWildcardRange(range)) return true;
   return validRange(range) !== null;
 }
 
 /**
- * Does `version` satisfy `range`? Coerces loose version strings and includes prereleases so a
- * canary/rc matches its major. An invalid range returns false (never an accidental match).
+ * Does `version` satisfy `range`? Coerces loose version strings. A prerelease is matched as the
+ * release it previews (`19.0.0-rc.1` → `19.0.0`): semver's own prerelease ordering sorts it *below*
+ * `19.0.0`, which made an RC match `>=18 <19.0.0` but not `>=19.0.0` — a team trying the next major
+ * silently got the previous major's rules, or none, depending on how each range was spelled. An
+ * invalid range returns false (never an accidental match). The exception is a range that itself
+ * names a prerelease (`19.0.0-rc.x`, `<19.0.0-rc.3`): the author pinned a specific RC/canary, so
+ * the exact version is also tried against it.
  */
 export function versionSatisfies(version: string, range: string): boolean {
-  if (range === '' || range === '*') return true;
+  if (isWildcardRange(range)) return true;
   if (validRange(range) === null) return false;
   const v = coerce(version, { includePrerelease: true });
   if (!v) return false;
-  return satisfies(v, range, { includePrerelease: true });
+  if (satisfies(`${v.major}.${v.minor}.${v.patch}`, range)) return true;
+  return namesPrerelease(range) && satisfies(version, range, { includePrerelease: true });
+}
+
+/** True when any comparator in the (already validated) `range` carries a prerelease tag. */
+function namesPrerelease(range: string): boolean {
+  return new Range(range).set.some((comparators) =>
+    comparators.some((c) => c.semver.version !== undefined && prerelease(c.semver) !== null),
+  );
+}
+
+/**
+ * True when `range` is valid semver but no version can ever satisfy it (e.g. `>=4 <3`). Such a
+ * range hard-excludes its file forever with no signal, so the sync gate warns on it.
+ */
+export function isUnsatisfiableRange(range: string): boolean {
+  if (isWildcardRange(range) || validRange(range) === null) return false;
+  return minVersion(range) === null;
 }
 
 export interface StackMatchResult {
@@ -104,6 +136,14 @@ export function describeStackMismatch(result: StackMatchResult): string {
 }
 
 /**
+ * The once-per-stack warning for a low-confidence detection that is gating version-tagged content.
+ * One line per stack (not per file) so the actionable signal — pin this version — is not drowned.
+ */
+export function describeLowConfidence(stack: string, det: DetectedStack, firstLabel: string): string {
+  return `${stack}@${det.version} is a low-confidence detection (${det.confidence}, from ${det.source}) gating version-tagged files (first: ${firstLabel}) — pin a version in bluetemberg.config.json for precision`;
+}
+
+/**
  * Compare two ranges by specificity for deterministic "most-specific-wins" resolution.
  * Returns a negative number when `a` is more specific (narrower) than `b`. Specificity is ranked by
  * boundedness — an exact version pin (3) > a caret/tilde range bounded both ends (2) > the count of
@@ -115,7 +155,7 @@ export function describeStackMismatch(result: StackMatchResult): string {
  */
 export function compareSpecificity(a: string, b: string): number {
   const weight = (r: string): number => {
-    if (r === '' || r === '*') return 0;
+    if (isWildcardRange(r)) return 0;
     if (valid(r) !== null) return 3; // an exact version pin is the most specific
     if (/[~^]/.test(r)) return 2; // caret/tilde bound both ends
     return (r.match(/[<>]=?/g) ?? []).length; // each explicit comparator is one bound

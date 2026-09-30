@@ -11,7 +11,6 @@ import type {
   TargetConfig,
   SkillTargetConfig,
   PackageManifest,
-  PackageManager,
 } from '../types.js';
 import { parseSourceSpec, sourceKey } from '../sources/spec.js';
 import type { SourceManifest } from '../sources/types.js';
@@ -23,98 +22,6 @@ import {
   GUARDRAIL_PRESETS,
   MARKETPLACE_PLUGIN_PACKS,
 } from './presets.js';
-
-/**
- * CI workflow written into every scaffolded project: fails the PR when
- * platform outputs drift from the `llm/` source. Inlined (rather than shipped
- * as a template file) so the npm package stays code-only.
- */
-const SYNC_CHECK_WORKFLOW = `name: AI Config Sync Check
-
-on:
-  pull_request:
-    paths:
-      - 'llm/**'
-      - '.cursor/rules/**'
-      - '.claude/rules/**'
-      - '.claude/agents/**'
-      - '.claude/skills/**'
-      - '.github/instructions/**'
-      - '.github/agents/**'
-      - '.github/skills/**'
-      - '.agents/skills/**'
-      - '.codex/**'
-      - 'AGENTS.md'
-      - 'bluetemberg.config.json'
-
-jobs:
-  sync-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npx -y bluetemberg sync --check
-`;
-
-/**
- * CI workflow for `claude-marketplace` projects: regenerates the plugin bundle
- * on pushes to main and mirrors it to the repo named by the MARKETPLACE_REPO
- * variable using the MARKETPLACE_PUSH_TOKEN secret.
- */
-const SYNC_MARKETPLACE_WORKFLOW = `name: Sync Claude Marketplace
-
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'llm/**'
-      - 'bluetemberg.config.json'
-  workflow_dispatch:
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Generate marketplace output
-        run: npx -y bluetemberg sync
-
-      - name: Push to claude-marketplace repo
-        env:
-          MARKETPLACE_PUSH_TOKEN: \${{ secrets.MARKETPLACE_PUSH_TOKEN }}
-        run: |
-          git clone "https://x-access-token:\${MARKETPLACE_PUSH_TOKEN}@github.com/\${{ vars.MARKETPLACE_REPO }}.git" /tmp/marketplace
-
-          # Abort if sync produced no output — do not wipe the marketplace with empty dirs
-          if [ ! -d plugins ] || [ ! -d .claude-plugin ]; then
-            echo "No marketplace output found — skipping push."
-            exit 0
-          fi
-
-          rm -rf /tmp/marketplace/plugins /tmp/marketplace/.claude-plugin
-          cp -r plugins /tmp/marketplace/plugins
-          cp -r .claude-plugin /tmp/marketplace/.claude-plugin
-
-          cd /tmp/marketplace
-          git config user.name "bluetemberg-bot"
-          git config user.email "bot@users.noreply.github.com"
-          git add -A
-
-          if git diff --cached --quiet; then
-            echo "No changes to push."
-          else
-            git commit -m "sync: update from \${{ github.repository }}@\${{ github.sha }}"
-            git push
-          fi
-`;
 
 export function scaffold(targetDir: string, answers: InitAnswers): string[] {
   const created: string[] = [];
@@ -131,12 +38,6 @@ export function scaffold(targetDir: string, answers: InitAnswers): string[] {
 
   if (answers.includeMcp) {
     scaffoldMcp(targetDir, answers, created);
-  }
-
-  scaffoldSyncCheckWorkflow(targetDir, created);
-
-  if (answers.platforms.includes('claude-marketplace')) {
-    scaffoldMarketplaceWorkflow(targetDir, created);
   }
 
   if ((answers.externalSources?.length ?? 0) > 0) {
@@ -413,18 +314,6 @@ function scaffoldSources(targetDir: string, specStrings: string[], created: stri
   safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
 }
 
-function scaffoldSyncCheckWorkflow(targetDir: string, created: string[]): void {
-  safeWrite(join(targetDir, '.github', 'workflows', 'sync-check.yml'), SYNC_CHECK_WORKFLOW, created);
-}
-
-function scaffoldMarketplaceWorkflow(targetDir: string, created: string[]): void {
-  safeWrite(
-    join(targetDir, '.github', 'workflows', 'sync-marketplace.yml'),
-    SYNC_MARKETPLACE_WORKFLOW,
-    created,
-  );
-}
-
 function updatePackageScripts(targetDir: string, created: string[]): void {
   const pkgPath = join(targetDir, 'package.json');
   if (!existsSync(pkgPath)) return;
@@ -445,96 +334,6 @@ function updatePackageScripts(targetDir: string, created: string[]): void {
 // ---------------------------------------------------------------------------
 // GitHub scaffolding
 // ---------------------------------------------------------------------------
-
-function ciInstallCmd(pm: PackageManager): string {
-  if (pm === 'npm') return 'npm ci';
-  if (pm === 'yarn') return 'yarn install --frozen-lockfile';
-  return 'pnpm install --frozen-lockfile';
-}
-
-function ciRunCmd(pm: PackageManager, script: string): string {
-  if (pm === 'npm') return script === 'test' ? 'npm test' : `npm run ${script}`;
-  return `${pm} ${script}`;
-}
-
-function buildCiWorkflow(pm: PackageManager): string {
-  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v6\n` : '';
-  return `name: CI
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-
-jobs:
-  ci:
-    name: CI
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-${pnpmStep}      - uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-          cache: '${pm}'
-      - run: ${ciInstallCmd(pm)}
-      - run: ${ciRunCmd(pm, 'typecheck')}
-      - run: ${ciRunCmd(pm, 'lint')}
-      - run: ${ciRunCmd(pm, 'test')}
-`;
-}
-
-const CODEQL_WORKFLOW = `name: CodeQL
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-  schedule:
-    - cron: '0 6 * * 1'
-
-jobs:
-  analyze:
-    name: Analyze ($\{{ matrix.language }})
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      packages: read
-      actions: read
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - language: javascript-typescript
-            build-mode: none
-    steps:
-      - uses: actions/checkout@v6
-      - uses: github/codeql-action/init@v4
-        with:
-          languages: $\{{ matrix.language }}
-          build-mode: $\{{ matrix.build-mode }}
-      - uses: github/codeql-action/analyze@v4
-        with:
-          category: "/language:$\{{ matrix.language }}"
-`;
-
-const DEPENDENCY_REVIEW_WORKFLOW = `name: Dependency review
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-  pull-requests: write
-
-jobs:
-  dependency-review:
-    name: Dependency review
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/dependency-review-action@v5
-`;
 
 const DEPENDABOT_CONFIG = `version: 2
 updates:
@@ -651,110 +450,6 @@ const CODEOWNERS_TEMPLATE = `# CODEOWNERS
 * @owner
 `;
 
-const RELEASE_WORKFLOW = `name: Release
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-permissions:
-  contents: write
-
-jobs:
-  release:
-    name: Create release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: softprops/action-gh-release@v3
-        with:
-          generate_release_notes: true
-`;
-
-const STALE_WORKFLOW = `name: Mark stale
-
-on:
-  schedule:
-    - cron: '0 1 * * *'
-  workflow_dispatch:
-
-permissions:
-  issues: write
-  pull-requests: write
-
-jobs:
-  stale:
-    name: Mark stale issues and PRs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/stale@v10
-        with:
-          days-before-stale: 60
-          days-before-close: 14
-          stale-issue-message: >
-            This issue has been automatically marked as stale due to inactivity.
-            It will be closed in 14 days unless there is new activity.
-          stale-pr-message: >
-            This PR has been automatically marked as stale due to inactivity.
-            It will be closed in 14 days unless there is new activity.
-          exempt-issue-labels: 'pinned,security'
-          exempt-pr-labels: 'pinned,security'
-`;
-
-function buildPagesWorkflow(pm: PackageManager): string {
-  const pnpmStep = pm === 'pnpm' ? `      - uses: pnpm/action-setup@v6\n` : '';
-  return `name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
-jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-${pnpmStep}      - uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-          cache: '${pm}'
-      - run: ${ciInstallCmd(pm)}
-      # Adjust the build command and output path for your docs framework:
-      # VitePress: docs:build → docs/.vitepress/dist
-      # Docusaurus: build → build/
-      # Astro Starlight: build → dist/
-      - run: ${ciRunCmd(pm, 'docs:build')}
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs/.vitepress/dist
-
-  deploy:
-    name: Deploy
-    environment:
-      name: github-pages
-      url: \${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/deploy-pages@v5
-        id: deployment
-`;
-}
-
 const CONTRIBUTING_TEMPLATE = `# Contributing
 
 Thank you for your interest in contributing!
@@ -854,123 +549,10 @@ as soon as possible.
 | latest  | ✓         |
 `;
 
-const SEMANTIC_PR_WORKFLOW = `name: Semantic PR
-
-on:
-  pull_request_target:
-    types:
-      - opened
-      - edited
-      - synchronize
-
-permissions:
-  pull-requests: read
-
-jobs:
-  semantic-pr:
-    name: Validate PR title
-    runs-on: ubuntu-latest
-    steps:
-      - uses: amannn/action-semantic-pull-request@v5
-        env:
-          GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
-        with:
-          types: |
-            feat
-            fix
-            chore
-            refactor
-            docs
-            test
-            ci
-            build
-            perf
-            revert
-            style
-          requireScope: false
-`;
-
-const LABELER_WORKFLOW = `name: Label PR
-
-on:
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
-      - reopened
-
-permissions:
-  contents: read
-  pull-requests: write
-
-jobs:
-  label:
-    name: Label
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/labeler@v5
-        with:
-          repo-token: \${{ secrets.GITHUB_TOKEN }}
-`;
-
-const LABELER_CONFIG = `documentation:
-  - changed-files:
-      - any-glob-to-any-file: ['docs/**', '*.md', 'CHANGELOG*']
-
-tests:
-  - changed-files:
-      - any-glob-to-any-file: ['tests/**', '**/*.test.*', '**/*.spec.*']
-
-ci:
-  - changed-files:
-      - any-glob-to-any-file: ['.github/**']
-
-dependencies:
-  - changed-files:
-      - any-glob-to-any-file: ['package.json', 'pnpm-lock.yaml', 'yarn.lock', 'package-lock.json']
-`;
-
-const LOCK_CLOSED_WORKFLOW = `name: Lock closed threads
-
-on:
-  schedule:
-    - cron: '0 2 * * *'
-  workflow_dispatch:
-
-permissions:
-  issues: write
-  pull-requests: write
-
-jobs:
-  lock:
-    name: Lock
-    runs-on: ubuntu-latest
-    steps:
-      - uses: dessant/lock-threads@v5
-        with:
-          issue-inactive-days: 30
-          pr-inactive-days: 30
-`;
-
 function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string[]): void {
   const cfg = answers.github;
   if (!cfg) return;
 
-  const pm = answers.packageManager;
-
-  if (cfg.ci) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'ci.yml'), buildCiWorkflow(pm), created);
-  }
-  if (cfg.codeql) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'codeql.yml'), CODEQL_WORKFLOW, created);
-  }
-  if (cfg.dependencyReview) {
-    safeWrite(
-      join(targetDir, '.github', 'workflows', 'dependency-review.yml'),
-      DEPENDENCY_REVIEW_WORKFLOW,
-      created,
-    );
-  }
   if (cfg.dependabot) {
     safeWrite(join(targetDir, '.github', 'dependabot.yml'), DEPENDABOT_CONFIG, created);
   }
@@ -989,15 +571,6 @@ function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string
   if (cfg.codeowners) {
     safeWrite(join(targetDir, '.github', 'CODEOWNERS'), CODEOWNERS_TEMPLATE, created);
   }
-  if (cfg.releaseWorkflow) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'release.yml'), RELEASE_WORKFLOW, created);
-  }
-  if (cfg.staleBot) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'stale.yml'), STALE_WORKFLOW, created);
-  }
-  if (cfg.pagesWorkflow) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'pages.yml'), buildPagesWorkflow(pm), created);
-  }
   if (cfg.contributing) {
     safeWrite(join(targetDir, 'CONTRIBUTING.md'), CONTRIBUTING_TEMPLATE, created);
   }
@@ -1009,16 +582,6 @@ function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string
   }
   if (cfg.security) {
     safeWrite(join(targetDir, 'SECURITY.md'), SECURITY_TEMPLATE, created);
-  }
-  if (cfg.semanticPr) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'semantic-pr.yml'), SEMANTIC_PR_WORKFLOW, created);
-  }
-  if (cfg.autoLabeler) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'label.yml'), LABELER_WORKFLOW, created);
-    safeWrite(join(targetDir, '.github', 'labeler.yml'), LABELER_CONFIG, created);
-  }
-  if (cfg.lockClosed) {
-    safeWrite(join(targetDir, '.github', 'workflows', 'lock-closed.yml'), LOCK_CLOSED_WORKFLOW, created);
   }
 }
 

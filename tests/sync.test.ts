@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { parse as tomlParse } from 'smol-toml';
 import { sync, loadConfig, shouldExitWithFailure } from '../src/sync/index.js';
+import { withGeneratedBanner } from '../src/sync/banner.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 function createTmpDir(): string {
@@ -87,7 +88,7 @@ describe('sync', () => {
     expect(content).not.toContain('alwaysApply');
   });
 
-  it('syncs agents verbatim', async () => {
+  it('syncs agents body verbatim under a generated banner', async () => {
     mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
     const agentContent = '---\nname: test-agent\ndescription: Test\n---\n\n# Test Agent\n';
     writeFileSync(join(root, 'llm', 'agents', 'test-agent.md'), agentContent);
@@ -105,11 +106,12 @@ describe('sync', () => {
 
     await sync(root, { config, silent: true });
 
-    expect(readFileSync(join(root, '.claude', 'agents', 'test-agent.md'), 'utf8')).toBe(agentContent);
-    expect(readFileSync(join(root, '.github', 'agents', 'test-agent.agent.md'), 'utf8')).toBe(agentContent);
+    const expected = withGeneratedBanner(agentContent, 'agents/test-agent.md');
+    expect(readFileSync(join(root, '.claude', 'agents', 'test-agent.md'), 'utf8')).toBe(expected);
+    expect(readFileSync(join(root, '.github', 'agents', 'test-agent.agent.md'), 'utf8')).toBe(expected);
   });
 
-  it('syncs skills verbatim', async () => {
+  it('syncs skills body verbatim under a generated banner', async () => {
     mkdirSync(join(root, 'llm', 'skills', 'test-skill'), { recursive: true });
     const skillContent = '---\nname: test-skill\n---\n\n# Test\n';
     writeFileSync(join(root, 'llm', 'skills', 'test-skill', 'SKILL.md'), skillContent);
@@ -125,7 +127,7 @@ describe('sync', () => {
     await sync(root, { config, silent: true });
 
     expect(readFileSync(join(root, '.claude', 'skills', 'test-skill', 'SKILL.md'), 'utf8')).toBe(
-      skillContent,
+      withGeneratedBanner(skillContent, 'skills/test-skill/SKILL.md'),
     );
   });
 
@@ -149,8 +151,12 @@ describe('sync', () => {
 
     const results = await sync(root, { config, silent: true });
     expect(results.synced).toBe(2);
-    expect(readFileSync(join(root, '.cursor', 'agents', 'sub.md'), 'utf8')).toBe(agentContent);
-    expect(readFileSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(skillContent);
+    expect(readFileSync(join(root, '.cursor', 'agents', 'sub.md'), 'utf8')).toBe(
+      withGeneratedBanner(agentContent, 'agents/sub.md'),
+    );
+    expect(readFileSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(
+      withGeneratedBanner(skillContent, 'skills/my-skill/SKILL.md'),
+    );
   });
 
   it('does not write cursor agent/skill files when cursor is not in platforms', async () => {
@@ -588,7 +594,7 @@ describe('sync', () => {
     expect(results.errors.some((e) => e.includes('hooks.json'))).toBe(true);
   });
 
-  it('syncs llm/commands to .claude/commands verbatim', async () => {
+  it('syncs llm/commands to .claude/commands, body verbatim under a generated banner', async () => {
     mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
     const body = '---\ndescription: Test cmd\n---\n\nDo something with $ARGUMENTS\n';
     writeFileSync(join(root, 'llm', 'commands', 'my-cmd.md'), body);
@@ -600,7 +606,9 @@ describe('sync', () => {
     };
 
     await sync(root, { config, silent: true });
-    expect(readFileSync(join(root, '.claude', 'commands', 'my-cmd.md'), 'utf8')).toBe(body);
+    expect(readFileSync(join(root, '.claude', 'commands', 'my-cmd.md'), 'utf8')).toBe(
+      withGeneratedBanner(body, 'commands/my-cmd.md'),
+    );
   });
 
   it('skips commands sync when claude is not enabled', async () => {
@@ -1801,6 +1809,75 @@ message: "Branch name required"
     expect(existsSync(marker)).toBe(false); // neither payload executed
     expect(stdout).toContain('; touch'); // message printed as literal data
   });
+
+  it('rejects a guardrail whose condition regex is not valid POSIX ERE', async () => {
+    // A JS lookahead does not compile as ERE. Before GHSA-grpx-fj8v-q8g9 this synced
+    // cleanly and produced a hook that never fired.
+    writeGuardrail(
+      'bad-regex',
+      VALID_GUARDRAIL.replace('not_matches: "^claude/"', 'not_matches: "(?!claude/)"'),
+    );
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('bad-regex') && e.includes('POSIX ERE'))).toBe(true);
+    expect(readPreToolUseHooks()).toHaveLength(0);
+  });
+
+  it('rejects a JS-idiom regex that compiles as ERE but checks the wrong thing', async () => {
+    // `\d` is not a digit class in ERE: BSD libc compiles it to a literal `d`, so this
+    // pattern compiles and then silently never matches. No runtime check can catch that,
+    // because nothing failed — only refusing the idiom at its source can.
+    writeGuardrail('js-idiom', VALID_GUARDRAIL.replace('not_matches: "^claude/"', "not_matches: '\\d+'"));
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('js-idiom') && e.includes('[[:digit:]]'))).toBe(true);
+    expect(readPreToolUseHooks()).toHaveLength(0);
+  });
+
+  it('generated hook blocks rather than allows when its regex fails to compile', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+
+    const generated = String(readPreToolUseHooks()[0].hooks[0].command);
+    const input = JSON.stringify({ name: 'feat/branch' });
+
+    // Baseline: a name that satisfies the condition is allowed, so a non-zero exit below is
+    // the malformed regex being caught and not the guardrail simply denying everything.
+    expect(runHook(generated, input)).toBe(0);
+
+    // Sync now refuses to emit a non-compiling pattern, so substitute one into the shipped
+    // command — the hand-edited settings.json and different-libc cases the runtime check
+    // exists for. `[[ =~ ]]` returns 2, not 1, on a pattern that fails to compile; read
+    // through an `&&` chain that status was falsey and the hook exited 0, allowing the call.
+    for (const bad of ['[', '(?!x)', 'a{3,2}', '*x']) {
+      const command = generated.replace(`'^claude/'`, `'${bad}'`);
+      expect(command).not.toBe(generated);
+      expect(runHook(command, input), `not_matches=${bad} must block, not allow`).toBe(2);
+    }
+  });
+
+  /** PreToolUse entries in the generated settings.json, or `[]` when none were written. */
+  function readPreToolUseHooks(): { hooks: { command: string }[] }[] {
+    const settingsPath = join(root, '.claude', 'settings.json');
+    if (!existsSync(settingsPath)) return [];
+    return JSON.parse(readFileSync(settingsPath, 'utf8')).hooks?.PreToolUse ?? [];
+  }
+
+  /** Exit code of a generated hook command run exactly as Claude Code would run it. */
+  function runHook(command: string, input: string): number {
+    try {
+      execSync(command, { input, encoding: 'utf8', stdio: 'pipe' });
+      return 0;
+    } catch (err) {
+      return (err as { status?: number }).status ?? -1;
+    }
+  }
 });
 
 describe('claude hooks sync', () => {
@@ -2040,7 +2117,9 @@ describe('codex sync', () => {
     };
 
     await sync(root, { config, silent: true });
-    expect(readFileSync(join(root, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(skill);
+    expect(readFileSync(join(root, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(
+      withGeneratedBanner(skill, 'skills/my-skill/SKILL.md'),
+    );
   });
 
   it('folds rules into a managed block in AGENTS.md, preserving hand-authored content', async () => {
@@ -2205,6 +2284,156 @@ describe('codex sync', () => {
       'BEGIN BLUETEMBERG MANAGED RULES',
     );
     expect(readFileSync(join(root, 'GEMINI.md'), 'utf8')).not.toContain('BEGIN BLUETEMBERG MANAGED RULES');
+  });
+
+  it('refuses to sync an AGENTS.md with an unpaired end marker, instead of appending forever', async () => {
+    const broken = '# My file\n\n<!-- END BLUETEMBERG MANAGED RULES -->\n';
+    writeFileSync(join(root, 'AGENTS.md'), broken);
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+
+    const first = await sync(root, { config, silent: true });
+    expect(first.errors).toHaveLength(1);
+    expect(first.errors[0]).toContain('AGENTS.md');
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(broken);
+
+    // The old behaviour appended a fresh block on every pass; the file must not grow.
+    const second = await sync(root, { config, silent: true });
+    expect(second.errors).toHaveLength(1);
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(broken);
+  });
+
+  it('collapses duplicated rules blocks so --check converges', async () => {
+    const dup = [
+      '# My file',
+      '',
+      '<!-- BEGIN BLUETEMBERG MANAGED RULES -->',
+      'stale a',
+      '<!-- END BLUETEMBERG MANAGED RULES -->',
+      '',
+      'Hand-authored middle.',
+      '',
+      '<!-- BEGIN BLUETEMBERG MANAGED RULES -->',
+      'stale b',
+      '<!-- END BLUETEMBERG MANAGED RULES -->',
+      '',
+    ].join('\n');
+    writeFileSync(join(root, 'AGENTS.md'), dup);
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+    expect(results.errors).toHaveLength(0);
+
+    const agents = readFileSync(join(root, 'AGENTS.md'), 'utf8');
+    expect(agents.match(/BEGIN BLUETEMBERG MANAGED RULES/g)).toHaveLength(1);
+    expect(agents).toContain('Hand-authored middle.');
+    expect(agents).not.toContain('stale a');
+    expect(agents).not.toContain('stale b');
+
+    const check = await sync(root, { check: true, config, silent: true });
+    expect(check.outOfSync).toBe(0);
+  });
+
+  it('reports a malformed .codex/config.toml MCP block instead of duplicating it', async () => {
+    mkdirSync(join(root, '.codex'), { recursive: true });
+    const broken = 'model = "gpt-5"\n\n# END BLUETEMBERG MANAGED MCP SERVERS\n';
+    writeFileSync(join(root, '.codex', 'config.toml'), broken);
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('config.toml'))).toBe(true);
+    expect(readFileSync(join(root, '.codex', 'config.toml'), 'utf8')).toBe(broken);
+  });
+
+  it('refuses a rule that quotes a managed-block marker, naming the rule and leaving AGENTS.md alone', async () => {
+    const head = '# Head\n';
+    writeFileSync(join(root, 'AGENTS.md'), head);
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'rules', 'conventions.md'),
+      '---\ndescription: C\nscope: "**"\n---\n\n' +
+        'Never hand-edit between <!-- BEGIN BLUETEMBERG MANAGED RULES --> and\n' +
+        '<!-- END BLUETEMBERG MANAGED RULES --> — run sync instead.\n',
+    );
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+
+    const first = await sync(root, { config, silent: true });
+    expect(first.errors).toHaveLength(1);
+    expect(first.errors[0]).toContain('rules/conventions.md');
+    // Never written, so no later run can find an unpairable block on disk.
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(head);
+
+    const second = await sync(root, { config, silent: true });
+    expect(second.errors).toHaveLength(1);
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(head);
+
+    // Removing the offending rule heals it — no hand-editing of AGENTS.md required.
+    rmSync(join(root, 'llm', 'rules', 'conventions.md'));
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+    const third = await sync(root, { config, silent: true });
+    expect(third.errors).toHaveLength(0);
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('# R');
+  });
+
+  it('does not leak a duplicated rules block into copilot-instructions.md or GEMINI.md', async () => {
+    const dup = [
+      '# Head',
+      '',
+      '<!-- BEGIN BLUETEMBERG MANAGED RULES -->',
+      'generated a',
+      '<!-- END BLUETEMBERG MANAGED RULES -->',
+      '',
+      'Hand-authored middle.',
+      '',
+      '<!-- BEGIN BLUETEMBERG MANAGED RULES -->',
+      'generated b',
+      '<!-- END BLUETEMBERG MANAGED RULES -->',
+      '',
+    ].join('\n');
+    writeFileSync(join(root, 'AGENTS.md'), dup);
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
+
+    const config: BlueprintConfig = {
+      platforms: ['codex', 'copilot', 'gemini'],
+      source: 'llm',
+      targets: {
+        rules: {
+          copilot: { dir: '.github/instructions', ext: '.instructions.md' },
+          gemini: { dir: '.gemini/context', ext: '.md' },
+        },
+      },
+    };
+    const results = await sync(root, { config, silent: true });
+    expect(results.errors).toHaveLength(0);
+
+    for (const derived of [join(root, '.github', 'copilot-instructions.md'), join(root, 'GEMINI.md')]) {
+      const content = readFileSync(derived, 'utf8');
+      expect(content).not.toContain('BLUETEMBERG MANAGED RULES');
+      expect(content).not.toContain('generated a');
+      expect(content).not.toContain('generated b');
+      expect(content).toContain('# Head');
+      expect(content).toContain('Hand-authored middle.');
+    }
+  });
+
+  it('still reports a malformed AGENTS.md when there are no rules to inject', async () => {
+    const broken = '# Head\n\n<!-- END BLUETEMBERG MANAGED RULES -->\n';
+    writeFileSync(join(root, 'AGENTS.md'), broken);
+
+    const config: BlueprintConfig = { platforms: ['codex'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('AGENTS.md'))).toBe(true);
+    expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe(broken);
   });
 
   it('does not write Codex outputs when codex is not in platforms', async () => {

@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/spawn-pr-review.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/spawn-pr-review.sh",
             "timeout": 30
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/spawn-session-audit.sh",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/spawn-session-audit.sh",
             "timeout": 2
           }
         ]

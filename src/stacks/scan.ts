@@ -2,8 +2,11 @@ import { basename } from 'node:path';
 import { coerce, rcompare } from 'semver';
 import { loadCatalogSync } from '../catalog/index.js';
 import { loadConfig } from '../sync/index.js';
+import { collectDeclaredRanges } from './declared.js';
 import { detectStacks, detectStacksFromManifests } from './detect.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
+import type { CoverageGapReason, CoveragePrecision, StackRegistry } from './registry.js';
+import type { Catalog } from '../catalog/index.js';
 import { GithubFetchError, fetchOrgRepos, fetchRepoManifests, type SkipReason } from './github.js';
 import type { DetectedStacks, DetectionConfidence } from './match.js';
 
@@ -13,7 +16,12 @@ import type { DetectedStacks, DetectionConfidence } from './match.js';
  * MAINTAINER tooling, not an end-developer command: it answers "which version-eras are worth
  * authoring rules for?" by scanning N repos with the SAME detection that gates rules at sync
  * (reuses {@link detectStacks} / {@link detectStacksFromManifests} — no new detection logic),
- * folding into a `(stack, version) → count` histogram, and ranking uncovered buckets vs the catalog.
+ * folding into a `(stack, version) → count` histogram, and ranking uncovered buckets vs coverage.
+ *
+ * Coverage is version-aware: it reads the `stacks:` ranges declared by the guidance available at
+ * the catalog root (installed packs and its own source dir), falling back to the catalog's
+ * name-level pack tags only for stacks nothing declares a range for. That is what makes
+ * "we ship react rules, but only for 18, and 12 repos moved to 19" expressible.
  *
  * Two sources, one report shape:
  *   - LOCAL: filesystem paths to cloned repos (node_modules → lockfile → coerced; highest confidence).
@@ -52,6 +60,10 @@ export interface VersionBucket {
   confidence: DetectionConfidence;
   covered: boolean;
   matchedRange: string | null;
+  /** How precisely the covering guidance matched; `null` when uncovered. */
+  precision: CoveragePrecision | null;
+  /** Why this bucket is uncovered, when `covered` is false; `null` when covered. */
+  reason: CoverageGapReason | null;
 }
 
 export interface StackHistogramEntry {
@@ -66,7 +78,19 @@ export interface ScanGap {
   stack: string;
   version: string;
   count: number;
-  reason: 'version-uncovered' | 'no-coverage';
+  reason: CoverageGapReason;
+}
+
+/**
+ * A `(stack, version)` bucket that IS covered, but only by a name-level wildcard — a pack targets
+ * the stack while nothing declares guidance for this version era. Not a gap (guidance does reach
+ * these repos), but not version-correct guidance either, so it ranks as its own tier: the second
+ * authoring list, after the outright gaps.
+ */
+export interface WeakCoverage {
+  stack: string;
+  version: string;
+  count: number;
 }
 
 /** A remote repo that could not be read; recorded rather than aborting the whole scan. */
@@ -87,6 +111,10 @@ export interface ScanReport {
   histogram: StackHistogramEntry[];
   /** Uncovered `(stack, version)` buckets ranked by usage — the authoring priority list. */
   gaps: ScanGap[];
+  /** Buckets covered only name-level, ranked by usage — the second authoring list. */
+  weakCoverage: WeakCoverage[];
+  /** Sources of covered ranges that could not be read — every gap below may be a false positive. */
+  warnings: string[];
 }
 
 export interface ScanOptions {
@@ -103,8 +131,10 @@ export interface ScanOptions {
    */
   progress?: (message: string) => void;
   /**
-   * Root to load the catalog from (typically the maintainer's cwd). Resolves to the project cache
-   * or the committed snapshot — never the scanned repos. Defaults to the first local root.
+   * Root the coverage corpus is read from (typically the maintainer's cwd): its catalog (project
+   * cache → committed snapshot) plus the version ranges its available guidance declares. Defaults
+   * to `process.cwd()` — never a scanned repo, whose own rules would otherwise count as org-wide
+   * coverage and mask real gaps.
    */
   catalogRoot?: string;
   /** Remote: scan every non-fork, non-archived repo in this GitHub org. */
@@ -166,13 +196,38 @@ function foldUnits(units: DetectionUnit[]): {
   return { acc, empty };
 }
 
+/**
+ * Build the coverage corpus for `root`: its catalog plus the ranges its available guidance declares.
+ *
+ * Detection of the scanned repos is deliberately NOT registered — the registry is the SUPPLY side
+ * and the scanned repos are the DEMAND side; registering them would mark every scanned stack
+ * "known" and mask the `no-coverage` reason. Best-effort: an unreadable config or manifest degrades
+ * to catalog-only (name-level) coverage with a warning, never an aborted scan.
+ */
+function coverageRegistry(root: string, catalog: Catalog, warn: (m: string) => void): StackRegistry {
+  try {
+    return buildStackRegistry(
+      catalog,
+      undefined,
+      collectDeclaredRanges(root, loadConfig(root), catalog, warn),
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    warn(`coverage sources at ${root} could not be read (${message}) — coverage is catalog-only`);
+    return buildStackRegistry(catalog);
+  }
+}
+
 /** Build the histogram + ranked gap list from folded units (the shared local/remote core). */
-function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot?: string): ScanReport {
+function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot: string): ScanReport {
   const { acc, empty } = foldUnits(units);
-  const registry = buildStackRegistry(loadCatalogSync(catalogRoot ?? '.'));
+  const warnings: string[] = [];
+  const catalog = loadCatalogSync(catalogRoot);
+  const registry = coverageRegistry(catalogRoot, catalog, (m) => warnings.push(m));
 
   const histogram: StackHistogramEntry[] = [];
   const gaps: ScanGap[] = [];
+  const weakCoverage: WeakCoverage[] = [];
 
   for (const [stack, byVersion] of acc) {
     const versions: VersionBucket[] = [];
@@ -187,14 +242,18 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
         confidence: bucket.confidence,
         covered: cov.covered,
         matchedRange: cov.matchedRange ?? null,
+        precision: cov.precision ?? null,
+        reason: cov.reason ?? null,
       });
       if (!cov.covered) {
-        gaps.push({
-          stack,
-          version,
-          count: bucket.count,
-          reason: cov.known ? 'version-uncovered' : 'no-coverage',
-        });
+        gaps.push({ stack, version, count: bucket.count, reason: cov.reason ?? 'no-coverage' });
+        continue;
+      }
+      // Covered, but only by a wildcard: these repos get generic guidance, never version-correct
+      // guidance. Ranking them separately is what lets a maintainer see "react 19 — 12 repos, and
+      // all we ship for them is the stack-agnostic rule".
+      if (cov.precision === 'name-level') {
+        weakCoverage.push({ stack, version, count: bucket.count });
       }
     }
     versions.sort((a, b) => b.count - a.count || compareVersionsDesc(a.version, b.version));
@@ -202,12 +261,24 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
   }
 
   histogram.sort((a, b) => b.total - a.total || a.stack.localeCompare(b.stack));
-  gaps.sort(
-    (a, b) =>
-      b.count - a.count || a.stack.localeCompare(b.stack) || compareVersionsDesc(a.version, b.version),
-  );
+  const byUsage = (
+    a: { stack: string; version: string; count: number },
+    b: { stack: string; version: string; count: number },
+  ): number =>
+    b.count - a.count || a.stack.localeCompare(b.stack) || compareVersionsDesc(a.version, b.version);
+  gaps.sort(byUsage);
+  weakCoverage.sort(byUsage);
 
-  return { roots: units.map((u) => u.id), scanned: units.length, empty, skipped, histogram, gaps };
+  return {
+    roots: units.map((u) => u.id),
+    scanned: units.length,
+    empty,
+    skipped,
+    histogram,
+    gaps,
+    weakCoverage,
+    warnings,
+  };
 }
 
 /**
@@ -217,7 +288,7 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
  */
 export function buildScanReport(roots: string[], catalogRoot?: string): ScanReport {
   const units = roots.map((root) => ({ id: root, detected: detectStacks(root, loadConfig(root)) }));
-  return buildReport(units, [], catalogRoot ?? roots[0]);
+  return buildReport(units, [], catalogRoot ?? process.cwd());
 }
 
 /** Run async tasks with a bounded concurrency window (no dependency; politeness vs GitHub limits). */
@@ -281,8 +352,8 @@ const CONFIDENCE_MARK: Record<DetectionConfidence, string> = {
 };
 
 function describeCoverage(bucket: VersionBucket): string {
-  if (!bucket.covered) return 'GAP';
-  if (!bucket.matchedRange || bucket.matchedRange === '*') return 'covered (name-level)';
+  if (!bucket.covered) return `GAP (${bucket.reason ?? 'no-coverage'})`;
+  if (bucket.precision === 'name-level') return 'covered (name-level only)';
   return `covered (${bucket.matchedRange})`;
 }
 
@@ -292,6 +363,8 @@ function printScanHuman(report: ScanReport, log: (msg: string) => void): void {
   log(
     `Scanned ${report.scanned} repo(s): ${withStacks} with stacks, ${report.empty.length} empty${skippedNote}.`,
   );
+  // Printed up front: an unreadable coverage source means every gap below may be a false positive.
+  for (const w of report.warnings) log(`WARN: ${w}`);
 
   if (report.histogram.length === 0) {
     log('No stacks detected in any scanned repo.');
@@ -308,12 +381,25 @@ function printScanHuman(report: ScanReport, log: (msg: string) => void): void {
 
     if (report.gaps.length === 0) {
       log('');
-      log('No coverage gaps — every detected (stack, version) is covered.');
+      // Don't claim completeness when a bucket is covered name-level only — the weak list follows.
+      log(
+        report.weakCoverage.length === 0
+          ? 'No coverage gaps — every detected (stack, version) is covered.'
+          : 'No coverage gaps, but not every (stack, version) has version-specific guidance.',
+      );
     } else {
       log('');
       log('Coverage gaps (ranked by usage — author these first):');
       report.gaps.forEach((gap, i) => {
         log(`  ${i + 1}. ${gap.stack}@${gap.version}  ×${gap.count}  ${gap.reason}`);
+      });
+    }
+
+    if (report.weakCoverage.length > 0) {
+      log('');
+      log('Name-level coverage only (ranked by usage — no version-specific guidance):');
+      report.weakCoverage.forEach((weak, i) => {
+        log(`  ${i + 1}. ${weak.stack}@${weak.version}  ×${weak.count}`);
       });
     }
   }
@@ -352,7 +438,7 @@ export async function runScanOrg(localRoots: string[], opts: ScanOptions = {}): 
     skipped = remote.skipped;
   }
 
-  const report = buildReport([...localUnits, ...remoteUnits], skipped, opts.catalogRoot ?? localRoots[0]);
+  const report = buildReport([...localUnits, ...remoteUnits], skipped, opts.catalogRoot ?? process.cwd());
   if (opts.json) {
     log(JSON.stringify(report, null, 2));
   } else {

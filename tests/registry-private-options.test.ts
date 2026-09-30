@@ -113,6 +113,25 @@ describe('install-path escape hatches reach installPackVersion', () => {
     );
   });
 
+  it('install re-resolves a locked version the manifest range no longer allows', async () => {
+    // The range was narrowed to ^1 after 0.9.0 was locked: shipping 0.9.0 would silently ignore it.
+    writeManifest(root, { registry: REGISTRY, packages: { 'private-pack': '^1.0.0' } }, 'llm');
+    writeLockfile(
+      root,
+      {
+        lockfileVersion: 1,
+        packages: {
+          'private-pack': { version: '0.9.0', resolved: `${REGISTRY}/x.tgz`, integrity: 'sha512-old' },
+        },
+      },
+      'llm',
+    );
+
+    await install(root, { silent: true });
+
+    expect(installPackVersion).toHaveBeenCalledWith(root, expect.anything(), '1.0.0', expect.anything());
+  });
+
   it('update forwards both options', async () => {
     writeManifest(root, { registry: REGISTRY, packages: { 'private-pack': '^1.0.0' } }, 'llm');
     writeLockfile(

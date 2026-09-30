@@ -19,6 +19,8 @@ This appears in three places:
 | A rule, guardrail, agent, or skill | [`stacks:` frontmatter](Writing-Rules#stacks-optional) | `{ react: ">=15 <16" }` | Declares which versions the content applies to |
 | A catalog pack | `stacks` (name-only) | `["react"]` → `{ react: "*" }` | Coarse name-level routing; a file's own range refines it |
 
+A catalog pack's `stacks` only apply to **that pack's own files** — ones found in a source dir whose `package.json` names the pack (installed packs, npm or local-path `extends`). A project's own `llm/rules/naming.md` is never withheld because some React pack also ships a `naming` rule, and it contributes no coverage for React either.
+
 A file applies **iff every named stack is present in the project AND its detected version satisfies the range**. An absent/empty constraint is stack-agnostic and always applies — so a project with no stack-tagged content behaves exactly as a stackless project always did.
 
 ### React 14 and React 15, both valid — in one pack
@@ -44,13 +46,17 @@ When a stack is not pinned in config (or is set to `"auto"`), Bluetemberg resolv
 | 3 | `package-lock.json` | `exact` | Resolved lockfile version |
 | 4 | `package.json` dependency range (coerced) | `coerced` | Low confidence — a range like `^15` coerces to its lowest anchor |
 
+Steps 2 and 3 follow Node's own module resolution. In a workspace, a package whose dependency was **hoisted** resolves it from the workspace root's `node_modules` (source shown as `../../node_modules`), and from the root `package-lock.json`, where an entry nested under the package's own path (`packages/legacy/node_modules/react`) wins over the hoisted one. The climb stops at the nearest repo/workspace boundary — a directory with `.git`, a lockfile, `pnpm-workspace.yaml`, or a `package.json` with `workspaces` — so detection never reads an unrelated parent directory. The version reported is the one the package actually runs, not a coerced guess.
+
+**Prereleases** are matched as the release they preview: `19.0.0-rc.1` is treated as `19.0.0`. Plain semver sorts an RC *below* `19.0.0`, which would give a team trying the next major the previous major's rules (`>=18 <19.0.0` matches) and not the new ones (`>=19.0.0` does not).
+
 Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory).
 
 ```mermaid
 flowchart TD
   A[sync starts] --> B[detect stacks<br/>config / node_modules / lockfile / package.json]
   B --> C{file has stacks: range?}
-  C -->|no| D[catalog pack-level name-only gate]
+  C -->|no| D[owning pack's catalog<br/>name-only gate, if any]
   C -->|yes| E{every stack present<br/>AND version in range?}
   D --> E
   E -->|yes| F[apply file]
@@ -79,13 +85,34 @@ Three guarantees back this up — guidance is **never silently dropped**:
 
 - **A typo'd range warns instead of vanishing.** An invalid range (`react: "15..16"`) would otherwise be dropped, silently widening the file to apply everywhere. Instead:
   ```
-  WARN: rules/effects-r15.md: ignored invalid stack range(s) react: "15..16" — fix the range or the file may apply to unintended versions
+  WARN: rules/effects-r15.md: invalid stack range(s) react: "15..16" — fix the range; until then the file is mis-gated
   ```
-- **A low-confidence match warns.** A version coerced from a `package.json` range still applies, but tells you to pin it:
+  A valid range that no version can satisfy (`payload: ">=4 <3"`) warns the same way, tagged `(matches no version)` — otherwise it excludes the file forever.
+- **A low-confidence match warns — once per stack.** A version coerced from a `package.json` range still applies, but tells you to pin it. One line per stack, not per file, so the signal isn't drowned:
   ```
-  WARN: rules/payload-collections.md: matched via low-confidence detection for payload — pin a version in bluetemberg.config.json for precision
+  WARN: payload@3.4.0 is a low-confidence detection (coerced, from package.json) gating version-tagged files (first: rules/payload-collections.md) — pin a version in bluetemberg.config.json for precision
   ```
+- **Two sources shipping the same file warns.** When two packs (or `extends` entries) both ship `rules/testing.md`, the higher-priority one wins and the other copy — with its own `stacks:` range — is ignored. Sync names both. A local copy is the deliberate override and stays quiet.
 - **Every exclusion lists its reason** (rules, guardrails, agents, and skills alike), so you can audit that wrong-version content was correctly withheld — hidden, not wrong-here.
+
+## Coverage: the same model, asked backwards
+
+Gating asks *"does this file apply to my project?"*. Coverage asks the inverse — *"is there guidance for what I build with?"* — and answers it from the same declared ranges, so the two can never disagree.
+
+The **covered ranges** for a stack are the `stacks:` ranges declared by the guidance actually available (the project's own source dir, `extends` entries, installed packs, external sources), resolved with the same precedence the gate uses: a file's own range wins, else the catalog pack-level tag (`*`, name-level), else stack-agnostic (contributes nothing). A stack with any declared range never falls back to `*` — otherwise the wildcard would satisfy every version and flatten coverage back into "does a react pack exist?".
+
+A query for `(stack, version)` therefore has four outcomes:
+
+| Outcome | Meaning |
+|---|---|
+| `covered` (matched range) | A declared range satisfies the version — e.g. `react: ">=18 <19"` covers `18.3.1` |
+| `covered` (name-level, `*`) | A catalogued pack targets the stack, but nothing declares a version range for it — real guidance, not *version* guidance, so it ranks in its own `weakCoverage` tier |
+| gap: `version-uncovered` | Guidance for the stack exists, but no covered range satisfies this version — *"we ship React 18 rules; this repo is on 19"* |
+| gap: `no-coverage` | Nothing targets this stack at all |
+
+Note the third row carefully: a single stack-agnostic file inside a pack the catalog tags `["react"]` covers *every* React version. Coverage says so honestly — that file really does apply — but a version era whose only guidance is generic is not the same as one with a rule written for it, so those buckets are ranked separately rather than folded into "covered".
+
+Read it with [`bluetemberg detect`](Commands#bluetemberg-detect-directory) and [`bluetemberg coverage`](Commands#bluetemberg-coverage-stackversion-directory) for one project, or [`bluetemberg scan-org`](Commands#bluetemberg-scan-org-paths) to rank across N repos by how many are affected: `gaps` first (nothing covers them), then `weakCoverage` (covered name-level only).
 
 ## Versioning strategy: two tiers, mirroring the ecosystem
 
@@ -106,6 +133,8 @@ Version-aware routing is maturing. Tracked in [issue #212](https://github.com/pr
 
 - **Monorepos: solved per-package, not per-version-within-a-package.** A monorepo with `react@14` in one package and `react@15` in another is handled — `bluetemberg sync` [fans out](Commands#bluetemberg-sync-directory) and gates each package against its own detected stacks. What's still not expressible is *two versions of one stack inside a single package* (the detection model resolves one version per stack name per directory).
 - **Cross-stack matching is AND-only.** "applies to A≥3 *or* B≥2" across two different stacks is not expressible (OR *within* one stack via `||` is).
+- **The detection table is built in.** Stacks outside the [default table](Configuration#stacks) (`nextjs`, `react`, `payload`, `angular`, `vue`, `svelte`, `astro`, `solid`, `tailwind`, `drizzle`, `trpc`) are detected only when their stack name equals the npm package name, or when pinned in config.
+- **Uninstalled pnpm/yarn projects fall back to a coerced range.** Once installed, `node_modules` gives an exact version for every package manager; without an install, only `package-lock.json` is read.
 
 ## See also
 
