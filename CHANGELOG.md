@@ -20,6 +20,19 @@
 
 - Wiki: exit codes, `.gitattributes` guidance, prune behavior, expanded adapter security notes.
 
+## [0.13.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.13.0...bluetemberg-v0.13.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **init:** don't fold legacy manifests into packages.json when pinning ranges ([19be7d7](https://github.com/prototypdigital/bluetemberg/commit/19be7d724746d1d55eb7d7b2fd9e4607bb0fd97c))
+* **init:** write resolvable pack ranges instead of a fixed ^0.1.0 ([f65c538](https://github.com/prototypdigital/bluetemberg/commit/f65c538094b830c94a47bbd8887bf8a882a14517))
+* **init:** write resolvable pack ranges instead of a fixed ^0.1.0 ([5ec56e8](https://github.com/prototypdigital/bluetemberg/commit/5ec56e862ae45fcdd008a0ecb385713bace46d3b)), closes [#268](https://github.com/prototypdigital/bluetemberg/issues/268)
+* **sync:** apply stack gating to the Codex rules block and agents ([a9aba5b](https://github.com/prototypdigital/bluetemberg/commit/a9aba5b36d1e3ba28e9c9d5692ea0e05a0e4d818))
+* **sync:** apply stack gating to the Codex rules block and agents ([41578ee](https://github.com/prototypdigital/bluetemberg/commit/41578eee27646118c02145329e58215a717dddbc)), closes [#270](https://github.com/prototypdigital/bluetemberg/issues/270)
+* **sync:** map abstract agent tools to Claude Code tool names ([923564d](https://github.com/prototypdigital/bluetemberg/commit/923564db0ca2f3cffe0e7e99ee34e14531f0930e))
+* **sync:** map abstract agent tools to Claude Code tool names ([6aa25d7](https://github.com/prototypdigital/bluetemberg/commit/6aa25d7a67e75a872b484d2e1dddd571d899d87f))
+
 ## [0.13.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.1...bluetemberg-v0.13.0) (2026-09-30)
 
 
