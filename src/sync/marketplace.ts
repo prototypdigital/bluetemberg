@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import matter from 'gray-matter';
+import { toClaudeAgentContent } from './claude-agent-tools.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
@@ -312,7 +313,7 @@ function emitPlugin(
     const outPath = join(agentsDir, file);
 
     try {
-      const content = readFileSync(srcPath, 'utf8');
+      const content = toClaudeAgentContent(readFileSync(srcPath, 'utf8'));
       commitPlannedWrite(ctx, outPath, content);
       agentEntries.push({
         name: meta.name,
