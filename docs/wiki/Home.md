@@ -1,10 +1,10 @@
 # Bluetemberg
 
-Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for Cursor, Claude Code, GitHub Copilot, Gemini CLI, and Windsurf.
+Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.
 
 ## What is Bluetemberg?
 
-Bluetemberg is an open-source CLI tool (published on npm as `bluetemberg`, MIT) that sets up and maintains AI assistant configuration across multiple platforms from a single source of truth. Write your rules, agent definitions, and skills once in `llm/`, and Bluetemberg syncs them to Cursor, Claude, GitHub Copilot, Gemini CLI, and Windsurf with the correct format for each.
+Bluetemberg is an open-source CLI tool (published on npm as `bluetemberg`, MIT) that sets up and maintains AI assistant configuration across multiple platforms from a single source of truth. Write your rules, agent definitions, and skills once in `llm/`, and Bluetemberg syncs them to Cursor, Claude, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex with the correct format for each.
 
 Rules are self-contained Markdown files — the AI reads them directly, no cross-file dependencies. The sync engine only transforms frontmatter for each platform. `sync --check` in CI catches any drift before it ships.
 
@@ -22,6 +22,7 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Writing Agents](Writing-Agents) — agent definition format
 - [Writing Skills](Writing-Skills) — SKILL.md format
 - [Writing Hooks](Writing-Hooks) — Cursor `hooks.json` and Claude Code `hooks.claude.json` in `llm/`
+- [Marketplace](Marketplace) — Claude Code plugin output for zero-install onboarding
 - [Guardrails](Guardrails) — declarative checks enforced as platform-native hooks
 - [Writing Commands](Writing-Commands) — Claude Code slash commands in `llm/commands/`
 - [Writing Prompts](Writing-Prompts) — Copilot prompt files in `llm/prompts/`

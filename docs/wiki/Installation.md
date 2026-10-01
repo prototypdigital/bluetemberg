@@ -4,7 +4,7 @@ Bluetemberg is published on the public npm registry as [`bluetemberg`](https://w
 
 ## Prerequisites
 
-- Node.js >= 18
+- Node.js >= 20
 - npm, pnpm, or yarn
 
 ## Install

@@ -63,8 +63,8 @@ export interface MarketplaceConfig {
    * GitHub repository in `owner/repo` format that hosts the published marketplace output.
    * When set, bluetemberg writes this value into `.claude/settings.json` under
    * `extraKnownMarketplaces` so Claude Desktop auto-prompts teammates to install plugins
-   * when they open the project. The CI workflow scaffolded by `bluetemberg init` uses this
-   * value to push generated `plugins/` and `.claude-plugin/` output to that repo.
+   * when they open the project. Pushing the generated `plugins/` and `.claude-plugin/` output
+   * to that repo is up to you; bluetemberg does not scaffold CI/CD.
    */
   remote?: string;
   /**
@@ -196,7 +196,7 @@ export interface InitAnswers {
    * field is written (sync still auto-detects from the project). See {@link BlueprintConfig.stacks}.
    */
   stacks?: Record<Stack, string>;
-  /** GitHub repository file scaffolding (CI, security, templates). Omitted = no GitHub files generated. */
+  /** GitHub repository file scaffolding (Dependabot, issue/PR templates, CODEOWNERS, community docs). Omitted = no GitHub files generated. */
   github?: GitHubScaffoldConfig;
 }
 
