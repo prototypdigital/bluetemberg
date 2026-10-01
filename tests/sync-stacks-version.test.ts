@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
+import { AGENTS_RULES_MARKERS } from '../src/sync/managed-block.js';
 import type { BlueprintConfig } from '../src/types.js';
 import { installFakePack } from './helpers/installed-pack.js';
 
@@ -414,5 +415,97 @@ describe('project sync — agent & skill version gating', () => {
     await sync(root, { config: configWithStacks({ payload: '3.4.1' }), silent: true });
 
     expect(existsSync(skillOut('payload-v3-skill'))).toBe(true);
+  });
+});
+
+describe('project sync — version gating reaches Codex', () => {
+  let root: string;
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  const codexConfig = (stacks?: Record<string, string>): BlueprintConfig => ({
+    platforms: ['codex'],
+    source: 'llm',
+    targets: {},
+    ...(stacks ? { stacks } : {}),
+  });
+
+  function writeAgent(name: string, frontmatter = ''): void {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    writeFileSync(
+      join(root, 'llm', 'agents', `${name}.md`),
+      `---\nname: ${name}\ndescription: ${name}${frontmatter ? '\n' + frontmatter : ''}\n---\n\nYou are ${name}.\n`,
+    );
+  }
+
+  const agentsMd = (): string => readFileSync(join(root, 'AGENTS.md'), 'utf8');
+
+  it('keeps a rule out of the AGENTS.md block when its range excludes the detected version', async () => {
+    writeRule(root, 'react18-only', 'stacks:\n  react: ">=18 <19"');
+    writeRule(root, 'always');
+
+    await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
+
+    expect(agentsMd()).toContain('# always');
+    expect(agentsMd()).not.toContain('# react18-only');
+  });
+
+  it('keeps a rule out of the block when its stack is not present at all', async () => {
+    writeRule(root, 'payload-collections', 'stacks:\n  payload: ">=3 <4"');
+    writeRule(root, 'always');
+
+    await sync(root, { config: codexConfig(), silent: true });
+
+    expect(agentsMd()).not.toContain('# payload-collections');
+    expect(agentsMd()).toContain('# always');
+  });
+
+  it('includes a rule in the block when the detected version satisfies its range', async () => {
+    writeRule(root, 'react19-only', 'stacks:\n  react: ">=19 <20"');
+
+    await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
+
+    expect(agentsMd()).toContain('# react19-only');
+  });
+
+  it('writes no rules block at all when every rule is filtered out', async () => {
+    writeRule(root, 'react18-only', 'stacks:\n  react: ">=18 <19"');
+
+    await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
+
+    expect(existsSync(join(root, 'AGENTS.md'))).toBe(false);
+  });
+
+  it('removes a block it wrote earlier once the stack change filters every rule out', async () => {
+    writeRule(root, 'react18-only', 'stacks:\n  react: ">=18 <19"');
+
+    await sync(root, { config: codexConfig({ react: '18.3.1' }), silent: true });
+    expect(agentsMd()).toContain('# react18-only');
+
+    await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
+
+    expect(agentsMd()).not.toContain('# react18-only');
+    expect(agentsMd()).not.toContain(AGENTS_RULES_MARKERS.begin);
+  });
+
+  it('does not write a .codex/agents TOML for an agent the version gate withheld', async () => {
+    writeAgent('react18-agent', 'stacks:\n  react: ">=18 <19"');
+    writeAgent('general-agent');
+
+    await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
+
+    expect(existsSync(join(root, '.codex', 'agents', 'react18-agent.toml'))).toBe(false);
+    expect(existsSync(join(root, '.codex', 'agents', 'general-agent.toml'))).toBe(true);
+  });
+
+  it('does not repeat the gate warnings because of Codex', async () => {
+    writeRule(root, 'bad-range', 'stacks:\n  react: "not a range"');
+
+    const results = await sync(root, { config: codexConfig({ react: '19.0.0' }), silent: true });
+
+    const badRange = results.warnings.filter((w) => w.includes('rules/bad-range.md'));
+    expect(badRange).toHaveLength(1);
   });
 });

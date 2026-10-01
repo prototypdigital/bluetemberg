@@ -435,6 +435,13 @@ interface SyncContext extends SyncSink {
   detectedStacks: DetectedStacks;
   /** Low-confidence stacks already warned about this sync — the warning fires once per stack. */
   warnedLowConfidence: Set<string>;
+  /**
+   * Rules/agents the version gate withheld (`file → reason`), recorded by `syncRules`/`syncAgents`.
+   * Platforms that don't walk the per-file loop (Codex) read these instead of re-running the gate,
+   * which would repeat its warnings.
+   */
+  excludedRules: Map<string, string>;
+  excludedAgents: Map<string, string>;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
@@ -601,6 +608,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     catalog,
     detectedStacks,
     warnedLowConfidence: new Set(),
+    excludedRules: new Map(),
+    excludedAgents: new Map(),
   };
 
   // Surface extends, pack, and external-source resolution warnings before sync output.
@@ -842,6 +851,7 @@ function syncRules(ctx: SyncContext): void {
   if (merged.size === 0) return;
 
   const excluded = resolveExcludedFiles(ctx, merged, 'rules');
+  ctx.excludedRules = excluded;
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Rules: ${merged.size} source files`);
@@ -887,6 +897,7 @@ function syncAgents(ctx: SyncContext): void {
   if (merged.size === 0) return;
 
   const excluded = resolveExcludedFiles(ctx, merged, 'agents');
+  ctx.excludedAgents = excluded;
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Agents: ${merged.size} source files`);
