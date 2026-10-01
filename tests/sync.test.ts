@@ -131,6 +131,31 @@ describe('sync', () => {
     );
   });
 
+  it('maps abstract agent tools to Claude Code names for the claude target only', async () => {
+    mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
+    const agentContent =
+      '---\nname: test-agent\ndescription: Test\ntools: ["read", "search", "edit", "execute"]\n---\n\n# Test Agent\n';
+    writeFileSync(join(root, 'llm', 'agents', 'test-agent.md'), agentContent);
+
+    const config: BlueprintConfig = {
+      platforms: ['claude', 'copilot'],
+      source: 'llm',
+      targets: {
+        agents: {
+          claude: { dir: '.claude/agents', ext: '.md' },
+          copilot: { dir: '.github/agents', ext: '.agent.md' },
+        },
+      },
+    };
+
+    await sync(root, { config, silent: true });
+
+    const claude = readFileSync(join(root, '.claude', 'agents', 'test-agent.md'), 'utf8');
+    expect(claude).toContain('tools: ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]');
+    const copilot = readFileSync(join(root, '.github', 'agents', 'test-agent.agent.md'), 'utf8');
+    expect(copilot).toContain('tools: ["read", "search", "edit", "execute"]');
+  });
+
   it('syncs agents and skills to cursor with default-shaped targets', async () => {
     mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
     const agentContent = '---\nname: sub\ndescription: Subagent\n---\n\n# Body\n';

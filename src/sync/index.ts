@@ -2,6 +2,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
+import { toClaudeAgentContent } from './claude-agent-tools.js';
 import { withGeneratedBanner } from './banner.js';
 import { listDirs, listFiles } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
@@ -915,13 +916,15 @@ function syncAgents(ctx: SyncContext): void {
     ctx.platforms,
   );
 
-  for (const [, targetConfig] of agentTargets) {
+  for (const [platform, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
       try {
-        const content = withGeneratedBanner(readFileSync(join(sourceDir, file), 'utf8'), `agents/${file}`);
+        const source = readFileSync(join(sourceDir, file), 'utf8');
+        const platformContent = platform === 'claude' ? toClaudeAgentContent(source) : source;
+        const content = withGeneratedBanner(platformContent, `agents/${file}`);
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
