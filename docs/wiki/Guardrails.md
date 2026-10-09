@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into platform-native enforcement. Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
+Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into an enforced hook. Claude Code is the only platform guardrails compile to today. Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
 
 ## Where guardrails live
 
@@ -12,7 +12,7 @@ Guardrails are Markdown files with structured frontmatter in `guardrails/` under
 
 Sources merge with the same precedence as rules — a local file with the same name overrides a pack's.
 
-The init wizard adds the default guardrail pack to `llm/packages.json`; run `bluetemberg install` and `bluetemberg sync` to activate it.
+`init --non-interactive` adds the default guardrail pack to `llm/packages.json`; the interactive wizard doesn't ask about guardrails yet, so add it with `bluetemberg add bluetemberg-guardrails-git`. Run `bluetemberg install` and `bluetemberg sync` to activate it.
 
 ## File format
 
@@ -44,7 +44,7 @@ Human-readable explanation of what this guardrail does.
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |
 | `message` | Yes | Shown to the agent when the check fails |
-| `platforms` | No | Limit to specific platforms; omit for all supported |
+| `platforms` | No | Limit to specific platforms. Only `claude` compiles today, so leave it out or set `claude` |
 
 At least one `check` condition is required — a guardrail with none is reported as a sync error.
 

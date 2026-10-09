@@ -219,7 +219,7 @@ stacks:
 { "stacks": { "payload": "3.4.1", "nextjs": "auto" } }
 ```
 
-`sync` detects the project's stacks (declared version → `node_modules` → lockfile → coerced `package.json` range), then hard-excludes rules whose range the detected version doesn't satisfy — listing what it filtered so you can audit it. Content with no `stacks:` is stack-agnostic and always applies, so projects that declare no stacks behave exactly as before.
+`sync` detects the project's stacks (declared version → `node_modules` → lockfile → coerced `package.json` range), then hard-excludes rules, guardrails, agents, and skills whose range the detected version doesn't satisfy — listing what it filtered so you can audit it. Content with no `stacks:` is stack-agnostic and always applies, so projects that declare no stacks behave exactly as before.
 
 Inspect detection and coverage — these have a `--json` twin for agents:
 
@@ -228,7 +228,7 @@ npx bluetemberg detect              # detected stacks, versions, confidence, gap
 npx bluetemberg coverage payload@3  # is there version-correct guidance for this stack?
 ```
 
-Or expose the same model to an agent as MCP tools (`detect_stacks`, `query_coverage`, `list_stacks`, `org_histogram`) — read-only, over stdio:
+Or expose the same model to an agent as MCP tools (`bluetemberg_detect_stacks`, `bluetemberg_query_coverage`, `bluetemberg_list_stacks`, `bluetemberg_org_histogram`) — read-only, over stdio:
 
 ```bash
 npx bluetemberg mcp serve
@@ -371,7 +371,7 @@ Each plugin bundles only the skills and agents whose `profiles` frontmatter (or 
 
 When `remote` is set, `bluetemberg sync` writes `extraKnownMarketplaces` to `.claude/settings.json` — Claude Code then auto-prompts teammates to install the relevant plugin when they open the project. **Teammates need no local bluetemberg install.**
 
-See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guide including the CI push workflow.
+See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guide.
 
 ## Documentation
 
@@ -392,6 +392,10 @@ See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full doc
 - [Adapters](https://github.com/prototypdigital/bluetemberg/wiki/Adapters)
 - [Architecture](https://github.com/prototypdigital/bluetemberg/wiki/Architecture)
 - [Consumer Setup](https://github.com/prototypdigital/bluetemberg/wiki/Consumer-Setup)
+- [Stacks & Versioning](https://github.com/prototypdigital/bluetemberg/wiki/Stacks)
+- [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails)
+- [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry)
+- [External Sources](https://github.com/prototypdigital/bluetemberg/wiki/Sources)
 - [Contributing](https://github.com/prototypdigital/bluetemberg/wiki/Contributing)
 
 ## Development
