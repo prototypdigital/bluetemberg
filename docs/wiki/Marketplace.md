@@ -65,7 +65,7 @@ The recommended setup keeps product repos clean by publishing marketplace output
 }
 ```
 
-When `remote` is set, `bluetemberg sync` automatically adds `prototypdigital/claude-marketplace` to `extraKnownMarketplaces` in `.claude/settings.json`. This causes Claude Desktop to auto-prompt teammates to install plugins when they open the project folder.
+When `remote` is set, `bluetemberg sync` registers `prototypdigital/claude-marketplace` under `extraKnownMarketplaces` in `.claude/settings.json` and enables its plugins under `enabledPlugins`. Once a teammate trusts the project folder, Claude Code registers the marketplace and prompts them to install the plugins.
 
 **2. Publish the output:**
 
@@ -73,15 +73,30 @@ When `remote` is set, `bluetemberg sync` automatically adds `prototypdigital/cla
 
 ### `.claude/settings.json`
 
-When `remote` is configured, every `bluetemberg sync` run ensures `.claude/settings.json` contains:
+When `remote` is configured, every `bluetemberg sync` run ensures `.claude/settings.json` contains an entry keyed by the marketplace `name` from the generated `.claude-plugin/marketplace.json` (the project directory name), plus one `enabledPlugins` entry per published plugin:
 
 ```json
 {
-  "extraKnownMarketplaces": ["prototypdigital/claude-marketplace"]
+  "extraKnownMarketplaces": {
+    "my-project": {
+      "source": { "source": "github", "repo": "prototypdigital/claude-marketplace" }
+    }
+  },
+  "enabledPlugins": {
+    "my-project@my-project": true
+  }
 }
 ```
 
-Existing settings keys are preserved. The entry is only added once — if already present, the file is not modified.
+This is the shape Claude Code's [settings reference](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces) defines. Claude Code rejects any other shape, including a string array.
+
+- Existing settings keys and other marketplaces are preserved. This marketplace's own entry keeps any extra keys you add, such as `autoUpdate`, but sync always resets its `source` to match `remote`.
+- Existing `enabledPlugins` values are never overwritten, so a teammate who sets a plugin to `false` keeps that choice across syncs. A `true` entry for a plugin this marketplace no longer publishes is removed.
+- The array form that older bluetemberg versions wrote (`["owner/repo"]`) is migrated on the next sync. The `remote` entry is keyed by the marketplace name, and any other `owner/repo` entry is keyed by its repo segment. Sync drops and logs any entry that is not `owner/repo`, or whose key collides with the marketplace name or with an earlier entry.
+- If nothing changed, the file is not rewritten.
+- Sync drops a legacy entry only after logging a warning for it, which shows up in the end-of-run summary even with `--silent`. Our entry's other `source` fields, such as a pinned `ref`, are kept.
+- If the sync records any error (for example a plugin with an unknown profile), `.claude/settings.json` is left untouched, so a misconfiguration cannot prune `enabledPlugins` entries.
+- The marketplace name is the directory name of the project root. Run sync from a checkout whose folder has the canonical name. Running it from a worktree or a differently named clone writes a second marketplace entry under that folder's name.
 
 ## The `marketplace` config key
 
@@ -90,7 +105,7 @@ Defined under `blueprintconfig.marketplace`. Controls how `llm/` content maps to
 ### `remote` field
 
 `owner/repo` shorthand for the dedicated marketplace repo. When set:
-- `extraKnownMarketplaces` is written to `.claude/settings.json` on every sync
+- `extraKnownMarketplaces` and `enabledPlugins` are merged into `.claude/settings.json` on every sync
 
 ### `owner` field
 
