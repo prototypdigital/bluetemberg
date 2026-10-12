@@ -667,7 +667,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
     ];
-    syncMarketplace(
+    const marketplace = syncMarketplace(
       {
         ...ctx,
         plugins: pluginDefs,
@@ -679,8 +679,13 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     );
 
     const remote = ctx.config.marketplace?.remote;
-    if (remote) {
-      syncClaudeSettings({ ...ctx, remote });
+    if (remote && marketplace) {
+      syncClaudeSettings({
+        ...ctx,
+        remote,
+        marketplaceName: marketplace.name,
+        plugins: marketplace.plugins.map((p) => p.name),
+      });
     }
   }
 

@@ -65,7 +65,7 @@ interface PluginManifest {
   hooks?: string;
 }
 
-interface MarketplaceManifest {
+export interface MarketplaceManifest {
   name: string;
   /** Required by Claude Code — a marketplace without `owner` is rejected at add time. */
   owner: MarketplaceOwner;
@@ -355,14 +355,21 @@ function resolveOwner(ctx: MarketplaceSyncContext, projectName: string): Marketp
   return { name: projectName };
 }
 
-export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: string) => void): void {
+/**
+ * Emits the plugins and `.claude-plugin/marketplace.json`. Returns the marketplace manifest, or
+ * `null` when there is no source content to publish.
+ */
+export function syncMarketplace(
+  ctx: MarketplaceSyncContext,
+  recordError: (msg: string) => void,
+): MarketplaceManifest | null {
   const allRules = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md') && f !== 'README.md');
   const allSkills = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
     existsSync(join(dirPath, 'SKILL.md')),
   );
   const allAgents = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
 
-  if (allRules.size === 0 && allSkills.size === 0 && allAgents.size === 0) return;
+  if (allRules.size === 0 && allSkills.size === 0 && allAgents.size === 0) return null;
 
   const profileMap = buildProfileMap(ctx.catalog);
   const stackMap = buildStackMap(ctx.catalog);
@@ -448,4 +455,5 @@ export function syncMarketplace(ctx: MarketplaceSyncContext, recordError: (msg: 
   if (!ctx.checkMode) {
     ctx.log(`  -> .claude-plugin/marketplace.json`);
   }
+  return marketplace;
 }

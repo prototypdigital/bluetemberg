@@ -61,9 +61,9 @@ export interface MarketplaceOwner {
 export interface MarketplaceConfig {
   /**
    * GitHub repository in `owner/repo` format that hosts the published marketplace output.
-   * When set, bluetemberg writes this value into `.claude/settings.json` under
-   * `extraKnownMarketplaces` so Claude Desktop auto-prompts teammates to install plugins
-   * when they open the project. Pushing the generated `plugins/` and `.claude-plugin/` output
+   * When set, bluetemberg registers it in `.claude/settings.json` under
+   * `extraKnownMarketplaces` (keyed by marketplace name) and enables its plugins under
+   * `enabledPlugins`, so Claude Code prompts teammates to install them. Pushing the generated `plugins/` and `.claude-plugin/` output
    * to that repo is up to you; bluetemberg does not scaffold CI/CD.
    */
   remote?: string;

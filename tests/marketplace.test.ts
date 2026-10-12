@@ -572,57 +572,94 @@ describe('syncMarketplace', () => {
   });
 
   describe('remote + extraKnownMarketplaces', () => {
-    it('writes extraKnownMarketplaces to .claude/settings.json when remote is set', async () => {
-      writeSkill(root, 'api-design');
-
-      const config: BlueprintConfig = {
-        ...BASE_CONFIG,
-        marketplace: { remote: 'prototypdigital/claude-marketplace' },
-      };
-
-      await sync(root, { config, silent: true });
-
-      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
-      expect(settings.extraKnownMarketplaces).toContain('prototypdigital/claude-marketplace');
-    });
-
-    it('preserves existing settings keys when writing extraKnownMarketplaces', async () => {
-      writeSkill(root, 'api-design');
+    const REMOTE = 'prototypdigital/claude-marketplace';
+    const remoteConfig = (): BlueprintConfig => ({ ...BASE_CONFIG, marketplace: { remote: REMOTE } });
+    const readSettings = () => JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
+    const writeSettings = (value: unknown) => {
       mkdirSync(join(root, '.claude'), { recursive: true });
-      writeFileSync(
-        join(root, '.claude', 'settings.json'),
-        JSON.stringify({ theme: 'dark', extraKnownMarketplaces: ['other/repo'] }, null, 2),
-      );
+      writeFileSync(join(root, '.claude', 'settings.json'), JSON.stringify(value, null, 2));
+    };
 
-      const config: BlueprintConfig = {
-        ...BASE_CONFIG,
-        marketplace: { remote: 'prototypdigital/claude-marketplace' },
-      };
-
-      await sync(root, { config, silent: true });
-
-      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
-      expect(settings.theme).toBe('dark');
-      expect(settings.extraKnownMarketplaces).toContain('other/repo');
-      expect(settings.extraKnownMarketplaces).toContain('prototypdigital/claude-marketplace');
-    });
-
-    it('does not duplicate the remote entry on repeated syncs', async () => {
+    it('writes extraKnownMarketplaces keyed by the generated marketplace name', async () => {
       writeSkill(root, 'api-design');
 
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      const marketplace = JSON.parse(readFileSync(join(root, '.claude-plugin', 'marketplace.json'), 'utf8'));
+      expect(readSettings().extraKnownMarketplaces).toEqual({
+        [marketplace.name]: { source: { source: 'github', repo: REMOTE } },
+      });
+    });
+
+    it('enables every published plugin under enabledPlugins', async () => {
+      writeSkill(root, 'api-design');
+      const name = basename(root);
       const config: BlueprintConfig = {
         ...BASE_CONFIG,
-        marketplace: { remote: 'prototypdigital/claude-marketplace' },
+        marketplace: {
+          remote: REMOTE,
+          plugins: [
+            { name: 'core', displayName: 'Core', description: '' },
+            { name: 'extras', displayName: 'Extras', description: '' },
+          ],
+        },
       };
 
       await sync(root, { config, silent: true });
-      await sync(root, { config, silent: true });
 
-      const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
-      const count = (settings.extraKnownMarketplaces as string[]).filter(
-        (v) => v === 'prototypdigital/claude-marketplace',
-      ).length;
-      expect(count).toBe(1);
+      expect(readSettings().enabledPlugins).toEqual({ [`core@${name}`]: true, [`extras@${name}`]: true });
+    });
+
+    it('preserves existing settings, marketplaces and plugin opt-outs', async () => {
+      writeSkill(root, 'api-design');
+      const name = basename(root);
+      const other = { source: { source: 'git', url: 'https://git.example.com/plugins.git' } };
+      writeSettings({
+        theme: 'dark',
+        extraKnownMarketplaces: { other },
+        enabledPlugins: { [`${name}@${name}`]: false, 'tool@other': true },
+      });
+
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      const settings = readSettings();
+      expect(settings.theme).toBe('dark');
+      expect(settings.extraKnownMarketplaces.other).toEqual(other);
+      expect(settings.extraKnownMarketplaces[name]).toEqual({ source: { source: 'github', repo: REMOTE } });
+      expect(settings.enabledPlugins).toEqual({ [`${name}@${name}`]: false, 'tool@other': true });
+    });
+
+    it('does not overwrite an existing entry under the marketplace name', async () => {
+      writeSkill(root, 'api-design');
+      const custom = { source: { source: 'github', repo: REMOTE }, autoUpdate: true };
+      writeSettings({ extraKnownMarketplaces: { [basename(root)]: custom } });
+
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(readSettings().extraKnownMarketplaces[basename(root)]).toEqual(custom);
+    });
+
+    it('migrates a legacy extraKnownMarketplaces array to the object form', async () => {
+      writeSkill(root, 'api-design');
+      writeSettings({ extraKnownMarketplaces: [REMOTE, 'other-org/other-plugins', 'not-a-repo', 42] });
+
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(readSettings().extraKnownMarketplaces).toEqual({
+        [basename(root)]: { source: { source: 'github', repo: REMOTE } },
+        'other-plugins': { source: { source: 'github', repo: 'other-org/other-plugins' } },
+      });
+    });
+
+    it('leaves settings.json untouched on repeated syncs', async () => {
+      writeSkill(root, 'api-design');
+
+      await sync(root, { config: remoteConfig(), silent: true });
+      const first = readFileSync(join(root, '.claude', 'settings.json'), 'utf8');
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(readFileSync(join(root, '.claude', 'settings.json'), 'utf8')).toBe(first);
+      expect(Object.keys(readSettings().extraKnownMarketplaces)).toHaveLength(1);
     });
 
     it('does not write settings.json when remote is not set', async () => {
@@ -646,7 +683,9 @@ describe('syncMarketplace', () => {
       await sync(root, { config, silent: true });
 
       const settings = JSON.parse(readFileSync(join(root, '.claude', 'settings.json'), 'utf8'));
-      expect(settings.extraKnownMarketplaces).toContain('prototypdigital/claude-marketplace');
+      expect(settings.extraKnownMarketplaces[basename(root)].source.repo).toBe(
+        'prototypdigital/claude-marketplace',
+      );
     });
 
     it('skips settings write when remote is not in owner/repo format', async () => {
