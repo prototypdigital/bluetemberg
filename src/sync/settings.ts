@@ -39,15 +39,19 @@ function githubEntry(repo: string): { source: { source: 'github'; repo: string }
  * into its object form. `remote` is skipped (the caller writes it under our marketplace name);
  * any other `owner/repo` entry is keyed by its repo segment, since its real name is unknown.
  */
-function migrateLegacyArray(legacy: unknown[], ctx: ClaudeSettingsSyncContext): MarketplaceEntries {
+function migrateLegacyArray(
+  legacy: unknown[],
+  ctx: ClaudeSettingsSyncContext,
+  recordWarning: (message: string) => void,
+): MarketplaceEntries {
   const entries: MarketplaceEntries = {};
   for (const item of legacy) {
     if (item === ctx.remote) continue;
     const repo = typeof item === 'string' && OWNER_REPO_RE.test(item) ? item : undefined;
     const name = repo?.split('/')[1];
-    if (!repo || !name || name === ctx.marketplaceName || name in entries) {
+    if (!repo || !name || name === ctx.marketplaceName || Object.hasOwn(entries, name)) {
       if (!ctx.checkMode) {
-        ctx.log(`Claude settings: dropping legacy extraKnownMarketplaces entry ${JSON.stringify(item)}`);
+        recordWarning(`Claude settings: dropped legacy extraKnownMarketplaces entry ${JSON.stringify(item)}`);
       }
       continue;
     }
@@ -59,9 +63,10 @@ function migrateLegacyArray(legacy: unknown[], ctx: ClaudeSettingsSyncContext): 
 function readMarketplaces(
   existing: Record<string, unknown>,
   ctx: ClaudeSettingsSyncContext,
+  recordWarning: (message: string) => void,
 ): MarketplaceEntries {
   const value = existing.extraKnownMarketplaces;
-  if (Array.isArray(value)) return migrateLegacyArray(value, ctx);
+  if (Array.isArray(value)) return migrateLegacyArray(value, ctx, recordWarning);
   return isPlainObject(value) ? { ...value } : {};
 }
 
@@ -85,9 +90,12 @@ function mergeEnabledPlugins(existing: unknown, ctx: ClaudeSettingsSyncContext):
  * Merges the remote marketplace into `.claude/settings.json` under `extraKnownMarketplaces`
  * (keyed by marketplace name) and enables its plugins under `enabledPlugins`. Other
  * marketplaces are preserved; our entry keeps its extra keys (e.g. `autoUpdate`) but its
- * `source` always tracks `remote`.
+ * `source` always tracks `remote` (other `source` fields, such as a pinned `ref`, are kept).
  */
-export function syncClaudeSettings(ctx: ClaudeSettingsSyncContext): void {
+export function syncClaudeSettings(
+  ctx: ClaudeSettingsSyncContext,
+  recordWarning: (message: string) => void,
+): void {
   if (!OWNER_REPO_RE.test(ctx.remote)) {
     ctx.log(`Claude settings: skipping — remote "${ctx.remote}" is not in owner/repo format`);
     return;
@@ -95,18 +103,24 @@ export function syncClaudeSettings(ctx: ClaudeSettingsSyncContext): void {
   const settingsPath = join(ctx.root, '.claude', 'settings.json');
   const existing = readExistingSettings(settingsPath);
 
-  const marketplaces = readMarketplaces(existing, ctx);
-  const previous = marketplaces[ctx.marketplaceName];
+  const marketplaces = readMarketplaces(existing, ctx, recordWarning);
+  const current = marketplaces[ctx.marketplaceName];
+  const previous = isPlainObject(current) ? current : {};
   marketplaces[ctx.marketplaceName] = {
-    ...(isPlainObject(previous) ? previous : {}),
-    ...githubEntry(ctx.remote),
+    ...previous,
+    source: {
+      ...(isPlainObject(previous.source) ? previous.source : {}),
+      ...githubEntry(ctx.remote).source,
+    },
   };
   const enabledPlugins = mergeEnabledPlugins(existing.enabledPlugins, ctx);
 
   const updated: Record<string, unknown> = {
     ...existing,
     extraKnownMarketplaces: marketplaces,
-    ...(Object.keys(enabledPlugins).length > 0 ? { enabledPlugins } : {}),
+    ...(existing.enabledPlugins !== undefined || Object.keys(enabledPlugins).length > 0
+      ? { enabledPlugins }
+      : {}),
   };
   const content = JSON.stringify(updated, null, 2) + '\n';
   if (JSON.stringify(existing, null, 2) + '\n' === content) return;

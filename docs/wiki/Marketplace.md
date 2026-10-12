@@ -94,6 +94,9 @@ This is the shape Claude Code's [settings reference](https://code.claude.com/doc
 - Existing `enabledPlugins` values are never overwritten, so a teammate who sets a plugin to `false` keeps that choice across syncs. A `true` entry for a plugin this marketplace no longer publishes is removed.
 - The array form that older bluetemberg versions wrote (`["owner/repo"]`) is migrated on the next sync. The `remote` entry is keyed by the marketplace name, and any other `owner/repo` entry is keyed by its repo segment. Sync drops and logs any entry that is not `owner/repo`, or whose key collides with the marketplace name or with an earlier entry.
 - If nothing changed, the file is not rewritten.
+- Sync drops a legacy entry only after logging a warning for it, which shows up in the end-of-run summary even with `--silent`. Our entry's other `source` fields, such as a pinned `ref`, are kept.
+- If the sync records any error (for example a plugin with an unknown profile), `.claude/settings.json` is left untouched, so a misconfiguration cannot prune `enabledPlugins` entries.
+- The marketplace name is the directory name of the project root. Run sync from a checkout whose folder has the canonical name. Running it from a worktree or a differently named clone writes a second marketplace entry under that folder's name.
 
 ## The `marketplace` config key
 

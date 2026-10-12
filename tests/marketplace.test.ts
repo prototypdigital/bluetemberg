@@ -629,14 +629,19 @@ describe('syncMarketplace', () => {
       expect(settings.enabledPlugins).toEqual({ [`${name}@${name}`]: false, 'tool@other': true });
     });
 
-    it('keeps an existing entry under the marketplace name intact', async () => {
+    it('keeps other source fields, such as a pinned ref, on our entry', async () => {
       writeSkill(root, 'api-design');
-      const custom = { source: { source: 'github', repo: REMOTE }, autoUpdate: true };
-      writeSettings({ extraKnownMarketplaces: { [basename(root)]: custom } });
+      writeSettings({
+        extraKnownMarketplaces: {
+          [basename(root)]: { source: { source: 'github', repo: 'org/old', ref: 'v2' } },
+        },
+      });
 
       await sync(root, { config: remoteConfig(), silent: true });
 
-      expect(readSettings().extraKnownMarketplaces[basename(root)]).toEqual(custom);
+      expect(readSettings().extraKnownMarketplaces[basename(root)]).toEqual({
+        source: { source: 'github', repo: REMOTE, ref: 'v2' },
+      });
     });
 
     it('migrates a legacy extraKnownMarketplaces array to the object form', async () => {
@@ -717,6 +722,54 @@ describe('syncMarketplace', () => {
         'gone@other': true,
         [`${name}@${name}`]: true,
       });
+    });
+
+    it('warns about each dropped legacy entry and keeps prototype-named repos', async () => {
+      writeSkill(root, 'api-design');
+      writeSettings({ extraKnownMarketplaces: ['not-a-repo', 'a/constructor'] });
+
+      const results = await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(results.warnings).toContainEqual(expect.stringContaining('"not-a-repo"'));
+      expect(readSettings().extraKnownMarketplaces.constructor).toEqual({
+        source: { source: 'github', repo: 'a/constructor' },
+      });
+    });
+
+    it('prunes stale plugin entries even when no plugin is published', async () => {
+      writeSkill(root, 'api-design');
+      writeSettings({ enabledPlugins: { [`gone@${basename(root)}`]: true } });
+      const config: BlueprintConfig = { ...BASE_CONFIG, marketplace: { remote: REMOTE, plugins: [] } };
+
+      await sync(root, { config, silent: true });
+
+      expect(readSettings().enabledPlugins).toEqual({});
+    });
+
+    it('leaves settings.json untouched when a plugin fails to resolve', async () => {
+      writeSkill(root, 'api-design');
+      const before = { enabledPlugins: { [`broken@${basename(root)}`]: true } };
+      writeSettings(before);
+      const config: BlueprintConfig = {
+        ...BASE_CONFIG,
+        marketplace: {
+          remote: REMOTE,
+          plugins: [
+            { name: 'broken', displayName: 'Broken', description: '', profiles: ['nope' as TeamProfile] },
+          ],
+        },
+      };
+
+      const results = await sync(root, { config, silent: true });
+
+      expect(results.errors.length).toBeGreaterThan(0);
+      expect(readSettings()).toEqual(before);
+    });
+
+    it('leaves settings.json untouched when there is no content to publish', async () => {
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(false);
     });
 
     it('does not write settings.json when remote is not set', async () => {
