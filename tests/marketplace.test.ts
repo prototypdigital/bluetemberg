@@ -629,7 +629,7 @@ describe('syncMarketplace', () => {
       expect(settings.enabledPlugins).toEqual({ [`${name}@${name}`]: false, 'tool@other': true });
     });
 
-    it('does not overwrite an existing entry under the marketplace name', async () => {
+    it('keeps an existing entry under the marketplace name intact', async () => {
       writeSkill(root, 'api-design');
       const custom = { source: { source: 'github', repo: REMOTE }, autoUpdate: true };
       writeSettings({ extraKnownMarketplaces: { [basename(root)]: custom } });
@@ -651,15 +651,72 @@ describe('syncMarketplace', () => {
       });
     });
 
-    it('leaves settings.json untouched on repeated syncs', async () => {
+    it('does not rewrite settings.json on repeated syncs', async () => {
       writeSkill(root, 'api-design');
 
-      await sync(root, { config: remoteConfig(), silent: true });
-      const first = readFileSync(join(root, '.claude', 'settings.json'), 'utf8');
+      const first = await sync(root, { config: remoteConfig(), silent: true });
+      const second = await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(second.synced).toBe(first.synced - 1);
+      expect(Object.keys(readSettings().extraKnownMarketplaces)).toHaveLength(1);
+    });
+
+    it('check mode: reports a registered project as in sync and a legacy array as out of sync', async () => {
+      writeSkill(root, 'api-design');
       await sync(root, { config: remoteConfig(), silent: true });
 
-      expect(readFileSync(join(root, '.claude', 'settings.json'), 'utf8')).toBe(first);
-      expect(Object.keys(readSettings().extraKnownMarketplaces)).toHaveLength(1);
+      const clean = await sync(root, { config: remoteConfig(), check: true, silent: true });
+      expect(clean.outOfSync).toBe(0);
+
+      writeSettings({ extraKnownMarketplaces: [REMOTE] });
+      const legacy = await sync(root, { config: remoteConfig(), check: true, silent: true });
+      expect(legacy.outOfSync).toBe(1);
+    });
+
+    it('updates the source when remote changes, keeping extra entry keys', async () => {
+      writeSkill(root, 'api-design');
+      writeSettings({
+        extraKnownMarketplaces: {
+          [basename(root)]: { source: { source: 'github', repo: 'org/old' }, autoUpdate: true },
+        },
+      });
+
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(readSettings().extraKnownMarketplaces[basename(root)]).toEqual({
+        source: { source: 'github', repo: REMOTE },
+        autoUpdate: true,
+      });
+    });
+
+    it('does not let a legacy entry claim the marketplace name or collide', async () => {
+      writeSkill(root, 'api-design');
+      writeSettings({
+        extraKnownMarketplaces: [`someone/${basename(root)}`, REMOTE, 'a/shared', 'b/shared'],
+      });
+
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(readSettings().extraKnownMarketplaces).toEqual({
+        shared: { source: { source: 'github', repo: 'a/shared' } },
+        [basename(root)]: { source: { source: 'github', repo: REMOTE } },
+      });
+    });
+
+    it('drops enabled entries for plugins the marketplace no longer publishes', async () => {
+      writeSkill(root, 'api-design');
+      const name = basename(root);
+      writeSettings({
+        enabledPlugins: { [`gone@${name}`]: true, [`optout@${name}`]: false, 'gone@other': true },
+      });
+
+      await sync(root, { config: remoteConfig(), silent: true });
+
+      expect(readSettings().enabledPlugins).toEqual({
+        [`optout@${name}`]: false,
+        'gone@other': true,
+        [`${name}@${name}`]: true,
+      });
     });
 
     it('does not write settings.json when remote is not set', async () => {

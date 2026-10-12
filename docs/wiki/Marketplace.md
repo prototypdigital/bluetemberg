@@ -90,9 +90,9 @@ When `remote` is configured, every `bluetemberg sync` run ensures `.claude/setti
 
 This is the shape Claude Code's [settings reference](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces) defines. Claude Code rejects any other shape, including a string array.
 
-- Existing settings keys are preserved. So are other marketplaces and any entry already under this marketplace's name, such as one with `autoUpdate` set.
-- Existing `enabledPlugins` values are never overwritten, so a teammate who sets a plugin to `false` keeps that choice across syncs.
-- The array form that older bluetemberg versions wrote (`["owner/repo"]`) is migrated on the next sync. The `remote` entry is keyed by the marketplace name, and any other `owner/repo` entry is keyed by its repo segment. Entries that are not `owner/repo` are dropped, and sync logs each one.
+- Existing settings keys and other marketplaces are preserved. This marketplace's own entry keeps any extra keys you add, such as `autoUpdate`, but sync always resets its `source` to match `remote`.
+- Existing `enabledPlugins` values are never overwritten, so a teammate who sets a plugin to `false` keeps that choice across syncs. A `true` entry for a plugin this marketplace no longer publishes is removed.
+- The array form that older bluetemberg versions wrote (`["owner/repo"]`) is migrated on the next sync. The `remote` entry is keyed by the marketplace name, and any other `owner/repo` entry is keyed by its repo segment. Sync drops and logs any entry that is not `owner/repo`, or whose key collides with the marketplace name or with an earlier entry.
 - If nothing changed, the file is not rewritten.
 
 ## The `marketplace` config key

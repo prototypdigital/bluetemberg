@@ -36,18 +36,22 @@ function githubEntry(repo: string): { source: { source: 'github'; repo: string }
 
 /**
  * Converts the legacy `extraKnownMarketplaces: ["owner/repo"]` form, which Claude Code rejects,
- * into its object form. The entry for `remote` is keyed by our marketplace name; any other
- * `owner/repo` entry is keyed by its repo segment, since its real marketplace name is unknown.
+ * into its object form. `remote` is skipped (the caller writes it under our marketplace name);
+ * any other `owner/repo` entry is keyed by its repo segment, since its real name is unknown.
  */
 function migrateLegacyArray(legacy: unknown[], ctx: ClaudeSettingsSyncContext): MarketplaceEntries {
   const entries: MarketplaceEntries = {};
   for (const item of legacy) {
-    if (typeof item !== 'string' || !OWNER_REPO_RE.test(item)) {
-      ctx.log(`Claude settings: dropping legacy extraKnownMarketplaces entry ${JSON.stringify(item)}`);
+    if (item === ctx.remote) continue;
+    const repo = typeof item === 'string' && OWNER_REPO_RE.test(item) ? item : undefined;
+    const name = repo?.split('/')[1];
+    if (!repo || !name || name === ctx.marketplaceName || name in entries) {
+      if (!ctx.checkMode) {
+        ctx.log(`Claude settings: dropping legacy extraKnownMarketplaces entry ${JSON.stringify(item)}`);
+      }
       continue;
     }
-    const name = item === ctx.remote ? ctx.marketplaceName : item.split('/')[1];
-    entries[name] = githubEntry(item);
+    entries[name] = githubEntry(repo);
   }
   return entries;
 }
@@ -62,9 +66,26 @@ function readMarketplaces(
 }
 
 /**
+ * Enables each published plugin, keeping any existing value so a teammate's `false` opt-out
+ * survives re-sync, and drops `true` entries for plugins this marketplace no longer publishes.
+ */
+function mergeEnabledPlugins(existing: unknown, ctx: ClaudeSettingsSyncContext): Record<string, unknown> {
+  const suffix = `@${ctx.marketplaceName}`;
+  const published = new Set(ctx.plugins.map((plugin) => `${plugin}${suffix}`));
+  const merged: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(isPlainObject(existing) ? existing : {})) {
+    if (key.endsWith(suffix) && value === true && !published.has(key)) continue;
+    merged[key] = value;
+  }
+  for (const key of published) merged[key] ??= true;
+  return merged;
+}
+
+/**
  * Merges the remote marketplace into `.claude/settings.json` under `extraKnownMarketplaces`
- * (keyed by marketplace name) and enables each of its plugins under `enabledPlugins`.
- * Existing entries are never overwritten, so a teammate's `false` opt-out survives re-sync.
+ * (keyed by marketplace name) and enables its plugins under `enabledPlugins`. Other
+ * marketplaces are preserved; our entry keeps its extra keys (e.g. `autoUpdate`) but its
+ * `source` always tracks `remote`.
  */
 export function syncClaudeSettings(ctx: ClaudeSettingsSyncContext): void {
   if (!OWNER_REPO_RE.test(ctx.remote)) {
@@ -75,12 +96,12 @@ export function syncClaudeSettings(ctx: ClaudeSettingsSyncContext): void {
   const existing = readExistingSettings(settingsPath);
 
   const marketplaces = readMarketplaces(existing, ctx);
-  marketplaces[ctx.marketplaceName] ??= githubEntry(ctx.remote);
-
-  const enabledPlugins = isPlainObject(existing.enabledPlugins) ? { ...existing.enabledPlugins } : {};
-  for (const plugin of ctx.plugins) {
-    enabledPlugins[`${plugin}@${ctx.marketplaceName}`] ??= true;
-  }
+  const previous = marketplaces[ctx.marketplaceName];
+  marketplaces[ctx.marketplaceName] = {
+    ...(isPlainObject(previous) ? previous : {}),
+    ...githubEntry(ctx.remote),
+  };
+  const enabledPlugins = mergeEnabledPlugins(existing.enabledPlugins, ctx);
 
   const updated: Record<string, unknown> = {
     ...existing,
@@ -88,7 +109,7 @@ export function syncClaudeSettings(ctx: ClaudeSettingsSyncContext): void {
     ...(Object.keys(enabledPlugins).length > 0 ? { enabledPlugins } : {}),
   };
   const content = JSON.stringify(updated, null, 2) + '\n';
-  if (existsSync(settingsPath) && JSON.stringify(existing, null, 2) + '\n' === content) return;
+  if (JSON.stringify(existing, null, 2) + '\n' === content) return;
 
   commitPlannedWrite(ctx, settingsPath, content);
 
