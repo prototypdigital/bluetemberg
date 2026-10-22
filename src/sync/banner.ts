@@ -45,6 +45,33 @@ export function stripGeneratedBanner(content: string): string {
   return lines.join('\n');
 }
 
+/**
+ * TOML cannot carry an HTML comment; `#` is its comment syntax. Same words, same marker, so
+ * {@link hasGeneratedBanner} recognizes both forms.
+ */
+export function generatedBannerToml(sourceId: string): string {
+  return `# ${BANNER_MARKER} from ${sourceId}. Do not edit — run \`bluetemberg sync\` after editing the source.`;
+}
+
+/** Prepends the TOML banner (idempotent: an existing one is replaced). */
+export function withGeneratedBannerToml(content: string, sourceId: string): string {
+  const lines = content.split('\n');
+  const index = lines.findIndex((line) => line.startsWith(`# ${BANNER_MARKER}`));
+  if (index !== -1) lines.splice(index, lines[index + 1] === '' ? 2 : 1);
+  return `${generatedBannerToml(sourceId)}\n\n${lines.join('\n')}`;
+}
+
+/**
+ * True when the content carries a banner this module emitted, in either form. This is how
+ * `--prune` and `--check` tell a generated file from a hand-written one that happens to live
+ * in a managed output directory.
+ */
+export function hasGeneratedBanner(content: string): boolean {
+  return content
+    .split('\n')
+    .some((line) => line.startsWith(`<!-- ${BANNER_MARKER}`) || line.startsWith(`# ${BANNER_MARKER}`));
+}
+
 /** Inserts the banner after any frontmatter block, else at the top of the file. */
 export function withGeneratedBanner(content: string, sourceId: string): string {
   const banner = generatedBanner(sourceId);

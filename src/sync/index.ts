@@ -993,10 +993,9 @@ function syncCopilotInstructions(ctx: SyncContext): void {
   try {
     const target = join(ctx.root, '.github', 'copilot-instructions.md');
     // Strip the Codex rules block — Copilot gets scoped rules via .github/instructions/ already.
-    const content = stripManagedBlock(
-      readFileSync(agentsMd, 'utf8'),
-      AGENTS_RULES_MARKERS,
-      relative(ctx.root, agentsMd),
+    const content = withGeneratedBanner(
+      stripManagedBlock(readFileSync(agentsMd, 'utf8'), AGENTS_RULES_MARKERS, relative(ctx.root, agentsMd)),
+      'AGENTS.md',
     );
 
     commitPlannedWrite(ctx, target, content);
@@ -1019,10 +1018,9 @@ function syncGeminiInstructions(ctx: SyncContext): void {
   try {
     const target = join(ctx.root, 'GEMINI.md');
     // Strip the Codex rules block — Gemini gets scoped rules via .gemini/context/ already.
-    const content = stripManagedBlock(
-      readFileSync(agentsMd, 'utf8'),
-      AGENTS_RULES_MARKERS,
-      relative(ctx.root, agentsMd),
+    const content = withGeneratedBanner(
+      stripManagedBlock(readFileSync(agentsMd, 'utf8'), AGENTS_RULES_MARKERS, relative(ctx.root, agentsMd)),
+      'AGENTS.md',
     );
 
     commitPlannedWrite(ctx, target, content);

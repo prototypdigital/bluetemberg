@@ -17,7 +17,7 @@ flowchart TD
         D --> L[Optional adapters\nimport from config]
         E --> F{Type?}
         F -->|rules| G[Transform\nfrontmatter]
-        F -->|agents| H[Copy verbatim]
+        F -->|agents| H[Copy + banner]
         F -->|skills| H
         F -->|commands| H
         F -->|prompts| H

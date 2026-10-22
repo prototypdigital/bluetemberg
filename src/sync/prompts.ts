@@ -4,6 +4,7 @@ import type { Platform } from '../types.js';
 import { listFiles } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
 import { commitPlannedWrite } from './pipeline.js';
+import { withGeneratedBanner } from './banner.js';
 
 export interface PromptsSyncContext extends SyncSink {
   sourceBase: string;
@@ -38,7 +39,7 @@ export function syncCopilotPrompts(ctx: PromptsSyncContext, recordError: (messag
 
   for (const { file, outName } of toSync) {
     try {
-      const content = readFileSync(join(sourceDir, file), 'utf8');
+      const content = withGeneratedBanner(readFileSync(join(sourceDir, file), 'utf8'), `prompts/${file}`);
       const outPath = join(outDir, outName);
       commitPlannedWrite(ctx, outPath, content);
     } catch (err) {

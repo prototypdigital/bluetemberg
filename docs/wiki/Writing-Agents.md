@@ -42,7 +42,7 @@ Array of tool capabilities the agent should have access to. Common values: `read
 
 ## How agents are synced
 
-Unlike rules, agents are copied **verbatim** — no frontmatter transformation. Only the file extension changes:
+Unlike rules, agents keep their body and frontmatter. Sync adds the generated-file banner after the frontmatter, changes the file extension, and for Claude Code maps abstract `tools` names to Claude's tool names:
 
 | Source                              | Cursor                                  | Claude                                  | Copilot                                       |
 | ----------------------------------- | --------------------------------------- | --------------------------------------- | --------------------------------------------- |
