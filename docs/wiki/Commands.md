@@ -23,7 +23,8 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
 | `--sources <csv>` | External source specs (e.g. `github:owner/repo#HEAD:rules`, `prpm:name`, `cursor-directory:slug`), written to `llm/rule-sources.json`. `--non-interactive` without `--config`. |
 | `--stacks <csv>` | Technology stacks to manage, written to config `stacks` (e.g. `payload@3.4.1,nextjs@auto`; a bare name → `auto`). `--non-interactive` without `--config`. |
-| `--omit-agents`, `--omit-skills`, `--omit-mcp` | Shortcut booleans (`--non-interactive` only). |
+| `--omit-agents`, `--omit-skills`, `--omit-mcp`, `--omit-github` | Shortcut booleans (`--non-interactive` only). `--omit-github` skips the GitHub/community files listed below. |
+| `--force` | Overwrite `AGENTS.md`, `CLAUDE.md`, and the GitHub/community files when they already exist. Without it, init keeps those files and lists what it kept. Works in every mode. |
 | `--silent` | Hide progress/success logs and forward silence to initial `sync` (still exit non-zero on failure). **Requires** `--non-interactive` **or** `--config`. |
 
 **Global discovery:** combine `--help --json` (any position with `--help`/`-h`) to dump team profiles, package managers, rules, collections, agents, skills, MCP presets, and CLI metadata as JSON (`writeSync`-safe for piping).
@@ -47,6 +48,9 @@ Then, for **every** run:
 7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync generates `.claude/mcp.json`, `.github/mcp.json`, and/or `.cursor/mcp.json` from that manifest (per selected platforms)
 8. Adds `sync:llm-config` scripts to `package.json`
 9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
+10. Writes the GitHub/community files the wizard selected (Dependabot, issue and PR templates, CODEOWNERS, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, SECURITY). Headless runs write all of them unless `--omit-github` is passed. Never CI/CD workflows.
+
+**Existing files are never overwritten.** `AGENTS.md`, `CLAUDE.md`, and the GitHub/community files are yours once they exist: re-running `init` keeps them and prints a "Kept N existing file(s)" list. Pass `--force` to replace them with the templates. The files bluetemberg owns (`bluetemberg.config.json`, `llm/packages.json`, `llm/mcp.json`, `llm/rule-sources.json`) are refreshed on every run.
 10. Runs an initial sync to generate all platform-specific files
 
 Collections are pre-selected based on the chosen profile. See [Profiles](Profiles) for what each team profile defaults to.

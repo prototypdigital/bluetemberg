@@ -105,6 +105,16 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         { long: '--omit-agents', requires: '--non-interactive without --config' },
         { long: '--omit-skills', requires: '--non-interactive without --config' },
         { long: '--omit-mcp', requires: '--non-interactive without --config' },
+        {
+          long: '--omit-github',
+          description: 'Skip the GitHub/community files (Dependabot, templates, CODEOWNERS, LICENSE, …).',
+          requires: '--non-interactive without --config',
+        },
+        {
+          long: '--force',
+          description:
+            'Overwrite existing AGENTS.md, CLAUDE.md, and GitHub files. By default init keeps them and lists what it kept.',
+        },
       ],
       initAnswersFields: [
         'teamProfile',
@@ -122,6 +132,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         'mcpServers',
         'externalSources',
         'stacks',
+        'github',
       ],
     },
     stacks: {

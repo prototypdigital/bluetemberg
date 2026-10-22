@@ -219,6 +219,11 @@ export interface InitRunOptions {
    * Defaults to a short registry request; resolve to `undefined` to keep `latest` (offline callers, tests).
    */
   resolveLatestVersion?: (packageName: string) => Promise<string | undefined>;
+  /**
+   * Overwrite existing files bluetemberg does not own (`AGENTS.md`, `CLAUDE.md`, GitHub/community files).
+   * By default those are kept and reported, so re-running `init` never discards hand-written content.
+   */
+  force?: boolean;
 }
 
 export interface SyncOptions {

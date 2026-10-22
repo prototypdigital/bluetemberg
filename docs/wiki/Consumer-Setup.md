@@ -26,7 +26,7 @@ See [Configuration](Configuration) for the full `extends` reference.
 
 ## 2. GitHub repository files
 
-`bluetemberg init` asks whether to scaffold GitHub repository files. Select the ones that fit your project:
+The `bluetemberg init` wizard asks which GitHub repository files to scaffold; headless runs (`--non-interactive`) write all of them unless you pass `--omit-github`. A file that already exists is kept, not overwritten (`--force` replaces it). Select the ones that fit your project:
 
 | Feature | File(s) | Default |
 |---|---|---|

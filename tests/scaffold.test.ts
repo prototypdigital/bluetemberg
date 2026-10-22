@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { scaffold } from '../src/init/scaffold.js';
+import { scaffold, scaffoldProject } from '../src/init/scaffold.js';
 import { DEFAULT_PACK_VERSION } from '../src/registry/manifest.js';
 import type { InitAnswers } from '../src/types.js';
 
@@ -580,6 +580,87 @@ describe('scaffold', () => {
 
       const content = readFileSync(join(root, '.prettierignore'), 'utf8');
       expect(content).toContain('plugins/');
+    });
+  });
+
+  describe('existing files', () => {
+    const allOn = {
+      dependabot: true,
+      issueTemplates: true,
+      prTemplate: true,
+      codeowners: true,
+      contributing: true,
+      license: true,
+      codeOfConduct: true,
+      security: true,
+    };
+    const answersWithGithub: InitAnswers = { ...baseAnswers, platforms: ['claude'], github: allOn };
+
+    it('keeps an existing AGENTS.md and CLAUDE.md instead of replacing them', () => {
+      writeFileSync(join(root, 'AGENTS.md'), '# hand-written\n');
+      writeFileSync(join(root, 'CLAUDE.md'), '@AGENTS.md\n\nkeep me\n');
+
+      const result = scaffoldProject(root, answersWithGithub);
+
+      expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toBe('# hand-written\n');
+      expect(readFileSync(join(root, 'CLAUDE.md'), 'utf8')).toBe('@AGENTS.md\n\nkeep me\n');
+      expect(result.skipped).toEqual(
+        expect.arrayContaining([join(root, 'AGENTS.md'), join(root, 'CLAUDE.md')]),
+      );
+      expect(result.created).not.toContain(join(root, 'AGENTS.md'));
+    });
+
+    it('keeps an existing LICENSE and CODEOWNERS (the #209 report)', () => {
+      mkdirSync(join(root, '.github'), { recursive: true });
+      writeFileSync(join(root, 'LICENSE'), 'Apache License 2.0\n');
+      writeFileSync(join(root, '.github', 'CODEOWNERS'), '* @lbuljan @prototypdigital\n');
+
+      const result = scaffoldProject(root, answersWithGithub);
+
+      expect(readFileSync(join(root, 'LICENSE'), 'utf8')).toBe('Apache License 2.0\n');
+      expect(readFileSync(join(root, '.github', 'CODEOWNERS'), 'utf8')).toBe('* @lbuljan @prototypdigital\n');
+      expect(result.skipped).toEqual(
+        expect.arrayContaining([join(root, 'LICENSE'), join(root, '.github', 'CODEOWNERS')]),
+      );
+      // The files that did not exist are still written.
+      expect(existsSync(join(root, 'CONTRIBUTING.md'))).toBe(true);
+      expect(result.created).toContain(join(root, 'CONTRIBUTING.md'));
+    });
+
+    it('overwrites them with force', () => {
+      writeFileSync(join(root, 'LICENSE'), 'Apache License 2.0\n');
+      writeFileSync(join(root, 'AGENTS.md'), '# hand-written\n');
+
+      const result = scaffoldProject(root, answersWithGithub, { force: true });
+
+      expect(readFileSync(join(root, 'LICENSE'), 'utf8')).toContain('MIT License');
+      expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).not.toBe('# hand-written\n');
+      expect(result.skipped).toEqual([]);
+    });
+
+    it('reports nothing skipped on a fresh directory', () => {
+      const result = scaffoldProject(root, answersWithGithub);
+      expect(result.skipped).toEqual([]);
+    });
+
+    it('still refreshes the files bluetemberg owns (config and llm/ manifests)', () => {
+      writeFileSync(join(root, 'bluetemberg.config.json'), JSON.stringify({ platforms: ['cursor'] }));
+      mkdirSync(join(root, 'llm'), { recursive: true });
+      writeFileSync(join(root, 'llm', 'packages.json'), JSON.stringify({ packages: { stale: '^0.0.1' } }));
+
+      scaffoldProject(root, answersWithGithub);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.platforms).toEqual(['claude']);
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(manifest.packages.stale).toBeUndefined();
+    });
+
+    it('scaffold() keeps returning only the created paths', () => {
+      writeFileSync(join(root, 'AGENTS.md'), '# hand-written\n');
+      const created = scaffold(root, answersWithGithub);
+      expect(created).not.toContain(join(root, 'AGENTS.md'));
+      expect(created).toContain(join(root, 'bluetemberg.config.json'));
     });
   });
 

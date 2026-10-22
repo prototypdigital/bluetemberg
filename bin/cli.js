@@ -80,6 +80,7 @@ function strayHeadlessOptsWithoutNiOrConfig(opts) {
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
+  if (argvHas('--omit-github')) found.push('--omit-github');
 
   if (found.length === 0) return null;
   return `Init flags require \`--non-interactive\` or \`--config\`: ${found.join(', ')}`;
@@ -117,6 +118,7 @@ function assertNoInitFlagsBundledWithConfig(opts) {
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
+  if (argvHas('--omit-github')) found.push('--omit-github');
 
   if (found.length === 0) return null;
   return `Cannot combine \`--config\` with: ${found.join(', ')}`;
@@ -205,6 +207,8 @@ function buildNiOverrides(opts) {
   if (argvHas('--omit-agents')) ov.includeAgents = false;
   if (argvHas('--omit-skills')) ov.includeSkills = false;
   if (argvHas('--omit-mcp')) ov.includeMcp = false;
+  // Own property set to undefined: finalizeNonInteractiveAnswers keys off presence, not value.
+  if (argvHas('--omit-github')) ov.github = undefined;
 
   return ov;
 }
@@ -240,6 +244,8 @@ program
   .option('--omit-agents')
   .option('--omit-skills')
   .option('--omit-mcp')
+  .option('--omit-github', 'Skip the GitHub/community files (`--non-interactive` only)')
+  .option('--force', 'Overwrite existing AGENTS.md, CLAUDE.md, and GitHub files instead of keeping them')
   .action(async (directory, options) => {
     const msgSilent = straySilentRequiresNiOrConfig(options);
     if (msgSilent) {
@@ -286,6 +292,10 @@ program
 
     if (options.silent) {
       initRunOpts.silent = true;
+    }
+
+    if (options.force) {
+      initRunOpts.force = true;
     }
 
     const { init } = await import('../dist/init/index.js');
