@@ -7,6 +7,7 @@ import { withGeneratedBanner } from './banner.js';
 import { listDirs, listFiles } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { collectStaleOutputs, pruneStaleOutputs } from './prune.js';
+import { copySkillSupportingFiles } from './skill-files.js';
 import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
@@ -1001,6 +1002,7 @@ function syncSkills(ctx: SyncContext): void {
         const outPath = join(outDir, 'SKILL.md');
 
         commitPlannedWrite(ctx, outPath, content);
+        copySkillSupportingFiles(ctx, join(sourceParent, dirName), outDir);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordError(ctx, `skills/${dirName} -> ${targetConfig.dir}: ${message}`);

@@ -1,6 +1,6 @@
 import { relative, resolve } from 'node:path';
 import type { SyncResults } from '../types.js';
-import { computeCheck, writeOrCheck } from '../utils/fs.js';
+import { computeCheck, copyOrCheck, writeOrCheck } from '../utils/fs.js';
 import { renderUnifiedDiff } from './diff.js';
 
 /** Minimal context for applying planned file writes (sync and check mode). */
@@ -41,5 +41,25 @@ export function commitPlannedWrite(sink: SyncSink, outPath: string, content: str
       sink.log(line);
     }
   }
+  sink.results.outOfSync++;
+}
+
+/**
+ * Copies a file byte for byte, keeping its mode (an executable script stays executable), or in
+ * check mode reports it out of sync when the bytes differ. For a skill's supporting files —
+ * scripts, references, assets — which must arrive exactly as authored and get no banner.
+ */
+export function commitPlannedCopy(sink: SyncSink, srcPath: string, outPath: string): void {
+  sink.expectedOutputPaths?.add(resolve(outPath));
+
+  if (!sink.checkMode) {
+    copyOrCheck(srcPath, outPath, false);
+    sink.results.synced++;
+    return;
+  }
+
+  if (!copyOrCheck(srcPath, outPath, true)) return;
+
+  sink.log(`  OUT OF SYNC: ${relative(sink.root, outPath)}`);
   sink.results.outOfSync++;
 }

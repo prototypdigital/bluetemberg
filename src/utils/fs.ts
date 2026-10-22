@@ -1,4 +1,13 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 
 export function ensureDir(dirPath: string): void {
@@ -37,6 +46,22 @@ export function writeOrCheck(filePath: string, content: string, checkMode = fals
   if (checkMode) return computeCheck(filePath, content).outOfSync;
   ensureDir(dirname(filePath));
   writeFileSync(filePath, content);
+  return false;
+}
+
+/**
+ * Byte-for-byte sibling of {@link writeOrCheck} for files that must arrive exactly as authored
+ * (a skill's scripts, references, assets). Write mode copies and keeps the source's mode, so an
+ * executable stays executable. Check mode compares bytes and returns whether they differ; like
+ * `writeOrCheck`, it never creates a directory in check mode.
+ */
+export function copyOrCheck(srcPath: string, outPath: string, checkMode = false): boolean {
+  if (checkMode) {
+    return !existsSync(outPath) || !readFileSync(srcPath).equals(readFileSync(outPath));
+  }
+  ensureDir(dirname(outPath));
+  copyFileSync(srcPath, outPath);
+  chmodSync(outPath, statSync(srcPath).mode & 0o777);
   return false;
 }
 
@@ -113,4 +138,23 @@ export function ensureGitignore(root: string): void {
 
   const added = missing.flatMap(({ comment, entry }) => ['', comment, entry]);
   writeFileSync(gitignorePath, [...content.split('\n'), ...added, ''].join('\n'));
+}
+
+/**
+ * Every regular file under `dir`, as paths relative to `dir`, depth-first and sorted so output is
+ * deterministic. Dotfiles and dot-directories are skipped (editor and OS droppings, never content).
+ */
+export function walkFiles(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  const out: string[] = [];
+  const visit = (rel: string) => {
+    for (const ent of readdirSync(join(dir, rel), { withFileTypes: true })) {
+      if (ent.name.startsWith('.')) continue;
+      const child = rel ? join(rel, ent.name) : ent.name;
+      if (ent.isDirectory()) visit(child);
+      else if (ent.isFile()) out.push(child);
+    }
+  };
+  visit('');
+  return out.sort();
 }

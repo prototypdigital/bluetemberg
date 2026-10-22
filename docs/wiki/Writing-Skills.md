@@ -75,11 +75,16 @@ One-line description of the skill's purpose.
 
 ## How skills are synced
 
-Skills are copied to target platforms with their content unchanged apart from the generated-file banner added after the frontmatter. The directory structure is preserved:
+A skill is a directory, and the whole directory is synced. `SKILL.md` is copied with its content unchanged apart from the generated-file banner added after the frontmatter. Every other file in the directory — the `scripts/`, `references/` and `assets/` the [Agent Skills](https://agentskills.io) layout allows, or anything else you put there — is copied byte for byte with its file mode kept, so a script that is executable in `llm/` is executable in the output. Supporting files get no banner. Dotfiles are skipped.
 
-| Source                         | Cursor                             | Claude                             | Copilot                            |
-| ------------------------------ | ---------------------------------- | ---------------------------------- | ---------------------------------- |
-| `llm/skills/patterns/SKILL.md` | `.cursor/skills/patterns/SKILL.md` | `.claude/skills/patterns/SKILL.md` | `.github/skills/patterns/SKILL.md` |
+| Source                                 | Cursor                                     | Claude                                     | Copilot                                    |
+| -------------------------------------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
+| `llm/skills/patterns/SKILL.md`         | `.cursor/skills/patterns/SKILL.md`         | `.claude/skills/patterns/SKILL.md`         | `.github/skills/patterns/SKILL.md`         |
+| `llm/skills/patterns/scripts/check.sh` | `.cursor/skills/patterns/scripts/check.sh` | `.claude/skills/patterns/scripts/check.sh` | `.github/skills/patterns/scripts/check.sh` |
+
+Reference supporting files from `SKILL.md` by their path relative to the skill directory (`scripts/check.sh`), which is the same in the source and in every output. The same copy happens for marketplace plugin skills under `plugins/<name>/skills/`.
+
+`sync --check` compares supporting files byte for byte. `sync --prune` treats a skill directory as one unit: when its `SKILL.md` carries the banner, a supporting file that no longer exists in the source is removed, and so is the whole directory once the skill itself is gone.
 
 ## Naming convention
 

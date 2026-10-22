@@ -1,10 +1,11 @@
 import { existsSync, readdirSync, readFileSync, rmdirSync, unlinkSync } from 'node:fs';
-import { extname, join, relative, resolve } from 'node:path';
+import { dirname, extname, join, relative, resolve } from 'node:path';
 import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
 import { DEFAULT_TARGETS } from './transform.js';
 import { filterTargets } from '../utils/target-filtering.js';
 import { hasGeneratedBanner } from './banner.js';
+import { walkFiles } from '../utils/fs.js';
 
 /** A file under a managed output location that the current sync pass did not produce. */
 export interface StaleOutput {
@@ -79,6 +80,44 @@ function collectRulesAndAgents(
   }
 }
 
+/**
+ * Directories between `file` and `base` (inclusive of `base`), deepest first — what to remove once
+ * the file is gone and nothing else is left.
+ */
+function ancestorDirs(base: string, file: string): string[] {
+  const dirs: string[] = [];
+  for (let dir = dirname(file); dir.length >= base.length; dir = dirname(dir)) {
+    dirs.push(dir);
+    if (dir === base) break;
+  }
+  return dirs;
+}
+
+/**
+ * A skill directory is one unit. Its `SKILL.md` carrying the banner is the evidence that the whole
+ * directory is generated — supporting files (scripts, references, assets) are copied byte for
+ * byte and cannot carry one themselves. Without that evidence the directory is somebody's skill
+ * and only its `SKILL.md` is listed, as hand-written.
+ */
+function collectSkillDir(
+  out: StaleOutput[],
+  skillDir: string,
+  expected: Set<string>,
+  extraCleanup: string[] = [],
+): void {
+  const skillMd = join(skillDir, 'SKILL.md');
+  if (!existsSync(skillMd)) return;
+  const kind = classify(resolve(skillMd));
+  if (kind !== 'generated') {
+    consider(out, expected, skillMd, [skillDir, ...extraCleanup], kind);
+    return;
+  }
+  for (const rel of walkFiles(skillDir)) {
+    const file = join(skillDir, rel);
+    consider(out, expected, file, [...ancestorDirs(skillDir, file), ...extraCleanup], 'generated');
+  }
+}
+
 function collectSkills(
   out: StaleOutput[],
   root: string,
@@ -88,10 +127,7 @@ function collectSkills(
 ): void {
   for (const [, tc] of filterTargets<SkillTargetConfig>(section, platforms)) {
     const base = join(root, tc.dir);
-    for (const name of listSubdirs(base)) {
-      const skillMd = join(base, name, 'SKILL.md');
-      if (existsSync(skillMd)) consider(out, expected, skillMd, [join(base, name)]);
-    }
+    for (const name of listSubdirs(base)) collectSkillDir(out, join(base, name), expected);
   }
 }
 
@@ -119,12 +155,11 @@ function collectMarketplace(out: StaleOutput[], root: string, expected: Set<stri
     const skillsDir = join(pluginDir, 'skills');
     const markdown: { path: string; cleanupDirs: string[] }[] = [];
 
+    const before = out.length;
     for (const skillName of listSubdirs(skillsDir)) {
-      const skillMd = join(skillsDir, skillName, 'SKILL.md');
-      if (existsSync(skillMd)) {
-        markdown.push({ path: skillMd, cleanupDirs: [join(skillsDir, skillName), skillsDir, pluginDir] });
-      }
+      collectSkillDir(out, join(skillsDir, skillName), expected, [skillsDir, pluginDir]);
     }
+    const skillKinds = out.slice(before).map((file) => file.kind);
     for (const sub of ['rules', 'agents']) {
       const dir = join(pluginDir, sub);
       for (const name of listDir(dir)) {
@@ -132,9 +167,11 @@ function collectMarketplace(out: StaleOutput[], root: string, expected: Set<stri
       }
     }
 
-    const kinds = markdown.map((file) => classify(resolve(file.path)));
+    const kinds = [...skillKinds, ...markdown.map((file) => classify(resolve(file.path)))];
     const wholePluginGenerated = kinds.length > 0 && kinds.every((kind) => kind === 'generated');
-    markdown.forEach((file, i) => consider(out, expected, file.path, file.cleanupDirs, kinds[i]));
+    markdown.forEach((file, i) =>
+      consider(out, expected, file.path, file.cleanupDirs, kinds[skillKinds.length + i]),
+    );
 
     const manifestKind: StaleOutput['kind'] = wholePluginGenerated ? 'generated' : 'unverifiable';
     const manifestDir = join(pluginDir, '.claude-plugin');
