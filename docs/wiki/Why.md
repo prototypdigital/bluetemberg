@@ -1,45 +1,42 @@
 # Why Bluetemberg
 
+AI coding standards, shipped like a dependency: version-locked, integrity-verified, signed, and routed to the right engineer and the right stack version. Installed with one command.
+
 ## The problem it solves
 
-Most teams who adopt AI coding assistants end up with the same drift problem: rules get written once, committed to one platform's config folder, and then silently fall out of sync as the team grows. Someone adds a Cursor rule that never makes it to Claude. A new developer sets up Copilot instructions that contradict what's in `.cursor/rules/`. Six months later nobody knows which version is correct, and the AI is giving inconsistent answers depending on which tool you're using.
+A team's AI coding rules usually start as a file someone wrote once. Then they spread: copied into a second repo, edited there, pasted into a third. Six months later there are five versions, nobody knows which is current, and a rule written for Payload 2 is quietly steering an agent in a Payload 3 codebase. Nothing says which copy is right, nothing checks that a copy was not altered on the way in, and nothing stops the wrong one from loading.
 
-Bluetemberg solves this with a single source of truth in `llm/` and a sync engine that generates platform-specific files from it. The drift problem becomes a CI check rather than a social problem.
+That is a distribution problem, and the fix is the one every other kind of shared code already uses: publish the content as a versioned package, pin it, verify it on install, and let the consumer decide what applies to them.
 
-## Rules are self-contained
+## What you get
 
-Each rule file is a complete, standalone document. The AI reads it directly — there are no cross-references, no includes, no indirection. When the sync engine copies `llm/rules/coding-standards.md` to `.cursor/rules/coding-standards.mdc`, the AI gets the full content of that file. Nothing else needs to be loaded.
+- **Versioning.** Rules, agents, skills and guardrails are npm packages. `llm/packages.json` holds semver ranges; `llm/packages-lock.json` holds the exact versions. `bluetemberg update` moves them on purpose, never by accident.
+- **Integrity.** Every pack is checked against its SHA-512 hash on download, and the registry's ECDSA signature is verified against the registry's published keys. Tarballs are size-capped and path-traversal-filtered. The lockfile records the signing key id.
+- **Routing by role.** A profile (frontend, backend, devops, …) preselects the packs that fit the role. Those are defaults, not bundles: add or remove anything.
+- **Routing by stack version.** A rule tagged `stacks: { payload: '>=3 <4' }` is delivered only where the detected version satisfies it. This one is a hard exclusion, and sync lists every file it withheld so you can audit it.
+- **Guardrails.** Declarative checks compiled into hooks the tool enforces, for the rules an assistant must not be able to skip.
+- **Native output for every tool.** The same source lands as `.cursor/rules`, `.claude/rules`, `.github/instructions`, `AGENTS.md` and the rest, each in the format that tool reads. This is a capability, not the point: as tools converge on `AGENTS.md`, the format matters less and the guarantees above matter more.
 
-This is a deliberate design choice. Cross-file dependencies ("see also: rule-x.md") require the AI to chase references, which is unreliable across platforms and harder to debug. Self-contained rules are simpler, faster to read, and easier to reason about.
+## "But everything is converging on AGENTS.md."
 
-## Why files live in your repo
+Good. A shared file solves the format. It does not give you a version, a hash, a per-role selection, or a way to keep a Payload 2 rule out of a Payload 3 repo. Bluetemberg emits `AGENTS.md` too, and answers who gets which rules, at which version, and how you know the content was not tampered with in transit.
 
-The `llm/` directory lives in your project's repository, not in a separate shared package. This is also intentional.
+## What lands in your repo stays yours
 
-A shared external kit creates its own drift problem: the kit evolves, your project pins an old version, and you end up with stale rules that nobody updates because the update process is friction. Keeping rules in the repo means:
+Installed content is written into your repository as plain Markdown. You can read it, diff it in a pull request, and override any file by putting one with the same name under `llm/`. Local files always win over packs. If you stop using Bluetemberg, the files remain useful; nothing in them depends on the engine.
 
-- **They're owned by the team using them.** A rule that doesn't fit your project can be deleted or modified without waiting for a package update.
-- **They're visible in PRs.** When a rule changes, the diff shows up in your pull request like any other file.
-- **They're versioned with your code.** The rules that were active when a bug was introduced are preserved in git history.
+Rules are self-contained on purpose. Each file is a complete document the AI reads directly, with no cross-references to chase. That keeps them reliable across tools and easy to reason about.
 
-Bluetemberg's job is to give you the starting set of rules and keep the platform-specific files in sync. What you do with the rules after that is your call.
+External sources (`bluetemberg source add`) follow the same discipline: a community rule set is pinned to an exact version in a committed lockfile, translated into your tree, and loses to your local rules on a name clash. It is a way to seed content you then own, not a live dependency that can shift underneath you.
 
-Pulling from an **external source** (`bluetemberg source add`) doesn't reintroduce the kit-drift problem: rules fetched from a community GitHub repo, PRPM, or cursor.directory are pinned to an exact version in a committed lockfile, translated into your tree, and always lose to your local rules on a filename clash. They're a convenience for *seeding* rules you'll then own — not a live dependency that can shift underneath you.
+## Kickoff and maintenance
 
-## The kickoff + maintain split
-
-There are two distinct phases to AI tooling setup:
-
-1. **Kickoff** — getting a sensible starting configuration into a new project quickly
-2. **Maintenance** — keeping that configuration up to date and in sync as the project evolves
-
-Bluetemberg handles both. `init` handles the kickoff: it asks a few questions, picks appropriate defaults for your team type, and generates everything. `sync` handles maintenance: one command regenerates all platform files from the source of truth, and `sync --check` in CI catches drift before it ships.
-
-The alternative — writing platform-specific configs by hand, separately for each tool — means every change has to be made by hand for each tool you support (Cursor, Claude, Copilot, Gemini CLI, Windsurf), and there's no automated way to verify they're consistent.
+`init` is the kickoff: pick a profile and the tools you use, and it writes the config, the manifest, and the first set of files. `install` fetches and verifies the packs. `sync` is the maintenance loop: regenerate every tool's files from the source of truth, and in CI, `sync --check` fails the build when a generated file drifts from its source or outlives it.
 
 ## What Bluetemberg does not do
 
-- It does not evaluate or run your rules. It copies and transforms them.
-- It does not require an internet connection at sync time.
-- It does not lock you into any AI platform. The `llm/` files are plain Markdown. You can stop using Bluetemberg and the files remain useful.
-- It does not tell you what rules to write. The official rule packs are defaults, not requirements — you can add, remove, or replace any collection.
+- It does not run or evaluate your rules. It distributes and transforms them.
+- It does not touch your CI/CD pipeline. `init` scaffolds repository files such as Dependabot and templates, never workflows.
+- It does not phone home. `sync` works offline; only `install`, `update` and `search` talk to the registry.
+- It does not lock you in. The source and the output are Markdown you own.
+- It does not decide what good rules are. The official packs are a starting point; replace any of them.
