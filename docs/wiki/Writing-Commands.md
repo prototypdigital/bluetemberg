@@ -1,6 +1,6 @@
 # Writing commands (Claude Code)
 
-Project-local **slash commands** for Claude Code live under `llm/commands/` as Markdown files. Sync copies them to `.claude/commands/` (Claude Code) and, when `windsurf` is in `platforms`, to `.windsurf/workflows/` as Windsurf workflows. The file name (without `.md`) becomes the command name (e.g. `review.md` → `/review`).
+Project-local **slash commands** for Claude Code live under `llm/commands/` as Markdown files. Sync copies them to `.claude/commands/` (Claude Code) and, when `windsurf` is in `platforms`, to `.windsurf/workflows/` as Windsurf workflows, adding only the generated-file banner. The file name (without `.md`) becomes the command name (e.g. `review.md` → `/review`).
 
 ## Layout
 
