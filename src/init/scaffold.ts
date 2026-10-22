@@ -23,41 +23,82 @@ import {
   MARKETPLACE_PLUGIN_PACKS,
 } from './presets.js';
 
-export function scaffold(targetDir: string, answers: InitAnswers): string[] {
-  const created: string[] = [];
+export interface ScaffoldOptions {
+  /**
+   * Overwrite files bluetemberg does not own (`AGENTS.md`, `CLAUDE.md`, the GitHub/community files)
+   * when they already exist. Off by default: those files are kept and reported as skipped.
+   */
+  force?: boolean;
+}
 
-  scaffoldConfig(targetDir, answers, created);
+export interface ScaffoldResult {
+  /** Files written (created or updated). */
+  created: string[];
+  /** Existing files left untouched because bluetemberg does not own them and `force` was off. */
+  skipped: string[];
+}
+
+interface ScaffoldState extends ScaffoldResult {
+  force: boolean;
+}
+
+export function scaffoldProject(
+  targetDir: string,
+  answers: InitAnswers,
+  options: ScaffoldOptions = {},
+): ScaffoldResult {
+  const state: ScaffoldState = { created: [], skipped: [], force: options.force === true };
+
+  scaffoldConfig(targetDir, answers, state);
 
   if (answers.ruleSource !== 'collections') {
-    scaffoldEmptyRules(targetDir, created);
+    scaffoldEmptyRules(targetDir, state);
   }
 
-  scaffoldPackageManifest(targetDir, answers, created);
+  scaffoldPackageManifest(targetDir, answers, state);
 
-  scaffoldRootDocs(targetDir, answers, created);
+  scaffoldRootDocs(targetDir, answers, state);
 
   if (answers.includeMcp) {
-    scaffoldMcp(targetDir, answers, created);
+    scaffoldMcp(targetDir, answers, state);
   }
 
   if ((answers.externalSources?.length ?? 0) > 0) {
-    scaffoldSources(targetDir, answers.externalSources!, created);
+    scaffoldSources(targetDir, answers.externalSources!, state);
   }
 
   if (answers.github) {
-    scaffoldGitHub(targetDir, answers, created);
+    scaffoldGitHub(targetDir, answers, state);
   }
 
-  updatePackageScripts(targetDir, created);
-  patchPrettierIgnore(targetDir, answers, created);
+  updatePackageScripts(targetDir, state);
+  patchPrettierIgnore(targetDir, answers, state);
 
-  return created;
+  return { created: state.created, skipped: state.skipped };
 }
 
-function safeWrite(filePath: string, content: string, created: string[]): void {
+/** Paths written, for callers that only need the list. See {@link scaffoldProject} for skipped files too. */
+export function scaffold(targetDir: string, answers: InitAnswers, options: ScaffoldOptions = {}): string[] {
+  return scaffoldProject(targetDir, answers, options).created;
+}
+
+/** Writes a file bluetemberg owns (config, `llm/` manifests); re-running init is expected to refresh these. */
+function safeWrite(filePath: string, content: string, state: ScaffoldState): void {
   ensureDir(dirname(filePath));
   writeFileSync(filePath, content);
-  created.push(filePath);
+  state.created.push(filePath);
+}
+
+/**
+ * Writes a file the project owns once bluetemberg has scaffolded it (`AGENTS.md`, a LICENSE, CODEOWNERS…).
+ * An existing copy is hand-maintained content, so it is kept unless the caller asked to overwrite.
+ */
+function writeUnlessExists(filePath: string, content: string, state: ScaffoldState): void {
+  if (!state.force && existsSync(filePath)) {
+    state.skipped.push(filePath);
+    return;
+  }
+  safeWrite(filePath, content, state);
 }
 
 function readExistingAdapters(configPath: string): string[] | undefined {
@@ -97,7 +138,7 @@ function buildMarketplaceConfig(answers: InitAnswers): BlueprintConfig['marketpl
   };
 }
 
-function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string[]): void {
+function scaffoldConfig(targetDir: string, answers: InitAnswers, state: ScaffoldState): void {
   const targets: BlueprintConfig['targets'] = {};
 
   const hasRules = answers.rules.length > 0 || (answers.ruleCollections?.length ?? 0) > 0;
@@ -140,7 +181,7 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
     ...(existingAdapters !== undefined ? { adapters: existingAdapters } : {}),
   };
 
-  safeWrite(configPath, JSON.stringify(config, null, 2) + '\n', created);
+  safeWrite(configPath, JSON.stringify(config, null, 2) + '\n', state);
 }
 
 /**
@@ -148,11 +189,11 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, created: string
  * otherwise-empty directory is committed for "bring your own rules" projects.
  * The placeholder is non-`.md`, so `sync` (which reads only `*.md`) ignores it.
  */
-function scaffoldEmptyRules(targetDir: string, created: string[]): void {
-  safeWrite(join(targetDir, 'llm', 'rules', '.gitkeep'), '', created);
+function scaffoldEmptyRules(targetDir: string, state: ScaffoldState): void {
+  safeWrite(join(targetDir, 'llm', 'rules', '.gitkeep'), '', state);
 }
 
-function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, created: string[]): void {
+function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, state: ScaffoldState): void {
   const packages: Record<string, string> = {};
 
   if (answers.ruleSource === 'collections') {
@@ -192,10 +233,10 @@ function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, create
   const manifest: PackageManifest = { packages };
   const manifestPath = join(targetDir, 'llm', 'packages.json');
   ensureDir(dirname(manifestPath));
-  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
+  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', state);
 }
 
-function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: string[]): void {
+function scaffoldRootDocs(targetDir: string, answers: InitAnswers, state: ScaffoldState): void {
   const pm = answers.packageManager === 'npm' ? 'npm run' : answers.packageManager;
   const desc = answers.projectDescription || `${answers.projectName} project.`;
 
@@ -258,7 +299,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
     '',
   );
 
-  safeWrite(join(targetDir, 'AGENTS.md'), agentsLines.join('\n'), created);
+  writeUnlessExists(join(targetDir, 'AGENTS.md'), agentsLines.join('\n'), state);
 
   if (answers.platforms.includes('claude')) {
     const syncCmd = 'npx bluetemberg sync';
@@ -280,21 +321,21 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, created: stri
       '',
     ];
 
-    safeWrite(join(targetDir, 'CLAUDE.md'), claudeLines.join('\n'), created);
+    writeUnlessExists(join(targetDir, 'CLAUDE.md'), claudeLines.join('\n'), state);
   }
 }
 
-function scaffoldMcp(targetDir: string, answers: InitAnswers, created: string[]): void {
+function scaffoldMcp(targetDir: string, answers: InitAnswers, state: ScaffoldState): void {
   const servers = answers.mcpServers;
   if (servers.length === 0) return;
 
   const llmDir = join(targetDir, 'llm');
   ensureDir(llmDir);
   const manifest = { servers };
-  safeWrite(join(llmDir, 'mcp.json'), JSON.stringify(manifest, null, 2) + '\n', created);
+  safeWrite(join(llmDir, 'mcp.json'), JSON.stringify(manifest, null, 2) + '\n', state);
 }
 
-function scaffoldSources(targetDir: string, specStrings: string[], created: string[]): void {
+function scaffoldSources(targetDir: string, specStrings: string[], state: ScaffoldState): void {
   const manifest: SourceManifest = { sources: {} };
 
   for (const raw of specStrings) {
@@ -311,10 +352,10 @@ function scaffoldSources(targetDir: string, specStrings: string[], created: stri
 
   const manifestPath = join(targetDir, 'llm', 'rule-sources.json');
   ensureDir(dirname(manifestPath));
-  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', created);
+  safeWrite(manifestPath, JSON.stringify(manifest, null, 2) + '\n', state);
 }
 
-function updatePackageScripts(targetDir: string, created: string[]): void {
+function updatePackageScripts(targetDir: string, state: ScaffoldState): void {
   const pkgPath = join(targetDir, 'package.json');
   if (!existsSync(pkgPath)) return;
 
@@ -324,7 +365,7 @@ function updatePackageScripts(targetDir: string, created: string[]): void {
     pkg.scripts['sync:llm-config'] = 'npx bluetemberg sync';
     pkg.scripts['sync:llm-config:check'] = 'npx bluetemberg sync --check';
     writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-    created.push(pkgPath);
+    state.created.push(pkgPath);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.warn(`  Warning: could not update package.json scripts: ${message}`);
@@ -549,46 +590,54 @@ as soon as possible.
 | latest  | ✓         |
 `;
 
-function scaffoldGitHub(targetDir: string, answers: InitAnswers, created: string[]): void {
+function scaffoldGitHub(targetDir: string, answers: InitAnswers, state: ScaffoldState): void {
   const cfg = answers.github;
   if (!cfg) return;
 
   if (cfg.dependabot) {
-    safeWrite(join(targetDir, '.github', 'dependabot.yml'), DEPENDABOT_CONFIG, created);
+    writeUnlessExists(join(targetDir, '.github', 'dependabot.yml'), DEPENDABOT_CONFIG, state);
   }
   if (cfg.issueTemplates) {
-    safeWrite(join(targetDir, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml'), BUG_REPORT_TEMPLATE, created);
-    safeWrite(
+    writeUnlessExists(
+      join(targetDir, '.github', 'ISSUE_TEMPLATE', 'bug_report.yml'),
+      BUG_REPORT_TEMPLATE,
+      state,
+    );
+    writeUnlessExists(
       join(targetDir, '.github', 'ISSUE_TEMPLATE', 'feature_request.yml'),
       FEATURE_REQUEST_TEMPLATE,
-      created,
+      state,
     );
-    safeWrite(join(targetDir, '.github', 'ISSUE_TEMPLATE', 'config.yml'), ISSUE_TEMPLATE_CONFIG, created);
+    writeUnlessExists(
+      join(targetDir, '.github', 'ISSUE_TEMPLATE', 'config.yml'),
+      ISSUE_TEMPLATE_CONFIG,
+      state,
+    );
   }
   if (cfg.prTemplate) {
-    safeWrite(join(targetDir, '.github', 'pull_request_template.md'), PR_TEMPLATE, created);
+    writeUnlessExists(join(targetDir, '.github', 'pull_request_template.md'), PR_TEMPLATE, state);
   }
   if (cfg.codeowners) {
-    safeWrite(join(targetDir, '.github', 'CODEOWNERS'), CODEOWNERS_TEMPLATE, created);
+    writeUnlessExists(join(targetDir, '.github', 'CODEOWNERS'), CODEOWNERS_TEMPLATE, state);
   }
   if (cfg.contributing) {
-    safeWrite(join(targetDir, 'CONTRIBUTING.md'), CONTRIBUTING_TEMPLATE, created);
+    writeUnlessExists(join(targetDir, 'CONTRIBUTING.md'), CONTRIBUTING_TEMPLATE, state);
   }
   if (cfg.license) {
-    safeWrite(join(targetDir, 'LICENSE'), LICENSE_TEMPLATE, created);
+    writeUnlessExists(join(targetDir, 'LICENSE'), LICENSE_TEMPLATE, state);
   }
   if (cfg.codeOfConduct) {
-    safeWrite(join(targetDir, 'CODE_OF_CONDUCT.md'), CODE_OF_CONDUCT_TEMPLATE, created);
+    writeUnlessExists(join(targetDir, 'CODE_OF_CONDUCT.md'), CODE_OF_CONDUCT_TEMPLATE, state);
   }
   if (cfg.security) {
-    safeWrite(join(targetDir, 'SECURITY.md'), SECURITY_TEMPLATE, created);
+    writeUnlessExists(join(targetDir, 'SECURITY.md'), SECURITY_TEMPLATE, state);
   }
 }
 
 const BASE_PRETTIERIGNORE_ENTRIES = ['llm/', 'docs/wiki/'];
 const MARKETPLACE_PRETTIERIGNORE_ENTRIES = ['plugins/'];
 
-function patchPrettierIgnore(targetDir: string, answers: InitAnswers, created: string[]): void {
+function patchPrettierIgnore(targetDir: string, answers: InitAnswers, state: ScaffoldState): void {
   const filePath = join(targetDir, '.prettierignore');
   let content = '';
 
@@ -607,5 +656,5 @@ function patchPrettierIgnore(targetDir: string, answers: InitAnswers, created: s
 
   const suffix = content.length > 0 && !content.endsWith('\n') ? '\n' : '';
   writeFileSync(filePath, content + suffix + missing.join('\n') + '\n');
-  created.push(filePath);
+  state.created.push(filePath);
 }

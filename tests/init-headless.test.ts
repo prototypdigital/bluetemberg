@@ -180,6 +180,21 @@ describe('InitRunOptions validation', () => {
   });
 });
 
+describe('finalizeNonInteractiveAnswers github override', () => {
+  const root = join(tmpdir(), `bluetemberg-gh-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+  it('scaffolds every GitHub file by default', () => {
+    const answers = finalizeNonInteractiveAnswers('fullstack', root, {});
+    expect(answers.github?.license).toBe(true);
+    expect(answers.github?.codeowners).toBe(true);
+  });
+
+  it('drops the GitHub files when the override sets github to undefined (--omit-github)', () => {
+    const answers = finalizeNonInteractiveAnswers('fullstack', root, { github: undefined });
+    expect(answers.github).toBeUndefined();
+  });
+});
+
 describe('init headless orchestration', () => {
   it('runs without prompts using embedded answers only', async () => {
     const root = join(
