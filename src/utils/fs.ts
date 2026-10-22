@@ -98,13 +98,16 @@ function hasIgnoreEntry(content: string, entry: string): boolean {
  * mappings) is a file many projects commit deliberately, and blanket-ignoring it would
  * silently hide those. Ignoring never untracks an `.npmrc` that is already committed.
  *
- * No-op when there is no `.gitignore` (don't create one for a non-git project) or when
+ * Creates the `.gitignore` when the project is a git repository without one; no-op outside a repository or when
  * every applicable entry is already present; each entry is appended independently, so a
  * project ignoring only one of them still gets the other.
  */
 export function ensureGitignore(root: string): void {
   const gitignorePath = join(root, '.gitignore');
-  if (!existsSync(gitignorePath)) return;
+  // A git repository with no .gitignore yet gets one; a directory that is not a repository
+  // is left alone (a .gitignore there would be noise, and nothing can be committed anyway).
+  if (!existsSync(gitignorePath) && !existsSync(join(root, '.git'))) return;
+  if (!existsSync(gitignorePath)) writeFileSync(gitignorePath, '');
 
   const managed = npmrcHoldsCredential(root) ? [CACHE_IGNORE, NPMRC_IGNORE] : [CACHE_IGNORE];
   const content = readFileSync(gitignorePath, 'utf8');

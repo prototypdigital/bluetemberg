@@ -161,7 +161,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           description: 'Detect stacks + versions and report coverage/gaps.',
           options: [
             { long: '--json', description: 'Emit machine-readable JSON (detected, gaps, warnings).' },
-            { long: '--silent', description: 'Suppress all output.' },
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
         },
         {
@@ -170,7 +170,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           description: 'Query whether version-correct guidance exists for a stack.',
           options: [
             { long: '--json', description: 'Emit machine-readable JSON.' },
-            { long: '--silent', description: 'Suppress all output.' },
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
         },
         {
@@ -189,7 +189,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
               description: '[remote --org] Only scan repos pushed to within the last N days.',
             },
             { long: '--json', description: 'Emit machine-readable JSON (roots, histogram, gaps, skipped).' },
-            { long: '--silent', description: 'Suppress all output.' },
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
           note: 'A remote scan (--org/--repos) reads manifests over the GitHub API without cloning and requires a GITHUB_TOKEN or GH_TOKEN in the environment.',
         },
@@ -222,25 +222,31 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           name: 'add',
           args: '<spec>',
           description: 'Resolve, fetch, and pin an external source; writes manifest + lockfile.',
-          options: [{ long: '--silent', description: 'Suppress all output.' }],
+          options: [
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
+          ],
         },
         {
           name: 'remove',
           args: '<key>',
           description: 'Remove a source by key (as shown by "bluetemberg source list").',
-          options: [{ long: '--silent', description: 'Suppress all output.' }],
+          options: [
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
+          ],
         },
         {
           name: 'list',
           description: 'List configured external sources with their pinned refs.',
-          options: [{ long: '--silent', description: 'Suppress all output.' }],
+          options: [
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
+          ],
         },
         {
           name: 'install',
           description: 'Install all sources from the manifest (like npm ci).',
           options: [
             { long: '--force', description: 'Force re-download even if cached.' },
-            { long: '--silent', description: 'Suppress all output.' },
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
         },
         {
@@ -248,7 +254,9 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           args: '[key]',
           description:
             'Re-resolve sources to the newest ref/version satisfying their spec. Updates all when key is omitted.',
-          options: [{ long: '--silent', description: 'Suppress all output.' }],
+          options: [
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
+          ],
         },
         {
           name: 'search',
@@ -257,7 +265,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           options: [
             { long: '--type <type>', description: 'Restrict to one backend: prpm | cursor-directory.' },
             { long: '--limit <n>', description: 'Max results (default: 20).' },
-            { long: '--silent', description: 'Suppress all output.' },
+            { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
         },
       ],

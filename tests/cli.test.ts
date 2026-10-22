@@ -236,6 +236,12 @@ cliSuite('cli init headless', () => {
     expect(readFileSync(join(root, 'LICENSE'), 'utf8')).toContain('MIT License');
   });
 
+  it('--silent still reports a fatal error on stderr', () => {
+    const r = runCli(['init', '--config', join(root, 'nope.json'), '--silent', root], root);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/Error/);
+  });
+
   it('rejects --config when the path is missing', () => {
     const missing = join(root, 'no-init-config-here.json');
     const r = runCli(['init', '--config', missing, root], root);
