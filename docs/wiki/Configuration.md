@@ -191,12 +191,15 @@ Sources under `llm/` never carry one — it is added on the way out, and re-runn
 
 Sync normally **only writes**; it does not delete old outputs when you remove or rename a source file under `llm/`. Run **`bluetemberg sync --prune`** after editing sources to remove generated files that are no longer part of the current plan (under the same managed directories the built-in sync writes to).
 
-**Caveats:** `--prune` runs only after a write pass with **no recorded errors**. It does not delete files your **adapters** create unless those adapters record outputs via `commitPlannedWrite` and pass through `expectedOutputPaths` from the adapter context (see [Adapters](Adapters)). Hand-edited copies under managed dirs may be removed if they are not regenerated. **Do not** point `targets.*.*.dir` at a directory that contains unrelated files you care about.
+**What it deletes:** only files that carry the [generated-file banner](#generated-file-banner). A Markdown or TOML file under a managed directory **without** the banner is treated as hand-written and left alone. JSON outputs (`mcp.json`, `.cursor/hooks.json`, `marketplace.json`) cannot carry a banner, so they are left alone too, even when their source under `llm/` is gone. One exception: a marketplace plugin directory in which every Markdown file carries the banner is provably generated as a whole, so its `plugin.json` and `hooks.json` are removed with it. Prune lists every file it left in place so you can delete it by hand if it is stale.
+
+**`--check` reports the same files:** a generated file that no source produces any more is listed as `STALE:` and counts as out of sync, so CI catches a removed or renamed source whose output is still being loaded — without deleting anything.
+
+**Caveats:** `--prune` runs only after a write pass with **no recorded errors**. It does not delete files your **adapters** create unless those adapters record outputs via `commitPlannedWrite` and pass through `expectedOutputPaths` from the adapter context (see [Adapters](Adapters)).
 
 **Before you `--prune`:**
 
 - Commit or stash so you can revert if something unexpected is removed.
-- Confirm each `targets.*.*.dir` is **only** for Bluetemberg-generated files (not a shared docs or src tree).
 - If you use **adapters**, ensure they register outputs with `commitPlannedWrite` and the sink’s `expectedOutputPaths` when pruning (see [Adapters](Adapters)).
 
 **Disabled platforms:** Prune only scans outputs for **platforms listed in `platforms`**. Removing a platform from config does **not** delete its old generated files (for example a leftover `.claude/mcp.json` after you drop `"claude"`). Delete those paths manually or temporarily re-enable the platform and run a normal write + `--prune` if the files still match the built-in layout.

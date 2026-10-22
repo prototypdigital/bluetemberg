@@ -952,7 +952,7 @@ describe('sync', () => {
     expect(existsSync(join(root, '.github', 'copilot-instructions.md'))).toBe(false);
   });
 
-  it('prune removes stale mcp.json singletons when llm/mcp.json is removed', async () => {
+  it('prune leaves mcp.json singletons alone when llm/mcp.json is removed (JSON cannot carry a banner)', async () => {
     mkdirSync(join(root, 'llm'), { recursive: true });
     writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
 
@@ -968,14 +968,24 @@ describe('sync', () => {
     expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(true);
 
     rmSync(join(root, 'llm', 'mcp.json'));
-    await sync(root, { config, silent: true, prune: true });
+    const logs: string[] = [];
+    const origLog = console.log;
+    console.log = (...a: unknown[]) => logs.push(a.join(' '));
+    try {
+      await sync(root, { config, prune: true });
+    } finally {
+      console.log = origLog;
+    }
 
-    expect(existsSync(join(root, '.claude', 'mcp.json'))).toBe(false);
-    expect(existsSync(join(root, '.github', 'mcp.json'))).toBe(false);
-    expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(false);
+    expect(existsSync(join(root, '.claude', 'mcp.json'))).toBe(true);
+    expect(existsSync(join(root, '.github', 'mcp.json'))).toBe(true);
+    expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(true);
+    const note = logs.find((l) => l.includes('carry no bluetemberg banner'));
+    expect(note).toBeDefined();
+    expect(logs.some((l) => l.endsWith(join('.cursor', 'mcp.json')))).toBe(true);
   });
 
-  it('prune removes stale hooks.json when llm/hooks.json is removed', async () => {
+  it('prune leaves .cursor/hooks.json alone when llm/hooks.json is removed (JSON cannot carry a banner)', async () => {
     mkdirSync(join(root, 'llm'), { recursive: true });
     writeFileSync(
       join(root, 'llm', 'hooks.json'),
@@ -994,7 +1004,7 @@ describe('sync', () => {
     rmSync(join(root, 'llm', 'hooks.json'));
     await sync(root, { config, silent: true, prune: true });
 
-    expect(existsSync(join(root, '.cursor', 'hooks.json'))).toBe(false);
+    expect(existsSync(join(root, '.cursor', 'hooks.json'))).toBe(true);
   });
 
   it('prune removes stale marketplace skill when source skill is removed', async () => {
@@ -1492,11 +1502,15 @@ describe('loadConfig: monorepo inheritance', () => {
 
 describe('shouldExitWithFailure', () => {
   it('is true when errors are present', () => {
-    expect(shouldExitWithFailure({ synced: 0, outOfSync: 0, errors: ['e'], warnings: [] }, false)).toBe(true);
+    expect(
+      shouldExitWithFailure({ synced: 0, outOfSync: 0, stale: 0, errors: ['e'], warnings: [] }, false),
+    ).toBe(true);
   });
 
   it('is false when no errors and not check drift', () => {
-    expect(shouldExitWithFailure({ synced: 1, outOfSync: 0, errors: [], warnings: [] }, false)).toBe(false);
+    expect(
+      shouldExitWithFailure({ synced: 1, outOfSync: 0, stale: 0, errors: [], warnings: [] }, false),
+    ).toBe(false);
   });
 
   it('is true in check mode when out of sync', () => {
