@@ -266,13 +266,13 @@ npx bluetemberg sync --check --diff
 
 **Exit codes:** the CLI exits **1** if sync records **any** error (invalid `llm/hooks.json`, unknown MCP id, adapter failure, etc.), not only when `--check` finds drift. Use the exit code in CI, especially with `--silent`.
 
-Optional **stale output cleanup** after you remove or rename sources under `llm/`:
+`--check` also reports generated files that no source produces any more (a deleted or renamed rule, or one a stack change filtered out) as `STALE:`, so CI never stays green over output the tools are still loading. Remove them with **`--prune`**:
 
 ```bash
 npx bluetemberg sync --prune
 ```
 
-`--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
+`--prune` deletes only files that carry the generated-file banner. A hand-written file in a managed directory, or a JSON output (which can't carry a banner), is kept and listed; a dropped marketplace plugin whose files all carry the banner is removed whole. `--prune` is ignored with `--check`. See the wiki ([Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands), [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)) for exit codes, `.gitattributes`, and prune caveats.
 
 ## External sources
 

@@ -253,6 +253,11 @@ export interface SyncOptions {
 export interface SyncResults {
   synced: number;
   outOfSync: number;
+  /**
+   * Generated files found under managed output locations that no source produces any more
+   * (`--check` only). Counted in `outOfSync` as well; `sync --prune` removes them.
+   */
+  stale: number;
   /** Fatal issues that caused sync to partially fail. Causes exit code 1. */
   errors: string[];
   /** Non-fatal notices — logged but do not affect exit code. */

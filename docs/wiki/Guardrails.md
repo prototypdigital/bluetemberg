@@ -14,6 +14,8 @@ Sources merge with the same precedence as rules — a local file with the same n
 
 `init --non-interactive` adds the default guardrail pack to `llm/packages.json`; the interactive wizard doesn't ask about guardrails yet, so add it with `bluetemberg add bluetemberg-guardrails-git`. Run `bluetemberg install` and `bluetemberg sync` to activate it.
 
+Removing a guardrail — deleting the file, or `bluetemberg remove` on the pack that shipped it — removes its hook from `.claude/settings.json` on the next `sync`. Only hooks bluetemberg generated are touched; hand-written entries in the same file stay.
+
 ## File format
 
 ```markdown

@@ -121,6 +121,18 @@ const CLAUDE_HOOK_SCRIPT = [
  * positional arguments to a fixed script — never interpolated into the script body —
  * so hostile pack content cannot achieve shell or jq injection.
  */
+/** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */
+const CLAUDE_COMMAND_PREFIX = `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetemberg `;
+
+/**
+ * True for a hook command this module generated. Lets the settings writer tell a guardrail's hook
+ * from one a person wrote by hand, so the former can be removed when its source disappears and
+ * the latter is never touched.
+ */
+export function isGuardrailHookCommand(command: string): boolean {
+  return command.startsWith(CLAUDE_COMMAND_PREFIX);
+}
+
 function buildClaudeCommand(guardrail: GuardrailFrontmatter): string {
   const { check, message } = guardrail;
 
@@ -134,7 +146,7 @@ function buildClaudeCommand(guardrail: GuardrailFrontmatter): string {
     check.not_empty ? '1' : '',
   ];
 
-  return `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetemberg ${args.map(shellQuote).join(' ')}`;
+  return `${CLAUDE_COMMAND_PREFIX}${args.map(shellQuote).join(' ')}`;
 }
 
 /**

@@ -151,4 +151,4 @@ Sync also refuses to **author** an unpairable block: a rule whose body quotes `<
 
 ## Prune (optional)
 
-`bluetemberg sync --prune` (write mode only) removes generated files under the **managed** output directories that were **not** produced in the current pass—useful after deleting or renaming sources under `llm/`. Prune runs only when the sync finishes with **no recorded errors**. See [Configuration](Configuration) for caveats (adapters, hand-edited files, `targets` paths).
+`bluetemberg sync --prune` (write mode only) removes generated files under the **managed** output directories that were **not** produced in the current pass—useful after deleting or renaming sources under `llm/`. Only files carrying the generated-file banner are deleted; anything else in those directories is kept and listed. `--check` reports the same files as `STALE:` drift without deleting them. Prune runs only when the sync finishes with **no recorded errors**. See [Configuration](Configuration) for caveats (adapters, JSON outputs).

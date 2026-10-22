@@ -1,302 +1,243 @@
-import { existsSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, rmdirSync, unlinkSync } from 'node:fs';
+import { extname, join, relative, resolve } from 'node:path';
 import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
 import { DEFAULT_TARGETS } from './transform.js';
 import { filterTargets } from '../utils/target-filtering.js';
+import { hasGeneratedBanner } from './banner.js';
 
-function pruneRulesAndAgents(
+/** A file under a managed output location that the current sync pass did not produce. */
+export interface StaleOutput {
+  /** Absolute path. */
+  path: string;
+  /**
+   * - `generated`: carries the bluetemberg banner. Safe to delete; drift when `--check` finds it.
+   * - `handwritten`: could carry a banner but does not — someone wrote it. Never touched.
+   * - `unverifiable`: JSON, which cannot carry a comment. Never touched; listed so it can be checked by hand.
+   */
+  kind: 'generated' | 'handwritten' | 'unverifiable';
+  /** Directories to remove once empty after this file is deleted, deepest first. */
+  cleanupDirs: string[];
+}
+
+export interface StaleOutputsArgs {
+  root: string;
+  config: BlueprintConfig;
+  platforms: Platform[];
+  /** Every path the current pass wrote or checked; populated by `commitPlannedWrite`. */
+  expectedPaths: Set<string>;
+}
+
+/** Extensions whose files can carry the generated-file banner (HTML comment, or `#` for TOML). */
+const BANNER_CAPABLE = new Set(['.md', '.mdc', '.toml']);
+
+function classify(abs: string): StaleOutput['kind'] {
+  if (!BANNER_CAPABLE.has(extname(abs))) return 'unverifiable';
+  try {
+    return hasGeneratedBanner(readFileSync(abs, 'utf8')) ? 'generated' : 'handwritten';
+  } catch {
+    // Unreadable: treat as not ours.
+    return 'handwritten';
+  }
+}
+
+function consider(
+  out: StaleOutput[],
+  expected: Set<string>,
+  absPath: string,
+  cleanupDirs: string[] = [],
+  kind: StaleOutput['kind'] = classify(resolve(absPath)),
+): void {
+  const abs = resolve(absPath);
+  if (expected.has(abs)) return;
+  out.push({ path: abs, kind, cleanupDirs });
+}
+
+function listDir(dir: string): string[] {
+  return existsSync(dir) ? readdirSync(dir) : [];
+}
+
+function listSubdirs(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((ent) => ent.isDirectory())
+    .map((ent) => ent.name);
+}
+
+function collectRulesAndAgents(
+  out: StaleOutput[],
   root: string,
   platforms: Platform[],
   section: Partial<Record<Platform, TargetConfig>>,
   expected: Set<string>,
-): number {
-  const targets = filterTargets(section, platforms);
-  let removed = 0;
-  for (const [, tc] of targets) {
+): void {
+  for (const [, tc] of filterTargets(section, platforms)) {
     const dir = join(root, tc.dir);
-    if (!existsSync(dir)) {
-      continue;
-    }
-    for (const name of readdirSync(dir)) {
-      if (!name.endsWith(tc.ext)) {
-        continue;
-      }
-      const abs = resolve(join(dir, name));
-      if (!expected.has(abs)) {
-        unlinkSync(abs);
-        removed++;
-      }
+    for (const name of listDir(dir)) {
+      if (name.endsWith(tc.ext)) consider(out, expected, join(dir, name));
     }
   }
-  return removed;
 }
 
-function pruneSkills(
+function collectSkills(
+  out: StaleOutput[],
   root: string,
   platforms: Platform[],
   section: Partial<Record<Platform, SkillTargetConfig>>,
   expected: Set<string>,
-): number {
-  const targets = filterTargets<SkillTargetConfig>(section, platforms);
-  let removed = 0;
-  for (const [, tc] of targets) {
+): void {
+  for (const [, tc] of filterTargets<SkillTargetConfig>(section, platforms)) {
     const base = join(root, tc.dir);
-    if (!existsSync(base)) {
-      continue;
-    }
-    for (const ent of readdirSync(base, { withFileTypes: true })) {
-      if (!ent.isDirectory()) {
-        continue;
-      }
-      const skillMd = join(base, ent.name, 'SKILL.md');
-      if (!existsSync(skillMd)) {
-        continue;
-      }
-      const abs = resolve(skillMd);
-      if (!expected.has(abs)) {
-        unlinkSync(abs);
-        removed++;
-        try {
-          rmdirSync(join(base, ent.name));
-        } catch {
-          // directory not empty or race — ignore
-        }
-      }
+    for (const name of listSubdirs(base)) {
+      const skillMd = join(base, name, 'SKILL.md');
+      if (existsSync(skillMd)) consider(out, expected, skillMd, [join(base, name)]);
     }
   }
-  return removed;
 }
 
-function pruneCommandsDir(root: string, expected: Set<string>): number {
-  const dir = join(root, '.claude', 'commands');
-  if (!existsSync(dir)) {
-    return 0;
+/** One flat managed directory: every file matching `matches` is a candidate. */
+function collectFlatDir(
+  out: StaleOutput[],
+  dir: string,
+  matches: (name: string) => boolean,
+  expected: Set<string>,
+): void {
+  for (const name of listDir(dir)) {
+    if (matches(name)) consider(out, expected, join(dir, name));
   }
-  let removed = 0;
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith('.md') || name === 'README.md') {
-      continue;
-    }
-    const abs = resolve(join(dir, name));
-    if (!expected.has(abs)) {
-      unlinkSync(abs);
-      removed++;
-    }
-  }
-  return removed;
-}
-
-function pruneCodexAgentsDir(root: string, expected: Set<string>): number {
-  const dir = join(root, '.codex', 'agents');
-  if (!existsSync(dir)) {
-    return 0;
-  }
-  let removed = 0;
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith('.toml')) {
-      continue;
-    }
-    const abs = resolve(join(dir, name));
-    if (!expected.has(abs)) {
-      unlinkSync(abs);
-      removed++;
-    }
-  }
-  return removed;
-}
-
-function prunePromptsDir(root: string, expected: Set<string>): number {
-  const dir = join(root, '.github', 'prompts');
-  if (!existsSync(dir)) {
-    return 0;
-  }
-  let removed = 0;
-  for (const name of readdirSync(dir)) {
-    if (!name.endsWith('.prompt.md')) {
-      continue;
-    }
-    const abs = resolve(join(dir, name));
-    if (!expected.has(abs)) {
-      unlinkSync(abs);
-      removed++;
-    }
-  }
-  return removed;
-}
-
-function pruneMarketplace(root: string, expected: Set<string>): number {
-  let removed = 0;
-
-  const pluginsBase = join(root, 'plugins');
-  if (existsSync(pluginsBase)) {
-    for (const pluginEnt of readdirSync(pluginsBase, { withFileTypes: true })) {
-      if (!pluginEnt.isDirectory()) continue;
-      const pluginDir = join(pluginsBase, pluginEnt.name);
-
-      const skillsDir = join(pluginDir, 'skills');
-      if (existsSync(skillsDir)) {
-        for (const skillEnt of readdirSync(skillsDir, { withFileTypes: true })) {
-          if (!skillEnt.isDirectory()) continue;
-          const skillMd = join(skillsDir, skillEnt.name, 'SKILL.md');
-          if (!existsSync(skillMd)) continue;
-          const abs = resolve(skillMd);
-          if (!expected.has(abs)) {
-            unlinkSync(abs);
-            removed++;
-            try {
-              rmdirSync(join(skillsDir, skillEnt.name));
-            } catch {
-              // directory not empty — ignore
-            }
-          }
-        }
-        try {
-          rmdirSync(skillsDir);
-        } catch {
-          // directory not empty — ignore
-        }
-      }
-
-      const rulesDir = join(pluginDir, 'rules');
-      if (existsSync(rulesDir)) {
-        for (const name of readdirSync(rulesDir)) {
-          if (!name.endsWith('.md')) continue;
-          const abs = resolve(join(rulesDir, name));
-          if (!expected.has(abs)) {
-            unlinkSync(abs);
-            removed++;
-          }
-        }
-        try {
-          rmdirSync(rulesDir);
-        } catch {
-          // directory not empty — ignore
-        }
-      }
-
-      const agentsDir = join(pluginDir, 'agents');
-      if (existsSync(agentsDir)) {
-        for (const name of readdirSync(agentsDir)) {
-          if (!name.endsWith('.md')) continue;
-          const abs = resolve(join(agentsDir, name));
-          if (!expected.has(abs)) {
-            unlinkSync(abs);
-            removed++;
-          }
-        }
-        try {
-          rmdirSync(agentsDir);
-        } catch {
-          // directory not empty — ignore
-        }
-      }
-
-      const pluginJson = join(pluginDir, '.claude-plugin', 'plugin.json');
-      removed += pruneSingletonIfStale(pluginJson, expected);
-
-      const hooksJson = join(pluginDir, 'hooks', 'hooks.json');
-      removed += pruneSingletonIfStale(hooksJson, expected);
-
-      try {
-        rmdirSync(join(pluginDir, '.claude-plugin'));
-      } catch {
-        // directory not empty — ignore
-      }
-      try {
-        rmdirSync(pluginDir);
-      } catch {
-        // directory not empty — ignore
-      }
-    }
-    try {
-      rmdirSync(pluginsBase);
-    } catch {
-      // directory not empty — ignore
-    }
-  }
-
-  removed += pruneSingletonIfStale(join(root, '.claude-plugin', 'marketplace.json'), expected);
-
-  return removed;
-}
-
-function pruneSingletonIfStale(absPath: string, expected: Set<string>): number {
-  if (!existsSync(absPath)) {
-    return 0;
-  }
-  const abs = resolve(absPath);
-  if (expected.has(abs)) {
-    return 0;
-  }
-  unlinkSync(abs);
-  return 1;
 }
 
 /**
- * Removes generated files under known output locations that were not produced in the current sync pass.
- * Only runs after a write-mode sync; callers must pass the same `expected` set populated by `commitPlannedWrite`.
+ * A plugin directory is bluetemberg's as a whole when every Markdown file in it carries the banner
+ * (and there is at least one). Its `plugin.json` / `hooks.json` cannot carry a banner, but with that
+ * evidence they are generated too and go with the directory; otherwise they stay (unverifiable).
  */
-export function pruneStaleOutputs(args: {
-  root: string;
-  config: BlueprintConfig;
-  platforms: Platform[];
-  expectedPaths: Set<string>;
-  log: (...args: unknown[]) => void;
-}): void {
-  const { root, config, platforms, expectedPaths, log } = args;
-  let total = 0;
+function collectMarketplace(out: StaleOutput[], root: string, expected: Set<string>): void {
+  const pluginsBase = join(root, 'plugins');
+  for (const pluginName of listSubdirs(pluginsBase)) {
+    const pluginDir = join(pluginsBase, pluginName);
+    const skillsDir = join(pluginDir, 'skills');
+    const markdown: { path: string; cleanupDirs: string[] }[] = [];
 
-  const rulesSection = config.targets?.rules || DEFAULT_TARGETS.rules;
+    for (const skillName of listSubdirs(skillsDir)) {
+      const skillMd = join(skillsDir, skillName, 'SKILL.md');
+      if (existsSync(skillMd)) {
+        markdown.push({ path: skillMd, cleanupDirs: [join(skillsDir, skillName), skillsDir, pluginDir] });
+      }
+    }
+    for (const sub of ['rules', 'agents']) {
+      const dir = join(pluginDir, sub);
+      for (const name of listDir(dir)) {
+        if (name.endsWith('.md')) markdown.push({ path: join(dir, name), cleanupDirs: [dir, pluginDir] });
+      }
+    }
+
+    const kinds = markdown.map((file) => classify(resolve(file.path)));
+    const wholePluginGenerated = kinds.length > 0 && kinds.every((kind) => kind === 'generated');
+    markdown.forEach((file, i) => consider(out, expected, file.path, file.cleanupDirs, kinds[i]));
+
+    const manifestKind: StaleOutput['kind'] = wholePluginGenerated ? 'generated' : 'unverifiable';
+    const manifestDir = join(pluginDir, '.claude-plugin');
+    const pluginJson = join(manifestDir, 'plugin.json');
+    if (existsSync(pluginJson)) consider(out, expected, pluginJson, [manifestDir, pluginDir], manifestKind);
+    const hooksDir = join(pluginDir, 'hooks');
+    const hooksJson = join(hooksDir, 'hooks.json');
+    if (existsSync(hooksJson)) consider(out, expected, hooksJson, [hooksDir, pluginDir], manifestKind);
+  }
+
+  const marketplaceJson = join(root, '.claude-plugin', 'marketplace.json');
+  if (existsSync(marketplaceJson)) consider(out, expected, marketplaceJson, [join(root, '.claude-plugin')]);
+}
+
+function collectSingleton(out: StaleOutput[], absPath: string, expected: Set<string>): void {
+  if (existsSync(absPath)) consider(out, expected, absPath);
+}
+
+/**
+ * Every file under a managed output location that the current pass did not write, classified by
+ * whether bluetemberg can prove it generated it. Pure: reads only. `--check` reports the
+ * `generated` ones as drift; `--prune` deletes them.
+ */
+export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
+  const { root, config, platforms, expectedPaths: expected } = args;
+  const out: StaleOutput[] = [];
+
+  collectRulesAndAgents(out, root, platforms, config.targets?.rules || DEFAULT_TARGETS.rules, expected);
   const agentsSection = config.targets?.agents || DEFAULT_TARGETS.agents;
+  if (agentsSection) collectRulesAndAgents(out, root, platforms, agentsSection, expected);
   const skillsSection = config.targets?.skills || DEFAULT_TARGETS.skills;
+  if (skillsSection) collectSkills(out, root, platforms, skillsSection, expected);
 
-  total += pruneRulesAndAgents(root, platforms, rulesSection, expectedPaths);
-  if (agentsSection) {
-    total += pruneRulesAndAgents(root, platforms, agentsSection, expectedPaths);
-  }
-  if (skillsSection) {
-    total += pruneSkills(root, platforms, skillsSection, expectedPaths);
-  }
-
+  const isMd = (name: string) => name.endsWith('.md') && name !== 'README.md';
   if (platforms.includes('claude')) {
-    total += pruneCommandsDir(root, expectedPaths);
+    collectFlatDir(out, join(root, '.claude', 'commands'), isMd, expected);
+    collectSingleton(out, join(root, '.claude', 'mcp.json'), expected);
   }
-
   if (platforms.includes('copilot')) {
-    total += prunePromptsDir(root, expectedPaths);
+    collectFlatDir(out, join(root, '.github', 'prompts'), (n) => n.endsWith('.prompt.md'), expected);
+    collectSingleton(out, join(root, '.github', 'copilot-instructions.md'), expected);
+    collectSingleton(out, join(root, '.github', 'mcp.json'), expected);
   }
-
   if (platforms.includes('codex')) {
-    total += pruneCodexAgentsDir(root, expectedPaths);
+    collectFlatDir(out, join(root, '.codex', 'agents'), (n) => n.endsWith('.toml'), expected);
   }
-
-  if (platforms.includes('copilot')) {
-    total += pruneSingletonIfStale(join(root, '.github', 'copilot-instructions.md'), expectedPaths);
+  if (platforms.includes('windsurf')) {
+    collectFlatDir(out, join(root, '.windsurf', 'workflows'), isMd, expected);
   }
   if (platforms.includes('gemini')) {
-    total += pruneSingletonIfStale(join(root, 'GEMINI.md'), expectedPaths);
-  }
-
-  if (platforms.includes('claude')) {
-    total += pruneSingletonIfStale(join(root, '.claude', 'mcp.json'), expectedPaths);
-  }
-  if (platforms.includes('copilot')) {
-    total += pruneSingletonIfStale(join(root, '.github', 'mcp.json'), expectedPaths);
+    collectSingleton(out, join(root, 'GEMINI.md'), expected);
   }
   if (platforms.includes('cursor')) {
-    total += pruneSingletonIfStale(join(root, '.cursor', 'mcp.json'), expectedPaths);
+    collectSingleton(out, join(root, '.cursor', 'mcp.json'), expected);
+    collectSingleton(out, join(root, '.cursor', 'hooks.json'), expected);
   }
-
-  if (platforms.includes('cursor')) {
-    total += pruneSingletonIfStale(join(root, '.cursor', 'hooks.json'), expectedPaths);
-  }
-
   if (platforms.includes(MARKETPLACE_PLATFORM)) {
-    total += pruneMarketplace(root, expectedPaths);
+    collectMarketplace(out, root, expected);
   }
 
-  if (total > 0) {
-    log(`\nPrune: removed ${total} stale generated file(s).`);
+  return out;
+}
+
+function removeEmptyDirs(dirs: string[]): void {
+  for (const dir of dirs) {
+    try {
+      rmdirSync(dir);
+    } catch {
+      // not empty, already gone, or a race — all fine
+    }
+  }
+}
+
+/**
+ * Deletes stale outputs the current pass did not produce — only those that carry the generated-file
+ * banner. A file in a managed directory without one is somebody's work and stays; JSON cannot carry
+ * a banner and stays too. Both are listed so the user can decide. Runs only after a write pass
+ * with no recorded errors; `expectedPaths` must be the set `commitPlannedWrite` populated.
+ */
+export function pruneStaleOutputs(args: StaleOutputsArgs & { log: (...args: unknown[]) => void }): void {
+  const { root, platforms, log } = args;
+  const stale = collectStaleOutputs(args);
+
+  let removed = 0;
+  const kept: StaleOutput[] = [];
+  for (const file of stale) {
+    if (file.kind !== 'generated') {
+      kept.push(file);
+      continue;
+    }
+    unlinkSync(file.path);
+    removed++;
+    removeEmptyDirs(file.cleanupDirs);
+  }
+  if (platforms.includes(MARKETPLACE_PLATFORM)) removeEmptyDirs([join(root, 'plugins')]);
+
+  if (removed > 0) {
+    log(`\nPrune: removed ${removed} stale generated file(s).`);
+  }
+  if (kept.length > 0) {
+    log(
+      `\nPrune: left ${kept.length} file(s) in managed output locations that carry no bluetemberg banner (hand-written, or JSON, which cannot carry one). Delete by hand if stale:`,
+    );
+    for (const file of kept) log(`  ${relative(root, file.path)}`);
   }
 }
