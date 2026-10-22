@@ -193,6 +193,8 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 
 **What it deletes:** only files that carry the [generated-file banner](#generated-file-banner). A Markdown or TOML file under a managed directory **without** the banner is treated as hand-written and left alone. JSON outputs (`mcp.json`, `.cursor/hooks.json`, `marketplace.json`) cannot carry a banner, so they are left alone too, even when their source under `llm/` is gone. One exception: a marketplace plugin directory in which every Markdown file carries the banner is provably generated as a whole, so its `plugin.json` and `hooks.json` are removed with it. Prune lists every file it left in place so you can delete it by hand if it is stale.
 
+**Skill directories are one unit:** a skill's `SKILL.md` carrying the banner is the evidence that the whole directory is generated, since its supporting files (`scripts/`, `references/`, `assets/`) are copied byte for byte and cannot carry one. A supporting file the source no longer has is removed, and the whole directory goes once the skill is gone. A skill directory whose `SKILL.md` has no banner is somebody's skill and is only listed.
+
 **`--check` reports the same files:** a generated file that no source produces any more is listed as `STALE:` and counts as out of sync, so CI catches a removed or renamed source whose output is still being loaded — without deleting anything.
 
 **Caveats:** `--prune` runs only after a write pass with **no recorded errors**. It does not delete files your **adapters** create unless those adapters record outputs via `commitPlannedWrite` and pass through `expectedOutputPaths` from the adapter context (see [Adapters](Adapters)).

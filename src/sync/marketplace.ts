@@ -4,6 +4,7 @@ import matter from 'gray-matter';
 import { toClaudeAgentContent } from './claude-agent-tools.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { withGeneratedBanner } from './banner.js';
+import { copySkillSupportingFiles } from './skill-files.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
 import { TEAM_PROFILES } from '../init/presets.js';
 import type { Catalog } from '../catalog/index.js';
@@ -300,6 +301,7 @@ function emitPlugin(
     try {
       const content = withGeneratedBanner(readFileSync(srcPath, 'utf8'), `skills/${dirName}/SKILL.md`);
       commitPlannedWrite(ctx, join(outSkillDir, 'SKILL.md'), content);
+      copySkillSupportingFiles(ctx, join(sourceParent, dirName), outSkillDir);
       skillEntries.push({
         name: meta.name,
         description: meta.description,

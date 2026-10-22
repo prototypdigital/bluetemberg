@@ -302,16 +302,16 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 
 ## How sync works
 
-| Source                  | Cursor                      | Claude                         | Copilot                                  | Gemini CLI             | Windsurf                      |
-| ----------------------- | --------------------------- | ------------------------------ | ---------------------------------------- | ---------------------- | ----------------------------- |
-| `llm/rules/*.md`        | `.cursor/rules/*.mdc`       | `.claude/rules/*.md`           | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` | `.windsurf/rules/*.md`        |
-| `llm/agents/*.md`       | `.cursor/agents/*.md`       | `.claude/agents/*.md`          | `.github/agents/*.agent.md`              | —                      | —                             |
-| `llm/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md`    | `.github/skills/*/SKILL.md`              | —                      | `.windsurf/skills/*/SKILL.md` |
-| `llm/mcp.json`          | `.cursor/mcp.json`          | `.claude/mcp.json`             | `.github/mcp.json`                       | —                      | —                             |
-| `llm/commands/*.md`     | —                           | `.claude/commands/*.md`        | —                                        | —                      | `.windsurf/workflows/*.md`    |
-| `llm/prompts/*.md`      | —                           | —                              | `.github/prompts/*.prompt.md`            | —                      | —                             |
-| `AGENTS.md`             | —                           | —                              | `.github/copilot-instructions.md`        | `GEMINI.md`            | —                             |
-| `llm/` (marketplace)    | —                           | `plugins/*/skills \| agents/`¹ | —                                        | —                      | —                             |
+| Source               | Cursor                | Claude                         | Copilot                                  | Gemini CLI             | Windsurf                   |
+| -------------------- | --------------------- | ------------------------------ | ---------------------------------------- | ---------------------- | -------------------------- |
+| `llm/rules/*.md`     | `.cursor/rules/*.mdc` | `.claude/rules/*.md`           | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` | `.windsurf/rules/*.md`     |
+| `llm/agents/*.md`    | `.cursor/agents/*.md` | `.claude/agents/*.md`          | `.github/agents/*.agent.md`              | —                      | —                          |
+| `llm/skills/*/`      | `.cursor/skills/*/`   | `.claude/skills/*/`            | `.github/skills/*/`                      | —                      | `.windsurf/skills/*/`      |
+| `llm/mcp.json`       | `.cursor/mcp.json`    | `.claude/mcp.json`             | `.github/mcp.json`                       | —                      | —                          |
+| `llm/commands/*.md`  | —                     | `.claude/commands/*.md`        | —                                        | —                      | `.windsurf/workflows/*.md` |
+| `llm/prompts/*.md`   | —                     | —                              | `.github/prompts/*.prompt.md`            | —                      | —                          |
+| `AGENTS.md`          | —                     | —                              | `.github/copilot-instructions.md`        | `GEMINI.md`            | —                          |
+| `llm/` (marketplace) | —                     | `plugins/*/skills \| agents/`¹ | —                                        | —                      | —                          |
 
 ¹ Claude Code plugins have no native "rules" component, so the marketplace emitter converts each
 rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace).
@@ -331,12 +331,12 @@ Agents and skills keep their body unchanged. Sync adds the generated-file banner
 
 **OpenAI Codex** consumes config differently from the table above — it reads `AGENTS.md` natively and uses TOML config rather than per-file rule directories:
 
-| Source                  | Codex output                                                      |
-| ----------------------- | ----------------------------------------------------------------- |
-| `llm/rules/*.md`        | managed block in `AGENTS.md` (read natively — no per-rule files)  |
-| `llm/agents/*.md`       | `.codex/agents/*.toml` (markdown body → `developer_instructions`) |
-| `llm/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md` (vendor-neutral; format unchanged)    |
-| `llm/mcp.json`          | `[mcp_servers.*]` managed block in `.codex/config.toml`           |
+| Source            | Codex output                                                            |
+| ----------------- | ----------------------------------------------------------------------- |
+| `llm/rules/*.md`  | managed block in `AGENTS.md` (read natively — no per-rule files)        |
+| `llm/agents/*.md` | `.codex/agents/*.toml` (markdown body → `developer_instructions`)       |
+| `llm/skills/*/`   | `.agents/skills/*/` (vendor-neutral; whole directory, format unchanged) |
+| `llm/mcp.json`    | `[mcp_servers.*]` managed block in `.codex/config.toml`                 |
 
 `AGENTS.md` and `.codex/config.toml` are edited in place via fenced managed blocks, so hand-authored content outside the markers is preserved. When Copilot or Gemini are also enabled, the Codex rules block is stripped from their derived `copilot-instructions.md` / `GEMINI.md` (they receive scoped rules through their own directories). Codex subagents are limited to `name`, `description`, and `developer_instructions`; source-only fields like `tools` and `profiles` are not mapped.
 
