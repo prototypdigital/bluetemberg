@@ -10,14 +10,20 @@ When you pick a profile, every collection tagged for that profile is pre-checked
 
 ## Default collections by profile
 
-| Collection | Frontend | Backend | Full-stack | DevOps | Pure Infra | Custom |
-| ---------- | :------: | :-----: | :--------: | :----: | :--------: | :----: |
-| TypeScript | ✓ | ✓ | ✓ | — | — | — |
-| Git | ✓ | ✓ | ✓ | ✓ | ✓ | — |
-| Security | ✓ | ✓ | ✓ | ✓ | ✓ | — |
-| Docs | ✓ | ✓ | ✓ | ✓ | ✓ | — |
-| DevOps | — | — | — | ✓ | ✓ | — |
-| Next.js | ✓ | — | ✓ | — | — | — |
+| Collection | Frontend | Backend | Full-stack | DevOps | Pure Infra | Agentic | Design Engineer | Custom |
+| ---------- | :------: | :-----: | :--------: | :----: | :--------: | :-----: | :-------------: | :----: |
+| TypeScript | ✓ | ✓ | ✓ | — | — | — | — | — |
+| Git | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Security | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| Docs | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| DevOps | — | — | — | ✓ | ✓ | — | — | — |
+| Next.js | ✓ | — | ✓ | — | — | — | — | — |
+| Design craft | — | — | — | — | — | — | ✓ | — |
+| Context engineering | — | — | — | — | — | ✓ | — | — |
+| Agent memory | — | — | — | — | — | ✓ | — | — |
+| LLM API product | — | — | — | — | — | ✓ | — | — |
+
+Git, Security and Docs are universal: every profile except Custom gets them. Packs marked universal in the catalog (for example `bluetemberg-guardrails-git` and the create-rule/agent/skill/pack skills) are preselected for every profile too. `bluetemberg preview <profile>` prints the exact current list with versions.
 
 ## Frontend
 
@@ -217,6 +223,68 @@ This profile is scoped to infrastructure-only repos. It defaults to `git`, `secu
 | `ci-cd-best-practices` | — | Pipeline optimization, caching strategies |
 | `infrastructure-drift-check` | — | Verify declared IaC matches deployed state before merge |
 | `rollback-plan` | — | Require tested rollback steps for every production change |
+
+## AI / Agentic Workflow
+
+> Context engineering, agent memory, sub-agent design for LLM-heavy projects
+
+Profile id: `agentic`.
+
+### Rules
+
+| Collection | Package |
+| ---------- | ------- |
+| Context engineering | `bluetemberg-rules-context-engineering` — token budgets, context positioning, prompt structure, multi-turn hygiene |
+| Agent memory | `bluetemberg-rules-agent-memory` — statelessness constraints, memory provenance, consolidation, authority-ranked recall |
+| LLM API product | `bluetemberg-rules-llm-api-product` — streaming, cost accounting, cost-aware model selection and routing |
+
+### Agents
+
+| Agent | Description |
+| ----- | ----------- |
+| `agentic-specialist` | Agent memory design, state management, orchestration patterns |
+| `docs-maintainer` | Documentation synchronization with code changes |
+
+### Skills
+
+| Skill | Description |
+| ----- | ----------- |
+| `sub-agent-design` | Designing and scoping sub-agents |
+| `docs-upkeep` | Keep docs aligned with implementation changes |
+| `workspace-hygiene` | On-demand workspace audit before commits and PRs |
+| `create-rule`, `create-agent`, `create-skill`, `create-pack` | Author new bluetemberg content |
+
+## Design Engineer
+
+> Anti-stock UI craft, design-to-code, visual direction & critique
+
+Profile id: `design-engineer`.
+
+### Rules
+
+| Collection | Package |
+| ---------- | ------- |
+| Design craft | `bluetemberg-rules-design-craft` — anti-stock defaults, banned moves, references over moods, tokens before components, every state |
+
+### Agents
+
+| Agent | Description |
+| ----- | ----------- |
+| `design-engineer` | Builds UI to a reference section by section, holds tokens and banned moves, catches stock drift |
+| `frontend-specialist` | UI implementation, design-system, i18n, a11y |
+| `a11y-specialist` | WCAG 2.2 A/AA audit and remediation |
+| `docs-maintainer` | Documentation synchronization with code changes |
+
+### Skills
+
+| Skill | Description |
+| ----- | ----------- |
+| `visual-direction` | Decide the visual direction before building |
+| `design-critique` | Structured critique of UI against its reference |
+| `figma-to-code` | Translate a Figma comp into components |
+| `design-system` | Tokens, components and states as a system |
+| `react-patterns` | Composition, hook extraction, co-location |
+| `docs-upkeep`, `workspace-hygiene`, `create-*` | Universal skills |
 
 ## Custom
 

@@ -33,6 +33,14 @@ describe('parseInitAnswersJson', () => {
     mcpServers: [],
   };
 
+  it('accepts a config that omits the retired rules field', () => {
+    const withoutRules: Record<string, unknown> = { ...minimalCollections };
+    delete withoutRules.rules;
+    const got = parseInitAnswersJson(JSON.stringify(withoutRules));
+    expect(got.rules).toEqual([]);
+    expect(got.ruleCollections).toEqual(['typescript']);
+  });
+
   it('normalizes collections mode to drop template rules array', () => {
     const rec = { ...minimalCollections, rules: ['should-strip'] };
     const got = parseInitAnswersJson(JSON.stringify(rec));

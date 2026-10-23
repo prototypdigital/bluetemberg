@@ -14,7 +14,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | ------ | ----- |
 | `--non-interactive` | Use the same preset logic as the wizard for the chosen `--profile` (default profile: `fullstack`), then merge optional overrides. Exclusive with `--config`. |
 | `--config <file>` | Validate JSON against `InitAnswers` (`teamProfile`, `projectName`, `platforms`, `ruleSource`, `rules`, `ruleCollections`, boolean includes, arrays, …). Overrides like `--profile`, `--omit-mcp`, and CSV lists cannot be mixed with `--config`. |
-| `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `custom`). |
+| `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `agentic`, `design-engineer`, `custom`). |
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
 | `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). `--non-interactive` only. |
@@ -69,6 +69,33 @@ npx bluetemberg init --config ./bluetemberg.init.json ./my-project
 ```
 
 Programmatic callers can keep using `init(root, opts)`/`scaffold(...)`/`sync(...)` exported from the package (`InitRunOptions` describes the programmatic mirror of the CLI knobs).
+
+## `bluetemberg switch-profile <profile> [directory]`
+
+Changes the team profile recorded in `bluetemberg.config.json` without re-running the wizard. Non-destructive:
+
+- Adds the new profile's default agent and skill packs to `llm/packages.json` when missing, with a `^<latest>` range looked up from the registry (`latest` if it can't be reached).
+- Never removes a pack and never touches `llm/` content.
+- Lists official agent/skill packs that are not among the new profile's defaults, so you can remove them by hand. Rule collections and third-party packs are never flagged.
+- Updates `profile` in the config.
+
+Then run `bluetemberg install` and `bluetemberg sync`. See [Profiles](Profiles#switching-profiles).
+
+| Option | Notes |
+| ------ | ----- |
+| `--silent` | Suppress output (exit code still reports failure) |
+
+## `bluetemberg preview [profile]`
+
+Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`.
+
+| Option | Notes |
+| ------ | ----- |
+| `--list` | List the available profile ids with their descriptions |
+| `--force` | Re-fetch the pack catalog instead of using the 24-hour cache |
+| `--silent` | Suppress output |
+
+The listing comes from the live catalog (cached in `.bluetemberg/catalog.json`, the only file this command writes; the committed snapshot is the offline fallback). The wizard reads the committed snapshot, so until that snapshot is refreshed the two can differ slightly.
 
 ## `bluetemberg sync [directory]`
 
@@ -279,6 +306,15 @@ bluetemberg update --latest
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
 | `--silent` | Suppress all output |
+
+## `bluetemberg verify [directory]`
+
+Re-checks every pack in `.bluetemberg/packs/` against the registry: the tarball's SHA-512 integrity and its ECDSA registry signature, using the key id the lockfile recorded. Exits 1 on the first failure. Run it in CI after `install` when you want the supply-chain checks on record. See [Registry](Registry).
+
+| Option | Notes |
+| ------ | ----- |
+| `--skip-signature-verification` | Skip the ECDSA check, for self-hosted registries that do not sign. Never needed for `registry.npmjs.org` |
+| `--silent` | Suppress output |
 
 ## `bluetemberg search <query>`
 
