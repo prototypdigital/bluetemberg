@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.14.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.13.1...bluetemberg-v0.14.0) (2026-10-23)
+
+
+### Features
+
+* **sync:** copy a skill's supporting files, not just SKILL.md ([60d0b7a](https://github.com/prototypdigital/bluetemberg/commit/60d0b7a97a9cbf9e185c100fda714fc5bb0b589c))
+* **sync:** put the generated-file banner on every output that can carry one ([aa400bb](https://github.com/prototypdigital/bluetemberg/commit/aa400bb1a5a26f9d28a525589c455444b484d51f))
+* **sync:** put the generated-file banner on every output that can carry one ([b68edb8](https://github.com/prototypdigital/bluetemberg/commit/b68edb85b2afdc9bf144017efcafad3df8a1657b)), closes [#274](https://github.com/prototypdigital/bluetemberg/issues/274)
+
+
+### Bug Fixes
+
+* **cli:** rough edges from the end-to-end test ([df95593](https://github.com/prototypdigital/bluetemberg/commit/df95593079f318e10b4161867c6d569fefe35702))
+* **cli:** rough edges from the end-to-end test ([4eb6a6b](https://github.com/prototypdigital/bluetemberg/commit/4eb6a6b21f78608d6b5596ffab63506329828d24)), closes [#289](https://github.com/prototypdigital/bluetemberg/issues/289)
+* **init:** never overwrite files bluetemberg does not own ([cbf4e2c](https://github.com/prototypdigital/bluetemberg/commit/cbf4e2c096900cedcbb5773f2143b0607c822d30))
+* **init:** never overwrite files bluetemberg does not own ([fde8c7c](https://github.com/prototypdigital/bluetemberg/commit/fde8c7cf93747074756afffc902a53220dd71b0c)), closes [#209](https://github.com/prototypdigital/bluetemberg/issues/209)
+* **sync:** flag stale outputs in --check, prune only generated files, drop orphaned guardrail hooks ([9bcb092](https://github.com/prototypdigital/bluetemberg/commit/9bcb09212a4fa08be9a7b217ddb464f47adbb2ce))
+* **sync:** report stale outputs in --check, prune only generated files, drop orphaned guardrail hooks ([60d60e3](https://github.com/prototypdigital/bluetemberg/commit/60d60e30a2afffd690a5702b9b1a25590d22ff4d)), closes [#274](https://github.com/prototypdigital/bluetemberg/issues/274)
+
 ## [0.13.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.13.0...bluetemberg-v0.13.1) (2026-10-01)
 
 
