@@ -6,7 +6,8 @@ import { toClaudeAgentContent } from './claude-agent-tools.js';
 import { withGeneratedBanner } from './banner.js';
 import { listDirs, listFiles } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
-import { pruneStaleOutputs } from './prune.js';
+import { collectStaleOutputs, pruneStaleOutputs } from './prune.js';
+import { copySkillSupportingFiles } from './skill-files.js';
 import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
@@ -578,10 +579,11 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // Priority: local sourceBase first, then extends entries, then registry packs, then external sources.
   const sourceDirs = [sourceBase, ...extendedDirs, ...packDirs, ...externalDirs];
 
-  const results: SyncResults = { synced: 0, outOfSync: 0, errors: [], warnings: [] };
+  const results: SyncResults = { synced: 0, outOfSync: 0, stale: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
   const prune = Boolean(options.prune) && !checkMode;
-  const expectedOutputPaths = prune ? new Set<string>() : undefined;
+  // Always collected: `--check` compares it against what is on disk to find stale generated files.
+  const expectedOutputPaths = new Set<string>();
 
   // Loaded once and shared: the catalog backs both profile and stack id→constraint maps, and the
   // detected stacks drive version-aware rule/guardrail gating (a Payload-2 rule is hard-excluded
@@ -698,7 +700,9 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     (msg) => recordError(ctx, msg),
   );
 
-  if (prune && expectedOutputPaths && results.errors.length === 0) {
+  if (checkMode) reportStaleOutputs(ctx);
+
+  if (prune && results.errors.length === 0) {
     pruneStaleOutputs({
       root,
       config,
@@ -713,11 +717,34 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   return results;
 }
 
+/**
+ * `--check` counterpart of `--prune`: a generated file (banner present) under a managed output
+ * location that this pass did not produce is drift — the source was removed or renamed and the
+ * output is still being loaded by the tool. Hand-written and JSON files are not reported: without
+ * a banner bluetemberg cannot tell them from its own output, and a false "out of sync" in CI costs
+ * more than a missed stale file.
+ */
+function reportStaleOutputs(ctx: SyncContext): void {
+  const stale = collectStaleOutputs({
+    root: ctx.root,
+    config: ctx.config,
+    platforms: ctx.platforms,
+    expectedPaths: ctx.expectedOutputPaths ?? new Set(),
+  }).filter((file) => file.kind === 'generated');
+  for (const file of stale) {
+    ctx.log(`  STALE: ${relative(ctx.root, file.path)} — generated, but no source produces it now`);
+  }
+  ctx.results.outOfSync += stale.length;
+  ctx.results.stale += stale.length;
+}
+
 /** Print the trailing summary (Done / out-of-sync, plus warning and error counts). */
 function printSummary(log: (msg: string) => void, results: SyncResults, checkMode: boolean): void {
   if (checkMode) {
     if (results.outOfSync > 0) {
-      log(`\n${results.outOfSync} file(s) out of sync. Run: npx bluetemberg sync`);
+      const detail = results.stale > 0 ? ` (${results.stale} stale)` : '';
+      const fix = results.stale > 0 ? 'npx bluetemberg sync --prune' : 'npx bluetemberg sync';
+      log(`\n${results.outOfSync} file(s) out of sync${detail}. Run: ${fix}`);
     } else {
       log('\nAll files in sync.');
     }
@@ -756,7 +783,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
   const checkMode = options.check || false;
   log(`${checkMode ? 'Checking' : 'Syncing'} AI config across ${configDirs.length} package(s)...\n`);
 
-  const aggregate: SyncResults = { synced: 0, outOfSync: 0, errors: [], warnings: [] };
+  const aggregate: SyncResults = { synced: 0, outOfSync: 0, stale: 0, errors: [], warnings: [] };
   for (const dir of configDirs) {
     log(`── ${relative(root, dir) || '.'} ──`);
     // Each package loads and merges its OWN config (drop any inherited `config` override) and
@@ -764,6 +791,7 @@ export async function sync(root: string, options: SyncOptions = {}): Promise<Syn
     const r = await syncSingle(dir, { ...options, config: undefined }, true);
     aggregate.synced += r.synced;
     aggregate.outOfSync += r.outOfSync;
+    aggregate.stale += r.stale;
     aggregate.errors.push(...r.errors);
     aggregate.warnings.push(...r.warnings);
     log('');
@@ -974,6 +1002,7 @@ function syncSkills(ctx: SyncContext): void {
         const outPath = join(outDir, 'SKILL.md');
 
         commitPlannedWrite(ctx, outPath, content);
+        copySkillSupportingFiles(ctx, join(sourceParent, dirName), outDir);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordError(ctx, `skills/${dirName} -> ${targetConfig.dir}: ${message}`);

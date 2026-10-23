@@ -113,11 +113,13 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | `--dry-run` | Alias for `--check` |
 | `--diff` | Under `--check`, print a per-file unified diff (summary counts + `@@` hunks) of what drifted, so CI shows *what* changed, not just *how many* files. Implies `--check`; honors `--silent`; never changes counts or exit code |
 | `--silent` | Suppress progress output (useful in scripts and CI); errors still print to stderr |
-| `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
+| `--prune` | After a successful write pass, delete stale generated files under managed output dirs — only files that carry the generated-file banner; hand-written files and JSON outputs are kept and listed (ignored with `--check`; see [Configuration](Configuration)) |
 | `--verbose` | Emit debug output: resolved source directories (including `extends` entries), per-file origin when multiple sources are active, and any non-fatal warnings |
 | `--no-recursive` | Sync only the invocation directory; do not descend into configured workspace packages (see **Monorepos** below) |
 
 Before first use of `--prune`, read the short pre-flight list and platform notes under **Stale generated files** in [Configuration](Configuration).
+
+**Stale files are drift.** `--check` also looks for generated files (banner present) under the managed output dirs that no source produces any more — a rule you deleted or renamed, or one a stack change filtered out — and reports each as `STALE:`. They count as out of sync and exit 1, and the summary points at `sync --prune`. Hand-written files and JSON outputs are never reported, because without a banner bluetemberg can't tell them from its own.
 
 **Monorepos (recursive by default):** sync discovers every `bluetemberg.config.json` at or below the directory you run it in — the config tree is the workspace map — and syncs each configured package against **its own** detected stacks. So one `bluetemberg sync` (or `sync --check` in CI) keeps a whole monorepo in sync: `packages/web` gated on its React, `packages/legacy` on its own, with no flag to forget and no false-green check. A repo with no sub-package configs is unaffected (single-package path). Pass `--no-recursive` to sync only the current directory. Discovery skips `node_modules`, dot-folders, and build dirs. See [Stacks & Versioning](Stacks) and [Monorepo config inheritance](Configuration#monorepo-config-inheritance).
 
@@ -358,7 +360,7 @@ Each `add`/`update`/`install` writes `.bluetemberg/sources/` (git-ignored cache)
 | Code | When |
 | ---- | ---- |
 | 0 | Sync finished with no recorded errors, and (if `--check`) all generated files match the expected content |
-| 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, malformed managed-block markers in `AGENTS.md` / `.codex/config.toml`, etc.), **or** `--check` found one or more files out of sync |
+| 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, malformed managed-block markers in `AGENTS.md` / `.codex/config.toml`, etc.), **or** `--check` found one or more files out of sync, including stale generated files (`STALE:`) |
 
 **Warnings vs errors:** Some issues are non-fatal and appear as warnings — for example, an `extends` entry that references a path or package that does not exist, or (with `claude` selected) a root `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` that has no `@AGENTS.md` import and so hides `AGENTS.md` from Claude Code ([details](Architecture#claude-code-and-agentsmd)). Warnings are logged and included in the programmatic `SyncResults.warnings` array but do **not** cause exit code 1. Use `--verbose` to see all warnings even when there are no errors.
 

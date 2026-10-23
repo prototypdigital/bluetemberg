@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Platform } from '../types.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
+import { isGuardrailHookCommand } from './guardrails.js';
 
 /** Source manifest filename, read exclusively from the project's own source dir (`llm/`). */
 export const CLAUDE_HOOKS_MANIFEST = 'hooks.claude.json';
@@ -254,6 +255,55 @@ function clearManagedHooks(ctx: ClaudeHooksSyncContext): void {
 }
 
 /**
+ * With no guardrail source and no manifest left, entries an earlier sync generated for a guardrail
+ * are orphans: the pack or file that justified them is gone, but the hook still runs on every tool
+ * call. Remove exactly those (recognized by their generated command), keep everything a person
+ * wrote, and drop the key only when nothing remains. Never creates the file or the key.
+ */
+function removeOrphanedGuardrailHooks(ctx: ClaudeHooksSyncContext): void {
+  const settingsPath = join(ctx.root, '.claude', 'settings.json');
+  if (!existsSync(settingsPath)) return;
+  const existing = readExistingSettings(settingsPath);
+  const hooks = existing.hooks;
+  if (!hooks || typeof hooks !== 'object' || Array.isArray(hooks)) return;
+
+  let removed = 0;
+  const kept: Record<string, unknown[]> = {};
+  for (const [event, entries] of Object.entries(hooks as Record<string, unknown>)) {
+    if (!Array.isArray(entries)) {
+      kept[event] = [entries];
+      continue;
+    }
+    const survivors: unknown[] = [];
+    for (const entry of entries) {
+      const commands = (entry as { hooks?: unknown })?.hooks;
+      if (!Array.isArray(commands)) {
+        survivors.push(entry);
+        continue;
+      }
+      const own = commands.filter((h) => {
+        const command = (h as { command?: unknown })?.command;
+        const generated = typeof command === 'string' && isGuardrailHookCommand(command);
+        if (generated) removed++;
+        return !generated;
+      });
+      if (own.length > 0) survivors.push({ ...(entry as object), hooks: own });
+    }
+    if (survivors.length > 0) kept[event] = survivors;
+  }
+  if (removed === 0) return;
+
+  const updated: Record<string, unknown> = { ...existing };
+  if (Object.keys(kept).length > 0) updated.hooks = kept;
+  else delete updated.hooks;
+
+  commitPlannedWrite(ctx, settingsPath, JSON.stringify(updated, null, 2) + '\n');
+  if (!ctx.checkMode) {
+    ctx.log(`Claude hooks: removed ${removed} guardrail hook(s) whose source is gone`);
+  }
+}
+
+/**
  * Single writer of the `hooks` key in `.claude/settings.json`. Composes guardrail-generated
  * entries (computed by `syncGuardrails`) with the project's `llm/hooks.claude.json`.
  *
@@ -284,7 +334,10 @@ export function syncClaudeHooks(
   if (manifest.status === 'invalid') return;
 
   const projectHooks = manifest.status === 'ok' ? manifest.hooks : null;
-  if (guardrailHooks === null && projectHooks === null) return;
+  if (guardrailHooks === null && projectHooks === null) {
+    removeOrphanedGuardrailHooks(ctx);
+    return;
+  }
 
   const combined = mergeHookSections(guardrailHooks, projectHooks);
   if (Object.keys(combined).length === 0) {
