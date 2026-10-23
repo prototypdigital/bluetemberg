@@ -61,7 +61,7 @@ export async function preview(
       .filter((s) => !s.startsWith('0'))
       .join(', ');
     log(`\nTotal: ${total} packs (${byKindCount})`);
-    log(`\nRun \`bluetemberg init --profile ${profile}\` to scaffold this configuration.`);
+    log(`\nRun \`bluetemberg init --non-interactive --profile ${profile}\` to scaffold this configuration.`);
   }
 }
 
