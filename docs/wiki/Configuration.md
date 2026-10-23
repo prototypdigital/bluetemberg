@@ -49,6 +49,10 @@ Directory name containing vendor-neutral sources. Default: `"llm"`.
 
 The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skills/`, and optionally `<source>/mcp.json`, `<source>/hooks.json`, `<source>/hooks.claude.json`, `<source>/commands/`, and `<source>/prompts/` (see [Adapters](Adapters)).
 
+### `profile`
+
+Optional. The team profile `init` recorded: `frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `agentic`, `design-engineer` or `custom`. Validated at load (an unknown value fails `sync`). `switch-profile` reads and updates it; sync output does not depend on it, since routing by role happens when packs are selected, not when files are written. See [Profiles](Profiles).
+
 ### `stacks`
 
 Optional map of **technology stack → version**, declaring which frameworks (and which versions) the project builds on. This is the project-level half of the **stacks axis** — orthogonal to `profile` (role). It drives version-aware rule routing: at sync, a rule or guardrail whose `stacks:` constraint targets a version the project does not use is hard-excluded (see [Writing Rules](Writing-Rules)).
@@ -134,7 +138,8 @@ Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how 
 ```
 
 - `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` writes `extraKnownMarketplaces` into `.claude/settings.json` so Claude Desktop auto-prompts teammates to install plugins.
-- `plugins` — when omitted, a single plugin named after the project directory is emitted.
+- `plugins` — when omitted, a single plugin named after the project directory is emitted. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks matches; stack-agnostic files are always included).
+- `owner` — `{ "name", "email"?, "url"? }`, written into `marketplace.json`, where Claude Code requires it. When omitted, the owner segment of `remote` is used, else the project directory name.
 
 See [Marketplace](Marketplace) for the full schema, profile filtering behavior, and publishing setup.
 
@@ -150,7 +155,7 @@ Optional boolean. When `true`, marks this config as the **inheritance root** in 
 
 Maps each content type (rules, agents, skills) to platform-specific output directories and file extensions.
 
-Invalid `targets` shapes (wrong types, unknown platform keys, empty `dir` / missing `ext` for rules and agents) cause **`bluetemberg sync` to fail at config load** with a clear error. Omit a section entirely if you do not use that content type.
+Invalid `targets` shapes (wrong types, unknown platform keys, empty `dir` / missing `ext` for rules and agents) cause **`bluetemberg sync` to fail at config load** with a clear error. A section you omit uses the defaults below for every selected platform. A section you include lists exactly the platforms that get that content type, so leave a platform out of the section to skip it there.
 
 #### Line endings and `--check`
 
@@ -203,6 +208,7 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 | cursor   | `.cursor/rules`        | `.mdc`             |
 | claude   | `.claude/rules`        | `.md`              |
 | copilot  | `.github/instructions` | `.instructions.md` |
+| gemini   | `.gemini/context`      | `.md`              |
 | windsurf | `.windsurf/rules`      | `.md`              |
 
 #### Agent targets
@@ -323,7 +329,7 @@ When this file exists and **`claude`** is in `platforms`, sync validates it (whi
 
 ## Claude commands (`llm/commands/`)
 
-Markdown files in this directory (except `README.md`) are copied to **`.claude/commands/`** when **`claude`** is in `platforms`. See [Writing Commands](Writing-Commands).
+Markdown files in this directory (except `README.md`) are copied to **`.claude/commands/`** when **`claude`** is in `platforms`, and to **`.windsurf/workflows/`** when **`windsurf`** is. See [Writing Commands](Writing-Commands).
 
 ## Copilot prompt files (`llm/prompts/`)
 

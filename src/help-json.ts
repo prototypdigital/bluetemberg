@@ -133,6 +133,10 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         'externalSources',
         'stacks',
         'github',
+        'includeGuardrails',
+        'guardrails',
+        'marketplaceRemote',
+        'marketplacePlugins',
       ],
     },
     stacks: {
