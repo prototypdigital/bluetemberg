@@ -215,6 +215,12 @@ describe('ensureGitignore', () => {
     expect(existsSync(join(dir, '.gitignore'))).toBe(false);
   });
 
+  it('creates a .gitignore in a git repository that has none', () => {
+    mkdirSync(join(dir, '.git'));
+    ensureGitignore(dir);
+    expect(read()).toContain('.bluetemberg/');
+  });
+
   it('always ignores the cache', () => {
     writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
     ensureGitignore(dir);

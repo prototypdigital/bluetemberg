@@ -112,7 +112,7 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | `--check` | Dry-run mode; exits with code 1 if any generated files are out of sync |
 | `--dry-run` | Alias for `--check` |
 | `--diff` | Under `--check`, print a per-file unified diff (summary counts + `@@` hunks) of what drifted, so CI shows *what* changed, not just *how many* files. Implies `--check`; honors `--silent`; never changes counts or exit code |
-| `--silent` | Suppress all output (useful in scripts and CI) |
+| `--silent` | Suppress progress output (useful in scripts and CI); errors still print to stderr |
 | `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
 | `--verbose` | Emit debug output: resolved source directories (including `extends` entries), per-file origin when multiple sources are active, and any non-fatal warnings |
 | `--no-recursive` | Sync only the invocation directory; do not descend into configured workspace packages (see **Monorepos** below) |
@@ -141,7 +141,7 @@ Report the technology stacks and versions detected in the project, each with its
 | Option | Description |
 | ------ | ----------- |
 | `--json` | Emit machine-readable JSON: `detected[]` (each with `coverage.precision` and a `coverage.reason` when uncovered), `gaps[]` (stacks whose detected version has no covering guidance), `weakCoverage[]` (stacks covered only name-level), `warnings[]` |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ```bash
 npx bluetemberg detect
@@ -159,7 +159,7 @@ Covered ranges are read from the `stacks:` frontmatter of the guidance actually 
 | Option | Description |
 | ------ | ----------- |
 | `--json` | Emit machine-readable JSON (`query`, `result` — including `precision` — and `warnings[]` for coverage sources that could not be read) |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ```bash
 npx bluetemberg coverage payload@3.4.0
@@ -183,7 +183,7 @@ The corpus it compares against is read from the current working directory — it
 | `--repos <list>` | **[remote]** Comma-separated `owner/repo` to scan |
 | `--since <days>` | **[remote `--org`]** Only include repos pushed to within the last N days |
 | `--json` | Emit machine-readable JSON (`roots`, `scanned`, `empty`, `skipped`, `histogram`, `gaps`) |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ```bash
 npx bluetemberg scan-org ../app-a ../app-b ../app-c       # local clones
@@ -249,7 +249,7 @@ bluetemberg add bluetemberg-rules-typescript bluetemberg-agents-code-reviewer
 | ------ | ----------- |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ## `bluetemberg remove <package>`
 
@@ -285,7 +285,7 @@ NPM_TOKEN=... bluetemberg install --skip-signature-verification
 | `--dry-run` | Resolve packs and print the install plan without writing files |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 Credentials for a private registry come from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_TOKEN` — see
 [Private registries](Registry#private-registries).
@@ -305,7 +305,7 @@ bluetemberg update --latest
 | `--latest` | Widen ranges to `"latest"` in manifest, not just re-resolve current range |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ## `bluetemberg verify [directory]`
 
