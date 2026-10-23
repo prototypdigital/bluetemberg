@@ -75,7 +75,7 @@ One-line description of the skill's purpose.
 
 ## How skills are synced
 
-Skills are copied **verbatim** to target platforms. The directory structure is preserved:
+Skills are copied to target platforms with their content unchanged apart from the generated-file banner added after the frontmatter. The directory structure is preserved:
 
 | Source                         | Cursor                             | Claude                             | Copilot                            |
 | ------------------------------ | ---------------------------------- | ---------------------------------- | ---------------------------------- |

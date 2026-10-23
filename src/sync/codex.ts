@@ -15,6 +15,7 @@ import {
   injectManagedBlock,
 } from './managed-block.js';
 import type { BlockMarkers } from './managed-block.js';
+import { withGeneratedBannerToml } from './banner.js';
 
 // Codex has no per-file rule API; see Architecture.md "Special sync" for the full design.
 export interface CodexSyncContext extends SyncSink {
@@ -162,7 +163,7 @@ function processAgentFile(
       developer_instructions: parsed.content.trim(),
     };
 
-    const body = tomlStringify(agent) + '\n';
+    const body = withGeneratedBannerToml(tomlStringify(agent) + '\n', `agents/${file}`);
     commitPlannedWrite(ctx, join(outDir, `${fallbackName}.toml`), body);
     return true;
   } catch (err) {
