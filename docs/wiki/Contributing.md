@@ -83,7 +83,7 @@ Breaking changes: add `!` after the type, e.g. `feat!: remove sync v1 API`. This
 
 1. Create a feature branch from `main`
 2. Make your changes
-3. Ensure all checks pass: `npm run build && npm test && npm run lint && npm run format:check`
+3. Ensure all checks pass: `npm run build && npm test && npm run lint && npm run format:check`. CI also runs `npm audit --audit-level=high`, so a newly published high or critical advisory in any dependency fails the PR until the lockfile is refreshed
 4. Open a PR with a conventional commit title
 5. CODEOWNERS will be auto-requested for review
 6. After merge, Release Please will open/update a release PR

@@ -64,11 +64,11 @@
   "license": "MIT",
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "commander": "^15.0.0",
     "gray-matter": "^4.0.3",
     "semver": "^7.7.4",
-    "smol-toml": "^1.6.1",
+    "smol-toml": "^1.9.1",
     "tar": "^7.5.13"
   },
   "devDependencies": {
