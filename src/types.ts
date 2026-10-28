@@ -220,6 +220,11 @@ export interface InitRunOptions {
    * Defaults to a short registry request; resolve to `undefined` to keep `latest` (offline callers, tests).
    */
   resolveLatestVersion?: (packageName: string) => Promise<string | undefined>;
+  /**
+   * Overwrite existing files bluetemberg does not own (`AGENTS.md`, `CLAUDE.md`, GitHub/community files).
+   * By default those are kept and reported, so re-running `init` never discards hand-written content.
+   */
+  force?: boolean;
 }
 
 export interface SyncOptions {
@@ -254,6 +259,11 @@ export interface SyncOptions {
 export interface SyncResults {
   synced: number;
   outOfSync: number;
+  /**
+   * Generated files found under managed output locations that no source produces any more
+   * (`--check` only). Counted in `outOfSync` as well; `sync --prune` removes them.
+   */
+  stale: number;
   /** Fatal issues that caused sync to partially fail. Causes exit code 1. */
   errors: string[];
   /** Non-fatal notices — logged but do not affect exit code. */

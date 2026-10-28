@@ -38,7 +38,7 @@ plugins/
 > the only components that inject markdown guidance into a session. So each `llm/rules/{id}.md` is
 > rewritten into `plugins/{name}/skills/rule-{id}/SKILL.md`: its own frontmatter (`profiles`, `scope`,
 > etc. — meaningless to a skill) is stripped and replaced with a minimal `name`/`description` block,
-> and the rule body passes through verbatim. The `rule-` prefix keeps it from colliding with an actual
+> and the rule body passes through unchanged, with the generated-file banner added. The `rule-` prefix keeps it from colliding with an actual
 > skill that happens to share the same id.
 
 ## Dedicated marketplace repo (Option A)
@@ -286,7 +286,7 @@ The flat output goes to `.claude/` as usual; the marketplace output goes to `plu
 
 ## Modern skill frontmatter fields
 
-Skills are copied verbatim from `llm/skills/` to `plugins/{name}/skills/`. All frontmatter fields pass through unchanged, including Claude-specific fields:
+Skills are copied from `llm/skills/` to `plugins/{name}/skills/` with the generated-file banner added after the frontmatter. All frontmatter fields pass through unchanged, including Claude-specific fields:
 
 | Field | Purpose |
 |-------|---------|

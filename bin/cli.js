@@ -8,6 +8,21 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8'));
 
+// Fail early with a plain message instead of a stack trace from a missing `fetch` or syntax
+// the runtime does not know. The check sits before the first `dist/` import for that reason.
+const requiredNode = Number(
+  String(pkg.engines?.node ?? '>=20')
+    .replace(/[^0-9.]/g, '')
+    .split('.')[0],
+);
+const runningNode = Number(process.versions.node.split('.')[0]);
+if (Number.isFinite(requiredNode) && runningNode < requiredNode) {
+  console.error(
+    `bluetemberg needs Node.js ${pkg.engines?.node ?? '>=20'} (running ${process.version}). Upgrade Node and run the command again.`,
+  );
+  process.exit(1);
+}
+
 const argvParts = process.argv.slice(2);
 const wantsJsonHelp =
   argvParts.includes('--json') && (argvParts.includes('--help') || argvParts.includes('-h'));
@@ -80,6 +95,7 @@ function strayHeadlessOptsWithoutNiOrConfig(opts) {
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
+  if (argvHas('--omit-github')) found.push('--omit-github');
 
   if (found.length === 0) return null;
   return `Init flags require \`--non-interactive\` or \`--config\`: ${found.join(', ')}`;
@@ -117,6 +133,7 @@ function assertNoInitFlagsBundledWithConfig(opts) {
   if (argvHas('--omit-agents')) found.push('--omit-agents');
   if (argvHas('--omit-skills')) found.push('--omit-skills');
   if (argvHas('--omit-mcp')) found.push('--omit-mcp');
+  if (argvHas('--omit-github')) found.push('--omit-github');
 
   if (found.length === 0) return null;
   return `Cannot combine \`--config\` with: ${found.join(', ')}`;
@@ -205,6 +222,8 @@ function buildNiOverrides(opts) {
   if (argvHas('--omit-agents')) ov.includeAgents = false;
   if (argvHas('--omit-skills')) ov.includeSkills = false;
   if (argvHas('--omit-mcp')) ov.includeMcp = false;
+  // Own property set to undefined: finalizeNonInteractiveAnswers keys off presence, not value.
+  if (argvHas('--omit-github')) ov.github = undefined;
 
   return ov;
 }
@@ -240,6 +259,8 @@ program
   .option('--omit-agents')
   .option('--omit-skills')
   .option('--omit-mcp')
+  .option('--omit-github', 'Skip the GitHub/community files (`--non-interactive` only)')
+  .option('--force', 'Overwrite existing AGENTS.md, CLAUDE.md, and GitHub files instead of keeping them')
   .action(async (directory, options) => {
     const msgSilent = straySilentRequiresNiOrConfig(options);
     if (msgSilent) {
@@ -288,13 +309,15 @@ program
       initRunOpts.silent = true;
     }
 
+    if (options.force) {
+      initRunOpts.force = true;
+    }
+
     const { init } = await import('../dist/init/index.js');
     try {
       await init(resolve(directory), initRunOpts);
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -306,7 +329,7 @@ program
   .option('--check', 'Exit 1 if files are out of sync (no writes)')
   .option('--dry-run', 'Alias for --check')
   .option('--diff', 'With --check, print a per-file unified diff of what drifted (implies --check)')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .option(
     '--prune',
     'After sync, remove stale generated files under managed output dirs (no-op with --check)',
@@ -322,9 +345,7 @@ program
     try {
       loadConfig(root);
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
 
@@ -366,20 +387,20 @@ program
       const { pinDefaultRanges } = await import('../dist/registry/default-ranges.js');
       await pinDefaultRanges(root, result.added);
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
 
 program
   .command('preview')
-  .description('Preview packs for a profile without writing any files')
+  .description(
+    'Preview the packs a profile preselects (writes nothing but the catalog cache under .bluetemberg/)',
+  )
   .argument('[profile]', `Profile to preview (one of: ${[...TEAM_PROFILES].join(', ')})`)
   .option('--list', 'List all available profiles')
   .option('--force', 'Force re-fetch of the pack catalog')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (profile, options) => {
     const { preview, previewList } = await import('../dist/preview/index.js');
 
@@ -399,9 +420,7 @@ program
         force: options.force,
       });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -411,15 +430,13 @@ program
   .description('Detect technology stacks + versions in the project and report coverage/gaps')
   .argument('[directory]', 'Project root directory', '.')
   .option('--json', 'Emit machine-readable JSON (detected, gaps, warnings)')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (directory, options) => {
     const { runDetect } = await import('../dist/stacks/report.js');
     try {
       runDetect(resolve(directory), { json: options.json, silent: options.silent, log: console.log });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -430,7 +447,7 @@ program
   .argument('<stack>', 'Stack name with optional @version (e.g. payload@3 or nextjs)')
   .argument('[directory]', 'Project root directory', '.')
   .option('--json', 'Emit machine-readable JSON')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (stackSpec, directory, options) => {
     const { runCoverage } = await import('../dist/stacks/report.js');
     const atIdx = String(stackSpec).indexOf('@');
@@ -443,9 +460,7 @@ program
         log: console.log,
       });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -463,7 +478,7 @@ program
     return n;
   })
   .option('--json', 'Emit machine-readable JSON (roots, histogram, gaps, skipped)')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (paths, options) => {
     const { runScanOrg } = await import('../dist/stacks/scan.js');
     const { resolveGithubToken } = await import('../dist/stacks/github.js');
@@ -499,9 +514,7 @@ program
         since: options.since,
       });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -518,7 +531,7 @@ program
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
   )
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (packages, options) => {
     const { add } = await import('../dist/registry/index.js');
     const uniquePackages = [...new Set(packages)];
@@ -532,9 +545,7 @@ program
           allowExternalTarballHost: options.allowExternalTarballHost,
         });
       } catch (err) {
-        if (!options.silent) {
-          console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         failed.push(packageSpec);
       }
     }
@@ -563,15 +574,13 @@ program
   .command('remove')
   .description('Remove a pack from the project')
   .argument('<package>', 'Package name to remove')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (packageName, options) => {
     const { remove } = await import('../dist/registry/index.js');
     try {
       await remove(process.cwd(), packageName, { silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -579,15 +588,13 @@ program
 program
   .command('list')
   .description('List installed packs')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (options) => {
     const { list } = await import('../dist/registry/index.js');
     try {
       list(process.cwd(), { silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -605,7 +612,7 @@ program
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
   )
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (options) => {
     const { install } = await import('../dist/registry/index.js');
     try {
@@ -626,9 +633,7 @@ program
         }
       }
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -646,7 +651,7 @@ program
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
   )
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (packageName, options) => {
     const { update } = await import('../dist/registry/index.js');
     try {
@@ -664,9 +669,7 @@ program
         );
       }
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -676,7 +679,7 @@ program
   .description('Search the npm registry for bluetemberg packs')
   .argument('<query>', 'Search query')
   .option('--limit <n>', 'Max results (default: 20)', (s) => parseInt(s, 10))
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (query, options) => {
     const { search } = await import('../dist/registry/index.js');
     try {
@@ -685,9 +688,7 @@ program
         silent: options.silent,
       });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -700,7 +701,7 @@ program
     '--skip-signature-verification',
     'Skip ECDSA signature check (for self-hosted registries without signing)',
   )
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (directory, options) => {
     const { verify } = await import('../dist/registry/index.js');
     try {
@@ -711,9 +712,7 @@ program
       const hasFailures = results.some((r) => r.status !== 'ok');
       if (hasFailures) process.exit(1);
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -746,15 +745,13 @@ sourceCmd
     '<spec>',
     'Source spec: github:owner/repo[#ref][:path] | prpm:name[@range] | cursor-directory:slug',
   )
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (spec, options) => {
     const { addSource } = await import('../dist/sources/registry.js');
     try {
       await addSource(process.cwd(), spec, { silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -763,15 +760,13 @@ sourceCmd
   .command('remove')
   .description('Remove an external source by key')
   .argument('<key>', 'Source key (as shown by "bluetemberg source list")')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (key, options) => {
     const { removeSource } = await import('../dist/sources/registry.js');
     try {
       removeSource(process.cwd(), key, { silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -779,15 +774,13 @@ sourceCmd
 sourceCmd
   .command('list')
   .description('List configured external sources')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (options) => {
     const { listSources } = await import('../dist/sources/registry.js');
     try {
       listSources(process.cwd(), { silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -796,15 +789,13 @@ sourceCmd
   .command('install')
   .description('Install all external sources from the manifest (like npm ci)')
   .option('--force', 'Force re-download even if cached')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (options) => {
     const { installSources } = await import('../dist/sources/registry.js');
     try {
       await installSources(process.cwd(), { force: options.force, silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -813,15 +804,13 @@ sourceCmd
   .command('update')
   .description('Re-resolve external sources to the newest ref/version satisfying their spec')
   .argument('[key]', 'Source key to update (updates all when omitted)')
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (key, options) => {
     const { updateSources } = await import('../dist/sources/registry.js');
     try {
       await updateSources(process.cwd(), key, { silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });
@@ -832,15 +821,13 @@ sourceCmd
   .argument('<query>', 'Search query')
   .option('--type <type>', 'Restrict to one backend: prpm | cursor-directory')
   .option('--limit <n>', 'Max results (default: 20)', (s) => parseInt(s, 10))
-  .option('--silent', 'Suppress all output')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (query, options) => {
     const { searchSources } = await import('../dist/sources/registry.js');
     try {
       await searchSources(query, { type: options.type, limit: options.limit, silent: options.silent });
     } catch (err) {
-      if (!options.silent) {
-        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
     }
   });

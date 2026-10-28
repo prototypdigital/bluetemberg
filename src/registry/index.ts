@@ -94,6 +94,11 @@ export async function add(
   const path = resolvePackSourceDir(root, name, version);
 
   log(`Added ${name}@${version}`);
+  if (!path) {
+    console.warn(
+      `  Warning: ${name}@${version} has no llm/ directory (and no rules/, agents/, skills/ or guardrails/ at its root), so sync will take nothing from it. Is this a bluetemberg pack?`,
+    );
+  }
   log(`Run "bluetemberg sync" to apply the new rules.`);
 
   return {
@@ -519,6 +524,13 @@ export async function update(
  * registry is unusable for discovery otherwise, and credentials for it would never be
  * applied.
  */
+/** Every whitespace-separated term of `query` appears in the pack's name, description or keywords. */
+function matchesQuery(pkg: NpmSearchResult, query: string): boolean {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const haystack = [pkg.name, pkg.description ?? '', ...(pkg.keywords ?? [])].join(' ').toLowerCase();
+  return terms.every((term) => haystack.includes(term));
+}
+
 export async function search(query: string, options: RegistrySearchOptions = {}): Promise<NpmSearchResult[]> {
   const log = options.silent ? () => {} : console.log;
 
@@ -526,11 +538,14 @@ export async function search(query: string, options: RegistrySearchOptions = {})
 
   const root = options.root ?? process.cwd();
   const manifest = readManifest(root, loadConfig(root).source || 'llm');
-  const results = await searchPackages(query, {
+  const fetched = await searchPackages(query, {
     limit: options.limit,
     registryUrl: manifest.registry,
     root,
   });
+  // The registry treats free text combined with the keywords: filter as a ranking hint, not a
+  // requirement, so an unmatched query still returns every pack. Require each term here.
+  const results = fetched.filter((pkg) => matchesQuery(pkg, query));
 
   if (results.length === 0) {
     log('No packs found. Packs must include "bluetemberg-pack" in their keywords.');

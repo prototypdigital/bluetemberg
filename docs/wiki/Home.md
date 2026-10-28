@@ -1,10 +1,10 @@
 # Bluetemberg
 
-Scaffold vendor-neutral AI tooling config (rules, agents, skills) with cross-platform sync for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.
+AI coding standards, shipped like a dependency: version-locked, integrity-verified, signed, and routed to the right engineer and the right stack version. Emits `AGENTS.md` plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.
 
 ## What is Bluetemberg?
 
-Bluetemberg is an open-source CLI tool (published on npm as `bluetemberg`, MIT) that sets up and maintains AI assistant configuration across multiple platforms from a single source of truth. Write your rules, agent definitions, and skills once in `llm/`, and Bluetemberg syncs them to Cursor, Claude, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex with the correct format for each.
+Bluetemberg is an open-source CLI (published on npm as `bluetemberg`, MIT) that installs AI coding rules, agents, skills and guardrails from versioned npm packs into a project, verifies them on the way in, selects them by team profile and detected stack version, and writes them out in the format each tool reads. Your own content lives in `llm/` and always wins over a pack.
 
 Rules are self-contained Markdown files — the AI reads them directly, no cross-file dependencies. The sync engine only transforms frontmatter for each platform. `sync --check` in CI catches any drift before it ships.
 
@@ -12,7 +12,7 @@ If you're wondering why this exists or how it's different from maintaining platf
 
 ## Quick links
 
-- [Why Bluetemberg](Why) — design philosophy and what problem it solves
+- [Why Bluetemberg](Why) — the distribution problem it solves and the guarantees it gives
 - [Installation](Installation) — install from public npm (no auth or registry config)
 - [Commands](Commands) — CLI reference for `init` and `sync`
 - [Configuration](Configuration) — `bluetemberg.config.json` schema

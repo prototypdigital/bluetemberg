@@ -135,6 +135,7 @@ export function finalizeNonInteractiveAnswers(
     // Stacks are not part of the profile baseline (sync auto-detects); only an explicit
     // `--stacks` override pins them into the config.
     stacks: overrides.stacks,
-    github: overrides.github ?? base.github,
+    // `--omit-github` sets the key to undefined on purpose, so presence (not value) decides.
+    github: Object.hasOwn(overrides, 'github') ? overrides.github : base.github,
   };
 }

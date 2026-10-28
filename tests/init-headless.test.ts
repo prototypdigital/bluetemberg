@@ -33,6 +33,14 @@ describe('parseInitAnswersJson', () => {
     mcpServers: [],
   };
 
+  it('accepts a config that omits the retired rules field', () => {
+    const withoutRules: Record<string, unknown> = { ...minimalCollections };
+    delete withoutRules.rules;
+    const got = parseInitAnswersJson(JSON.stringify(withoutRules));
+    expect(got.rules).toEqual([]);
+    expect(got.ruleCollections).toEqual(['typescript']);
+  });
+
   it('normalizes collections mode to drop template rules array', () => {
     const rec = { ...minimalCollections, rules: ['should-strip'] };
     const got = parseInitAnswersJson(JSON.stringify(rec));
@@ -177,6 +185,21 @@ describe('InitRunOptions validation', () => {
     await expect(
       init(root, { nonInteractive: true, configPath: join(root, 'missing-init.json') }),
     ).rejects.toThrow(/configPath or nonInteractive/);
+  });
+});
+
+describe('finalizeNonInteractiveAnswers github override', () => {
+  const root = join(tmpdir(), `bluetemberg-gh-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+  it('scaffolds every GitHub file by default', () => {
+    const answers = finalizeNonInteractiveAnswers('fullstack', root, {});
+    expect(answers.github?.license).toBe(true);
+    expect(answers.github?.codeowners).toBe(true);
+  });
+
+  it('drops the GitHub files when the override sets github to undefined (--omit-github)', () => {
+    const answers = finalizeNonInteractiveAnswers('fullstack', root, { github: undefined });
+    expect(answers.github).toBeUndefined();
   });
 });
 

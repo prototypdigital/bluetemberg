@@ -14,7 +14,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | ------ | ----- |
 | `--non-interactive` | Use the same preset logic as the wizard for the chosen `--profile` (default profile: `fullstack`), then merge optional overrides. Exclusive with `--config`. |
 | `--config <file>` | Validate JSON against `InitAnswers` (`teamProfile`, `projectName`, `platforms`, `ruleSource`, `rules`, `ruleCollections`, boolean includes, arrays, …). Overrides like `--profile`, `--omit-mcp`, and CSV lists cannot be mixed with `--config`. |
-| `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `custom`). |
+| `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `agentic`, `design-engineer`, `custom`). |
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
 | `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). `--non-interactive` only. |
@@ -23,7 +23,8 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
 | `--sources <csv>` | External source specs (e.g. `github:owner/repo#HEAD:rules`, `prpm:name`, `cursor-directory:slug`), written to `llm/rule-sources.json`. `--non-interactive` without `--config`. |
 | `--stacks <csv>` | Technology stacks to manage, written to config `stacks` (e.g. `payload@3.4.1,nextjs@auto`; a bare name → `auto`). `--non-interactive` without `--config`. |
-| `--omit-agents`, `--omit-skills`, `--omit-mcp` | Shortcut booleans (`--non-interactive` only). |
+| `--omit-agents`, `--omit-skills`, `--omit-mcp`, `--omit-github` | Shortcut booleans (`--non-interactive` only). `--omit-github` skips the GitHub/community files listed below. |
+| `--force` | Overwrite `AGENTS.md`, `CLAUDE.md`, and the GitHub/community files when they already exist. Without it, init keeps those files and lists what it kept. Works in every mode. |
 | `--silent` | Hide progress/success logs and forward silence to initial `sync` (still exit non-zero on failure). **Requires** `--non-interactive` **or** `--config`. |
 
 **Global discovery:** combine `--help --json` (any position with `--help`/`-h`) to dump team profiles, package managers, rules, collections, agents, skills, MCP presets, and CLI metadata as JSON (`writeSync`-safe for piping).
@@ -47,6 +48,9 @@ Then, for **every** run:
 7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync generates `.claude/mcp.json`, `.github/mcp.json`, and/or `.cursor/mcp.json` from that manifest (per selected platforms)
 8. Adds `sync:llm-config` scripts to `package.json`
 9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
+10. Writes the GitHub/community files the wizard selected (Dependabot, issue and PR templates, CODEOWNERS, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, SECURITY). Headless runs write all of them unless `--omit-github` is passed. Never CI/CD workflows.
+
+**Existing files are never overwritten.** `AGENTS.md`, `CLAUDE.md`, and the GitHub/community files are yours once they exist: re-running `init` keeps them and prints a "Kept N existing file(s)" list. Pass `--force` to replace them with the templates. The files bluetemberg owns (`bluetemberg.config.json`, `llm/packages.json`, `llm/mcp.json`, `llm/rule-sources.json`) are refreshed on every run.
 10. Runs an initial sync to generate all platform-specific files
 
 Collections are pre-selected based on the chosen profile. See [Profiles](Profiles) for what each team profile defaults to.
@@ -66,6 +70,33 @@ npx bluetemberg init --config ./bluetemberg.init.json ./my-project
 
 Programmatic callers can keep using `init(root, opts)`/`scaffold(...)`/`sync(...)` exported from the package (`InitRunOptions` describes the programmatic mirror of the CLI knobs).
 
+## `bluetemberg switch-profile <profile> [directory]`
+
+Changes the team profile recorded in `bluetemberg.config.json` without re-running the wizard. Non-destructive:
+
+- Adds the new profile's default agent and skill packs to `llm/packages.json` when missing, with a `^<latest>` range looked up from the registry (`latest` if it can't be reached).
+- Never removes a pack and never touches `llm/` content.
+- Lists official agent/skill packs that are not among the new profile's defaults, so you can remove them by hand. Rule collections and third-party packs are never flagged.
+- Updates `profile` in the config.
+
+Then run `bluetemberg install` and `bluetemberg sync`. See [Profiles](Profiles#switching-profiles).
+
+| Option | Notes |
+| ------ | ----- |
+| `--silent` | Suppress output (exit code still reports failure) |
+
+## `bluetemberg preview [profile]`
+
+Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`.
+
+| Option | Notes |
+| ------ | ----- |
+| `--list` | List the available profile ids with their descriptions |
+| `--force` | Re-fetch the pack catalog instead of using the 24-hour cache |
+| `--silent` | Suppress output |
+
+The listing comes from the live catalog (cached in `.bluetemberg/catalog.json`, the only file this command writes; the committed snapshot is the offline fallback). The wizard reads the committed snapshot, so until that snapshot is refreshed the two can differ slightly.
+
 ## `bluetemberg sync [directory]`
 
 Reads vendor-neutral sources from `llm/` and generates platform-specific files.
@@ -81,12 +112,14 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 | `--check` | Dry-run mode; exits with code 1 if any generated files are out of sync |
 | `--dry-run` | Alias for `--check` |
 | `--diff` | Under `--check`, print a per-file unified diff (summary counts + `@@` hunks) of what drifted, so CI shows *what* changed, not just *how many* files. Implies `--check`; honors `--silent`; never changes counts or exit code |
-| `--silent` | Suppress all output (useful in scripts and CI) |
-| `--prune` | After a successful write pass, delete stale generated files under managed output dirs (ignored with `--check`; see [Configuration](Configuration)) |
+| `--silent` | Suppress progress output (useful in scripts and CI); errors still print to stderr |
+| `--prune` | After a successful write pass, delete stale generated files under managed output dirs — only files that carry the generated-file banner; hand-written files and JSON outputs are kept and listed (ignored with `--check`; see [Configuration](Configuration)) |
 | `--verbose` | Emit debug output: resolved source directories (including `extends` entries), per-file origin when multiple sources are active, and any non-fatal warnings |
 | `--no-recursive` | Sync only the invocation directory; do not descend into configured workspace packages (see **Monorepos** below) |
 
 Before first use of `--prune`, read the short pre-flight list and platform notes under **Stale generated files** in [Configuration](Configuration).
+
+**Stale files are drift.** `--check` also looks for generated files (banner present) under the managed output dirs that no source produces any more — a rule you deleted or renamed, or one a stack change filtered out — and reports each as `STALE:`. They count as out of sync and exit 1, and the summary points at `sync --prune`. Hand-written files and JSON outputs are never reported, because without a banner bluetemberg can't tell them from its own.
 
 **Monorepos (recursive by default):** sync discovers every `bluetemberg.config.json` at or below the directory you run it in — the config tree is the workspace map — and syncs each configured package against **its own** detected stacks. So one `bluetemberg sync` (or `sync --check` in CI) keeps a whole monorepo in sync: `packages/web` gated on its React, `packages/legacy` on its own, with no flag to forget and no false-green check. A repo with no sub-package configs is unaffected (single-package path). Pass `--no-recursive` to sync only the current directory. Discovery skips `node_modules`, dot-folders, and build dirs. See [Stacks & Versioning](Stacks) and [Monorepo config inheritance](Configuration#monorepo-config-inheritance).
 
@@ -110,7 +143,7 @@ Report the technology stacks and versions detected in the project, each with its
 | Option | Description |
 | ------ | ----------- |
 | `--json` | Emit machine-readable JSON: `detected[]` (each with `coverage.precision` and a `coverage.reason` when uncovered), `gaps[]` (stacks whose detected version has no covering guidance), `weakCoverage[]` (stacks covered only name-level), `warnings[]` |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ```bash
 npx bluetemberg detect
@@ -128,7 +161,7 @@ Covered ranges are read from the `stacks:` frontmatter of the guidance actually 
 | Option | Description |
 | ------ | ----------- |
 | `--json` | Emit machine-readable JSON (`query`, `result` — including `precision` — and `warnings[]` for coverage sources that could not be read) |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ```bash
 npx bluetemberg coverage payload@3.4.0
@@ -152,7 +185,7 @@ The corpus it compares against is read from the current working directory — it
 | `--repos <list>` | **[remote]** Comma-separated `owner/repo` to scan |
 | `--since <days>` | **[remote `--org`]** Only include repos pushed to within the last N days |
 | `--json` | Emit machine-readable JSON (`roots`, `scanned`, `empty`, `skipped`, `histogram`, `gaps`) |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ```bash
 npx bluetemberg scan-org ../app-a ../app-b ../app-c       # local clones
@@ -218,7 +251,7 @@ bluetemberg add bluetemberg-rules-typescript bluetemberg-agents-code-reviewer
 | ------ | ----------- |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 ## `bluetemberg remove <package>`
 
@@ -254,7 +287,7 @@ NPM_TOKEN=... bluetemberg install --skip-signature-verification
 | `--dry-run` | Resolve packs and print the install plan without writing files |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
 
 Credentials for a private registry come from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_TOKEN` — see
 [Private registries](Registry#private-registries).
@@ -274,7 +307,16 @@ bluetemberg update --latest
 | `--latest` | Widen ranges to `"latest"` in manifest, not just re-resolve current range |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
-| `--silent` | Suppress all output |
+| `--silent` | Suppress progress output; errors still print to stderr |
+
+## `bluetemberg verify [directory]`
+
+Re-checks every pack in `.bluetemberg/packs/` against the registry: the tarball's SHA-512 integrity and its ECDSA registry signature, using the key id the lockfile recorded. Exits 1 on the first failure. Run it in CI after `install` when you want the supply-chain checks on record. See [Registry](Registry).
+
+| Option | Notes |
+| ------ | ----- |
+| `--skip-signature-verification` | Skip the ECDSA check, for self-hosted registries that do not sign. Never needed for `registry.npmjs.org` |
+| `--silent` | Suppress output |
 
 ## `bluetemberg search <query>`
 
@@ -318,7 +360,7 @@ Each `add`/`update`/`install` writes `.bluetemberg/sources/` (git-ignored cache)
 | Code | When |
 | ---- | ---- |
 | 0 | Sync finished with no recorded errors, and (if `--check`) all generated files match the expected content |
-| 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, malformed managed-block markers in `AGENTS.md` / `.codex/config.toml`, etc.), **or** `--check` found one or more files out of sync |
+| 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, malformed managed-block markers in `AGENTS.md` / `.codex/config.toml`, etc.), **or** `--check` found one or more files out of sync, including stale generated files (`STALE:`) |
 
 **Warnings vs errors:** Some issues are non-fatal and appear as warnings — for example, an `extends` entry that references a path or package that does not exist, or (with `claude` selected) a root `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` that has no `@AGENTS.md` import and so hides `AGENTS.md` from Claude Code ([details](Architecture#claude-code-and-agentsmd)). Warnings are logged and included in the programmatic `SyncResults.warnings` array but do **not** cause exit code 1. Use `--verbose` to see all warnings even when there are no errors.
 

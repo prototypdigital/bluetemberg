@@ -106,7 +106,8 @@ export function assertInitAnswers(record: unknown): InitAnswers {
     packageManager: expectEnum(record, 'packageManager', INIT_PACKAGE_MANAGERS),
     platforms: expectPlatforms(record, 'platforms'),
     ruleSource: expectEnum(record, 'ruleSource', INIT_RULE_SOURCES),
-    rules: expectStringArray(record, 'rules'),
+    // Template rules were retired; `normalizeInitAnswers` clears this anyway, so a config may omit it.
+    rules: Array.isArray(record.rules) ? (record.rules as string[]) : [],
     ruleCollections: expectStringArray(record, 'ruleCollections'),
     includeAgents: expectBoolean(record, 'includeAgents'),
     agents: expectStringArray(record, 'agents'),

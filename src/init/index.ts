@@ -8,7 +8,7 @@ import type { InitAnswers, InitRunOptions } from '../types.js';
 import { finalizeNonInteractiveAnswers } from './init-answers-from-profile.js';
 import { readInitAnswersFromFile } from './parse-init-answers.js';
 import { runPrompts } from './prompts.js';
-import { scaffold } from './scaffold.js';
+import { scaffoldProject } from './scaffold.js';
 import { invalidStackVersions } from './stacks-csv.js';
 
 function assertMutuallyExclusiveInitOptions(run: InitRunOptions): void {
@@ -65,7 +65,10 @@ export async function init(targetPath?: string, run?: InitRunOptions): Promise<v
   const configExists = existsSync(resolve(targetDir, 'bluetemberg.config.json'));
   if (configExists) {
     log('  ⚠ bluetemberg.config.json already exists in this directory.');
-    log('  Running init will overwrite existing config and llm/ files.\n');
+    log('  Running init will overwrite existing config and llm/ files.');
+    log(
+      '  AGENTS.md, CLAUDE.md, and GitHub files that already exist are kept (pass --force to replace them).\n',
+    );
   }
 
   const answers = await resolveInitAnswers(targetDir, run);
@@ -77,11 +80,20 @@ export async function init(targetPath?: string, run?: InitRunOptions): Promise<v
   }
 
   log('\nScaffolding...\n');
-  const created = scaffold(targetDir, answers);
+  const { created, skipped } = scaffoldProject(targetDir, answers, { force: run?.force });
 
   log(`Created ${created.length} files:\n`);
   for (const f of created) {
     log(`  ${relative(targetDir, f)}`);
+  }
+
+  if (skipped.length > 0) {
+    log(
+      `\nKept ${skipped.length} existing file(s) — not bluetemberg's to overwrite (pass --force to replace):\n`,
+    );
+    for (const f of skipped) {
+      log(`  ${relative(targetDir, f)}`);
+    }
   }
 
   const { unresolved } = await pinDefaultRanges(

@@ -1,6 +1,6 @@
 # Bluetemberg
 
-Vendor-neutral AI tooling scaffolder and sync engine for Cursor, Claude Code, and GitHub Copilot.
+Distributes AI coding standards as versioned, integrity-verified npm packs, routed by team profile and stack version, and emits `AGENTS.md` plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex. This repo is the engine; all content lives in bluetemberg-packs.
 
 ## Commands
 
@@ -28,14 +28,20 @@ Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/
 
 ## Project structure
 
-- `src/init/` — Interactive wizard (prompts, presets, scaffold)
-- `src/sync/` — Sync engine (config loading, frontmatter transforms, file writing)
-- `src/registry/` — Pack install/update against the npm registry
+- `src/init/` — Interactive wizard (prompts, presets, scaffold, switch-profile)
+- `src/sync/` — Sync engine (config loading, frontmatter transforms, per-platform emitters, guardrails, hooks, marketplace, prune)
+- `src/registry/` — Pack install/update/verify against the npm registry (auth, signatures, lockfile)
 - `src/catalog/` — Catalog loader + committed snapshot (single source for pack ids/profiles)
+- `src/stacks/` — Stack detection, version matching, coverage, org scanning
+- `src/sources/` — External rule sources (GitHub, PRPM, cursor.directory) and their translators
+- `src/mcp/` — MCP server exposing detection/coverage tools, plus the MCP preset registry
+- `src/preview/` — `bluetemberg preview`: what a profile would install
 - `src/utils/` — Shared filesystem helpers
-- `src/types.ts` — All shared TypeScript types
+- `src/types.ts` — All shared TypeScript types; `src/help-json.ts` — `--help --json`; `src/cli-guards.ts` — CLI flag validation
 - `bin/cli.js` — CLI entry point (Commander)
-- `tests/` — Vitest tests (sync + transform)
+- `scripts/` — Maintainer scripts (`sync-catalog`, site build) and `scripts/hooks/` (this repo's own Claude Code hooks)
+- `site/` — The GitHub Pages landing page
+- `tests/` — Vitest tests
 - `docs/wiki/` — GitHub Wiki source
 
 All user-facing content (rules, agents, skills, guardrails) lives in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs) — this repo ships no content, only the engine.
@@ -66,4 +72,4 @@ All user-facing content (rules, agents, skills, guardrails) lives in [bluetember
 
 - Edit generated files (`.cursor/rules/`, `.cursor/agents/`, `.cursor/skills/`, `.claude/`, `.github/instructions/`, `.github/agents/`, `.github/skills/`)
 - Commit `.env` or secrets
-- Use `console.log` for user-facing output outside of `init/index.ts` and `sync/index.ts`
+- Print user-facing output from library code (`src/utils`, `src/stacks`, `src/catalog`, `src/sync/*` emitters); it goes through the command module's `log` (init, sync, registry, sources, switch-profile) so `--silent` and tests can capture it

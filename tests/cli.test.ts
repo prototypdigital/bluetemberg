@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -177,6 +177,69 @@ cliSuite('cli init headless', () => {
     expect(r.status).toBe(0);
     expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
     expect(existsSync(join(root, 'llm', 'packages.json'))).toBe(true);
+  });
+
+  it('--omit-github scaffolds none of the GitHub/community files', () => {
+    const r = runCli(
+      [
+        'init',
+        '--non-interactive',
+        '--profile',
+        'backend',
+        '--omit-mcp',
+        '--omit-github',
+        '--platforms',
+        'claude',
+        root,
+      ],
+      root,
+    );
+    expect(r.status).toBe(0);
+    expect(existsSync(join(root, 'LICENSE'))).toBe(false);
+    expect(existsSync(join(root, '.github', 'CODEOWNERS'))).toBe(false);
+    expect(existsSync(join(root, 'AGENTS.md'))).toBe(true);
+  });
+
+  it('--omit-github needs --non-interactive, like the other omit flags', () => {
+    const r = runCli(['init', '--omit-github', root], root);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('--omit-github');
+  });
+
+  it('keeps an existing LICENSE and says so; --force replaces it', () => {
+    writeFileSync(join(root, 'LICENSE'), 'Apache License 2.0\n');
+
+    const kept = runCli(
+      ['init', '--non-interactive', '--profile', 'backend', '--omit-mcp', '--platforms', 'claude', root],
+      root,
+    );
+    expect(kept.status).toBe(0);
+    expect(readFileSync(join(root, 'LICENSE'), 'utf8')).toBe('Apache License 2.0\n');
+    expect(kept.stdout).toMatch(/Kept 1 existing file/);
+    expect(kept.stdout).toContain('LICENSE');
+
+    const forced = runCli(
+      [
+        'init',
+        '--non-interactive',
+        '--profile',
+        'backend',
+        '--omit-mcp',
+        '--platforms',
+        'claude',
+        '--force',
+        root,
+      ],
+      root,
+    );
+    expect(forced.status).toBe(0);
+    expect(readFileSync(join(root, 'LICENSE'), 'utf8')).toContain('MIT License');
+  });
+
+  it('--silent still reports a fatal error on stderr', () => {
+    const r = runCli(['init', '--config', join(root, 'nope.json'), '--silent', root], root);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/Error/);
   });
 
   it('rejects --config when the path is missing', () => {
