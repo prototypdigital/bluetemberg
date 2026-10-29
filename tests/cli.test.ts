@@ -179,6 +179,26 @@ cliSuite('cli init headless', () => {
     expect(existsSync(join(root, 'llm', 'packages.json'))).toBe(true);
   });
 
+  it('--rules is accepted but warns that it is deprecated and ignored', () => {
+    const r = runCli(
+      [
+        'init',
+        '--non-interactive',
+        '--profile',
+        'devops',
+        '--omit-mcp',
+        '--platforms',
+        'claude',
+        '--rules',
+        'x',
+        root,
+      ],
+      root,
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('`--rules` is deprecated and ignored');
+  });
+
   it('--omit-github scaffolds none of the GitHub/community files', () => {
     const r = runCli(
       [
