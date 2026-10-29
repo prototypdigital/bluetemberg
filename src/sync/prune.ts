@@ -166,8 +166,10 @@ function collectRetiredDevinOutputs(
   const workflowsDir = join(root, RETIRED_DEVIN_WORKFLOWS_DIR);
   collectFlatDir(out, workflowsDir, isMd, expected, [workflowsDir, windsurfDir]);
 
+  // Compare absolute paths: `root` may be relative (library callers), and a dir listed twice
+  // would be unlinked twice.
   const skillsBase = join(root, RETIRED_DEVIN_SKILLS_DIR);
-  if (skillTargets.some(([, tc]) => resolve(root, tc.dir) === skillsBase)) return;
+  if (skillTargets.some(([, tc]) => resolve(root, tc.dir) === resolve(skillsBase))) return;
   for (const name of listSubdirs(skillsBase)) {
     collectSkillDir(out, join(skillsBase, name), expected, [skillsBase, windsurfDir]);
   }

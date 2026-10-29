@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync, loadConfig } from '../src/sync/index.js';
 import { hasGeneratedBanner, withGeneratedBanner } from '../src/sync/banner.js';
@@ -110,13 +110,16 @@ describe('Devin Desktop target', () => {
 
   it('writes the .agents/skills/ dir Codex shares once, with no prune conflict', async () => {
     const both = config(['devin', 'codex']);
-    const results = await sync(root, { config: both, silent: true });
-    expect(results.errors).toEqual([]);
-    expect(results.synced).toBe(
-      (await sync(root, { config: config(['devin']), silent: true })).synced +
-        (await sync(root, { config: config(['codex']), silent: true })).synced -
-        1, // the shared SKILL.md
-    );
+    const logs: string[] = [];
+    const orig = console.log;
+    console.log = (...a: unknown[]) => logs.push(a.join(' '));
+    try {
+      const results = await sync(root, { config: both });
+      expect(results.errors).toEqual([]);
+    } finally {
+      console.log = orig;
+    }
+    expect(logs.filter((line) => line.includes('-> .agents/skills/'))).toHaveLength(1);
 
     const pruned = await sync(root, { config: both, prune: true, silent: true });
     expect(pruned.errors).toEqual([]);
@@ -124,6 +127,43 @@ describe('Devin Desktop target', () => {
 
     const check = await sync(root, { config: both, check: true, silent: true });
     expect(check.outOfSync).toBe(0);
+  });
+
+  it('migrates a legacy default dir written with ./ or a trailing slash', async () => {
+    await sync(root, {
+      config: config(['windsurf'], {
+        rules: { windsurf: { dir: './.windsurf/rules/', ext: '.md' } },
+        skills: { windsurf: { dir: '.windsurf/skills/' } },
+      }),
+      silent: true,
+    });
+
+    expect(existsSync(join(root, '.devin', 'rules', 'testing.md'))).toBe(true);
+    expect(existsSync(join(root, '.agents', 'skills', 'review', 'SKILL.md'))).toBe(true);
+    expect(existsSync(join(root, '.windsurf', 'skills'))).toBe(false);
+  });
+
+  it('prunes from a relative root when the Devin skill target is .windsurf/skills', async () => {
+    const custom = config(['devin'], { skills: { devin: { dir: '.windsurf/skills' } } });
+    const cwd = process.cwd();
+    process.chdir(join(root, '..'));
+    try {
+      const rel = basename(root);
+      await sync(rel, { config: custom, silent: true });
+      writeGenerated(
+        join(root, '.windsurf', 'skills', 'gone', 'SKILL.md'),
+        '# Gone\n',
+        'skills/gone/SKILL.md',
+      );
+
+      const results = await sync(rel, { config: custom, prune: true, silent: true });
+
+      expect(results.errors).toEqual([]);
+      expect(existsSync(join(root, '.windsurf', 'skills', 'gone'))).toBe(false);
+      expect(existsSync(join(root, '.windsurf', 'skills', 'review', 'SKILL.md'))).toBe(true);
+    } finally {
+      process.chdir(cwd);
+    }
   });
 
   describe('retired Windsurf outputs', () => {
@@ -194,8 +234,9 @@ describe('devin platform id', () => {
   it('shows Devin Desktop in the wizard and --help --json', () => {
     expect(PLATFORM_CHOICES).toContainEqual({ id: 'devin', name: 'Devin Desktop (formerly Windsurf)' });
     expect(PLATFORM_CHOICES.some((p) => p.id === 'windsurf')).toBe(false);
-    const help = getMachineReadableHelp() as { platforms: { id: string }[] };
+    const help = getMachineReadableHelp() as { platforms: { id: string }[]; platformAliases: object };
     expect(help.platforms.map((p) => p.id)).toContain('devin');
+    expect(help.platformAliases).toEqual({ windsurf: 'devin' });
   });
 
   it('init writes devin when given the windsurf alias', () => {

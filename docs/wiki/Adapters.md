@@ -55,6 +55,7 @@ The programmatic **`sync()`** API is **async** (it `await`s adapter modules).
 - **Vendor-neutral sources** — Prefer plain Markdown or JSON in `llm/` so the repo stays useful without Bluetemberg.
 - **Deterministic output** — Same inputs produce the same files; CI can gate on `--check`.
 - **Platform gates** — If a platform is not listed in `platforms`, its adapter does not emit files (no surprise `.cursor` output when the team only uses Claude).
+- **Canonical platform ids** — Adapters receive `platforms` with aliases already resolved: a config listing `"windsurf"` reaches the adapter as `"devin"` (Devin Desktop, formerly Windsurf). Gate on `devin`, not `windsurf`.
 
 ## Roadmap (optional follow-ups)
 

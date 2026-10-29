@@ -59,7 +59,7 @@ function normalizeSection<T extends { dir: string }>(
 
   // Safe: DEFAULT_TARGETS[kind] holds entries of the same shape as the section being normalized.
   const devinDefault = DEFAULT_TARGETS[kind].devin as T | undefined;
-  const devin = legacy.dir === LEGACY_DEFAULT_DIRS[kind] ? devinDefault : legacy;
+  const devin = dirKey(legacy.dir) === LEGACY_DEFAULT_DIRS[kind] ? devinDefault : legacy;
   if (devin) normalized.devin = devin;
   return normalized;
 }
