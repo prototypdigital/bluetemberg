@@ -1,3 +1,4 @@
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import type { SyncResults } from '../types.js';
 import { computeCheck, copyOrCheck, writeOrCheck } from '../utils/fs.js';
@@ -38,6 +39,29 @@ export function commitPlannedWrite(sink: SyncSink, outPath: string, content: str
   sink.log(`  OUT OF SYNC: ${relative(sink.root, outPath)}`);
   if (sink.diff) {
     for (const line of renderUnifiedDiff(result.existing, result.content)) {
+      sink.log(line);
+    }
+  }
+  sink.results.outOfSync++;
+}
+
+/**
+ * Removes a file bluetemberg owns once nothing is left in it, or in check mode reports it out of
+ * sync while it still exists. No-op when the file is already gone. The path is never recorded as an
+ * expected output, so prune treats it like any other file the pass did not produce.
+ */
+export function commitPlannedDelete(sink: SyncSink, outPath: string): void {
+  if (!existsSync(outPath)) return;
+
+  if (!sink.checkMode) {
+    unlinkSync(outPath);
+    sink.results.synced++;
+    return;
+  }
+
+  sink.log(`  OUT OF SYNC: ${relative(sink.root, outPath)} (should be removed)`);
+  if (sink.diff) {
+    for (const line of renderUnifiedDiff(readFileSync(outPath, 'utf8'), '')) {
       sink.log(line);
     }
   }

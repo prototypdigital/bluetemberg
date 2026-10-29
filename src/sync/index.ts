@@ -657,7 +657,11 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
   );
-  syncMcp(ctx, (msg) => recordError(ctx, msg));
+  syncMcp(
+    ctx,
+    (msg) => recordError(ctx, msg),
+    (msg) => recordWarning(ctx, msg),
+  );
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));

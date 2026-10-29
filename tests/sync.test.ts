@@ -492,7 +492,7 @@ describe('sync', () => {
     expect(existsSync(join(root, '.claude', 'skills', 'empty-dir', 'SKILL.md'))).toBe(false);
   });
 
-  it('syncs MCP from llm/mcp.json to Claude, Copilot, and Cursor shapes', async () => {
+  it('syncs MCP from llm/mcp.json to the root .mcp.json and .cursor/mcp.json', async () => {
     mkdirSync(join(root, 'llm'), { recursive: true });
     writeFileSync(
       join(root, 'llm', 'mcp.json'),
@@ -507,13 +507,11 @@ describe('sync', () => {
 
     await sync(root, { config, silent: true });
 
-    const claudeRaw = readFileSync(join(root, '.claude', 'mcp.json'), 'utf8');
-    const claude = JSON.parse(claudeRaw) as { mcpServers: Record<string, { type: string }> };
-    expect(claude.mcpServers.interactive?.type).toBe('stdio');
-
-    const ghRaw = readFileSync(join(root, '.github', 'mcp.json'), 'utf8');
-    const gh = JSON.parse(ghRaw) as { servers: Record<string, { type: string }> };
-    expect(gh.servers.interactive?.type).toBe('stdio');
+    const rootRaw = readFileSync(join(root, '.mcp.json'), 'utf8');
+    const rootMcp = JSON.parse(rootRaw) as { mcpServers: Record<string, { type: string }> };
+    expect(rootMcp.mcpServers.interactive?.type).toBe('stdio');
+    expect(existsSync(join(root, '.claude', 'mcp.json'))).toBe(false);
+    expect(existsSync(join(root, '.github', 'mcp.json'))).toBe(false);
 
     const cursorRaw = readFileSync(join(root, '.cursor', 'mcp.json'), 'utf8');
     const cursor = JSON.parse(cursorRaw) as { mcpServers: Record<string, { type: string }> };
@@ -563,7 +561,7 @@ describe('sync', () => {
 
     await sync(root, { config, silent: true });
 
-    const claude = JSON.parse(readFileSync(join(root, '.claude', 'mcp.json'), 'utf8')) as {
+    const claude = JSON.parse(readFileSync(join(root, '.mcp.json'), 'utf8')) as {
       mcpServers: Record<string, { type: string; command?: string; args?: string[] }>;
     };
     expect(claude.mcpServers.interactive?.type).toBe('stdio');
@@ -941,7 +939,7 @@ describe('sync', () => {
     expect(existsSync(join(root, '.github', 'copilot-instructions.md'))).toBe(false);
   });
 
-  it('prune leaves mcp.json singletons alone when llm/mcp.json is removed (JSON cannot carry a banner)', async () => {
+  it('removing llm/mcp.json drops the managed .mcp.json entries; prune leaves .cursor/mcp.json alone', async () => {
     mkdirSync(join(root, 'llm'), { recursive: true });
     writeFileSync(join(root, 'llm', 'mcp.json'), JSON.stringify({ servers: ['interactive'] }));
 
@@ -952,8 +950,7 @@ describe('sync', () => {
     };
 
     await sync(root, { config, silent: true });
-    expect(existsSync(join(root, '.claude', 'mcp.json'))).toBe(true);
-    expect(existsSync(join(root, '.github', 'mcp.json'))).toBe(true);
+    expect(existsSync(join(root, '.mcp.json'))).toBe(true);
     expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(true);
 
     rmSync(join(root, 'llm', 'mcp.json'));
@@ -966,8 +963,9 @@ describe('sync', () => {
       console.log = origLog;
     }
 
-    expect(existsSync(join(root, '.claude', 'mcp.json'))).toBe(true);
-    expect(existsSync(join(root, '.github', 'mcp.json'))).toBe(true);
+    // Only bluetemberg's servers were in it, so the root file goes with them.
+    expect(existsSync(join(root, '.mcp.json'))).toBe(false);
+    expect(existsSync(join(root, 'llm', 'mcp-managed.json'))).toBe(false);
     expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(true);
     const note = logs.find((l) => l.includes('carry no bluetemberg banner'));
     expect(note).toBeDefined();

@@ -21,7 +21,7 @@ flowchart TD
         F -->|skills| H
         F -->|commands| H
         F -->|prompts| H
-        F -->|mcp.json| J[Resolve MCP entries\nper platform]
+        F -->|mcp.json| J[Resolve MCP entries\nmerge managed servers]
         F -->|hooks.json| K[Validate\nCursor shape]
         F -->|hooks.claude.json| K2[Validate events\nproject-local only]
         G --> I[Write target files]
@@ -47,7 +47,8 @@ llm/
 ├── skills/             # Directory per skill, each with SKILL.md
 │   └── patterns/
 │       └── SKILL.md
-├── mcp.json            # Optional: preset ids and/or inline servers → per-platform mcp.json
+├── mcp.json            # Optional: preset ids and/or inline servers → merged .mcp.json, .cursor/mcp.json, Codex
+├── mcp-managed.json    # Generated: the .mcp.json servers sync owns (commit it)
 ├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
 ├── hooks.claude.json   # Optional: Claude Code hooks → hooks key of .claude/settings.json (project-local only; packs cannot ship these)
 ├── commands/           # Optional: Claude slash commands → .claude/commands/*.md
