@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.15.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.14.1...bluetemberg-v0.15.0) (2026-10-29)
+
+
+### Features
+
+* **init:** offer every catalog pack and gate stack-specific defaults on detected stacks ([607efaa](https://github.com/prototypdigital/bluetemberg/commit/607efaa1f0a7464cfc4e1720cd239a1498498557))
+* **init:** offer every catalog pack and gate stack-specific defaults on detected stacks ([c18af03](https://github.com/prototypdigital/bluetemberg/commit/c18af03d0ed3e850383a1e2d84673fb5c6a73d79)), closes [#273](https://github.com/prototypdigital/bluetemberg/issues/273)
+* **sync:** point Gemini CLI at AGENTS.md and add the antigravity platform ([ab8e1cd](https://github.com/prototypdigital/bluetemberg/commit/ab8e1cd047da58f1683997f8b7e6086dfb0bc8e0))
+* **sync:** point Gemini CLI at AGENTS.md and add the antigravity platform ([03c6669](https://github.com/prototypdigital/bluetemberg/commit/03c66698aaf29d440ec1ad67a87b0a4e58b1fda4)), closes [#276](https://github.com/prototypdigital/bluetemberg/issues/276)
+* **sync:** retarget Windsurf to Devin Desktop, keep windsurf as an alias ([de4c663](https://github.com/prototypdigital/bluetemberg/commit/de4c6636cef0966f9781bcef4e665fcda4e00019))
+* **sync:** retarget Windsurf to Devin Desktop, keep windsurf as an alias ([a37f6c5](https://github.com/prototypdigital/bluetemberg/commit/a37f6c55a352e9ccd2b8904e724253305693a49f)), closes [#277](https://github.com/prototypdigital/bluetemberg/issues/277)
+* **sync:** track Antigravity MCP servers in llm/mcp-managed.json ([22cc675](https://github.com/prototypdigital/bluetemberg/commit/22cc675ca7cbb5149e95717d19218ea1057a82f5))
+
+
+### Bug Fixes
+
+* **cli:** warn that the ignored --rules flag is deprecated ([f586f4b](https://github.com/prototypdigital/bluetemberg/commit/f586f4b7ff72a0ddb847c57b66fa53189ba424f6))
+* **sync:** address CodeQL and CodeRabbit findings on the Devin target ([a954b00](https://github.com/prototypdigital/bluetemberg/commit/a954b00cd33211fb776c6cb370fd61a837579d90))
+* **sync:** address self-review findings on the .mcp.json merge ([2e24981](https://github.com/prototypdigital/bluetemberg/commit/2e24981b1d9de9f8ea416a9cf497c7fd8cb19765))
+* **sync:** harden Devin target resolution and prune from review ([6a0680e](https://github.com/prototypdigital/bluetemberg/commit/6a0680e370d78b7e4e65b53a61d58481d0349302))
+* **sync:** merge MCP servers into the root .mcp.json ([aa81785](https://github.com/prototypdigital/bluetemberg/commit/aa817856482d70c8b7037b7f185745ce5fc96195))
+* **sync:** merge MCP servers into the root .mcp.json ([912997c](https://github.com/prototypdigital/bluetemberg/commit/912997c13efc45e157d5ea437a95625370407fe8)), closes [#271](https://github.com/prototypdigital/bluetemberg/issues/271)
+* **sync:** prune stale GEMINI.md for antigravity and report mcp.json errors once ([b5d0e0e](https://github.com/prototypdigital/bluetemberg/commit/b5d0e0e07041c52455033a939c84903484fba42e))
+
 ## [0.14.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.14.0...bluetemberg-v0.14.1) (2026-10-29)
 
 

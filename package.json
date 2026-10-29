@@ -1,6 +1,6 @@
 {
   "name": "bluetemberg",
-  "version": "0.14.1",
+  "version": "0.15.0",
   "description": "AI coding standards shipped like a dependency — version-locked, integrity-verified, signed, and routed by role and stack version. Emits AGENTS.md plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI (Enterprise), Antigravity CLI, Devin Desktop (formerly Windsurf), and OpenAI Codex.",
   "type": "module",
   "bin": {
