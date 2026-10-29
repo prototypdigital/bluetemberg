@@ -47,7 +47,7 @@ function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
 /**
  * Detect-then-confirm stack step (epic §3.1): auto-detect the project's stacks, pre-check the
  * detected ones (pinning their resolved version), and allow free-text adds for stacks not yet
- * installed (recorded as `"auto"` → re-detected each sync). Stacks drive which RULES apply by
+ * installed (recorded as `"auto"` → re-detected each sync). Stacks drive which rules, agents and skills apply by
  * version. Returns the map to write under `bluetemberg.config.json` `stacks` (empty = omit the field).
  */
 async function promptStacks(targetDir: string): Promise<Record<string, string>> {
@@ -57,7 +57,7 @@ async function promptStacks(targetDir: string): Promise<Record<string, string>> 
   const detectedNames = [...detected.keys()];
   if (detectedNames.length > 0) {
     const selected = await checkbox<string>({
-      message: 'Stacks to manage (drive which RULES apply, by version):',
+      message: 'Stacks to manage (drive which rules, agents and skills apply, by version):',
       choices: detectedNames.map((name) => {
         const det = detected.get(name)!;
         // `exact` (installed) and `declared` (config-pinned) versions are precise; anything
@@ -75,7 +75,7 @@ async function promptStacks(targetDir: string): Promise<Record<string, string>> 
     // Nothing detected (e.g. a non-npm or not-yet-installed project): don't force a free-text
     // prompt on every init — offer it behind a single opt-in that defaults to "no".
     const manageManually = await confirm({
-      message: 'Add technology stacks manually? (drive which RULES apply, by version)',
+      message: 'Add technology stacks manually? (drive which rules, agents and skills apply, by version)',
       default: false,
     });
     if (!manageManually) return stacks;

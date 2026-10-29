@@ -42,7 +42,7 @@ llm/
 ├── rules/              # Markdown with YAML frontmatter
 │   ├── coding-standards.md
 │   └── no-console-log.md
-├── agents/             # Verbatim markdown (no transform)
+├── agents/             # Body unchanged; banner added, Claude tool names mapped
 │   └── frontend-specialist.md
 ├── skills/             # Directory per skill, each with SKILL.md
 │   └── patterns/
