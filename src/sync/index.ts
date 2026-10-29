@@ -13,6 +13,7 @@ import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
+import { dropLegacyGeminiRulesTarget, syncGeminiSettings } from './gemini.js';
 import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
 import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
@@ -59,6 +60,7 @@ const VALID_PLATFORMS: readonly Platform[] = [
   'claude',
   'copilot',
   'gemini',
+  'antigravity',
   'devin',
   'windsurf',
   'codex',
@@ -569,7 +571,10 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   const verbose = Boolean(options.verbose) && !options.silent;
   // A diff is only meaningful in check mode (write mode produces the in-sync state outright).
   const diff = Boolean(options.diff) && checkMode;
-  const config = options.config || loadConfig(root);
+  const configWarnings: string[] = [];
+  const config = dropLegacyGeminiRulesTarget(options.config || loadConfig(root), (w) =>
+    configWarnings.push(w),
+  );
   // `windsurf` is an alias for `devin`; every emitter below sees only the canonical id.
   const platforms = normalizePlatforms(config.platforms || ['cursor', 'claude', 'copilot']);
   const sourceBase = join(root, config.source || 'llm');
@@ -622,6 +627,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   for (const w of extendsWarnings) recordWarning(ctx, w);
   for (const w of packWarnings) recordWarning(ctx, w);
   for (const w of externalWarnings) recordWarning(ctx, w);
+  for (const w of configWarnings) recordWarning(ctx, w);
 
   logDetectedStacks(ctx);
   reportShadowedContent(ctx);
@@ -647,7 +653,6 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncAgents(ctx);
   syncSkills(ctx);
   syncCopilotInstructions(ctx);
-  syncGeminiInstructions(ctx);
   // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
   // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
   const guardrailClaudeHooks = syncGuardrails(ctx, (msg) => recordError(ctx, msg));
@@ -668,6 +673,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
   syncCodexConfig(ctx, (msg) => recordError(ctx, msg));
+  syncGeminiSettings(ctx, (msg) => recordError(ctx, msg));
   checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {
@@ -1042,30 +1048,5 @@ function syncCopilotInstructions(ctx: SyncContext): void {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     recordError(ctx, `AGENTS.md -> copilot-instructions: ${message}`);
-  }
-}
-
-function syncGeminiInstructions(ctx: SyncContext): void {
-  if (!ctx.platforms.includes('gemini')) return;
-
-  const agentsMd = join(ctx.root, 'AGENTS.md');
-  if (!existsSync(agentsMd)) return;
-
-  try {
-    const target = join(ctx.root, 'GEMINI.md');
-    // Strip the Codex rules block — Gemini gets scoped rules via .gemini/context/ already.
-    const content = withGeneratedBanner(
-      stripManagedBlock(readFileSync(agentsMd, 'utf8'), AGENTS_RULES_MARKERS, relative(ctx.root, agentsMd)),
-      'AGENTS.md',
-    );
-
-    commitPlannedWrite(ctx, target, content);
-
-    if (!ctx.checkMode) {
-      ctx.log('Gemini instructions: synced from AGENTS.md');
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    recordError(ctx, `AGENTS.md -> GEMINI.md: ${message}`);
   }
 }

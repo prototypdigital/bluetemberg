@@ -14,6 +14,7 @@ import {
 import { hasGeneratedBanner } from './banner.js';
 import { walkFiles } from '../utils/fs.js';
 import { legacyMcpOutputs } from './mcp.js';
+import { LEGACY_GEMINI_RULES_DIR } from './gemini.js';
 
 /** A file under a managed output location that the current sync pass did not produce. */
 export interface StaleOutput {
@@ -277,8 +278,16 @@ export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
   if (platforms.includes(DEVIN_PLATFORM)) {
     collectRetiredDevinOutputs(out, root, skillTargets, expected, isMd);
   }
-  if (platforms.includes('gemini')) {
+  if (platforms.includes('gemini') || platforms.includes('antigravity')) {
+    // Both are outputs of the retired Gemini integration (a GEMINI.md copy of AGENTS.md, and rules
+    // Gemini CLI never loaded). Listed so `--check` flags them and `--prune` removes the bannered ones.
+    // Antigravity is included because it loads GEMINI.md, so a project that swapped `gemini` for it
+    // would otherwise keep reading the stale copy.
     collectSingleton(out, join(root, 'GEMINI.md'), expected);
+    const legacyDir = join(root, LEGACY_GEMINI_RULES_DIR);
+    for (const name of listDir(legacyDir)) {
+      if (name.endsWith('.md')) consider(out, expected, join(legacyDir, name), [legacyDir]);
+    }
   }
   if (platforms.includes('cursor')) {
     collectSingleton(out, join(root, '.cursor', 'mcp.json'), expected);

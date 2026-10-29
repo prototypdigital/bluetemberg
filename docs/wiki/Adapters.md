@@ -22,14 +22,15 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 
 | Source | Output | When it runs |
 | ------ | ------ | ------------ |
-| `llm/rules/` | Per-platform rule files for Cursor, Claude, Copilot, Gemini, Devin Desktop (`targets.rules`; Devin also gets a transitional `.windsurf/rules/` mirror); a managed block in `AGENTS.md` for Codex | Always, per `targets` + `platforms`, after version gating |
+| `llm/rules/` | Per-platform rule files for Cursor, Claude, Copilot, Devin Desktop, Antigravity (`targets.rules`; Devin also gets a transitional `.windsurf/rules/` mirror); a managed block in `AGENTS.md` for Codex and Gemini CLI | Always, per `targets` + `platforms`, after version gating |
 | `llm/agents/` | Cursor / Claude / Copilot agent files (`targets.agents`); `.codex/agents/*.toml` for Codex | When source files exist |
-| `llm/skills/` | Skill directories for Cursor, Claude, Copilot, Devin Desktop, Codex (`targets.skills`; Devin and Codex share `.agents/skills/`, written once) | When source directories exist |
+| `llm/skills/` | Skill directories for Cursor, Claude, Copilot, Devin Desktop, Codex, Antigravity (`targets.skills`; Devin, Codex and Antigravity share `.agents/skills/`, written once) | When source directories exist |
 | `llm/guardrails/` | `hooks` key of `.claude/settings.json` (composed with `llm/hooks.claude.json`) | When **claude** is in `platforms` — see [Guardrails](Guardrails) |
 | `llm/hooks.claude.json` | `hooks` key of `.claude/settings.json` | When the file exists in the project's own `llm/` and **claude** is in `platforms` |
 | `llm/hooks.json` | `.cursor/hooks.json` | When file exists and **cursor** is in `platforms` |
-| `AGENTS.md` | `.github/copilot-instructions.md`, `GEMINI.md` (Codex block stripped) | When file exists and **copilot** / **gemini** is in `platforms` |
-| `llm/mcp.json` | Root `.mcp.json` (merged; managed servers tracked in `llm/mcp-managed.json`) for `claude` / `copilot`, `.cursor/mcp.json`; `[mcp_servers.*]` block in `.codex/config.toml` | When file exists and each platform is enabled |
+| `AGENTS.md` | `.github/copilot-instructions.md` (rules block stripped) | When file exists and **copilot** is in `platforms` |
+| — | `AGENTS.md` added to `context.fileName` in `.gemini/settings.json` (merged; other settings kept) | When **gemini** is in `platforms` |
+| `llm/mcp.json` | Root `.mcp.json` (merged; managed servers tracked in `llm/mcp-managed.json`) for `claude` / `copilot`, `.cursor/mcp.json`; `[mcp_servers.*]` block in `.codex/config.toml`; `mcpServers` merged into `.agents/mcp_config.json` (Antigravity; tracked in the same sidecar) | When file exists and each platform is enabled |
 | `llm/commands/*.md` | `.claude/commands/*.md` | When files exist and **claude** is in `platforms` |
 | `llm/prompts/*.md` | `.github/prompts/*.prompt.md` | When files exist and **copilot** is in `platforms` |
 | `llm/skills/`, `llm/agents/`, `llm/rules/` | `plugins/{name}/`, `.claude-plugin/marketplace.json`; `extraKnownMarketplaces` in `.claude/settings.json` when `marketplace.remote` is set | When **claude-marketplace** is in `platforms` — see [Marketplace](Marketplace) |

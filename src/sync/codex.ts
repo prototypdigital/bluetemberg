@@ -121,10 +121,16 @@ function hasAnyMarker(existing: string | null, markers: BlockMarkers): boolean {
 }
 
 /**
+ * Platforms with no per-path rule API: they read `AGENTS.md` and nothing else, so the managed rules
+ * block is the only place their rules can go.
+ */
+export const AGENTS_MD_RULE_PLATFORMS: readonly Platform[] = ['codex', 'gemini'];
+
+/**
  * Folds `llm/rules/` into a managed block in the root `AGENTS.md`, preserving hand-authored content.
  */
 export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: string) => void): void {
-  if (!ctx.platforms.includes('codex')) return;
+  if (!AGENTS_MD_RULE_PLATFORMS.some((p) => ctx.platforms.includes(p))) return;
 
   const agentsPath = join(ctx.root, 'AGENTS.md');
   const existing = readIfExists(agentsPath);
@@ -139,7 +145,7 @@ export function syncCodexRules(ctx: CodexSyncContext, recordError: (message: str
   if (output.length === 0 && existing === null) return;
 
   commitPlannedWrite(ctx, agentsPath, output);
-  if (!ctx.checkMode) ctx.log('Codex rules: merged into AGENTS.md');
+  if (!ctx.checkMode) ctx.log('Rules: merged into AGENTS.md');
 }
 
 function processAgentFile(

@@ -10,7 +10,16 @@ const SYNC_SRC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 
 
 /** Every platform, so each built-in adapter runs. */
 const ALL_PLATFORMS_CONFIG: BlueprintConfig = {
-  platforms: ['cursor', 'claude', 'copilot', 'gemini', 'windsurf', 'codex', 'claude-marketplace'],
+  platforms: [
+    'cursor',
+    'claude',
+    'copilot',
+    'gemini',
+    'antigravity',
+    'windsurf',
+    'codex',
+    'claude-marketplace',
+  ],
   source: 'llm',
   marketplace: { remote: 'acme/ai-marketplace' },
 };

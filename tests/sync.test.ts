@@ -372,87 +372,6 @@ describe('sync', () => {
     expect(existsSync(join(root, '.github', 'copilot-instructions.md'))).toBe(false);
   });
 
-  it('syncs AGENTS.md to GEMINI.md when gemini is in platforms', async () => {
-    writeFileSync(join(root, 'AGENTS.md'), '# My Project\n\nProject docs.\n');
-
-    const config: BlueprintConfig = {
-      platforms: ['gemini'],
-      source: 'llm',
-      targets: {},
-    };
-
-    await sync(root, { config, silent: true });
-
-    const geminiMd = readFileSync(join(root, 'GEMINI.md'), 'utf8');
-    expect(hasGeneratedBanner(geminiMd)).toBe(true);
-    expect(stripGeneratedBanner(geminiMd)).toBe('# My Project\n\nProject docs.\n');
-  });
-
-  it('does not write GEMINI.md when gemini is not in platforms', async () => {
-    writeFileSync(join(root, 'AGENTS.md'), '# My Project\n');
-
-    const config: BlueprintConfig = {
-      platforms: ['claude'],
-      source: 'llm',
-      targets: {},
-    };
-
-    await sync(root, { config, silent: true });
-    expect(existsSync(join(root, 'GEMINI.md'))).toBe(false);
-  });
-
-  it('does not write GEMINI.md when AGENTS.md does not exist', async () => {
-    const config: BlueprintConfig = {
-      platforms: ['gemini'],
-      source: 'llm',
-      targets: {},
-    };
-
-    await sync(root, { config, silent: true });
-    expect(existsSync(join(root, 'GEMINI.md'))).toBe(false);
-  });
-
-  it('syncs rules to gemini platform', async () => {
-    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
-    writeFileSync(
-      join(root, 'llm', 'rules', 'test-rule.md'),
-      '---\ndescription: A test rule\nscope: "src/**"\n---\n\n# Test Rule\n',
-    );
-
-    const config: BlueprintConfig = {
-      platforms: ['gemini'],
-      source: 'llm',
-      targets: {
-        rules: { gemini: { dir: '.gemini/context', ext: '.md' } },
-      },
-    };
-
-    await sync(root, { config, silent: true });
-
-    expect(existsSync(join(root, '.gemini', 'context', 'test-rule.md'))).toBe(true);
-    const content = readFileSync(join(root, '.gemini', 'context', 'test-rule.md'), 'utf8');
-    expect(content).toContain('glob:');
-    expect(content).toContain('src/**');
-  });
-
-  it('prune removes stale GEMINI.md singleton when AGENTS.md is removed', async () => {
-    writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
-
-    const config: BlueprintConfig = {
-      platforms: ['gemini'],
-      source: 'llm',
-      targets: {},
-    };
-
-    await sync(root, { config, silent: true });
-    expect(existsSync(join(root, 'GEMINI.md'))).toBe(true);
-
-    rmSync(join(root, 'AGENTS.md'));
-    await sync(root, { config, silent: true, prune: true });
-
-    expect(existsSync(join(root, 'GEMINI.md'))).toBe(false);
-  });
-
   it('handles empty rules directory gracefully', async () => {
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
 
@@ -2348,7 +2267,7 @@ describe('codex sync', () => {
     expect(parsed.mcp_servers.interactive).toBeDefined();
   });
 
-  it('keeps the Codex rules block out of copilot-instructions.md and GEMINI.md', async () => {
+  it('keeps the Codex rules block out of copilot-instructions.md', async () => {
     writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
     mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
     writeFileSync(
@@ -2357,12 +2276,11 @@ describe('codex sync', () => {
     );
 
     const config: BlueprintConfig = {
-      platforms: ['codex', 'copilot', 'gemini'],
+      platforms: ['codex', 'copilot'],
       source: 'llm',
       targets: {
         rules: {
           copilot: { dir: '.github/instructions', ext: '.instructions.md' },
-          gemini: { dir: '.gemini/context', ext: '.md' },
         },
       },
     };
@@ -2372,7 +2290,6 @@ describe('codex sync', () => {
     expect(readFileSync(join(root, '.github', 'copilot-instructions.md'), 'utf8')).not.toContain(
       'BEGIN BLUETEMBERG MANAGED RULES',
     );
-    expect(readFileSync(join(root, 'GEMINI.md'), 'utf8')).not.toContain('BEGIN BLUETEMBERG MANAGED RULES');
   });
 
   it('refuses to sync an AGENTS.md with an unpaired end marker, instead of appending forever', async () => {
@@ -2472,7 +2389,7 @@ describe('codex sync', () => {
     expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('# R');
   });
 
-  it('does not leak a duplicated rules block into copilot-instructions.md or GEMINI.md', async () => {
+  it('does not leak a duplicated rules block into copilot-instructions.md', async () => {
     const dup = [
       '# Head',
       '',
@@ -2492,26 +2409,23 @@ describe('codex sync', () => {
     writeFileSync(join(root, 'llm', 'rules', 'r.md'), '---\ndescription: R\nscope: "**"\n---\n\n# R\n');
 
     const config: BlueprintConfig = {
-      platforms: ['codex', 'copilot', 'gemini'],
+      platforms: ['codex', 'copilot'],
       source: 'llm',
       targets: {
         rules: {
           copilot: { dir: '.github/instructions', ext: '.instructions.md' },
-          gemini: { dir: '.gemini/context', ext: '.md' },
         },
       },
     };
     const results = await sync(root, { config, silent: true });
     expect(results.errors).toHaveLength(0);
 
-    for (const derived of [join(root, '.github', 'copilot-instructions.md'), join(root, 'GEMINI.md')]) {
-      const content = readFileSync(derived, 'utf8');
-      expect(content).not.toContain('BLUETEMBERG MANAGED RULES');
-      expect(content).not.toContain('generated a');
-      expect(content).not.toContain('generated b');
-      expect(content).toContain('# Head');
-      expect(content).toContain('Hand-authored middle.');
-    }
+    const content = readFileSync(join(root, '.github', 'copilot-instructions.md'), 'utf8');
+    expect(content).not.toContain('BLUETEMBERG MANAGED RULES');
+    expect(content).not.toContain('generated a');
+    expect(content).not.toContain('generated b');
+    expect(content).toContain('# Head');
+    expect(content).toContain('Hand-authored middle.');
   });
 
   it('still reports a malformed AGENTS.md when there are no rules to inject', async () => {

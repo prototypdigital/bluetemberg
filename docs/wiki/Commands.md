@@ -17,7 +17,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `agentic`, `design-engineer`, `custom`). |
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
-| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). Ids: `cursor`, `claude`, `copilot`, `gemini`, `devin`, `codex`, `claude-marketplace`; `windsurf` is accepted as an alias for `devin` (Devin Desktop, formerly Windsurf) and written to config as `devin`. `--non-interactive` only. |
+| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). Ids: `cursor`, `claude`, `copilot`, `gemini`, `antigravity`, `devin`, `codex`, `claude-marketplace`; `windsurf` is accepted as an alias for `devin` (Devin Desktop, formerly Windsurf) and written to config as `devin`. `--non-interactive` only. |
 | `--rule-source` | Values: `collections` (default) or `none` (empty scaffold — bring your own rules). `--non-interactive` only. |
 | `--rule-collections <csv>` | Registry collection ids to include (e.g. `typescript,git`). Applies when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
@@ -44,8 +44,8 @@ Then, for **every** run:
 
 4. Creates `llm/` with the resolved starter content. Packs in `llm/packages.json` get a `^<latest published version>` range looked up from the registry (`latest` if it can't be reached; see [Registry](Registry#manifest-and-lockfile))
 5. Generates `bluetemberg.config.json`
-6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude is among selected platforms; it imports `@AGENTS.md` so Claude Code loads both, see [Architecture](Architecture#claude-code-and-agentsmd)), and `GEMINI.md` (if Gemini is selected — via the initial sync)
-7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync merges those servers into the root `.mcp.json` (for Claude Code / Copilot, keeping any servers already there) and/or writes `.cursor/mcp.json` (per selected platforms)
+6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude is among selected platforms; it imports `@AGENTS.md` so Claude Code loads both, see [Architecture](Architecture#claude-code-and-agentsmd)), and, if Gemini CLI is selected, `.gemini/settings.json` pointing it at `AGENTS.md` (via the initial sync)
+7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync merges those servers into the root `.mcp.json` (for Claude Code / Copilot, keeping any servers already there), writes `.cursor/mcp.json`, and/or merges them into `.agents/mcp_config.json` for Antigravity (per selected platforms)
 8. Adds `sync:llm-config` scripts to `package.json`
 9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
 10. Writes the GitHub/community files the wizard selected (Dependabot, issue and PR templates, CODEOWNERS, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, SECURITY). Headless runs write all of them unless `--omit-github` is passed. Never CI/CD workflows.
@@ -360,7 +360,7 @@ Each `add`/`update`/`install` writes `.bluetemberg/sources/` (git-ignored cache)
 | Code | When |
 | ---- | ---- |
 | 0 | Sync finished with no recorded errors, and (if `--check`) all generated files match the expected content |
-| 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, malformed managed-block markers in `AGENTS.md` / `.codex/config.toml`, etc.), **or** `--check` found one or more files out of sync, including stale generated files (`STALE:`) |
+| 1 | Any sync error was recorded (invalid optional manifests, unknown MCP preset ids, adapter load failures, per-file rule errors, malformed managed-block markers in `AGENTS.md` / `.codex/config.toml`, a `.gemini/settings.json` or `.agents/mcp_config.json` that isn't valid JSON, etc.), **or** `--check` found one or more files out of sync, including stale generated files (`STALE:`) |
 
 **Warnings vs errors:** Some issues are non-fatal and appear as warnings — for example, an `extends` entry that references a path or package that does not exist, or (with `claude` selected) a root `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` that has no `@AGENTS.md` import and so hides `AGENTS.md` from Claude Code ([details](Architecture#claude-code-and-agentsmd)). Warnings are logged and included in the programmatic `SyncResults.warnings` array but do **not** cause exit code 1. Use `--verbose` to see all warnings even when there are no errors.
 
