@@ -48,7 +48,7 @@ llm/
 │   └── patterns/
 │       └── SKILL.md
 ├── mcp.json            # Optional: preset ids and/or inline servers → merged .mcp.json, .cursor/mcp.json, Codex
-├── mcp-managed.json    # Generated: the .mcp.json servers sync owns (commit it)
+├── mcp-managed.json    # Generated: the .mcp.json / .agents/mcp_config.json servers sync owns (commit it)
 ├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
 ├── hooks.claude.json   # Optional: Claude Code hooks → hooks key of .claude/settings.json (project-local only; packs cannot ship these)
 ├── commands/           # Optional: Claude slash commands → .claude/commands/*.md
@@ -112,7 +112,7 @@ flowchart TD
 
 **Gemini CLI** (`gemini`, now Enterprise-only) reads whatever files `context.fileName` names in `.gemini/settings.json`, so instead of a copy, sync adds `AGENTS.md` to that list (`src/sync/gemini.ts`). It merges the one entry and leaves every other setting alone; with no list yet it writes `["AGENTS.md", "GEMINI.md"]`, so Gemini CLI's default `GEMINI.md` still loads. Earlier versions copied `AGENTS.md` to `GEMINI.md` and wrote rules to `.gemini/context/`, a directory Gemini CLI never scans. `--check` reports those bannered leftovers as stale and `--prune` removes them, and a config's `targets.rules.gemini` entry naming `.gemini/context` is ignored with a warning.
 
-**Antigravity CLI** (`antigravity`) reads `AGENTS.md` natively. Its scoped rules go to `.agents/rules/` through the frontmatter transform (`trigger: always_on` or `trigger: glob` + `globs`), skills to `.agents/skills/` (shared with Codex and Devin Desktop, written once), and MCP servers are merged by name into `mcpServers` in `.agents/mcp_config.json` (`src/sync/antigravity.ts`).
+**Antigravity CLI** (`antigravity`) reads `AGENTS.md` natively. Its scoped rules go to `.agents/rules/` through the frontmatter transform (`trigger: always_on` or `trigger: glob` + `globs`), skills to `.agents/skills/` (shared with Codex and Devin Desktop, written once), and MCP servers are merged into `mcpServers` in `.agents/mcp_config.json` by the same ownership-tracked merge as the root `.mcp.json` (`src/sync/mcp.ts`; the entry shape is in `src/sync/antigravity.ts`).
 
 **OpenAI Codex** reads `AGENTS.md` natively, so the monolithic instructions need no derivation. Codex is also the one target whose rules do **not** go through the frontmatter transform: scoped rules from `llm/rules/` are folded into a fenced *managed block* in `AGENTS.md`, agents become per-file TOML under `.codex/agents/`, and MCP servers become a `[mcp_servers.*]` managed block in `.codex/config.toml`. Skills use the vendor-neutral `.agents/skills/`. Managed blocks (`src/sync/managed-block.ts`) preserve hand-authored content outside the markers and keep `sync --check` idempotent; the rules block is stripped from the derived `copilot-instructions.md`.
 

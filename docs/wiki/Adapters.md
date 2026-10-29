@@ -30,7 +30,7 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 | `llm/hooks.json` | `.cursor/hooks.json` | When file exists and **cursor** is in `platforms` |
 | `AGENTS.md` | `.github/copilot-instructions.md` (rules block stripped) | When file exists and **copilot** is in `platforms` |
 | — | `AGENTS.md` added to `context.fileName` in `.gemini/settings.json` (merged; other settings kept) | When **gemini** is in `platforms` |
-| `llm/mcp.json` | Root `.mcp.json` (merged; managed servers tracked in `llm/mcp-managed.json`) for `claude` / `copilot`, `.cursor/mcp.json`; `[mcp_servers.*]` block in `.codex/config.toml`; `mcpServers` merged into `.agents/mcp_config.json` (Antigravity) | When file exists and each platform is enabled |
+| `llm/mcp.json` | Root `.mcp.json` (merged; managed servers tracked in `llm/mcp-managed.json`) for `claude` / `copilot`, `.cursor/mcp.json`; `[mcp_servers.*]` block in `.codex/config.toml`; `mcpServers` merged into `.agents/mcp_config.json` (Antigravity; tracked in the same sidecar) | When file exists and each platform is enabled |
 | `llm/commands/*.md` | `.claude/commands/*.md` | When files exist and **claude** is in `platforms` |
 | `llm/prompts/*.md` | `.github/prompts/*.prompt.md` | When files exist and **copilot** is in `platforms` |
 | `llm/skills/`, `llm/agents/`, `llm/rules/` | `plugins/{name}/`, `.claude-plugin/marketplace.json`; `extraKnownMarketplaces` in `.claude/settings.json` when `marketplace.remote` is set | When **claude-marketplace** is in `platforms` — see [Marketplace](Marketplace) |

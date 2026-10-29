@@ -271,6 +271,60 @@ describe('antigravity (Antigravity CLI)', () => {
     expect(existsSync(join(root, '.gemini', 'context'))).toBe(false);
   });
 
+  describe('MCP ownership (llm/mcp-managed.json)', () => {
+    const readServers = () =>
+      readJson(root, '.agents/mcp_config.json').mcpServers as Record<string, Record<string, unknown>>;
+
+    it('removes a server dropped from llm/mcp.json and keeps hand-added ones', async () => {
+      await sync(root, { config, silent: true });
+      const withMine = { ...readJson(root, '.agents/mcp_config.json') };
+      (withMine.mcpServers as Record<string, unknown>).mine = { command: 'my-server' };
+      write(root, '.agents/mcp_config.json', JSON.stringify(withMine));
+      write(root, 'llm/mcp.json', JSON.stringify({ servers: ['interactive'] }));
+
+      await sync(root, { config, silent: true });
+
+      expect(Object.keys(readServers()).sort()).toEqual(['interactive', 'mine']);
+      expect(readJson(root, 'llm/mcp-managed.json').antigravity).toEqual(['interactive']);
+    });
+
+    it('keeps fields a person added to a managed server', async () => {
+      await sync(root, { config, silent: true });
+      const edited = readJson(root, '.agents/mcp_config.json');
+      const servers = edited.mcpServers as Record<string, Record<string, unknown>>;
+      servers.interactive.env = { TOKEN_FILE: 'x' };
+      write(root, '.agents/mcp_config.json', JSON.stringify(edited));
+
+      await sync(root, { config, silent: true });
+
+      expect(readServers().interactive.env).toEqual({ TOKEN_FILE: 'x' });
+      expect(readServers().interactive.command).toBe('npx');
+    });
+
+    it('removes its servers, and the file once empty, when antigravity is deselected', async () => {
+      await sync(root, { config, silent: true });
+
+      await sync(root, { config: { platforms: ['cursor'], source: 'llm' }, silent: true });
+
+      expect(existsSync(join(root, '.agents', 'mcp_config.json'))).toBe(false);
+      expect(existsSync(join(root, 'llm', 'mcp-managed.json'))).toBe(false);
+    });
+
+    it('tracks .mcp.json and .agents/mcp_config.json servers in one sidecar', async () => {
+      const both: BlueprintConfig = { platforms: ['claude', 'antigravity'], source: 'llm' };
+
+      await sync(root, { config: both, silent: true });
+      const check = await sync(root, { config: both, silent: true, check: true });
+
+      expect(readJson(root, 'llm/mcp-managed.json')).toMatchObject({
+        servers: ['interactive', 'remote'],
+        antigravity: ['interactive', 'remote'],
+      });
+      expect(readJson(root, '.mcp.json').mcpServers).toHaveProperty('remote');
+      expect(check.outOfSync).toBe(0);
+    });
+  });
+
   it('re-syncs idempotently and passes sync --check', async () => {
     await sync(root, { config, silent: true });
     const mcp = readFileSync(join(root, '.agents', 'mcp_config.json'), 'utf8');

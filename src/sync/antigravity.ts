@@ -1,48 +1,19 @@
-import { join } from 'node:path';
-import type { Platform } from '../types.js';
-import { readIfExists } from '../utils/fs.js';
-import { BUILTIN_MCP_SERVERS, parseLlmMcpServerList } from '../mcp/registry.js';
 import type { McpServerConfig } from '../mcp/registry.js';
-import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 
-export interface AntigravitySyncContext extends SyncSink {
-  sourceBase: string;
-  platforms: readonly Platform[];
-}
+/** Antigravity's MCP config, merged by `syncMcp` (see `src/sync/mcp.ts`). */
+export const ANTIGRAVITY_MCP_FILE = '.agents/mcp_config.json';
 
-type McpServers = Record<string, Record<string, unknown>>;
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-/**
- * Reads `llm/mcp.json` into resolved server configs; `null` when there is no usable manifest.
- * Manifest errors are not recorded here: `syncMcp` already reports them on every run.
- */
-function readManifest(sourceBase: string): McpServers | null {
-  const raw = readIfExists(join(sourceBase, 'mcp.json'));
-  if (raw === null) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-
-  const servers = isPlainObject(parsed) ? parsed.servers : undefined;
-  if (!Array.isArray(servers)) return null;
-
-  return toAntigravityServers(parseLlmMcpServerList(servers, BUILTIN_MCP_SERVERS).configs);
-}
+/** Fields of an Antigravity server entry the manifest defines; any other field a person added is kept. */
+export const ANTIGRAVITY_MANAGED_FIELDS: ReadonlySet<string> = new Set(['command', 'args', 'serverUrl']);
 
 /**
  * Maps our internal MCP shape to Antigravity's: stdio is `command` / `args`, remote is `serverUrl`
  * (Streamable HTTP; Antigravity has no `type` or `httpUrl` field).
  */
-function toAntigravityServers(configs: Record<string, McpServerConfig>): McpServers {
-  const out: McpServers = {};
+export function toAntigravityServers(
+  configs: Record<string, McpServerConfig>,
+): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
   for (const [id, cfg] of Object.entries(configs)) {
     if (cfg.url) {
       out[id] = { serverUrl: cfg.url };
@@ -51,51 +22,4 @@ function toAntigravityServers(configs: Record<string, McpServerConfig>): McpServ
     }
   }
   return out;
-}
-
-function parseConfig(raw: string | null): Record<string, unknown> | string {
-  if (raw === null) return {};
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return isPlainObject(parsed) ? parsed : 'expected a JSON object';
-  } catch (err) {
-    return err instanceof Error ? err.message : String(err);
-  }
-}
-
-/**
- * Merges the `llm/mcp.json` servers into `.agents/mcp_config.json` under `mcpServers`. Each manifest
- * server's entry is replaced by name; servers the user added by hand, and every other key, are kept.
- * A server dropped from the manifest is not removed (sync cannot tell it from a hand-added one).
- * A file sync cannot parse is never overwritten.
- */
-export function syncAntigravityMcp(
-  ctx: AntigravitySyncContext,
-  recordError: (message: string) => void,
-): void {
-  if (!ctx.platforms.includes('antigravity')) return;
-
-  const servers = readManifest(ctx.sourceBase);
-  if (servers === null || Object.keys(servers).length === 0) return;
-
-  const configPath = join(ctx.root, '.agents', 'mcp_config.json');
-  const existing = parseConfig(readIfExists(configPath));
-  if (typeof existing === 'string') {
-    recordError(`.agents/mcp_config.json: ${existing}. Fix it so sync can merge the MCP servers.`);
-    return;
-  }
-  const current = existing.mcpServers ?? {};
-  if (!isPlainObject(current)) {
-    recordError('.agents/mcp_config.json: "mcpServers" must be an object.');
-    return;
-  }
-
-  const updated = { ...existing, mcpServers: { ...current, ...servers } };
-  const content = `${JSON.stringify(updated, null, 2)}\n`;
-  if (`${JSON.stringify(existing, null, 2)}\n` === content) return;
-
-  commitPlannedWrite(ctx, configPath, content);
-  if (!ctx.checkMode) {
-    ctx.log(`Antigravity MCP: ${Object.keys(servers).length} server(s) merged -> .agents/mcp_config.json`);
-  }
 }

@@ -14,7 +14,6 @@ import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
 import { dropLegacyGeminiRulesTarget, syncGeminiSettings } from './gemini.js';
-import { syncAntigravityMcp } from './antigravity.js';
 import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
 import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
@@ -675,7 +674,6 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
   syncCodexConfig(ctx, (msg) => recordError(ctx, msg));
   syncGeminiSettings(ctx, (msg) => recordError(ctx, msg));
-  syncAntigravityMcp(ctx, (msg) => recordError(ctx, msg));
   checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {
