@@ -17,7 +17,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `agentic`, `design-engineer`, `custom`). |
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
-| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). Ids: `cursor`, `claude`, `copilot`, `gemini`, `devin`, `codex`, `claude-marketplace`; `windsurf` is accepted as an alias for `devin` (Devin Desktop, formerly Windsurf) and written to config as `devin`. `--non-interactive` only. |
+| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). Ids: `cursor`, `claude`, `copilot`, `gemini`, `antigravity`, `devin`, `codex`, `claude-marketplace`; `windsurf` is accepted as an alias for `devin` (Devin Desktop, formerly Windsurf) and written to config as `devin`. `--non-interactive` only. |
 | `--rule-source` | Values: `collections` (default) or `none` (empty scaffold — bring your own rules). `--non-interactive` only. |
 | `--rule-collections <csv>` | Registry collection ids to include (e.g. `typescript,git`). Applies when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |

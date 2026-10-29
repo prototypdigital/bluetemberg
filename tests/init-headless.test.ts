@@ -134,8 +134,7 @@ describe('finalizeNonInteractiveAnswers', () => {
     const dir = join('/tmp', 'bluetemberg-init-test-nonexistent-dir');
     const got = finalizeNonInteractiveAnswers('devops', dir, {});
     expect(got.packageManager).toBe('pnpm');
-    // All non-marketplace platforms: cursor, claude, copilot, gemini, antigravity, windsurf, codex.
-    expect(got.platforms.length).toBe(7);
+    expect(got.platforms).toEqual(['cursor', 'claude', 'copilot', 'gemini', 'antigravity', 'devin', 'codex']);
     expect(got.includeAgents).toBe(true);
     expect(got.ruleSource).toBe('collections');
     expect(got.ruleCollections.length).toBeGreaterThan(0);
