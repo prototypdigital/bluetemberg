@@ -6,8 +6,8 @@ import { readIfExists } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
 import { commitPlannedWrite } from './pipeline.js';
 import { mergeSourceFiles } from './extends-loader.js';
-import { BUILTIN_MCP_SERVERS, parseLlmMcpServerList } from '../mcp/registry.js';
 import type { McpServerConfig } from '../mcp/registry.js';
+import { loadMcpManifest } from './mcp.js';
 import {
   AGENTS_RULES_MARKERS,
   CODEX_MCP_MARKERS,
@@ -190,33 +190,6 @@ export function syncCodexAgents(ctx: CodexSyncContext, recordError: (message: st
   if (count > 0 && !ctx.checkMode) ctx.log(`Codex agents: ${count} -> .codex/agents/`);
 }
 
-/** Reads `llm/mcp.json` into resolved server configs, surfacing parse errors via `recordError`. */
-function readMcpConfigs(
-  sourceBase: string,
-  recordError: (message: string) => void,
-): Record<string, McpServerConfig> {
-  const raw = readIfExists(join(sourceBase, 'mcp.json'));
-  if (raw === null) return {};
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    recordError(`codex mcp: failed to parse llm/mcp.json: ${message}`);
-    return {};
-  }
-
-  const servers =
-    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>).servers
-      : undefined;
-  if (!Array.isArray(servers)) return {};
-
-  const { configs } = parseLlmMcpServerList(servers, BUILTIN_MCP_SERVERS);
-  return configs;
-}
-
 /** Maps our internal MCP shape to Codex's TOML shape (stdio = command/args, HTTP = url). */
 function toCodexMcpServers(
   configs: Record<string, McpServerConfig>,
@@ -236,9 +209,15 @@ function toCodexMcpServers(
   return out;
 }
 
+/**
+ * The managed block's body, `''` for no servers, or `null` to leave the file alone. An unreadable
+ * manifest is `null` (its error is already recorded by `syncMcp`), so a typo never clears the block.
+ */
 function buildMcpInner(sourceBase: string, recordError: (message: string) => void): string | null {
+  const manifest = loadMcpManifest(sourceBase);
+  if (manifest.status === 'invalid') return null;
   try {
-    const servers = toCodexMcpServers(readMcpConfigs(sourceBase, recordError));
+    const servers = toCodexMcpServers(manifest.status === 'ok' ? manifest.configs : {});
     return Object.keys(servers).length > 0 ? tomlStringify({ mcp_servers: servers }).trim() : '';
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

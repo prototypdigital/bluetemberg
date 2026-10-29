@@ -193,7 +193,7 @@ Sources under `llm/` never carry one — it is added on the way out, and re-runn
 
 Sync normally **only writes**; it does not delete old outputs when you remove or rename a source file under `llm/`. Run **`bluetemberg sync --prune`** after editing sources to remove generated files that are no longer part of the current plan (under the same managed directories the built-in sync writes to).
 
-**What it deletes:** only files that carry the [generated-file banner](#generated-file-banner). A Markdown or TOML file under a managed directory **without** the banner is treated as hand-written and left alone. JSON outputs (`mcp.json`, `.cursor/hooks.json`, `marketplace.json`) cannot carry a banner, so they are left alone too, even when their source under `llm/` is gone. One exception: a marketplace plugin directory in which every Markdown file carries the banner is provably generated as a whole, so its `plugin.json` and `hooks.json` are removed with it. Prune lists every file it left in place so you can delete it by hand if it is stale.
+**What it deletes:** only files that carry the [generated-file banner](#generated-file-banner). A Markdown or TOML file under a managed directory **without** the banner is treated as hand-written and left alone. JSON outputs (`.cursor/mcp.json`, `.cursor/hooks.json`, `marketplace.json`) cannot carry a banner, so they are left alone too, even when their source under `llm/` is gone. The root `.mcp.json` is not a prune target at all: sync itself removes the servers it manages (see [MCP manifest](#mcp-manifest-llmmcpjson)). One exception: a marketplace plugin directory in which every Markdown file carries the banner is provably generated as a whole, so its `plugin.json` and `hooks.json` are removed with it. Prune lists every file it left in place so you can delete it by hand if it is stale.
 
 **Skill directories are one unit:** a skill's `SKILL.md` carrying the banner is the evidence that the whole directory is generated, since its supporting files (`scripts/`, `references/`, `assets/`) are copied byte for byte and cannot carry one. A supporting file the source no longer has is removed, and the whole directory goes once the skill is gone. A skill directory whose `SKILL.md` has no banner is somebody's skill and is only listed.
 
@@ -206,7 +206,7 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 - Commit or stash so you can revert if something unexpected is removed.
 - If you use **adapters**, ensure they register outputs with `commitPlannedWrite` and the sink’s `expectedOutputPaths` when pruning (see [Adapters](Adapters)).
 
-**Disabled platforms:** Prune only scans outputs for **platforms listed in `platforms`**. Removing a platform from config does **not** delete its old generated files (for example a leftover `.claude/mcp.json` after you drop `"claude"`). Delete those paths manually or temporarily re-enable the platform and run a normal write + `--prune` if the files still match the built-in layout.
+**Disabled platforms:** Prune only scans outputs for **platforms listed in `platforms`**. Removing a platform from config does **not** delete its old generated files (for example a leftover `.cursor/hooks.json` after you drop `"cursor"`). Delete those paths manually or temporarily re-enable the platform and run a normal write + `--prune` if the files still match the built-in layout.
 
 #### Rules targets
 
@@ -295,17 +295,33 @@ Set `"root": true` in a config to stop discovery from climbing past it — usefu
 
 ## MCP manifest (`llm/mcp.json`)
 
-When this file exists, sync regenerates platform-specific MCP config:
+When this file exists, sync writes platform-specific MCP config:
 
-| Platform | Output file         | JSON shape                          |
-| -------- | ------------------- | ----------------------------------- |
-| claude   | `.claude/mcp.json`  | `{ "mcpServers": { ... } }`         |
-| copilot  | `.github/mcp.json`  | `{ "servers": { ... } }`            |
-| cursor   | `.cursor/mcp.json`  | `{ "mcpServers": { ... } }`         |
+| Platform           | Output file                  | Read by                            | How it is written                          |
+| ------------------ | ---------------------------- | ---------------------------------- | ------------------------------------------ |
+| claude and copilot | `.mcp.json` (project root)   | Claude Code, VS Code, Copilot CLI  | Merged: only bluetemberg's servers change  |
+| cursor             | `.cursor/mcp.json`           | Cursor                             | Generated whole                            |
+| codex              | `.codex/config.toml`         | Codex                              | `[mcp_servers.*]` managed block            |
+
+All JSON outputs use the `{ "mcpServers": { ... } }` shape. Remote presets use the `http` (Streamable HTTP) transport; the older HTTP+SSE transport is deprecated.
+
+### Root `.mcp.json` is merged, not overwritten
+
+The root `.mcp.json` is also where `claude mcp add --scope project` writes and where teams hand-author servers, so sync never replaces it. It adds, updates and removes **only the servers it manages**, and keeps everything else in the file as it is: other servers, other top-level keys, and their order.
+
+- **Ownership** is recorded in **`llm/mcp-managed.json`**, a generated sidecar listing the server ids sync wrote. Commit it next to `llm/mcp.json`. JSON can't carry the generated-file banner, and Claude Code drops unknown keys when it rewrites `.mcp.json`, so the record can't live in that file. If the sidecar is unreadable, sync warns and rewrites it; servers removed from the manifest in that same sync may then stay in `.mcp.json`, so delete them by hand.
+- **Removing** an entry from `llm/mcp.json` removes only that server from `.mcp.json`. Deleting `llm/mcp.json`, or dropping both `claude` and `copilot` from `platforms`, removes all of them. When nothing else is left in `.mcp.json`, sync deletes the file.
+- **Fields you add** to a managed server that the manifest does not set (for example `env` or `headers`) survive re-sync. The fields the manifest sets (`type`, `command`, `args`, `url`) always follow it.
+- **A hand-written server whose id the manifest declares** is taken over: its manifest fields are replaced, sync prints a warning, and from then on it is managed.
+- **A `.mcp.json` that is not valid JSON** is reported as a sync error and left untouched. So is the whole file when a manifest entry fails to resolve, so a typo never reads as "remove this server". An `llm/mcp.json` that does not parse leaves `.mcp.json` and the Codex block in `.codex/config.toml` untouched too.
+- **Key order doesn't count:** an entry that already matches the manifest is left exactly as written. New and changed managed entries are written `type` first.
+- **`sync --check`** reports drift in managed servers (and a managed server the manifest no longer declares); edits to your own servers are not drift. A file whose content is already correct is never rewritten, so its formatting stays yours.
+
+**Upgrading from an older version:** sync used to write `.claude/mcp.json` (which Claude Code never reads) and `.github/mcp.json` (Copilot CLI reads the root `.mcp.json` too). It writes neither now. A leftover one whose bytes are exactly what the old version wrote for your current `llm/mcp.json` is reported as `STALE:` by `--check` and removed by `sync --prune`. Anything else in those paths is left in place and listed.
 
 The manifest is vendor-neutral. The `servers` array may contain:
 
-1. **Strings** — preset ids built into Bluetemberg (the same ids offered during `bluetemberg init`, e.g. `interactive`, `context7`, `figma`, `github`). Unknown ids are reported as sync errors; any successfully resolved entries are still emitted.
+1. **Strings** — preset ids built into Bluetemberg (the same ids offered during `bluetemberg init`, e.g. `interactive`, `context7`, `figma`, `github`). Unknown ids are reported as sync errors; the resolved entries are still written to `.cursor/mcp.json` and Codex, while the root `.mcp.json` is left as it was until the error is fixed.
 2. **Objects** — inline server definitions that **do not** need a preset. Each object must include `id` (string, used as the key in the output map) and `type` (string). Optional fields: `command`, `args` (array of strings), `url` — same shape as the built-in preset entries.
 
 ```json

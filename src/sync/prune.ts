@@ -13,6 +13,7 @@ import {
 } from './targets.js';
 import { hasGeneratedBanner } from './banner.js';
 import { walkFiles } from '../utils/fs.js';
+import { legacyMcpOutputs } from './mcp.js';
 
 /** A file under a managed output location that the current sync pass did not produce. */
 export interface StaleOutput {
@@ -223,6 +224,28 @@ function collectSingleton(out: StaleOutput[], absPath: string, expected: Set<str
 }
 
 /**
+ * `.claude/mcp.json` (never read by Claude Code) and `.github/mcp.json` (superseded by the root
+ * `.mcp.json`, which Copilot CLI also reads) are no longer written. JSON carries no banner, so a
+ * leftover one counts as generated only when its bytes are exactly what the old emitter wrote for
+ * the current `llm/mcp.json`; anything else may have been edited by hand and is only listed.
+ */
+function collectLegacyMcp(
+  out: StaleOutput[],
+  absPath: string,
+  legacyContent: string | undefined,
+  expected: Set<string>,
+): void {
+  if (!existsSync(absPath)) return;
+  let kind: StaleOutput['kind'] = 'unverifiable';
+  try {
+    if (legacyContent !== undefined && readFileSync(absPath, 'utf8') === legacyContent) kind = 'generated';
+  } catch {
+    // Unreadable: leave it as unverifiable.
+  }
+  consider(out, expected, absPath, [], kind);
+}
+
+/**
  * Every file under a managed output location that the current pass did not write, classified by
  * whether bluetemberg can prove it generated it. Pure: reads only. `--check` reports the
  * `generated` ones as drift; `--prune` deletes them.
@@ -237,15 +260,16 @@ export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
   const skillTargets = resolveSkillTargets(config, platforms);
   collectSkills(out, root, skillTargets, expected);
 
+  const legacyMcp = legacyMcpOutputs(join(root, config.source || 'llm'));
   const isMd = (name: string) => name.endsWith('.md') && name !== 'README.md';
   if (platforms.includes('claude')) {
     collectFlatDir(out, join(root, '.claude', 'commands'), isMd, expected);
-    collectSingleton(out, join(root, '.claude', 'mcp.json'), expected);
+    collectLegacyMcp(out, join(root, '.claude', 'mcp.json'), legacyMcp?.claude, expected);
   }
   if (platforms.includes('copilot')) {
     collectFlatDir(out, join(root, '.github', 'prompts'), (n) => n.endsWith('.prompt.md'), expected);
     collectSingleton(out, join(root, '.github', 'copilot-instructions.md'), expected);
-    collectSingleton(out, join(root, '.github', 'mcp.json'), expected);
+    collectLegacyMcp(out, join(root, '.github', 'mcp.json'), legacyMcp?.copilot, expected);
   }
   if (platforms.includes('codex')) {
     collectFlatDir(out, join(root, '.codex', 'agents'), (n) => n.endsWith('.toml'), expected);
