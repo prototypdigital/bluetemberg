@@ -1,6 +1,6 @@
 # Writing commands (Claude Code)
 
-Project-local **slash commands** for Claude Code live under `llm/commands/` as Markdown files. Sync copies them to `.claude/commands/` (Claude Code) and, when `windsurf` is in `platforms`, to `.windsurf/workflows/` as Windsurf workflows, adding only the generated-file banner. The file name (without `.md`) becomes the command name (e.g. `review.md` → `/review`).
+Project-local **slash commands** for Claude Code live under `llm/commands/` as Markdown files. Sync copies them to `.claude/commands/` (Claude Code), adding only the generated-file banner. The file name (without `.md`) becomes the command name (e.g. `review.md` → `/review`).
 
 ## Layout
 
@@ -28,6 +28,10 @@ Bluetemberg does not transform this content. Refer to [Claude Code documentation
 ## When sync runs
 
 Commands are emitted only if **`claude`** is listed in `platforms` in `bluetemberg.config.json`. After editing `llm/commands/`, run `bluetemberg sync` (or your `sync:llm-config` script).
+
+## Devin Desktop (formerly Windsurf)
+
+Commands used to be copied to `.windsurf/workflows/` as Windsurf workflows. Devin Desktop deprecated workflows in favor of skills, so sync no longer writes them. To give Devin the same procedure, author it as a skill under `llm/skills/` (synced to `.agents/skills/`). Run `bluetemberg sync --prune` once to remove the old generated workflow files.
 
 ## Personal overrides
 

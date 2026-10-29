@@ -22,9 +22,11 @@ export const INIT_PLATFORMS: readonly Platform[] = [
   'claude',
   'copilot',
   'gemini',
-  'windsurf',
+  'devin',
   'codex',
   'claude-marketplace',
+  // Pre-rename alias for `devin`; accepted on input, normalized to `devin` before anything is written.
+  'windsurf',
 ];
 
 export const INIT_RULE_SOURCES: readonly RuleSource[] = ['collections', 'none'];

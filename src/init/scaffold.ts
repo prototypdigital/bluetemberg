@@ -2,6 +2,7 @@ import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { ensureDir } from '../utils/fs.js';
 import { DEFAULT_TARGETS } from '../sync/transform.js';
+import { normalizePlatforms } from '../sync/targets.js';
 import { MARKETPLACE_PLATFORM } from '../types.js';
 import type {
   InitAnswers,
@@ -48,6 +49,8 @@ export function scaffoldProject(
   answers: InitAnswers,
   options: ScaffoldOptions = {},
 ): ScaffoldResult {
+  // A `windsurf` answer is written as `devin`, the platform's current id.
+  answers = { ...answers, platforms: normalizePlatforms(answers.platforms) };
   const state: ScaffoldState = { created: [], skipped: [], force: options.force === true };
 
   scaffoldConfig(targetDir, answers, state);
@@ -279,6 +282,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, state: Scaffo
   if (answers.platforms.includes('claude')) targetDirs.push('`.claude/rules/`');
   if (answers.platforms.includes('copilot')) targetDirs.push('`.github/instructions/`');
   if (answers.platforms.includes('gemini')) targetDirs.push('`.gemini/context/`');
+  if (answers.platforms.includes('devin')) targetDirs.push('`.devin/rules/`');
   if (answers.platforms.includes('codex')) targetDirs.push('`AGENTS.md` + `.codex/`');
   if (answers.platforms.includes(MARKETPLACE_PLATFORM)) targetDirs.push('`plugins/`');
 

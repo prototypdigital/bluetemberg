@@ -11,7 +11,6 @@ import { copySkillSupportingFiles } from './skill-files.js';
 import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
-import { syncWindsurfWorkflows } from './windsurf-workflows.js';
 import { syncCopilotPrompts } from './prompts.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
 import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
@@ -21,7 +20,12 @@ import { syncMarketplace } from './marketplace.js';
 import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails } from './guardrails.js';
 import { syncClaudeHooks } from './claude-hooks.js';
-import { filterTargets } from '../utils/target-filtering.js';
+import {
+  normalizePlatforms,
+  resolveAgentTargets,
+  resolveRuleTargets,
+  resolveSkillTargets,
+} from './targets.js';
 import {
   resolveExtendedSourceDirs,
   mergeSourceFiles,
@@ -47,21 +51,14 @@ import {
   resolveStacks,
   type StackMap,
 } from '../stacks/resolve.js';
-import type {
-  Platform,
-  BlueprintConfig,
-  SyncOptions,
-  SyncResults,
-  TargetConfig,
-  SkillTargetConfig,
-  TeamProfile,
-} from '../types.js';
+import type { Platform, BlueprintConfig, SyncOptions, SyncResults, TeamProfile } from '../types.js';
 
 const VALID_PLATFORMS: readonly Platform[] = [
   'cursor',
   'claude',
   'copilot',
   'gemini',
+  'devin',
   'windsurf',
   'codex',
   'claude-marketplace',
@@ -568,7 +565,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // A diff is only meaningful in check mode (write mode produces the in-sync state outright).
   const diff = Boolean(options.diff) && checkMode;
   const config = options.config || loadConfig(root);
-  const platforms = config.platforms || ['cursor', 'claude', 'copilot'];
+  // `windsurf` is an alias for `devin`; every emitter below sees only the canonical id.
+  const platforms = normalizePlatforms(config.platforms || ['cursor', 'claude', 'copilot']);
   const sourceBase = join(root, config.source || 'llm');
   const { dirs: extendedDirs, warnings: extendsWarnings } = resolveExtendedSourceDirs(config.extends, root);
   const { dirs: packDirs, warnings: packWarnings } = resolvePackSourceDirs(root, config.source || 'llm');
@@ -657,7 +655,6 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncMcp(ctx, (msg) => recordError(ctx, msg));
   syncHooks(ctx, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
-  syncWindsurfWorkflows(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
@@ -903,10 +900,7 @@ function syncRules(ctx: SyncContext): void {
     }
   }
 
-  const ruleTargets = filterTargets<TargetConfig>(
-    ctx.config.targets?.rules || DEFAULT_TARGETS.rules,
-    ctx.platforms,
-  );
+  const ruleTargets = resolveRuleTargets(ctx.config, ctx.platforms);
 
   for (const [platform, targetConfig] of ruleTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
@@ -949,10 +943,7 @@ function syncAgents(ctx: SyncContext): void {
     }
   }
 
-  const agentTargets = filterTargets<TargetConfig>(
-    ctx.config.targets?.agents || DEFAULT_TARGETS.agents,
-    ctx.platforms,
-  );
+  const agentTargets = resolveAgentTargets(ctx.config, ctx.platforms);
 
   for (const [platform, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
@@ -986,10 +977,7 @@ function syncSkills(ctx: SyncContext): void {
   const excluded = resolveExcludedSkills(ctx, merged);
   const appliedCount = merged.size - excluded.size;
 
-  const skillTargets = filterTargets<SkillTargetConfig>(
-    ctx.config.targets?.skills || DEFAULT_TARGETS.skills,
-    ctx.platforms,
-  );
+  const skillTargets = resolveSkillTargets(ctx.config, ctx.platforms);
 
   ctx.log(`Skills: ${merged.size} source directories`);
   logVersionFiltered(ctx, appliedCount, excluded);

@@ -729,17 +729,6 @@ describe('sync', () => {
   });
 
   describe('generated-file banner on every output that can carry one', () => {
-    it('Windsurf workflows carry the banner and keep the command body', async () => {
-      mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
-      writeFileSync(join(root, 'llm', 'commands', 'review.md'), '# Review\n');
-
-      await sync(root, { config: { platforms: ['windsurf'], source: 'llm', targets: {} }, silent: true });
-
-      const out = readFileSync(join(root, '.windsurf', 'workflows', 'review.md'), 'utf8');
-      expect(hasGeneratedBanner(out)).toBe(true);
-      expect(stripGeneratedBanner(out)).toBe('# Review\n');
-    });
-
     it('Codex agent TOML carries a # comment banner and still parses as TOML', async () => {
       mkdirSync(join(root, 'llm', 'agents'), { recursive: true });
       writeFileSync(

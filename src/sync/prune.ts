@@ -2,8 +2,15 @@ import { existsSync, readdirSync, readFileSync, rmdirSync, unlinkSync } from 'no
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { MARKETPLACE_PLATFORM } from '../types.js';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
-import { DEFAULT_TARGETS } from './transform.js';
-import { filterTargets } from '../utils/target-filtering.js';
+import {
+  DEVIN_PLATFORM,
+  RETIRED_DEVIN_SKILLS_DIR,
+  RETIRED_DEVIN_WORKFLOWS_DIR,
+  normalizePlatforms,
+  resolveAgentTargets,
+  resolveRuleTargets,
+  resolveSkillTargets,
+} from './targets.js';
 import { hasGeneratedBanner } from './banner.js';
 import { walkFiles } from '../utils/fs.js';
 
@@ -68,11 +75,10 @@ function listSubdirs(dir: string): string[] {
 function collectRulesAndAgents(
   out: StaleOutput[],
   root: string,
-  platforms: Platform[],
-  section: Partial<Record<Platform, TargetConfig>>,
+  targets: [Platform, TargetConfig][],
   expected: Set<string>,
 ): void {
-  for (const [, tc] of filterTargets(section, platforms)) {
+  for (const [, tc] of targets) {
     const dir = join(root, tc.dir);
     for (const name of listDir(dir)) {
       if (name.endsWith(tc.ext)) consider(out, expected, join(dir, name));
@@ -121,11 +127,10 @@ function collectSkillDir(
 function collectSkills(
   out: StaleOutput[],
   root: string,
-  platforms: Platform[],
-  section: Partial<Record<Platform, SkillTargetConfig>>,
+  targets: [Platform, SkillTargetConfig][],
   expected: Set<string>,
 ): void {
-  for (const [, tc] of filterTargets<SkillTargetConfig>(section, platforms)) {
+  for (const [, tc] of targets) {
     const base = join(root, tc.dir);
     for (const name of listSubdirs(base)) collectSkillDir(out, join(base, name), expected);
   }
@@ -137,9 +142,34 @@ function collectFlatDir(
   dir: string,
   matches: (name: string) => boolean,
   expected: Set<string>,
+  cleanupDirs: string[] = [],
 ): void {
   for (const name of listDir(dir)) {
-    if (matches(name)) consider(out, expected, join(dir, name));
+    if (matches(name)) consider(out, expected, join(dir, name), cleanupDirs);
+  }
+}
+
+/**
+ * Outputs of the Windsurf era that Devin Desktop no longer loads: `.windsurf/workflows/` (workflows
+ * were deprecated for skills) and `.windsurf/skills/` (skills now go to `.agents/skills/`). Only
+ * bannered files are removable, like everywhere else. A dir still configured as a skill target is
+ * live output, so it is left to {@link collectSkills}.
+ */
+function collectRetiredDevinOutputs(
+  out: StaleOutput[],
+  root: string,
+  skillTargets: [Platform, SkillTargetConfig][],
+  expected: Set<string>,
+  isMd: (name: string) => boolean,
+): void {
+  const windsurfDir = join(root, '.windsurf');
+  const workflowsDir = join(root, RETIRED_DEVIN_WORKFLOWS_DIR);
+  collectFlatDir(out, workflowsDir, isMd, expected, [workflowsDir, windsurfDir]);
+
+  const skillsBase = join(root, RETIRED_DEVIN_SKILLS_DIR);
+  if (skillTargets.some(([, tc]) => resolve(root, tc.dir) === skillsBase)) return;
+  for (const name of listSubdirs(skillsBase)) {
+    collectSkillDir(out, join(skillsBase, name), expected, [skillsBase, windsurfDir]);
   }
 }
 
@@ -196,14 +226,14 @@ function collectSingleton(out: StaleOutput[], absPath: string, expected: Set<str
  * `generated` ones as drift; `--prune` deletes them.
  */
 export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
-  const { root, config, platforms, expectedPaths: expected } = args;
+  const { root, config, expectedPaths: expected } = args;
+  const platforms = normalizePlatforms(args.platforms);
   const out: StaleOutput[] = [];
 
-  collectRulesAndAgents(out, root, platforms, config.targets?.rules || DEFAULT_TARGETS.rules, expected);
-  const agentsSection = config.targets?.agents || DEFAULT_TARGETS.agents;
-  if (agentsSection) collectRulesAndAgents(out, root, platforms, agentsSection, expected);
-  const skillsSection = config.targets?.skills || DEFAULT_TARGETS.skills;
-  if (skillsSection) collectSkills(out, root, platforms, skillsSection, expected);
+  collectRulesAndAgents(out, root, resolveRuleTargets(config, platforms), expected);
+  collectRulesAndAgents(out, root, resolveAgentTargets(config, platforms), expected);
+  const skillTargets = resolveSkillTargets(config, platforms);
+  collectSkills(out, root, skillTargets, expected);
 
   const isMd = (name: string) => name.endsWith('.md') && name !== 'README.md';
   if (platforms.includes('claude')) {
@@ -218,8 +248,8 @@ export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
   if (platforms.includes('codex')) {
     collectFlatDir(out, join(root, '.codex', 'agents'), (n) => n.endsWith('.toml'), expected);
   }
-  if (platforms.includes('windsurf')) {
-    collectFlatDir(out, join(root, '.windsurf', 'workflows'), isMd, expected);
+  if (platforms.includes(DEVIN_PLATFORM)) {
+    collectRetiredDevinOutputs(out, root, skillTargets, expected, isMd);
   }
   if (platforms.includes('gemini')) {
     collectSingleton(out, join(root, 'GEMINI.md'), expected);

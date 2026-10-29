@@ -17,7 +17,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `agentic`, `design-engineer`, `custom`). |
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
-| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). `--non-interactive` only. |
+| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). Ids: `cursor`, `claude`, `copilot`, `gemini`, `devin`, `codex`, `claude-marketplace`; `windsurf` is accepted as an alias for `devin` (Devin Desktop, formerly Windsurf) and written to config as `devin`. `--non-interactive` only. |
 | `--rule-source` | Values: `collections` (default) or `none` (empty scaffold — bring your own rules). `--non-interactive` only. |
 | `--rule-collections <csv>` | Registry collection ids to include (e.g. `typescript,git`). Applies when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
@@ -119,7 +119,7 @@ Reads vendor-neutral sources from `llm/` and generates platform-specific files.
 
 Before first use of `--prune`, read the short pre-flight list and platform notes under **Stale generated files** in [Configuration](Configuration).
 
-**Stale files are drift.** `--check` also looks for generated files (banner present) under the managed output dirs that no source produces any more — a rule you deleted or renamed, or one a stack change filtered out — and reports each as `STALE:`. They count as out of sync and exit 1, and the summary points at `sync --prune`. Hand-written files and JSON outputs are never reported, because without a banner bluetemberg can't tell them from its own.
+**Stale files are drift.** `--check` also looks for generated files (banner present) under the managed output dirs that no source produces any more — a rule you deleted or renamed, or one a stack change filtered out — and reports each as `STALE:`. They count as out of sync and exit 1, and the summary points at `sync --prune`. With `devin` enabled this includes generated files left in `.windsurf/workflows/` and `.windsurf/skills/` from before the Devin Desktop rename; prune them once after upgrading (see [Configuration](Configuration#devin-desktop-devin)). Hand-written files and JSON outputs are never reported, because without a banner bluetemberg can't tell them from its own.
 
 **Monorepos (recursive by default):** sync discovers every `bluetemberg.config.json` at or below the directory you run it in — the config tree is the workspace map — and syncs each configured package against **its own** detected stacks. So one `bluetemberg sync` (or `sync --check` in CI) keeps a whole monorepo in sync: `packages/web` gated on its React, `packages/legacy` on its own, with no flag to forget and no false-green check. A repo with no sub-package configs is unaffected (single-package path). Pass `--no-recursive` to sync only the current directory. Discovery skips `node_modules`, dot-folders, and build dirs. See [Stacks & Versioning](Stacks) and [Monorepo config inheritance](Configuration#monorepo-config-inheritance).
 

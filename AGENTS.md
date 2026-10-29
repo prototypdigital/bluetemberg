@@ -1,6 +1,6 @@
 # Bluetemberg
 
-Distributes AI coding standards as versioned, integrity-verified npm packs, routed by team profile and stack version, and emits `AGENTS.md` plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex. This repo is the engine; all content lives in bluetemberg-packs.
+Distributes AI coding standards as versioned, integrity-verified npm packs, routed by team profile and stack version, and emits `AGENTS.md` plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Devin Desktop (formerly Windsurf), and OpenAI Codex. This repo is the engine; all content lives in bluetemberg-packs.
 
 ## Commands
 
