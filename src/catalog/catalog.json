@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T11:41:23.095Z",
+  "generated": "2026-10-29T13:17:17.363Z",
   "packs": [
     {
       "name": "bluetemberg-agents-a11y-specialist",
@@ -749,7 +749,7 @@
     {
       "name": "bluetemberg-skills-pr-review-loop",
       "version": "0.2.2",
-      "description": "PR review loop skill for Bluetemberg — wire automated comment-only PR reviews via a local PostToolUse hook, without touching CI/CD.",
+      "description": "PR review loop skill for Bluetemberg — wire automated comment-only PR reviews via a local PostToolUse hook, with the hook scripts bundled under the skill, without touching CI/CD.",
       "profiles": ["frontend", "backend", "fullstack", "devops"],
       "stacks": [],
       "universal": false,
