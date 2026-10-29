@@ -137,7 +137,7 @@ Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how 
 }
 ```
 
-- `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` writes `extraKnownMarketplaces` into `.claude/settings.json` so Claude Desktop auto-prompts teammates to install plugins.
+- `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` merges `extraKnownMarketplaces` (keyed by marketplace name) and `enabledPlugins` into `.claude/settings.json`, so Claude Code prompts teammates to install the plugins.
 - `plugins` — when omitted, a single plugin named after the project directory is emitted. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks matches; stack-agnostic files are always included).
 - `owner` — `{ "name", "email"?, "url"? }`, written into `marketplace.json`, where Claude Code requires it. When omitted, the owner segment of `remote` is used, else the project directory name.
 

@@ -369,7 +369,7 @@ Add `"claude-marketplace"` to `platforms` and define plugins in `bluetemberg.con
 
 Each plugin bundles only the skills and agents whose `profiles` frontmatter (or preset tags) overlap with the plugin's `profiles` list. Skills and agents with no profile are included everywhere.
 
-When `remote` is set, `bluetemberg sync` writes `extraKnownMarketplaces` to `.claude/settings.json` — Claude Code then auto-prompts teammates to install the relevant plugin when they open the project. **Teammates need no local bluetemberg install.**
+When `remote` is set, `bluetemberg sync` writes `extraKnownMarketplaces` and `enabledPlugins` to `.claude/settings.json` — Claude Code then auto-prompts teammates to install the relevant plugin when they open the project. **Teammates need no local bluetemberg install.**
 
 See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guide.
 

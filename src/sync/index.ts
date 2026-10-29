@@ -669,7 +669,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
     ];
-    syncMarketplace(
+    const marketplace = syncMarketplace(
       {
         ...ctx,
         plugins: pluginDefs,
@@ -681,8 +681,18 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     );
 
     const remote = ctx.config.marketplace?.remote;
-    if (remote) {
-      syncClaudeSettings({ ...ctx, remote });
+    // A plugin skipped via recordError is missing from the manifest; syncing settings now
+    // would prune its enabledPlugins entry, so wait for an error-free run.
+    if (remote && marketplace && ctx.results.errors.length === 0) {
+      syncClaudeSettings(
+        {
+          ...ctx,
+          remote,
+          marketplaceName: marketplace.name,
+          plugins: marketplace.plugins.map((p) => p.name),
+        },
+        (msg) => recordWarning(ctx, msg),
+      );
     }
   }
 
