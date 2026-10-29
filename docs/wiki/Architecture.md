@@ -59,7 +59,7 @@ For optional sync extensions, MCP/hooks details, and roadmap, see [Adapters](Ada
 
 ## Frontmatter transform
 
-The core of the sync engine. Rules get platform-specific frontmatter; agents and skills are copied as-is. (OpenAI Codex is the exception — its rules are folded into `AGENTS.md` as plain markdown with no transform; see [Special sync](#special-sync-agentsmd-and-openai-codex).)
+The core of the sync engine. Rules get platform-specific frontmatter; agents and skills are copied as-is. (OpenAI Codex is the exception — its rules are folded into `AGENTS.md` as plain markdown with no transform; see [Special sync](#special-sync-agentsmd-openai-codex-gemini-cli-and-antigravity).)
 
 ```mermaid
 flowchart LR
@@ -106,21 +106,25 @@ flowchart TD
     D --> E
 ```
 
-## Special sync: AGENTS.md and OpenAI Codex
+## Special sync: AGENTS.md, OpenAI Codex, Gemini CLI, and Antigravity
 
-`AGENTS.md` at the repo root is copied to `.github/copilot-instructions.md` (GitHub Copilot) and `GEMINI.md` (Gemini CLI). Some Copilot surfaces also read `AGENTS.md` directly, but many read only `copilot-instructions.md`; see [Why copilot-instructions.md is still a copy of AGENTS.md](#why-copilot-instructionsmd-is-still-a-copy-of-agentsmd).
+`AGENTS.md` at the repo root is copied to `.github/copilot-instructions.md` (GitHub Copilot). Some Copilot surfaces also read `AGENTS.md` directly, but many read only `copilot-instructions.md`; see [Why copilot-instructions.md is still a copy of AGENTS.md](#why-copilot-instructionsmd-is-still-a-copy-of-agentsmd).
 
-**OpenAI Codex** reads `AGENTS.md` natively, so the monolithic instructions need no derivation. Codex is also the one target whose rules do **not** go through the frontmatter transform: scoped rules from `llm/rules/` are folded into a fenced *managed block* in `AGENTS.md`, agents become per-file TOML under `.codex/agents/`, and MCP servers become a `[mcp_servers.*]` managed block in `.codex/config.toml`. Skills use the vendor-neutral `.agents/skills/`. Managed blocks (`src/sync/managed-block.ts`) preserve hand-authored content outside the markers and keep `sync --check` idempotent; the Codex rules block is stripped from the derived Copilot/Gemini instruction files.
+**Gemini CLI** (`gemini`, now Enterprise-only) reads whatever files `context.fileName` names in `.gemini/settings.json`, so instead of a copy, sync adds `AGENTS.md` to that list (`src/sync/gemini.ts`). It merges the one entry and leaves every other setting alone; with no list yet it writes `["AGENTS.md", "GEMINI.md"]`, so Gemini CLI's default `GEMINI.md` still loads. Earlier versions copied `AGENTS.md` to `GEMINI.md` and wrote rules to `.gemini/context/`, a directory Gemini CLI never scans. `--check` reports those bannered leftovers as stale and `--prune` removes them, and a config's `targets.rules.gemini` entry naming `.gemini/context` is ignored with a warning.
 
-### Why the rules block is Codex-only
+**Antigravity CLI** (`antigravity`) reads `AGENTS.md` natively. Its scoped rules go to `.agents/rules/` through the frontmatter transform (`trigger: always_on` or `trigger: glob` + `globs`), skills to `.agents/skills/` (shared with Codex and Devin Desktop, written once), and MCP servers are merged by name into `mcpServers` in `.agents/mcp_config.json` (`src/sync/antigravity.ts`).
 
-The managed rules block is written only when `codex` is in `platforms`. A Claude-, Cursor-, or Copilot-only project's `AGENTS.md` stays hand-authored project context (name, architecture, boundaries) with no rules in it. That is on purpose:
+**OpenAI Codex** reads `AGENTS.md` natively, so the monolithic instructions need no derivation. Codex is also the one target whose rules do **not** go through the frontmatter transform: scoped rules from `llm/rules/` are folded into a fenced *managed block* in `AGENTS.md`, agents become per-file TOML under `.codex/agents/`, and MCP servers become a `[mcp_servers.*]` managed block in `.codex/config.toml`. Skills use the vendor-neutral `.agents/skills/`. Managed blocks (`src/sync/managed-block.ts`) preserve hand-authored content outside the markers and keep `sync --check` idempotent; the rules block is stripped from the derived `copilot-instructions.md`.
 
-- Every platform with its own scoped-rules directory (`.claude/rules/`, `.cursor/rules/`, `.github/instructions/`, `.gemini/context/`, `.devin/rules/`) already gets each rule with its `scope` turned into a path filter, so it loads only for matching files.
-- Most of those tools also read `AGENTS.md` itself. Folding the rules into it would load every rule twice, once scoped and once always-on. That is the same reason the block is stripped from `copilot-instructions.md` and `GEMINI.md`.
-- Codex has no per-file rule API, so `AGENTS.md` is the only place its rules can go.
+### Why the rules block is only for Codex and Gemini CLI
 
-**Known overlap:** when `codex` is selected alongside `claude`, `cursor`, or `copilot`, any of their surfaces that read `AGENTS.md` natively get the block as well as their own scoped rules. For Copilot, that means Chat in VS Code, the cloud agent, Copilot CLI, and code review on GitHub.com. None of these tools offers a way to skip part of `AGENTS.md`, so sync leaves this alone.
+The managed rules block is written only when `codex` or `gemini` is in `platforms`. A Claude-, Cursor-, Copilot-, or Antigravity-only project's `AGENTS.md` stays hand-authored project context (name, architecture, boundaries) with no rules in it. That is on purpose:
+
+- Every platform with its own scoped-rules directory (`.claude/rules/`, `.cursor/rules/`, `.github/instructions/`, `.devin/rules/`, `.agents/rules/`) already gets each rule with its `scope` turned into a path filter, so it loads only for matching files.
+- Most of those tools also read `AGENTS.md` itself. Folding the rules into it would load every rule twice, once scoped and once always-on. That is the same reason the block is stripped from `copilot-instructions.md`.
+- Codex and Gemini CLI have no per-file rule API, so `AGENTS.md` is the only place their rules can go. (Gemini CLI's `@file.md` imports load the imported file on every prompt, and its just-in-time subdirectory `GEMINI.md` files are keyed on directories, not globs, so neither gives a rule its scope.)
+
+**Known overlap:** when `codex` or `gemini` is selected alongside `claude`, `cursor`, `copilot`, or `antigravity`, any of their surfaces that read `AGENTS.md` natively get the block as well as their own scoped rules. For Copilot, that means Chat in VS Code, the cloud agent, Copilot CLI, and code review on GitHub.com. None of these tools offers a way to skip part of `AGENTS.md`, so sync leaves this alone.
 
 ### Why copilot-instructions.md is still a copy of AGENTS.md
 
@@ -134,7 +138,7 @@ Copilot Chat in VS Code, the Copilot cloud agent, Copilot CLI, and Copilot code 
 | Copilot Chat in Visual Studio, JetBrains, Eclipse, Xcode | yes | no |
 | Copilot Chat in VS Code, cloud agent, Copilot CLI | yes | yes |
 
-Dropping the copy would leave every "no" row with no project context at all. On the dual-read surfaces the double load wastes some context, but it doesn't cause conflicting instructions, because both files carry the same project context. The copy adds only a generated-file banner and drops the Codex rules block, so the copy never adds rules of its own: Copilot gets scoped rules through `.github/instructions/`. The exception is the Codex overlap above: when `codex` is also selected, the dual-read surfaces still get the block through `AGENTS.md` itself. (Eclipse code review doesn't support custom instructions, so it reads neither file.)
+Dropping the copy would leave every "no" row with no project context at all. On the dual-read surfaces the double load wastes some context, but it doesn't cause conflicting instructions, because both files carry the same project context. The copy adds only a generated-file banner and drops the rules block, so the copy never adds rules of its own: Copilot gets scoped rules through `.github/instructions/`. The exception is the overlap above: when `codex` or `gemini` is also selected, the dual-read surfaces still get the block through `AGENTS.md` itself. (Eclipse code review doesn't support custom instructions, so it reads neither file.)
 
 ### Claude Code and AGENTS.md
 

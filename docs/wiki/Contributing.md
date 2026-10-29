@@ -47,6 +47,8 @@ src/
 │   ├── transform.ts       # Rule frontmatter transform
 │   ├── pipeline.ts        # commitPlannedWrite / check-mode counting
 │   ├── mcp.ts             # llm/mcp.json → merged root .mcp.json + .cursor/mcp.json
+│   ├── gemini.ts          # .gemini/settings.json context.fileName merge (Gemini CLI)
+│   ├── antigravity.ts     # llm/mcp.json → .agents/mcp_config.json (Antigravity)
 │   ├── hooks.ts           # llm/hooks.json → Cursor
 │   ├── commands.ts        # llm/commands → Claude
 │   ├── prompts.ts         # llm/prompts → Copilot *.prompt.md

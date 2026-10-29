@@ -21,7 +21,10 @@ interface GeminiFrontmatter {
   glob: string;
 }
 
-/** Devin Desktop (formerly Windsurf) workspace rule: `.devin/rules/*.md`. */
+/**
+ * Devin Desktop (formerly Windsurf) workspace rule, `.devin/rules/*.md`. Antigravity's
+ * `.agents/rules/*.md` uses the same shape.
+ */
 interface DevinFrontmatter {
   trigger: 'always_on' | 'glob';
   description: string;
@@ -59,7 +62,8 @@ export function transformFrontmatter(data: RuleFrontmatter, platform: Platform):
       };
 
     case 'devin':
-    case 'windsurf': {
+    case 'windsurf':
+    case 'antigravity': {
       if (scope === '**') {
         return { trigger: 'always_on', description };
       }
@@ -80,8 +84,11 @@ export const DEFAULT_TARGETS: {
     cursor: { dir: '.cursor/rules', ext: '.mdc' },
     claude: { dir: '.claude/rules', ext: '.md' },
     copilot: { dir: '.github/instructions', ext: '.instructions.md' },
-    gemini: { dir: '.gemini/context', ext: '.md' },
+    // Gemini CLI has no per-path rule directory: it reads `AGENTS.md` (via `.gemini/settings.json`),
+    // where its rules land in the managed block. See Architecture.md "Special sync".
     devin: { dir: '.devin/rules', ext: '.md' },
+    // Antigravity scans the immediate `.md` files in `.agents/rules/`, keyed on `trigger` / `globs`.
+    antigravity: { dir: '.agents/rules', ext: '.md' },
   },
   agents: {
     cursor: { dir: '.cursor/agents', ext: '.md' },
@@ -92,10 +99,11 @@ export const DEFAULT_TARGETS: {
     cursor: { dir: '.cursor/skills' },
     claude: { dir: '.claude/skills' },
     copilot: { dir: '.github/skills' },
-    // Codex and Devin Desktop both scan `.agents/skills/` (vendor-neutral) for project-level
+    // Codex, Devin Desktop and Antigravity all scan `.agents/skills/` (vendor-neutral) for project-level
     // skills; the SKILL.md + name/description frontmatter shape already matches our source.
     // The shared dir is written once (see `resolveSkillTargets`).
     devin: { dir: '.agents/skills' },
     codex: { dir: '.agents/skills' },
+    antigravity: { dir: '.agents/skills' },
   },
 };

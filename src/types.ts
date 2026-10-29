@@ -3,7 +3,15 @@
  * sync treats the two identically, and `init` writes `devin`.
  */
 export type Platform =
-  'cursor' | 'claude' | 'copilot' | 'gemini' | 'devin' | 'windsurf' | 'codex' | 'claude-marketplace';
+  | 'cursor'
+  | 'claude'
+  | 'copilot'
+  | 'gemini'
+  | 'antigravity'
+  | 'devin'
+  | 'windsurf'
+  | 'codex'
+  | 'claude-marketplace';
 export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';

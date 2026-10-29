@@ -80,6 +80,18 @@ describe('transformFrontmatter', () => {
     });
   });
 
+  describe('antigravity', () => {
+    it('sets always_on for global scope', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: '**' }, 'antigravity');
+      expect(result).toEqual({ trigger: 'always_on', description: 'Test' });
+    });
+
+    it('sets a glob trigger with comma-separated globs for scoped rules', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: ['a/**', 'b/**'] }, 'antigravity');
+      expect(result).toEqual({ trigger: 'glob', description: 'Test', globs: 'a/**,b/**' });
+    });
+  });
+
   describe('devin', () => {
     it('sets always_on for global scope', () => {
       const result = transformFrontmatter({ description: 'Test', scope: '**' }, 'devin');

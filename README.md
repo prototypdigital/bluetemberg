@@ -14,7 +14,7 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 ## "But everything is converging on AGENTS.md."
 
-Good. That solves the format, not the distribution. Codex, Cursor, Copilot and Claude Code (when there's no `CLAUDE.md`, or one that imports it) all read `AGENTS.md`, and bluetemberg writes it for them.
+Good. That solves the format, not the distribution. Codex, Cursor, Copilot, Antigravity, Gemini CLI (once pointed at it) and Claude Code (when there's no `CLAUDE.md`, or one that imports it) all read `AGENTS.md`, and bluetemberg writes it for them.
 
 A shared file still has no versioning, no integrity verification, no
 per-role filtering, and no way to stop a Payload 2 rule from reaching a
@@ -69,7 +69,7 @@ Developing from a clone: run `npm run build` before `bin/cli.js` — the CLI imp
 The interactive wizard will ask you to pick:
 
 - **Team profile** — Frontend, Backend, Full-stack, DevOps / Platform, **pure-infra** (infrastructure-only repos), **agentic** (LLM-heavy / AI workflow projects), **design-engineer** (UI craft, design-to-code), or Custom — sets defaults for rules, agents, and skills (`--profile agentic` in headless runs)
-- Target platforms (Cursor / Claude / Copilot / Gemini CLI / Devin Desktop (formerly Windsurf) / OpenAI Codex)
+- Target platforms (Cursor / Claude / Copilot / Gemini CLI Enterprise / Antigravity CLI / Devin Desktop (formerly Windsurf) / OpenAI Codex)
 - **Stacks** — detected from the project and pre-checked (e.g. Payload 3.4.1, Next 15); drive which rules, agents and skills apply by version, written to config `stacks` (`--stacks payload@3.4.1,nextjs@auto` in headless runs)
 - **Rule source** — versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
 - Rule collections, agents and skills pre-selected by profile, with stack-specific packs pre-selected only when their stack is detected (see wiki **Profiles**)
@@ -88,9 +88,8 @@ It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-sp
 ```
 your-project/
 ├── bluetemberg.config.json     # Platforms, targets, stacks, profile
-├── AGENTS.md                   # Project context for AI tools (Codex rules block appended if Codex selected)
+├── AGENTS.md                   # Project context for AI tools (rules block appended if Codex or Gemini selected)
 ├── CLAUDE.md                   # `@AGENTS.md` import + Claude-specific notes (if Claude selected)
-├── GEMINI.md                   # Copy of AGENTS.md for Gemini CLI (if Gemini selected) — do not edit
 ├── llm/
 │   ├── packages.json           # Packs to install, with semver ranges — commit
 │   ├── packages-lock.json      # Resolved versions + integrity hashes — commit
@@ -112,17 +111,19 @@ your-project/
 ├── .claude/settings.json       # Generated keys only (`hooks`, marketplace) — the rest is yours
 ├── .github/instructions/ agents/ skills/ prompts/   # Generated — do not edit
 ├── .github/copilot-instructions.md  # Copy of AGENTS.md for Copilot — do not edit
-├── .gemini/context/            # Generated — do not edit
+├── .gemini/settings.json       # `context.fileName` gains `AGENTS.md` (Gemini) — the rest is yours
 ├── .devin/rules/               # Generated (Devin Desktop) — do not edit
 ├── .windsurf/rules/            # Generated legacy mirror of .devin/rules/ (transition period) — do not edit
-├── .agents/skills/             # Generated (Codex + Devin Desktop skills, vendor-neutral) — do not edit
+├── .agents/skills/             # Generated (Codex + Devin Desktop + Antigravity skills, vendor-neutral) — do not edit
+├── .agents/rules/              # Generated (Antigravity) — do not edit
+├── .agents/mcp_config.json     # Generated servers merged by name (Antigravity) — the rest is yours
 ├── .codex/agents/              # Generated (Codex subagents, TOML) — do not edit
 └── .codex/config.toml          # Generated MCP block (Codex) — managed section only
 ```
 
 Only `.bluetemberg/` is gitignored. Generated output is meant to be committed, so teammates and CI see exactly what the tools load and `sync --check` can verify it.
 
-Every generated Markdown and TOML file carries that warning **in the file itself**, right after its frontmatter — rules, agents, skills, commands, Copilot prompts, Codex agents, marketplace plugin content, and the `GEMINI.md` / `copilot-instructions.md` copies of `AGENTS.md`. JSON outputs can't carry a comment, so `mcp.json` and the marketplace manifests are the exception (in `.mcp.json`, `llm/mcp-managed.json` records which servers are bluetemberg's):
+Every generated Markdown and TOML file carries that warning **in the file itself**, right after its frontmatter — rules, agents, skills, commands, Copilot prompts, Codex agents, marketplace plugin content, and the `copilot-instructions.md` copy of `AGENTS.md`. JSON outputs can't carry a comment, so `mcp.json` and the marketplace manifests are the exception (in `.mcp.json`, `llm/mcp-managed.json` records which servers are bluetemberg's):
 
 ```md
 <!-- Generated by bluetemberg from rules/no-console-log.md. Do not edit — run `bluetemberg sync` after editing the source. -->
@@ -295,28 +296,29 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 | Cursor          | ✓     | ✓      | ✓      |
 | Claude Code     | ✓     | ✓      | ✓      |
 | GitHub Copilot  | ✓     | ✓      | ✓      |
-| Gemini CLI      | ✓ ¹   | —      | —      |
+| Gemini CLI ¹    | ✓ ¹   | —      | —      |
+| Antigravity     | ✓     | —      | ✓      |
 | Devin Desktop ³ | ✓     | —      | ✓      |
 | OpenAI Codex    | ✓ ²   | ✓ ²    | ✓      |
 
-¹ Gemini CLI has no native rules API — rules are emitted as plain context files under `.gemini/context/` and prepended to the model context on each request. Agents and skills are not supported by the Gemini CLI extension at this time.
+¹ `gemini` targets **Gemini CLI for Enterprise** (Gemini Code Assist Standard / Enterprise). Google stopped serving Gemini CLI to free and individual paid users on 2026-06-18 and replaced it with Antigravity CLI, so pick `antigravity` for those. Gemini CLI loads only the context files named by `context.fileName` and has no per-path rules, so sync adds `AGENTS.md` to `context.fileName` in `.gemini/settings.json` (leaving every other setting alone) and folds rules into the managed block in `AGENTS.md`, as for Codex. Agents and skills are not emitted for Gemini CLI.
 
-² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Only Codex gets that block. Every other platform receives scoped rules through its own directory, and most of them also read `AGENTS.md`, so folding rules in for them would load each rule twice. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
+² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Only Codex and Gemini CLI get that block. Every other platform receives scoped rules through its own directory, and most of them also read `AGENTS.md`, so folding rules in for them would load each rule twice. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
 
-³ Devin Desktop is the former Windsurf (renamed 2026-06-02). Use the platform id `devin`; `windsurf` is still accepted as an alias and behaves identically. Rules go to `.devin/rules/` and, for a transition period, are mirrored to the legacy `.windsurf/rules/` that Devin still reads — the mirror will be dropped in a later release. Skills go to `.agents/skills/`, which Devin shares with Codex (written once). Devin deprecated workflows in favor of skills, so `llm/commands/` no longer emits `.windsurf/workflows/`; run `bluetemberg sync --prune` once to remove the old generated `.windsurf/workflows/` and `.windsurf/skills/` files.
+³ Devin Desktop is the former Windsurf (renamed 2026-06-02). Use the platform id `devin`; `windsurf` is still accepted as an alias and behaves identically. Rules go to `.devin/rules/` and, for a transition period, are mirrored to the legacy `.windsurf/rules/` that Devin still reads — the mirror will be dropped in a later release. Skills go to `.agents/skills/`, which Devin shares with Codex and Antigravity (written once). Devin deprecated workflows in favor of skills, so `llm/commands/` no longer emits `.windsurf/workflows/`; run `bluetemberg sync --prune` once to remove the old generated `.windsurf/workflows/` and `.windsurf/skills/` files.
 
 ## How sync works
 
-| Source               | Cursor                | Claude                         | Copilot                                  | Gemini CLI             | Devin Desktop                                 |
-| -------------------- | --------------------- | ------------------------------ | ---------------------------------------- | ---------------------- | --------------------------------------------- |
-| `llm/rules/*.md`     | `.cursor/rules/*.mdc` | `.claude/rules/*.md`           | `.github/instructions/*.instructions.md` | `.gemini/context/*.md` | `.devin/rules/*.md` + `.windsurf/rules/*.md`² |
-| `llm/agents/*.md`    | `.cursor/agents/*.md` | `.claude/agents/*.md`          | `.github/agents/*.agent.md`              | —                      | —                                             |
-| `llm/skills/*/`      | `.cursor/skills/*/`   | `.claude/skills/*/`            | `.github/skills/*/`                      | —                      | `.agents/skills/*/`                           |
-| `llm/mcp.json`       | `.cursor/mcp.json`    | `.mcp.json` (merged)           | `.mcp.json` (merged)                     | —                      | —                                             |
-| `llm/commands/*.md`  | —                     | `.claude/commands/*.md`        | —                                        | —                      | —                                             |
-| `llm/prompts/*.md`   | —                     | —                              | `.github/prompts/*.prompt.md`            | —                      | —                                             |
-| `AGENTS.md`          | —                     | —                              | `.github/copilot-instructions.md`        | `GEMINI.md`            | —                                             |
-| `llm/` (marketplace) | —                     | `plugins/*/skills \| agents/`¹ | —                                        | —                      | —                                             |
+| Source               | Cursor                | Claude                         | Copilot                                  | Gemini CLI                                            | Antigravity               | Devin Desktop                                 |
+| -------------------- | --------------------- | ------------------------------ | ---------------------------------------- | ----------------------------------------------------- | ------------------------- | --------------------------------------------- |
+| `llm/rules/*.md`     | `.cursor/rules/*.mdc` | `.claude/rules/*.md`           | `.github/instructions/*.instructions.md` | managed block in `AGENTS.md`                          | `.agents/rules/*.md`      | `.devin/rules/*.md` + `.windsurf/rules/*.md`² |
+| `llm/agents/*.md`    | `.cursor/agents/*.md` | `.claude/agents/*.md`          | `.github/agents/*.agent.md`              | —                                                     | —                         | —                                             |
+| `llm/skills/*/`      | `.cursor/skills/*/`   | `.claude/skills/*/`            | `.github/skills/*/`                      | —                                                     | `.agents/skills/*/`       | `.agents/skills/*/`                           |
+| `llm/mcp.json`       | `.cursor/mcp.json`    | `.mcp.json` (merged)           | `.mcp.json` (merged)                     | —                                                     | `.agents/mcp_config.json` | —                                             |
+| `llm/commands/*.md`  | —                     | `.claude/commands/*.md`        | —                                        | —                                                     | —                         | —                                             |
+| `llm/prompts/*.md`   | —                     | —                              | `.github/prompts/*.prompt.md`            | —                                                     | —                         | —                                             |
+| `AGENTS.md`          | —                     | —                              | `.github/copilot-instructions.md`        | read via `.gemini/settings.json` (`context.fileName`) | read natively             | —                                             |
+| `llm/` (marketplace) | —                     | `plugins/*/skills \| agents/`¹ | —                                        | —                                                     | —                         | —                                             |
 
 ¹ Claude Code plugins have no native "rules" component, so the marketplace emitter converts each
 rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace).
@@ -328,8 +330,8 @@ Rules get platform-specific frontmatter transforms:
 - **Cursor**: `scope: '**'` -> `alwaysApply: true`; otherwise `globs: [scope]`
 - **Claude**: `paths: [scope]`
 - **Copilot**: `applyTo: scope`
-- **Gemini CLI**: `glob: scope`
-- **Devin Desktop**: `scope: '**'` -> `trigger: always_on`; otherwise `trigger: glob`, `globs: scope`
+- **Gemini CLI**: none — rules are plain markdown in the `AGENTS.md` managed block, like Codex
+- **Devin Desktop** and **Antigravity**: `scope: '**'` -> `trigger: always_on`; otherwise `trigger: glob`, `globs: scope`
 - **OpenAI Codex**: none — Codex rules are plain markdown folded into `AGENTS.md` (see below)
 
 Agents and skills keep their body unchanged. Sync adds the generated-file banner, changes the filename extension, and for Claude Code maps the abstract `tools` names in agent frontmatter to Claude's tool names.
@@ -345,7 +347,7 @@ Agents and skills keep their body unchanged. Sync adds the generated-file banner
 | `llm/skills/*/`   | `.agents/skills/*/` (vendor-neutral; whole directory, format unchanged) |
 | `llm/mcp.json`    | `[mcp_servers.*]` managed block in `.codex/config.toml`                 |
 
-`AGENTS.md` and `.codex/config.toml` are edited in place via fenced managed blocks, so hand-authored content outside the markers is preserved. When Copilot or Gemini are also enabled, the Codex rules block is stripped from their derived `copilot-instructions.md` / `GEMINI.md` (they receive scoped rules through their own directories). Codex subagents are limited to `name`, `description`, and `developer_instructions`; source-only fields like `tools` and `profiles` are not mapped.
+`AGENTS.md` and `.codex/config.toml` are edited in place via fenced managed blocks, so hand-authored content outside the markers is preserved. The same rules block serves Gemini CLI. When Copilot is also enabled, the block is stripped from its derived `copilot-instructions.md` (Copilot receives scoped rules through `.github/instructions/`). Codex subagents are limited to `name`, `description`, and `developer_instructions`; source-only fields like `tools` and `profiles` are not mapped.
 
 **Monorepo and shared rule packs:** Add an `extends` field to `bluetemberg.config.json` to merge rules/agents/skills from additional source directories — relative paths (e.g. `"../../"` for the monorepo root) or npm package names (e.g. `"@company/ai-rules"`). Local files always take priority. See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration) for details.
 
@@ -387,7 +389,8 @@ See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guid
 3. Delete what's left by hand:
    - `bluetemberg.config.json`, `llm/` and `.bluetemberg/`
    - the JSON outputs: `.cursor/mcp.json`, `.cursor/hooks.json` (sync already removed its own servers from `.mcp.json` once `llm/mcp.json` was gone)
-   - `GEMINI.md` and `.github/copilot-instructions.md` (copies of `AGENTS.md`)
+   - `.github/copilot-instructions.md` (a copy of `AGENTS.md`)
+   - the `AGENTS.md` entry in `context.fileName` of `.gemini/settings.json`, and the servers sync added to `.agents/mcp_config.json`
    - the `BLUETEMBERG MANAGED` block in `.codex/config.toml`
    - `extraKnownMarketplaces` / `enabledPlugins` in `.claude/settings.json`, if you used a marketplace remote
    - the `.bluetemberg/` line in `.gitignore` and the `llm/` / `docs/wiki/` lines in `.prettierignore`

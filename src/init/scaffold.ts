@@ -281,7 +281,8 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, state: Scaffo
   if (answers.platforms.includes('cursor')) targetDirs.push('`.cursor/rules/`');
   if (answers.platforms.includes('claude')) targetDirs.push('`.claude/rules/`');
   if (answers.platforms.includes('copilot')) targetDirs.push('`.github/instructions/`');
-  if (answers.platforms.includes('gemini')) targetDirs.push('`.gemini/context/`');
+  if (answers.platforms.includes('gemini')) targetDirs.push('`AGENTS.md` + `.gemini/settings.json`');
+  if (answers.platforms.includes('antigravity')) targetDirs.push('`.agents/`');
   if (answers.platforms.includes('devin')) targetDirs.push('`.devin/rules/`');
   if (answers.platforms.includes('codex')) targetDirs.push('`AGENTS.md` + `.codex/`');
   if (answers.platforms.includes(MARKETPLACE_PLATFORM)) targetDirs.push('`plugins/`');

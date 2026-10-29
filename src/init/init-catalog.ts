@@ -22,6 +22,7 @@ export const INIT_PLATFORMS: readonly Platform[] = [
   'claude',
   'copilot',
   'gemini',
+  'antigravity',
   'devin',
   'codex',
   'claude-marketplace',

@@ -112,11 +112,12 @@ describe('scaffold', () => {
       expect(config.targets.skills?.claude).toEqual({ dir: '.claude/skills' });
     });
 
-    it('includes gemini rules target when gemini is in platforms', () => {
-      scaffold(root, { ...baseAnswers, platforms: ['gemini'] });
+    it('writes no gemini rules target (Gemini reads AGENTS.md), but an antigravity one', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['gemini', 'antigravity'] });
 
       const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
-      expect(config.targets.rules?.gemini).toEqual({ dir: '.gemini/context', ext: '.md' });
+      expect(config.targets.rules?.gemini).toBeUndefined();
+      expect(config.targets.rules?.antigravity).toEqual({ dir: '.agents/rules', ext: '.md' });
     });
 
     it('only includes targets for selected platforms', () => {
@@ -457,11 +458,13 @@ describe('scaffold', () => {
       expect(content).not.toContain('.github/instructions/');
     });
 
-    it('lists .gemini/context/ when gemini is in platforms', () => {
-      scaffold(root, { ...baseAnswers, platforms: ['gemini'] });
+    it('lists .gemini/settings.json and .agents/ for gemini and antigravity', () => {
+      scaffold(root, { ...baseAnswers, platforms: ['gemini', 'antigravity'] });
 
       const content = readFileSync(join(root, 'AGENTS.md'), 'utf8');
-      expect(content).toContain('.gemini/context/');
+      expect(content).toContain('.gemini/settings.json');
+      expect(content).toContain('`.agents/`');
+      expect(content).not.toContain('.gemini/context/');
     });
 
     it('tells the user to regenerate with `npx bluetemberg sync` (works without package.json)', () => {
