@@ -107,7 +107,7 @@ flowchart TD
 
 ## Special sync: AGENTS.md and OpenAI Codex
 
-`AGENTS.md` at the repo root is copied to `.github/copilot-instructions.md` (GitHub Copilot) and `GEMINI.md` (Gemini CLI) — this is how those tools read project-level context.
+`AGENTS.md` at the repo root is copied to `.github/copilot-instructions.md` (GitHub Copilot) and `GEMINI.md` (Gemini CLI). Some Copilot surfaces also read `AGENTS.md` directly, but many read only `copilot-instructions.md`; see [Why copilot-instructions.md is still a copy of AGENTS.md](#why-copilot-instructionsmd-is-still-a-copy-of-agentsmd).
 
 **OpenAI Codex** reads `AGENTS.md` natively, so the monolithic instructions need no derivation. Codex is also the one target whose rules do **not** go through the frontmatter transform: scoped rules from `llm/rules/` are folded into a fenced *managed block* in `AGENTS.md`, agents become per-file TOML under `.codex/agents/`, and MCP servers become a `[mcp_servers.*]` managed block in `.codex/config.toml`. Skills use the vendor-neutral `.agents/skills/`. Managed blocks (`src/sync/managed-block.ts`) preserve hand-authored content outside the markers and keep `sync --check` idempotent; the Codex rules block is stripped from the derived Copilot/Gemini instruction files.
 
@@ -119,11 +119,11 @@ The managed rules block is written only when `codex` is in `platforms`. A Claude
 - Most of those tools also read `AGENTS.md` itself. Folding the rules into it would load every rule twice, once scoped and once always-on. That is the same reason the block is stripped from `copilot-instructions.md` and `GEMINI.md`.
 - Codex has no per-file rule API, so `AGENTS.md` is the only place its rules can go.
 
-**Known overlap:** when `codex` is selected alongside `claude` or `cursor`, both read the block through `AGENTS.md` as well as through their own scoped rules. Neither tool offers a way to skip part of `AGENTS.md`, so sync leaves this alone.
+**Known overlap:** when `codex` is selected alongside `claude`, `cursor`, or `copilot`, any of their surfaces that read `AGENTS.md` natively get the block as well as their own scoped rules. For Copilot, that means Chat in VS Code, the cloud agent, Copilot CLI, and code review on GitHub.com. None of these tools offers a way to skip part of `AGENTS.md`, so sync leaves this alone.
 
 ### Why copilot-instructions.md is still a copy of AGENTS.md
 
-Copilot Chat in VS Code, the Copilot cloud agent, and Copilot CLI read both `AGENTS.md` and `.github/copilot-instructions.md`, so on those surfaces the project context loads twice. Sync keeps the copy anyway, because many other Copilot surfaces read `copilot-instructions.md` and not `AGENTS.md`. From GitHub's [custom instructions support table](https://docs.github.com/en/copilot/reference/custom-instructions-support):
+Copilot Chat in VS Code, the Copilot cloud agent, Copilot CLI, and Copilot code review on GitHub.com read both `AGENTS.md` and `.github/copilot-instructions.md`, so on those surfaces the project context loads twice. Sync keeps the copy anyway, because many other Copilot surfaces read `copilot-instructions.md` and not `AGENTS.md`. This table condenses GitHub's [custom instructions support table](https://docs.github.com/en/copilot/reference/custom-instructions-support) as of October 2026. It leaves out the per-IDE cloud-agent rows (every one listed reads both files) and personal and organization instructions:
 
 | Surface | `copilot-instructions.md` | `AGENTS.md` |
 | --- | --- | --- |
@@ -133,7 +133,7 @@ Copilot Chat in VS Code, the Copilot cloud agent, and Copilot CLI read both `AGE
 | Copilot Chat in Visual Studio, JetBrains, Eclipse, Xcode | yes | no |
 | Copilot Chat in VS Code, cloud agent, Copilot CLI | yes | yes |
 
-Dropping the copy would leave every "no" row with no project context at all. Loading it twice in VS Code wastes some context, but it doesn't cause conflicting instructions, because both files hold the same text. The copy is bannered as generated, and the Codex rules block is stripped from it, so scoped rules still load only once, through `.github/instructions/`. (Eclipse code review doesn't support custom instructions, so it reads neither file.)
+Dropping the copy would leave every "no" row with no project context at all. On the dual-read surfaces the double load wastes some context, but it doesn't cause conflicting instructions, because both files carry the same project context. The copy adds only a generated-file banner and drops the Codex rules block, so the copy never adds rules of its own: Copilot gets scoped rules through `.github/instructions/`. The exception is the Codex overlap above: when `codex` is also selected, the dual-read surfaces still get the block through `AGENTS.md` itself. (Eclipse code review doesn't support custom instructions, so it reads neither file.)
 
 ### Claude Code and AGENTS.md
 
