@@ -65,6 +65,10 @@ Private pack distribution requires transmitting credentials, so the boundaries a
   cross-origin redirect; a test asserts this against real HTTP servers so replacing the HTTP client
   cannot regress it silently.
 
+### Engine dependencies
+
+The engine's own dependencies are audited on every pull request: CI runs `npm audit --audit-level=high` against the committed lockfile and fails on any high or critical advisory. Dependency floors in `package.json` sit above known-vulnerable ranges, so upgrading bluetemberg also moves a consumer's lockfile off a vulnerable version instead of keeping one that still satisfies an old range.
+
 ### Known limitation
 
 Registry metadata is fetched over HTTPS but is not signed at the application layer (no Subresource Integrity on the metadata fetch itself). This is mitigated by using the official npm registry (`registry.npmjs.org`) by default, and by the host-pinning check which prevents redirects even if metadata is compromised. The publish workflow is configured to emit OIDC provenance attestations (`npm publish --provenance`); these attest the source commit and CI build for each published version and become verifiable via `npm audit signatures` once a release reaches the registry. Provenance does not sign install-time registry metadata — the application-layer integrity risk for metadata fetches remains, and verifying the npm signing key against `dist.integrity` at install time is tracked as future hardening.
