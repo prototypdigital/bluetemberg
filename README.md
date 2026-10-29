@@ -4,7 +4,7 @@
 
 **AI coding standards, shipped like a dependency. Version-locked, integrity-verified, signed, and routed to the right engineer and the right stack version. Installed with one command.**
 
-A platform team maintains packs in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). Developers run `bluetemberg init --profile frontend` + `bluetemberg install`. Teammates with no local tooling install a Claude Code Marketplace plugin with one click. Everyone stays in sync.
+A platform team maintains packs in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). Developers run `bluetemberg init --non-interactive --profile frontend` + `bluetemberg install`. Teammates with no local tooling install a Claude Code Marketplace plugin with one click. Everyone stays in sync.
 
 > Published on npm as [`bluetemberg`](https://www.npmjs.com/package/bluetemberg) — MIT licensed. Requires **Node.js 20+**.
 
@@ -27,7 +27,7 @@ tampered with in transit.
 | Versioning              | git history        | semver ranges + lockfile                         |
 | Integrity verification  | none               | SHA-512 + ECDSA registry signature per pack      |
 | Per-role filtering      | manual copy-paste  | profiles (role-matched defaults)                 |
-| Teammate onboarding     | clone + copy files | `init --profile X` + `install`                   |
+| Teammate onboarding     | clone + copy files | `init --non-interactive --profile X` + `install` |
 | Zero-install onboarding | no                 | Claude Marketplace plugin                        |
 | Multi-platform          | no                 | Cursor, Claude, Copilot, Gemini, Windsurf, Codex |
 
