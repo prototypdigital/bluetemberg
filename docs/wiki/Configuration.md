@@ -410,6 +410,8 @@ Antigravity CLI succeeds Gemini CLI for individual users. It reads `AGENTS.md` (
 | `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`           | Shared with Codex and Devin Desktop. Configurable via `targets.skills.antigravity`.        |
 | `llm/mcp.json`          | `mcpServers` in `.agents/mcp_config.json`  | stdio servers as `command` / `args`, remote ones as `serverUrl`.                           |
 
+**Moving from `gemini`:** if your config has explicit `targets.rules` or `targets.skills` sections (`init` writes them), they replace the defaults, so add `"antigravity": { "dir": ".agents/rules", "ext": ".md" }` to `targets.rules` and `"antigravity": { "dir": ".agents/skills" }` to `targets.skills`; otherwise Antigravity gets no rules or skills. The bannered `GEMINI.md` and `.gemini/context/` files from the old Gemini integration are reported as stale with `antigravity` selected too (Antigravity loads `GEMINI.md`), so `bluetemberg sync --prune` removes them.
+
 `.agents/mcp_config.json` is merged, not replaced: each server from `llm/mcp.json` is written by name, and servers you added by hand and any other keys are kept. Because the file is JSON it cannot carry a banner, so a server you remove from `llm/mcp.json` is not removed from it; delete that entry by hand. A file sync cannot parse is never overwritten.
 
 ## Default behavior

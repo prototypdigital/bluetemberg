@@ -16,17 +16,18 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Reads `llm/mcp.json` into resolved server configs; `null` when there is no manifest. */
-function readManifest(sourceBase: string, recordError: (message: string) => void): McpServers | null {
+/**
+ * Reads `llm/mcp.json` into resolved server configs; `null` when there is no usable manifest.
+ * Manifest errors are not recorded here: `syncMcp` already reports them on every run.
+ */
+function readManifest(sourceBase: string): McpServers | null {
   const raw = readIfExists(join(sourceBase, 'mcp.json'));
   if (raw === null) return null;
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    recordError(`antigravity mcp: failed to parse llm/mcp.json: ${message}`);
+  } catch {
     return null;
   }
 
@@ -74,7 +75,7 @@ export function syncAntigravityMcp(
 ): void {
   if (!ctx.platforms.includes('antigravity')) return;
 
-  const servers = readManifest(ctx.sourceBase, recordError);
+  const servers = readManifest(ctx.sourceBase);
   if (servers === null || Object.keys(servers).length === 0) return;
 
   const configPath = join(ctx.root, '.agents', 'mcp_config.json');

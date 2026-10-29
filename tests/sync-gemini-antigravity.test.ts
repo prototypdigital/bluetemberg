@@ -95,6 +95,18 @@ describe('gemini (Gemini CLI Enterprise)', () => {
     );
   });
 
+  it.each([
+    ['a non-object "context"', '{ "context": "AGENTS.md" }\n'],
+    ['a non-string context.fileName', '{ "context": { "fileName": 42 } }\n'],
+  ])('records an error and leaves settings with %s untouched', async (_label, content) => {
+    write(root, '.gemini/settings.json', content);
+
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.startsWith('.gemini/settings.json:'))).toBe(true);
+    expect(readFileSync(join(root, '.gemini', 'settings.json'), 'utf8')).toBe(content);
+  });
+
   it('re-syncs idempotently and passes sync --check', async () => {
     await sync(root, { config, silent: true });
     const settings = readFileSync(join(root, '.gemini', 'settings.json'), 'utf8');
@@ -236,6 +248,27 @@ describe('antigravity (Antigravity CLI)', () => {
 
     expect(results.errors.some((e) => e.startsWith('.agents/mcp_config.json:'))).toBe(true);
     expect(readFileSync(join(root, '.agents', 'mcp_config.json'), 'utf8')).toBe('not json');
+  });
+
+  it('reports an unparseable llm/mcp.json once', async () => {
+    write(root, 'llm/mcp.json', 'not json');
+
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.filter((e) => e.includes('mcp.json'))).toHaveLength(1);
+  });
+
+  it('flags and prunes the stale GEMINI.md a project left behind when it swapped gemini out', async () => {
+    write(root, 'GEMINI.md', withGeneratedBanner('# Old project\n', 'AGENTS.md'));
+    write(root, '.gemini/context/css.md', withGeneratedBanner(SCOPED_RULE, 'rules/css.md'));
+    await sync(root, { config, silent: true });
+
+    const check = await sync(root, { config, silent: true, check: true });
+    await sync(root, { config, silent: true, prune: true });
+
+    expect(check.stale).toBe(2);
+    expect(existsSync(join(root, 'GEMINI.md'))).toBe(false);
+    expect(existsSync(join(root, '.gemini', 'context'))).toBe(false);
   });
 
   it('re-syncs idempotently and passes sync --check', async () => {
