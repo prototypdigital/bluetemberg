@@ -39,7 +39,7 @@ Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/
 - `src/utils/` — Shared filesystem helpers
 - `src/types.ts` — All shared TypeScript types; `src/help-json.ts` — `--help --json`; `src/cli-guards.ts` — CLI flag validation
 - `bin/cli.js` — CLI entry point (Commander)
-- `scripts/` — Maintainer scripts (`sync-catalog`, site build) and `scripts/hooks/` (this repo's own Claude Code hooks)
+- `scripts/` — Maintainer scripts (`sync-catalog`, site build). This repo's own Claude Code hooks (PR review, session audit) come from the `pr-review-loop` and `session-retrospective` packs; see Contributing
 - `site/` — The GitHub Pages landing page
 - `tests/` — Vitest tests
 - `docs/wiki/` — GitHub Wiki source

@@ -2,111 +2,123 @@
   "lockfileVersion": 1,
   "packages": {
     "bluetemberg-rules-git": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-rules-git/-/bluetemberg-rules-git-0.1.0.tgz",
-      "integrity": "sha512-EN5XJXscmAne5cSmqh4ApvSiVBBg4txfGefud2c00aGxl80RxKOfGVEO35FEj/Bi+hNsjJcFUPdyoHShQCfDrQ==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-git/-/bluetemberg-rules-git-0.2.2.tgz",
+      "integrity": "sha512-mVjgkiZANxdeAx93K642CO3XGt4sjhZOTPdhQ6IKh39bqfXL3wN//kRBRV9uVhuxEXdHnb54TMnMsd/r6EN8cQ==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-rules-typescript": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-rules-typescript/-/bluetemberg-rules-typescript-0.1.0.tgz",
-      "integrity": "sha512-+5yC5qpTnzNrLRvmwKKsPKQmjLsAygwgfiRnmDhBkr8zX5/U9mh4y6Nf3kX6pokYVAnRDDXVyQ5QSiGEdYYqiA==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-typescript/-/bluetemberg-rules-typescript-0.2.2.tgz",
+      "integrity": "sha512-0bgUT+bH5iEjkExn+lX9wtWHc2Q0PO2xxWdh6CUt+Tl2UiqtfC8MRwJNXf3ZwFnFwwJ8UcomJzXDhWwUidKTqA==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-rules-docs": {
-      "version": "0.2.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-rules-docs/-/bluetemberg-rules-docs-0.2.0.tgz",
-      "integrity": "sha512-i4SA30HGj2LLMKV4no/piClWo2AVjlj0auSG5zNYgjiJycglHzhotpckO9jPtrum52omhMPaLHsjMnkCYRPOnQ==",
+      "version": "0.3.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-docs/-/bluetemberg-rules-docs-0.3.2.tgz",
+      "integrity": "sha512-XT7/3QUKAMsmAnR6Oc/q/sNjzdDwpb283J2UcLFtjIHDvvxcfXHQFJ9pAtGB4w1V2glQEg7w/PIV6qpUrPXBUQ==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-agents-code-reviewer": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-agents-code-reviewer/-/bluetemberg-agents-code-reviewer-0.1.0.tgz",
-      "integrity": "sha512-EvZLM8liFkEwoQCa7bzyNZp1cka1RxyBNrNbm+LtvWPCN2ApLuIknT+UZS2Q2pZGv2dOpX64JprPNp2Le4s7oQ==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-agents-code-reviewer/-/bluetemberg-agents-code-reviewer-0.2.2.tgz",
+      "integrity": "sha512-vL6Ta0+D8jJMhcIQ/jItaumSRfLhdlqR0321QRE/SzKWiqBUkK4/57JSYtnl7namqFfgGCBGBflG3DAkTTxqkA==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-agents-docs-maintainer": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-agents-docs-maintainer/-/bluetemberg-agents-docs-maintainer-0.1.0.tgz",
-      "integrity": "sha512-uX3QiAOhxKNgX6HVSDPavgsRLavm0ve+Le5nVOotbnhgPA4sqGnMqo8BhV9zZyqvdmeHJQPtWLKTvqIoQ3DHBQ==",
+      "version": "0.3.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-agents-docs-maintainer/-/bluetemberg-agents-docs-maintainer-0.3.2.tgz",
+      "integrity": "sha512-5a6+HuNoxqoM6CVUps/A0TDm3R6an9aYBMaWcPLXHAFcZzFh2bI08OKpbVs/u+vgGGwOS6elAcF+uJgeIoys6g==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-agents-test-specialist": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-agents-test-specialist/-/bluetemberg-agents-test-specialist-0.1.0.tgz",
-      "integrity": "sha512-JrLEgINMgQZvoFtnDgDWC1dZWKAR+XpSZB9M99f2EhqZ+2fZzfwCBwb/PClUatLH+AZBjMvKsTmrdFC7dlEvEw==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-agents-test-specialist/-/bluetemberg-agents-test-specialist-0.2.2.tgz",
+      "integrity": "sha512-juybFPB3B6rug0Bsi5e5n9p2XP4V2aVJWBDIv29yg+mrvh4YdFqyV4UaZeA0PoAXeODbsDSoBjh8KQ6YXgVxqQ==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-code-review": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-code-review/-/bluetemberg-skills-code-review-0.1.0.tgz",
-      "integrity": "sha512-IWQg+7olD4abFjzDIDiRt/aX0ubONRvOn186W0dyCY83FxYnqUOqM65NFpFunfnUCJ6T1A/HEt0AzLQLF5Fo0A==",
+      "version": "0.3.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-code-review/-/bluetemberg-skills-code-review-0.3.2.tgz",
+      "integrity": "sha512-Ji9IcZPhWfvZ/7zhs7YEZlP8IvItLx28xNN6fV3An5y8w2V1c6bRC+LJ5vm97p4GT4z26/tjFtJtiCiz3cGvuQ==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-docs-upkeep": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-docs-upkeep/-/bluetemberg-skills-docs-upkeep-0.1.0.tgz",
-      "integrity": "sha512-+Bcnh2ZlC6+KMrkhRokhAh2s4/I912q0HkX0SYWOHLzptpK/PmDXZb/A71aA+1MwVHW+lYhyDYuSLufRn6vUgw==",
+      "version": "0.3.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-docs-upkeep/-/bluetemberg-skills-docs-upkeep-0.3.2.tgz",
+      "integrity": "sha512-4WOBwkM4omEnzQFhtC2gj16coh6mvJ6oBQv6RsQMH6YyehbhfO9YFya2di2rS0wdzz+KV/qiImKp6R36BFeNeg==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-patterns": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-patterns/-/bluetemberg-skills-patterns-0.1.0.tgz",
-      "integrity": "sha512-xzxdswKwGwfXhxGcR5cp9SLlIhK1DGfnFR+/B2w0Z12SSlp1FnpQA658WBTOnIa6ZiPu16IOIjfFVoDDMX+gYA==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-patterns/-/bluetemberg-skills-patterns-0.2.2.tgz",
+      "integrity": "sha512-/rrJlylmhjfYaIALNeQHNf0zi8BnQDNBGOWyEiG0H/AqB7RhPerpbgH1sYmHYoQbKsxaRo7e3kD4ihFTzVw8TA==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-workspace-hygiene": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-workspace-hygiene/-/bluetemberg-skills-workspace-hygiene-0.1.0.tgz",
-      "integrity": "sha512-29bnHFEK/0Ewqu7wdEhjSJkq5cSBr8IiPGN2f5RFrlbiJCAod5e5EH8lLz7hPYZksm657fI4umYKIW4Q1uD71g==",
+      "version": "0.3.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-workspace-hygiene/-/bluetemberg-skills-workspace-hygiene-0.3.2.tgz",
+      "integrity": "sha512-79ueHVGung0Qtwz4kiMDcptjpalcPQfsNSgoFddhZ4Yg6Ox1LRvEyV4ejcmVcqIWT7ZvB0ZH1+cNtSuvpnJ8rQ==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-rules-agent-memory": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-rules-agent-memory/-/bluetemberg-rules-agent-memory-0.1.0.tgz",
-      "integrity": "sha512-GGa0/t8Ug2yp6aljPCmkFUqo0MAhsRibmXuRjgkMzr4wbNd2e+kEQPrQ9AV2QRmgZZUI8t4VHNpqAvGXNQtf5A==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-agent-memory/-/bluetemberg-rules-agent-memory-0.2.2.tgz",
+      "integrity": "sha512-rCFVwCWIk0uLhJW40Kewe8zotTiFPe6bZ9HZy2CYr5y2kc01ndn6+6rXmMpzUWgY6krNCNLX15RBFnllQCsJ2Q==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-rules-context-engineering": {
-      "version": "0.2.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-rules-context-engineering/-/bluetemberg-rules-context-engineering-0.2.0.tgz",
-      "integrity": "sha512-VKG7vIYGfq8Aje9JoZAszwnllLzMplih4xOql30vlb3L0X/L9j2hj9iEoKtGm3gF0z27AncgJWqAWoP3iQ3R5Q==",
+      "version": "0.3.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-context-engineering/-/bluetemberg-rules-context-engineering-0.3.2.tgz",
+      "integrity": "sha512-8ZRON/F2r3SmS8tbkNylIpZqK1nsMExaUedK1IRupyEIxaTxYTWVlnFG3+7cFGwO/Q8a7fGJO5rBDcaQkkCW3Q==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-guardrails-git": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-guardrails-git/-/bluetemberg-guardrails-git-0.1.0.tgz",
-      "integrity": "sha512-hloCNbWcDRoDosBqxxe3XFPGmYk+8ZLCD8WeLEMIZUTiCUA8DrGuE8bWUTYUDwXo+JcfwQ2kQz5MqjYOxeMZRg==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-guardrails-git/-/bluetemberg-guardrails-git-0.2.2.tgz",
+      "integrity": "sha512-uy0DlDXWB7vu9erUiWqsP6fwpcCofSXqZn+2UtpaNaovnRVyRXv5vOZ179864mBGxkfKwujQwFHgALTbmOapLQ==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-rules-security": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-rules-security/-/bluetemberg-rules-security-0.1.0.tgz",
-      "integrity": "sha512-DAqjNkU6qCpYUVCXEBXgw3Ld8siDt+rRMovAiDgX+OLHJTyEud1mOmfroK/xhFJxytx8ez+8NDMCj81wX5TVnA==",
+      "version": "0.3.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-rules-security/-/bluetemberg-rules-security-0.3.2.tgz",
+      "integrity": "sha512-ilecVtJP5MFrtz2K8hxo+sDYUXzVLlk05rKW3pBtVejvdkCrmKkSoMMHPuJurC59W1vKES4Mv1Lq2e0szhq3zw==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-create-agent": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-agent/-/bluetemberg-skills-create-agent-0.1.0.tgz",
-      "integrity": "sha512-c6Kx7buHCkRs9S60ySFZLtjwc5w0KnwXgDLGduwNba/tYIFbd/1pH8Yvp2ZvT0CfPQ+dk4s0t+ZtN2SpiazJRA==",
+      "version": "0.1.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-agent/-/bluetemberg-skills-create-agent-0.1.2.tgz",
+      "integrity": "sha512-pjuRhAPxh1AxlvwX2r+m/Ahx5JymCQVTsXv0bafBHtfR0Uqz9HqISsem6bysLS+3gcB3dS3Gsy08c7hZUZ9jmA==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-create-pack": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-pack/-/bluetemberg-skills-create-pack-0.1.0.tgz",
-      "integrity": "sha512-OCZarvIi83JTTUCmlkOxND+DJwHd4PE5D9ROKCTsN1jM+akWMXBG63SPx1bkF1sxHoEC0aPJ3z+WEROv8OlqWw==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-pack/-/bluetemberg-skills-create-pack-0.2.2.tgz",
+      "integrity": "sha512-Uy2s9HZVTOgr3HBzW2am8ZoNoeZxipd1L/2AXDmJB7Ijmm98m76U/1CODmk84T4bRRMXuifILLg5B9drl/aa+g==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-create-rule": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-rule/-/bluetemberg-skills-create-rule-0.1.0.tgz",
-      "integrity": "sha512-U4gOkCzOIkPM5NgrRPjDcfCvm13kQag6nrgvztz/6nmk/4Tw4Ila76EVJdVVGTKEMoAcVfyjF220aITS3dpWXg==",
+      "version": "0.1.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-rule/-/bluetemberg-skills-create-rule-0.1.2.tgz",
+      "integrity": "sha512-ZvImni8rgPNwG5J95SjsbefF6u0Cf5ceSgXBjBNFy5g28XoWUC2aResoVdq8N6sCo1JIEGyJSC28tlqwYm0/Ow==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     },
     "bluetemberg-skills-create-skill": {
-      "version": "0.1.0",
-      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-skill/-/bluetemberg-skills-create-skill-0.1.0.tgz",
-      "integrity": "sha512-znnX/dLDG0fO2mUbyykXuCLlox++AiDXyMCNsxsuYlIz/nVYdrKYbFc/aULR1TgZ39wAjgY/RMPG8XlLVbk2qA==",
+      "version": "0.2.2",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-create-skill/-/bluetemberg-skills-create-skill-0.2.2.tgz",
+      "integrity": "sha512-p6ku/QWCK6gXkRSljJHId7llwah6I21kjnK/LAkgtJfRiJ2F7qM4NQ0OsFAgAGsUtbAqydpfTxPTUbcjRPSlOw==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-skills-pr-review-loop": {
+      "version": "0.3.0",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-pr-review-loop/-/bluetemberg-skills-pr-review-loop-0.3.0.tgz",
+      "integrity": "sha512-ktP1p7djf6Z3rwghZEsVuEQzQDnzpDb54t52p1qzsJYMVVl7P80Kr5tllbc7rpEYO39+xUJ4l2vAPk6GpDb6DQ==",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    "bluetemberg-skills-session-retrospective": {
+      "version": "1.0.3",
+      "resolved": "https://registry.npmjs.org/bluetemberg-skills-session-retrospective/-/bluetemberg-skills-session-retrospective-1.0.3.tgz",
+      "integrity": "sha512-xr47jOWsWGO68g7HXl0OfLC7RLSkNlXqw3qpMl2zbsyPHqHveNoay/kWuj4ufqlnduqxc5fUd368Gx938p2Qew==",
       "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
     }
   }

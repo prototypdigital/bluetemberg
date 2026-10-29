@@ -2,6 +2,15 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "EnterWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'v=$(cat | jq -r \".$1 // empty\" 2>/dev/null); fail=; bad=; if [ -n \"$5\" ] && [ -z \"$v\" ]; then fail=1; fi; if [ -n \"$2\" ]; then [[ \"$v\" =~ $2 ]]; s=$?; if [ \"$s\" -eq 2 ]; then bad=1; elif [ \"$s\" -eq 0 ]; then fail=1; fi; fi; if [ -n \"$3\" ]; then [[ \"$v\" =~ $3 ]]; s=$?; if [ \"$s\" -eq 2 ]; then bad=1; elif [ \"$s\" -ne 0 ]; then fail=1; fi; fi; if [ -n \"$bad\" ]; then printf \"bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n\" \"$1\" >&2; exit 2; fi; if [ -n \"$fail\" ]; then printf \"%s\\n\" \"$4\"; exit 2; fi' bluetemberg 'name' '^claude/' '' 'EnterWorktree requires a conventional branch name. Call EnterWorktree again with name=\"type/description\" (e.g. feat/my-feature). Ask the user what the branch should be called if unclear. Types: feat fix chore refactor docs test' '1'"
+          }
+        ]
+      },
+      {
         "hooks": [
           {
             "type": "command",
@@ -16,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/spawn-pr-review.sh",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/skills/pr-review-loop/scripts/spawn-pr-review.sh\"; [ -x \"$f\" ] || exit 0; exec \"$f\"",
             "timeout": 30
           }
         ],
@@ -37,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/spawn-session-audit.sh",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.claude/skills/session-retrospective/scripts/spawn-session-audit.sh\"; [ -x \"$f\" ] || exit 0; exec \"$f\"",
             "timeout": 2
           }
         ]

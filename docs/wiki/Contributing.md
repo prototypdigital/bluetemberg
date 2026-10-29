@@ -12,6 +12,25 @@ npm test
 
 `bin/cli.js` loads compiled modules from `dist/` (for example preset validation constants, **`init`**, and **`--help --json`**). After a clean clone or when TS sources change, run **`npm run build`** before invoking the CLI from the repo root.
 
+## This repo's own AI config (dogfooding)
+
+The engine uses bluetemberg on itself. The packs it consumes are in `llm/packages.json` (with `llm/packages-lock.json`), its own rules are in `llm/rules/`, and its Claude Code hooks are in `llm/hooks.claude.json`. Generate the tool files after cloning:
+
+```bash
+npm run build
+node bin/cli.js install
+npm run sync:llm-config
+```
+
+Everything sync writes is gitignored except `.claude/settings.json`. CI runs the same install + sync and fails if `.claude/settings.json` or the lockfile changes, so the committed copies always match what the packs produce.
+
+**Hooks that run for you in Claude Code**, once the skills are synced:
+
+- **PR review** (`pr-review-loop` skill): after a successful `gh pr create`, a detached headless Claude session reviews the new PR and posts comment-only findings on it.
+- **Session audit** (`session-retrospective` skill): on `SessionEnd`, a background audit writes a token and harness-usage retrospective to `.claude/retrospectives/<session-id>.md` (gitignored, local only).
+
+Both call scripts under `.claude/skills/<skill>/scripts/` and stay silent until those exist. To turn hooks off locally, set `"disableAllHooks": true` in `.claude/settings.local.json`.
+
 ## Scripts
 
 | Script                 | Purpose                       |
