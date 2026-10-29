@@ -1,6 +1,6 @@
 # Bluetemberg
 
-AI coding standards, shipped like a dependency: version-locked, integrity-verified, signed, and routed to the right engineer and the right stack version. Emits `AGENTS.md` plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.
+AI coding standards, shipped like a dependency: version-locked, integrity-verified, signed, and routed to the right engineer and the right stack version. Emits `AGENTS.md` plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Devin Desktop (formerly Windsurf), and OpenAI Codex.
 
 ## What is Bluetemberg?
 

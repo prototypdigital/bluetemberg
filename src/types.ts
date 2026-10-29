@@ -1,5 +1,9 @@
+/**
+ * `windsurf` is the pre-rename id of Devin Desktop (`devin`) and is accepted as an alias for it:
+ * sync treats the two identically, and `init` writes `devin`.
+ */
 export type Platform =
-  'cursor' | 'claude' | 'copilot' | 'gemini' | 'windsurf' | 'codex' | 'claude-marketplace';
+  'cursor' | 'claude' | 'copilot' | 'gemini' | 'devin' | 'windsurf' | 'codex' | 'claude-marketplace';
 export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';

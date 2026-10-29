@@ -80,25 +80,30 @@ describe('transformFrontmatter', () => {
     });
   });
 
-  describe('windsurf', () => {
+  describe('devin', () => {
     it('sets always_on for global scope', () => {
-      const result = transformFrontmatter({ description: 'Test', scope: '**' }, 'windsurf');
+      const result = transformFrontmatter({ description: 'Test', scope: '**' }, 'devin');
       expect(result).toEqual({ trigger: 'always_on', description: 'Test' });
     });
 
     it('sets always_on when scope is omitted', () => {
-      const result = transformFrontmatter({ description: 'Test' }, 'windsurf');
+      const result = transformFrontmatter({ description: 'Test' }, 'devin');
       expect(result).toEqual({ trigger: 'always_on', description: 'Test' });
     });
 
-    it('sets trigger glob for file-scoped rules', () => {
-      const result = transformFrontmatter({ description: 'Test', scope: 'src/**' }, 'windsurf');
-      expect(result).toEqual({ trigger: 'glob', description: 'Test', glob: 'src/**' });
+    it('sets trigger glob with globs for file-scoped rules', () => {
+      const result = transformFrontmatter({ description: 'Test', scope: 'src/**' }, 'devin');
+      expect(result).toEqual({ trigger: 'glob', description: 'Test', globs: 'src/**' });
     });
 
     it('joins array scope with comma', () => {
-      const result = transformFrontmatter({ description: 'Test', scope: ['src/**', 'lib/**'] }, 'windsurf');
-      expect(result).toEqual({ trigger: 'glob', description: 'Test', glob: 'src/**,lib/**' });
+      const result = transformFrontmatter({ description: 'Test', scope: ['src/**', 'lib/**'] }, 'devin');
+      expect(result).toEqual({ trigger: 'glob', description: 'Test', globs: 'src/**,lib/**' });
+    });
+
+    it('treats the windsurf alias identically', () => {
+      const data = { description: 'Test', scope: 'src/**' };
+      expect(transformFrontmatter(data, 'windsurf')).toEqual(transformFrontmatter(data, 'devin'));
     });
   });
 

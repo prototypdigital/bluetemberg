@@ -13,6 +13,7 @@ import {
 } from './init/presets.js';
 import { loadCatalogSync } from './catalog/index.js';
 import { INIT_RULE_SOURCES } from './init/init-catalog.js';
+import { DEVIN_PLATFORM, LEGACY_DEVIN_PLATFORM } from './sync/targets.js';
 import { SOURCE_TYPES } from './sources/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +43,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
     })),
     packageManagers: PACKAGE_MANAGERS.map((p) => p.id),
     platforms: PLATFORM_CHOICES.map((p) => ({ id: p.id, name: p.name })),
+    // Former ids still accepted in config and `--platforms`, mapped to the id sync uses.
+    platformAliases: { [LEGACY_DEVIN_PLATFORM]: DEVIN_PLATFORM },
     ruleSource: [...INIT_RULE_SOURCES],
     ruleCollections: resolveRuleCollections(catalog).map((c) => ({
       id: c.id,

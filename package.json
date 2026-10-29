@@ -1,7 +1,7 @@
 {
   "name": "bluetemberg",
   "version": "0.14.1",
-  "description": "AI coding standards shipped like a dependency — version-locked, integrity-verified, signed, and routed by role and stack version. Emits AGENTS.md plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Windsurf, and OpenAI Codex.",
+  "description": "AI coding standards shipped like a dependency — version-locked, integrity-verified, signed, and routed by role and stack version. Emits AGENTS.md plus native config for Cursor, Claude Code, GitHub Copilot, Gemini CLI, Devin Desktop (formerly Windsurf), and OpenAI Codex.",
   "type": "module",
   "bin": {
     "bluetemberg": "./bin/cli.js"
@@ -52,6 +52,7 @@
     "mcp",
     "copilot",
     "gemini",
+    "devin",
     "windsurf",
     "codex",
     "llm",

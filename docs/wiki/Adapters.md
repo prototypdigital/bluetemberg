@@ -22,15 +22,15 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 
 | Source | Output | When it runs |
 | ------ | ------ | ------------ |
-| `llm/rules/` | Per-platform rule files for Cursor, Claude, Copilot, Gemini, Windsurf (`targets.rules`); a managed block in `AGENTS.md` for Codex | Always, per `targets` + `platforms`, after version gating |
+| `llm/rules/` | Per-platform rule files for Cursor, Claude, Copilot, Gemini, Devin Desktop (`targets.rules`; Devin also gets a transitional `.windsurf/rules/` mirror); a managed block in `AGENTS.md` for Codex | Always, per `targets` + `platforms`, after version gating |
 | `llm/agents/` | Cursor / Claude / Copilot agent files (`targets.agents`); `.codex/agents/*.toml` for Codex | When source files exist |
-| `llm/skills/` | Skill directories for Cursor, Claude, Copilot, Windsurf, Codex (`targets.skills`) | When source directories exist |
+| `llm/skills/` | Skill directories for Cursor, Claude, Copilot, Devin Desktop, Codex (`targets.skills`; Devin and Codex share `.agents/skills/`, written once) | When source directories exist |
 | `llm/guardrails/` | `hooks` key of `.claude/settings.json` (composed with `llm/hooks.claude.json`) | When **claude** is in `platforms` — see [Guardrails](Guardrails) |
 | `llm/hooks.claude.json` | `hooks` key of `.claude/settings.json` | When the file exists in the project's own `llm/` and **claude** is in `platforms` |
 | `llm/hooks.json` | `.cursor/hooks.json` | When file exists and **cursor** is in `platforms` |
 | `AGENTS.md` | `.github/copilot-instructions.md`, `GEMINI.md` (Codex block stripped) | When file exists and **copilot** / **gemini** is in `platforms` |
 | `llm/mcp.json` | `.claude/mcp.json`, `.github/mcp.json`, `.cursor/mcp.json`; `[mcp_servers.*]` block in `.codex/config.toml` | When file exists and each platform is enabled |
-| `llm/commands/*.md` | `.claude/commands/*.md`; `.windsurf/workflows/*.md` | When files exist and **claude** / **windsurf** is in `platforms` |
+| `llm/commands/*.md` | `.claude/commands/*.md` | When files exist and **claude** is in `platforms` |
 | `llm/prompts/*.md` | `.github/prompts/*.prompt.md` | When files exist and **copilot** is in `platforms` |
 | `llm/skills/`, `llm/agents/`, `llm/rules/` | `plugins/{name}/`, `.claude-plugin/marketplace.json`; `extraKnownMarketplaces` in `.claude/settings.json` when `marketplace.remote` is set | When **claude-marketplace** is in `platforms` — see [Marketplace](Marketplace) |
 | `adapters` in config | User-defined ESM modules (last sync step) | When `adapters` is a non-empty array of specifiers |
@@ -55,6 +55,7 @@ The programmatic **`sync()`** API is **async** (it `await`s adapter modules).
 - **Vendor-neutral sources** — Prefer plain Markdown or JSON in `llm/` so the repo stays useful without Bluetemberg.
 - **Deterministic output** — Same inputs produce the same files; CI can gate on `--check`.
 - **Platform gates** — If a platform is not listed in `platforms`, its adapter does not emit files (no surprise `.cursor` output when the team only uses Claude).
+- **Canonical platform ids** — Adapters receive `platforms` with aliases already resolved: a config listing `"windsurf"` reaches the adapter as `"devin"` (Devin Desktop, formerly Windsurf). Gate on `devin`, not `windsurf`.
 
 ## Roadmap (optional follow-ups)
 

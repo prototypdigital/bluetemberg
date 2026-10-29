@@ -21,14 +21,15 @@ interface GeminiFrontmatter {
   glob: string;
 }
 
-interface WindsurfFrontmatter {
+/** Devin Desktop (formerly Windsurf) workspace rule: `.devin/rules/*.md`. */
+interface DevinFrontmatter {
   trigger: 'always_on' | 'glob';
   description: string;
-  glob?: string;
+  globs?: string;
 }
 
 export type TransformedFrontmatter =
-  CursorFrontmatter | ClaudeFrontmatter | CopilotFrontmatter | GeminiFrontmatter | WindsurfFrontmatter;
+  CursorFrontmatter | ClaudeFrontmatter | CopilotFrontmatter | GeminiFrontmatter | DevinFrontmatter;
 
 export function transformFrontmatter(data: RuleFrontmatter, platform: Platform): TransformedFrontmatter {
   const description = data.description || '';
@@ -57,11 +58,12 @@ export function transformFrontmatter(data: RuleFrontmatter, platform: Platform):
         glob: Array.isArray(scope) ? scope.join(',') : scope,
       };
 
+    case 'devin':
     case 'windsurf': {
       if (scope === '**') {
         return { trigger: 'always_on', description };
       }
-      return { trigger: 'glob', description, glob: Array.isArray(scope) ? scope.join(',') : scope };
+      return { trigger: 'glob', description, globs: Array.isArray(scope) ? scope.join(',') : scope };
     }
 
     default:
@@ -79,7 +81,7 @@ export const DEFAULT_TARGETS: {
     claude: { dir: '.claude/rules', ext: '.md' },
     copilot: { dir: '.github/instructions', ext: '.instructions.md' },
     gemini: { dir: '.gemini/context', ext: '.md' },
-    windsurf: { dir: '.windsurf/rules', ext: '.md' },
+    devin: { dir: '.devin/rules', ext: '.md' },
   },
   agents: {
     cursor: { dir: '.cursor/agents', ext: '.md' },
@@ -90,9 +92,10 @@ export const DEFAULT_TARGETS: {
     cursor: { dir: '.cursor/skills' },
     claude: { dir: '.claude/skills' },
     copilot: { dir: '.github/skills' },
-    windsurf: { dir: '.windsurf/skills' },
-    // Codex scans `.agents/skills/` (vendor-neutral) for project-level skills; the
-    // SKILL.md + name/description frontmatter shape already matches our source.
+    // Codex and Devin Desktop both scan `.agents/skills/` (vendor-neutral) for project-level
+    // skills; the SKILL.md + name/description frontmatter shape already matches our source.
+    // The shared dir is written once (see `resolveSkillTargets`).
+    devin: { dir: '.agents/skills' },
     codex: { dir: '.agents/skills' },
   },
 };

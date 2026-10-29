@@ -115,7 +115,7 @@ flowchart TD
 
 The managed rules block is written only when `codex` is in `platforms`. A Claude-, Cursor-, or Copilot-only project's `AGENTS.md` stays hand-authored project context (name, architecture, boundaries) with no rules in it. That is on purpose:
 
-- Every platform with its own scoped-rules directory (`.claude/rules/`, `.cursor/rules/`, `.github/instructions/`, `.gemini/context/`, `.windsurf/rules/`) already gets each rule with its `scope` turned into a path filter, so it loads only for matching files.
+- Every platform with its own scoped-rules directory (`.claude/rules/`, `.cursor/rules/`, `.github/instructions/`, `.gemini/context/`, `.devin/rules/`) already gets each rule with its `scope` turned into a path filter, so it loads only for matching files.
 - Most of those tools also read `AGENTS.md` itself. Folding the rules into it would load every rule twice, once scoped and once always-on. That is the same reason the block is stripped from `copilot-instructions.md` and `GEMINI.md`.
 - Codex has no per-file rule API, so `AGENTS.md` is the only place its rules can go.
 

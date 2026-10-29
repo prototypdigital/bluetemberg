@@ -98,7 +98,7 @@ describe('sync --check reports stale generated files', () => {
     expect(existsSync(join(root, '.claude', 'rules', 'drop.md'))).toBe(true);
   });
 
-  it('sees a stale Windsurf workflow', async () => {
+  it('sees a stale Windsurf workflow under the devin alias', async () => {
     mkdirSync(join(root, '.windsurf', 'workflows'), { recursive: true });
     writeFileSync(
       join(root, '.windsurf', 'workflows', 'old.md'),
