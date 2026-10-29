@@ -40,6 +40,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Dogfood: install this repo's own packs and re-sync. Generated output is gitignored except
+      # .claude/settings.json, so drift shows up there or in the lockfile.
+      - name: Dogfood install + sync
+        run: |
+          node bin/cli.js install
+          node bin/cli.js sync
+          git diff --exit-code -- .claude/settings.json llm/packages-lock.json
+
       - name: Test
         run: npm test
 
