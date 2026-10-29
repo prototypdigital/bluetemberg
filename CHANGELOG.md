@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.14.0...bluetemberg-v0.14.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* **deps:** refresh the lockfile, raise the MCP SDK and smol-toml floors, audit in CI ([8b6fbab](https://github.com/prototypdigital/bluetemberg/commit/8b6fbab3b251486e87aa502561db84803600b4b2))
+* **deps:** refresh the lockfile, raise the MCP SDK and smol-toml floors, audit in CI ([314fd33](https://github.com/prototypdigital/bluetemberg/commit/314fd33b5a9bb831e39cf4f07d6452680a722a45))
+* **docs:** show the init command that works headlessly ([e718cff](https://github.com/prototypdigital/bluetemberg/commit/e718cff65481f047fde5b801742a4f6fe517defe))
+* **docs:** show the init command that works headlessly ([19e024f](https://github.com/prototypdigital/bluetemberg/commit/19e024fa6b7707378afd7d4dbca8d9c4bc97ce1d)), closes [#272](https://github.com/prototypdigital/bluetemberg/issues/272)
+* **sync:** write extraKnownMarketplaces in Claude Code's object form ([8d4f68a](https://github.com/prototypdigital/bluetemberg/commit/8d4f68a1ce4573e54cd040b77178d68805c044a3))
+
 ## [0.14.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.13.1...bluetemberg-v0.14.0) (2026-10-23)
 
 
