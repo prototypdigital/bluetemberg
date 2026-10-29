@@ -166,6 +166,48 @@ describe('Devin Desktop target', () => {
     }
   });
 
+  it('prunes a stale rule once when the legacy mirror overlaps another rule target', async () => {
+    const overlap = config(['devin', 'gemini'], {
+      rules: {
+        devin: { dir: '.devin/rules', ext: '.md' },
+        gemini: { dir: '.windsurf/rules', ext: '.md' },
+      },
+    });
+    await sync(root, { config: overlap, silent: true });
+    writeGenerated(join(root, '.windsurf', 'rules', 'old.md'), '# Old\n', 'rules/old.md');
+
+    const results = await sync(root, { config: overlap, prune: true, silent: true });
+
+    expect(results.errors).toEqual([]);
+    expect(existsSync(join(root, '.windsurf', 'rules', 'old.md'))).toBe(false);
+    expect(existsSync(join(root, '.windsurf', 'rules', 'testing.md'))).toBe(true);
+    // The mirror steps aside for gemini's target, so the two never fight over the same file.
+    const check = await sync(root, { config: overlap, check: true, silent: true });
+    expect(check.outOfSync).toBe(0);
+  });
+
+  it("keeps a child package's windsurf override over its parent's devin target", async () => {
+    mkdirSync(join(root, '.git'));
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['devin'],
+        targets: { rules: { devin: { dir: 'parent/rules', ext: '.md' } } },
+      }),
+    );
+    const pkg = join(root, 'packages', 'app');
+    writeSource(pkg);
+    writeFileSync(
+      join(pkg, 'bluetemberg.config.json'),
+      JSON.stringify({ source: 'llm', targets: { rules: { windsurf: { dir: 'child/rules', ext: '.md' } } } }),
+    );
+
+    expect(loadConfig(pkg).targets?.rules?.devin).toEqual({ dir: 'child/rules', ext: '.md' });
+    await sync(pkg, { recursive: false, silent: true });
+    expect(existsSync(join(pkg, 'child', 'rules', 'testing.md'))).toBe(true);
+    expect(existsSync(join(pkg, 'parent', 'rules'))).toBe(false);
+  });
+
   describe('retired Windsurf outputs', () => {
     beforeEach(() => {
       writeGenerated(join(root, '.windsurf', 'workflows', 'ship.md'), '# Ship\n', 'commands/ship.md');

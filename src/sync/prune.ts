@@ -285,7 +285,8 @@ function removeEmptyDirs(dirs: string[]): void {
  */
 export function pruneStaleOutputs(args: StaleOutputsArgs & { log: (...args: unknown[]) => void }): void {
   const { root, platforms, log } = args;
-  const stale = collectStaleOutputs(args);
+  // Overlapping targets (two platforms sharing a dir) list a file once per target; unlink it once.
+  const stale = [...new Map(collectStaleOutputs(args).map((file) => [file.path, file])).values()];
 
   let removed = 0;
   const kept: StaleOutput[] = [];

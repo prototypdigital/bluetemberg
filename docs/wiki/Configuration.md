@@ -342,10 +342,10 @@ Markdown files in this directory (except `README.md`) are copied to **`.claude/c
 
 Windsurf became Devin Desktop on 2026-06-02. Devin reads `AGENTS.md`, workspace rules from `.devin/rules/*.md` (preferred) and `.windsurf/rules/*.md` (legacy fallback), and skills from `.agents/skills/`.
 
-- **Rules** go to `.devin/rules/` with `trigger: always_on` (for `scope: '**'`) or `trigger: glob` plus `globs:`. For a transition period they are also mirrored to `.windsurf/rules/`, so a Devin build that still reads only the legacy path keeps them. **The mirror will be dropped in a later release**; nothing reads it that does not also read `.devin/rules/`.
+- **Rules** go to `.devin/rules/` with `trigger: always_on` (for `scope: '**'`) or `trigger: glob` plus `globs:`. For a transition period they are also mirrored to `.windsurf/rules/`, so a Devin build that still reads only the legacy path keeps them. **The mirror will be dropped in a later release**, so make sure your team is on a Devin build that reads `.devin/rules/` before then.
 - **Skills** go to `.agents/skills/`, shared with Codex. Bluetemberg no longer writes `.windsurf/skills/`.
 - **Workflows** are gone: Devin deprecated them in favor of skills (2026-07-29), so `llm/commands/` no longer emits `.windsurf/workflows/`. Ship the procedure as a skill instead.
-- **Upgrading:** generated files left in `.windsurf/workflows/` and `.windsurf/skills/` show up as `STALE:` in `sync --check`. Run `bluetemberg sync --prune` once to remove them; hand-written files there (no banner) are left alone.
+- **Upgrading:** generated files left in `.windsurf/workflows/` and `.windsurf/skills/` show up as `STALE:` in `sync --check`. Run `bluetemberg sync --prune` once to remove them. A workflow file without the banner is left alone. A skill directory is handled as one unit, like every [stale skill directory](#stale-generated-files-sync---prune): if its `SKILL.md` carries the banner, the whole directory goes, including any file you added to it. If its `SKILL.md` has no banner, the directory is left alone.
 
 ## Copilot prompt files (`llm/prompts/`)
 

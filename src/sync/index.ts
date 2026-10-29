@@ -22,6 +22,7 @@ import { syncGuardrails } from './guardrails.js';
 import { syncClaudeHooks } from './claude-hooks.js';
 import {
   normalizePlatforms,
+  normalizeTargets,
   resolveAgentTargets,
   resolveRuleTargets,
   resolveSkillTargets,
@@ -330,7 +331,11 @@ export function loadConfig(root: string): BlueprintConfig {
 
   // Individual files may omit `platforms` when an ancestor supplies it; defer that requirement to
   // the merged result below.
-  const parsed = files.map(({ path, raw }) => validateConfig(raw, path, { requirePlatforms: false }));
+  const parsed = files.map(({ path, raw }) => {
+    const config = validateConfig(raw, path, { requirePlatforms: false });
+    // Resolve the `windsurf` alias per file, before merging, so a child's override keeps precedence.
+    return config.targets ? { ...config, targets: normalizeTargets(config.targets) } : config;
+  });
 
   // `files` is nearest-first, so reduceRight folds ancestors into descendants — local values win.
   const effective = parsed.reduceRight((parent, child) => mergeConfigs(parent, child));
