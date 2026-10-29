@@ -45,3 +45,9 @@ jobs:
 
       - name: Check overlays
         run: npm run check:overlays
+
+      # Release PRs only: a stale snapshot ships init defaults from an old catalog. Gating every
+      # PR would fail unrelated work whenever packs main moves.
+      - name: Check catalog snapshot is current
+        if: startsWith(github.head_ref, 'release-please--')
+        run: npm run check:catalog

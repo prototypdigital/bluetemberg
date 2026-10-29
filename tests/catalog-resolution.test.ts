@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { resolveRuleCollections, resolveAgents, resolveSkills } from '../src/init/presets.js';
+import {
+  agentsForProfile,
+  defaultRuleCollections,
+  skillsForProfile,
+} from '../src/init/init-answers-from-profile.js';
 import type { Catalog } from '../src/catalog/index.js';
 
 function catalogWith(packs: Catalog['packs']): Catalog {
@@ -179,5 +184,167 @@ describe('catalog-derived preset resolution', () => {
     const resolved = resolveRuleCollections(catalog);
     expect(resolved.find((c) => c.id === 'git')).toBeDefined();
     expect(resolved.find((c) => c.id === 'typescript')).toBeUndefined();
+  });
+
+  describe('packs without an overlay', () => {
+    const none: ReadonlySet<string> = new Set();
+    const uncurated = catalogWith([
+      {
+        name: 'bluetemberg-rules-tailwind',
+        version: '0.1.0',
+        description: 'Tailwind CSS v4 rules for Bluetemberg — @theme token discipline, fluid typography.',
+        kind: 'rules',
+        universal: false,
+        profiles: ['frontend', 'fullstack'],
+        rules: ['tailwind-theme-tokens'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-agents-payload-specialist',
+        version: '0.1.0',
+        description: 'Payload CMS specialist agent for Bluetemberg — collections, globals, blocks.',
+        kind: 'agents',
+        universal: false,
+        profiles: ['backend', 'fullstack'],
+        agents: ['payload-specialist'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-skills-create-rule',
+        version: '0.1.0',
+        description: 'Meta-skill for scaffolding new bluetemberg rules',
+        kind: 'skills',
+        universal: true,
+        profiles: [],
+        skills: ['create-rule'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-guardrails-git',
+        version: '0.1.0',
+        description: '',
+        kind: 'guardrails',
+        universal: true,
+        profiles: [],
+        guardrails: ['conventional-branch-names'],
+        preview: '',
+      },
+    ]);
+
+    it('are offered from the catalog, keyed by package name without the kind prefix', () => {
+      const tailwind = resolveRuleCollections(uncurated).find((c) => c.id === 'tailwind');
+      expect(tailwind).toMatchObject({
+        packageName: 'bluetemberg-rules-tailwind',
+        name: 'Tailwind CSS v4 rules',
+        description: '@theme token discipline, fluid typography.',
+        rules: ['tailwind-theme-tokens'],
+        tags: ['frontend', 'fullstack'],
+      });
+
+      const payload = resolveAgents(uncurated).find((a) => a.id === 'payload-specialist');
+      expect(payload).toMatchObject({
+        packageName: 'bluetemberg-agents-payload-specialist',
+        name: 'Payload CMS specialist agent',
+        default: false,
+        tags: ['backend', 'fullstack'],
+      });
+    });
+
+    it('fall back to the id as the name when the description has no " — " detail', () => {
+      const createRule = resolveSkills(uncurated).find((s) => s.id === 'create-rule');
+      expect(createRule).toMatchObject({
+        name: 'create-rule',
+        description: 'Meta-skill for scaffolding new bluetemberg rules',
+        universal: true,
+      });
+    });
+
+    it('are preselected by their catalog profiles, like curated packs', () => {
+      expect(defaultRuleCollections('frontend', uncurated, none)).toContain('tailwind');
+      expect(defaultRuleCollections('backend', uncurated, none)).not.toContain('tailwind');
+      expect(agentsForProfile('backend', uncurated, none)).toContain('payload-specialist');
+      expect(agentsForProfile('frontend', uncurated, none)).not.toContain('payload-specialist');
+      expect(skillsForProfile('devops', uncurated, none)).toContain('create-rule');
+      expect(skillsForProfile('custom', uncurated, none)).not.toContain('create-rule');
+    });
+
+    it('never surfaces a guardrails pack as a rule, agent, or skill', () => {
+      const offered = [
+        ...resolveRuleCollections(uncurated),
+        ...resolveAgents(uncurated),
+        ...resolveSkills(uncurated),
+      ];
+      expect(offered.map((p) => p.packageName)).not.toContain('bluetemberg-guardrails-git');
+    });
+
+    it('list after the curated overlays', () => {
+      const catalog = catalogWith([
+        ...uncurated.packs,
+        {
+          name: 'bluetemberg-rules-git',
+          version: '0.1.0',
+          description: '',
+          kind: 'rules',
+          universal: true,
+          profiles: [],
+          rules: ['git-workflow'],
+          preview: '',
+        },
+      ]);
+      expect(resolveRuleCollections(catalog).map((c) => c.id)).toEqual(['git', 'tailwind']);
+    });
+  });
+
+  describe('stack-specific packs', () => {
+    const catalog = catalogWith([
+      {
+        name: 'bluetemberg-rules-payload',
+        version: '0.1.0',
+        description: 'Payload CMS rules for Bluetemberg — collection structure.',
+        kind: 'rules',
+        universal: false,
+        profiles: ['backend', 'fullstack'],
+        stacks: ['payload'],
+        rules: ['payload-collection-structure'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-skills-react-patterns',
+        version: '0.1.0',
+        description: '',
+        kind: 'skills',
+        universal: false,
+        profiles: ['frontend'],
+        stacks: ['react'],
+        skills: ['react-patterns'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-rules-git',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: true,
+        profiles: [],
+        rules: ['git-workflow'],
+        preview: '',
+      },
+    ]);
+
+    it('carry the catalog stacks onto the resolved preset', () => {
+      expect(resolveRuleCollections(catalog).find((c) => c.id === 'payload')?.stacks).toEqual(['payload']);
+      expect(resolveRuleCollections(catalog).find((c) => c.id === 'git')?.stacks).toBeUndefined();
+    });
+
+    it('are preselected only when one of their stacks is in the project', () => {
+      expect(defaultRuleCollections('backend', catalog, new Set())).toEqual(['git']);
+      expect(defaultRuleCollections('backend', catalog, new Set(['payload']))).toEqual(['git', 'payload']);
+      expect(skillsForProfile('frontend', catalog, new Set(['nextjs']))).not.toContain('react-patterns');
+      expect(skillsForProfile('frontend', catalog, new Set(['react']))).toContain('react-patterns');
+    });
+
+    it('are still offered in the wizard when not preselected', () => {
+      expect(resolveRuleCollections(catalog).map((c) => c.id)).toContain('payload');
+    });
   });
 });

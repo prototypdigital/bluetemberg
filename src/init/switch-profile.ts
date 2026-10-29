@@ -9,9 +9,10 @@ import {
 } from '../registry/manifest.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
 import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
-import { AGENT_OVERLAYS, SKILL_OVERLAYS } from './presets.js';
+import { resolveAgents, resolveSkills } from './presets.js';
 import { loadCatalogSync } from '../catalog/index.js';
-import type { PackageManifest, PresetOverlay, TeamProfile } from '../types.js';
+import { detectStacks } from '../stacks/detect.js';
+import type { PackageManifest, PresetItem, TeamProfile } from '../types.js';
 
 export interface SwitchProfileOptions {
   silent?: boolean;
@@ -72,11 +73,21 @@ export function switchProfile(
   const added: string[] = [];
   const stale: string[] = [];
 
-  const agentResult = applyPresets(manifest, agentsForProfile(toProfile, catalog), AGENT_OVERLAYS);
+  const projectStacks = new Set(detectStacks(root, { stacks: declaredStacks(raw.stacks) }).keys());
+
+  const agentResult = applyPresets(
+    manifest,
+    agentsForProfile(toProfile, catalog, projectStacks),
+    resolveAgents(catalog),
+  );
   added.push(...agentResult.added);
   stale.push(...agentResult.stale);
 
-  const skillResult = applyPresets(manifest, skillsForProfile(toProfile, catalog), SKILL_OVERLAYS);
+  const skillResult = applyPresets(
+    manifest,
+    skillsForProfile(toProfile, catalog, projectStacks),
+    resolveSkills(catalog),
+  );
   added.push(...skillResult.added);
   stale.push(...skillResult.stale);
 
@@ -92,6 +103,17 @@ export function switchProfile(
   }
 
   return { fromProfile, toProfile, added, stale };
+}
+
+/** The config's `stacks` map when it is a well-formed name → version record; anything else is ignored. */
+function declaredStacks(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const stacks: Record<string, string> = {};
+  for (const [name, version] of Object.entries(value)) {
+    if (typeof version !== 'string') return undefined;
+    stacks[name] = version;
+  }
+  return stacks;
 }
 
 function readManifestLenient(root: string): PackageManifest {
@@ -110,7 +132,7 @@ function readManifestLenient(root: string): PackageManifest {
  * Stale detection is scoped to packages known in `presets` — entries the preset
  * catalog does not recognize (rule collections, third-party packs) are left alone.
  */
-function applyPresets(manifest: PackageManifest, targetIds: string[], presets: PresetOverlay[]): ApplyResult {
+function applyPresets(manifest: PackageManifest, targetIds: string[], presets: PresetItem[]): ApplyResult {
   const result: ApplyResult = { added: [], stale: [] };
 
   const targetPackages = new Set<string>();

@@ -166,6 +166,8 @@ export interface RuleCollectionPreset extends RuleCollectionOverlay {
   /** When true, this collection is included for every non-custom profile without needing explicit tags. */
   universal?: boolean;
   tags?: TeamProfile[];
+  /** Catalog stacks the pack targets; when set, it is preselected only if one of them is in the project. */
+  stacks?: string[];
 }
 
 export interface InitAnswers {
@@ -319,6 +321,8 @@ export interface PresetItem {
   universal?: boolean;
   /** Profiles for which this rule is NOT forced even when universal is true. */
   universalExcludeProfiles?: TeamProfile[];
+  /** Catalog stacks the pack targets; when set, it is preselected only if one of them is in the project. */
+  stacks?: string[];
   /** npm package name in the packs repo (e.g. `bluetemberg-agents-frontend-specialist`). */
   packageName?: string;
 }
@@ -327,7 +331,7 @@ export interface PresetItem {
  * Curated agent/skill metadata. `tags`/`universal` are omitted here and resolved from the
  * catalog at load time — the engine never hand-declares profile mappings for catalog packs.
  */
-export type PresetOverlay = Omit<PresetItem, 'tags' | 'universal'>;
+export type PresetOverlay = Omit<PresetItem, 'tags' | 'universal' | 'stacks'>;
 
 export interface PlatformChoice {
   id: Platform;

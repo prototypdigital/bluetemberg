@@ -1,5 +1,6 @@
 import type { TeamProfile } from '../types.js';
 import { type Catalog, type CatalogPack, loadCatalog } from '../catalog/index.js';
+import { detectStacks } from '../stacks/detect.js';
 
 export interface PreviewOptions {
   /** Suppress output (still returns data). */
@@ -12,6 +13,12 @@ export interface PreviewOptions {
 
 function packsForProfile(catalog: Catalog, profile: TeamProfile): CatalogPack[] {
   return catalog.packs.filter((p) => p.universal || p.profiles.includes(profile));
+}
+
+/** Whether `init` would preselect a profile pack here: stack-agnostic, or one of its stacks is in the project. */
+function matchesProjectStacks(pack: CatalogPack, projectStacks: ReadonlySet<string>): boolean {
+  const stacks = pack.stacks ?? [];
+  return stacks.length === 0 || stacks.some((s) => projectStacks.has(s));
 }
 
 function byKind(packs: CatalogPack[], kind: CatalogPack['kind']): CatalogPack[] {
@@ -43,7 +50,10 @@ export async function preview(
 
   const { catalog, fromCache } = await loadCatalog(root, force);
 
-  const packs = packsForProfile(catalog, profile);
+  const projectStacks = new Set(detectStacks(root).keys());
+  const profilePacks = packsForProfile(catalog, profile);
+  const packs = profilePacks.filter((p) => matchesProjectStacks(p, projectStacks));
+  const stackSkipped = profilePacks.filter((p) => !matchesProjectStacks(p, projectStacks));
 
   if (!silent) {
     const cacheNote = fromCache ? ' (cached)' : '';
@@ -61,6 +71,10 @@ export async function preview(
       .filter((s) => !s.startsWith('0'))
       .join(', ');
     log(`\nTotal: ${total} packs (${byKindCount})`);
+    if (stackSkipped.length > 0) {
+      log(`\nNot preselected here (their stack isn't in this project; still offered in the wizard):`);
+      for (const pack of stackSkipped) log(`  ${pack.name}  [${(pack.stacks ?? []).join(', ')}]`);
+    }
     log(`\nRun \`bluetemberg init --non-interactive --profile ${profile}\` to scaffold this configuration.`);
   }
 }

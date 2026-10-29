@@ -22,7 +22,7 @@ import type {
   RuleSource,
   GitHubScaffoldConfig,
 } from '../types.js';
-import { resolvePresetDefaults } from './preset-resolution.js';
+import { isPreselected, resolvePresetDefaults } from './preset-resolution.js';
 
 function defaultMarketplacePacks(teamProfile: TeamProfile): string[] {
   switch (teamProfile) {
@@ -154,6 +154,8 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
   }
 
   const stacks = await promptStacks(targetDir);
+  // Stack-specific packs are pre-checked only for the stacks kept above.
+  const projectStacks = new Set(Object.keys(stacks));
 
   const ruleSource = await select<RuleSource>({
     message: 'Rule source:',
@@ -171,8 +173,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     const collectionChoices = resolveRuleCollections(catalog).map((c) => ({
       value: c.id,
       name: `${c.name} — ${c.description}`,
-      checked:
-        teamProfile === 'custom' ? false : c.universal === true || (c.tags?.includes(teamProfile) ?? false),
+      checked: isPreselected(c, teamProfile, projectStacks),
     }));
 
     ruleCollections = await checkbox<string>({
@@ -188,7 +189,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let agents: string[] = [];
   if (includeAgents) {
-    const agentPresets = resolvePresetDefaults(resolveAgents(catalog), teamProfile);
+    const agentPresets = resolvePresetDefaults(resolveAgents(catalog), teamProfile, projectStacks);
     agents = await checkbox<string>({
       message: 'Specialist agents:',
       choices: agentPresets.map((a) => ({
@@ -206,7 +207,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
 
   let skills: string[] = [];
   if (includeSkills) {
-    const skillPresets = resolvePresetDefaults(resolveSkills(catalog), teamProfile);
+    const skillPresets = resolvePresetDefaults(resolveSkills(catalog), teamProfile, projectStacks);
     skills = await checkbox<string>({
       message: 'Starter skills:',
       choices: skillPresets.map((s) => ({

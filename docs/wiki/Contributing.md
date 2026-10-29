@@ -26,8 +26,9 @@ npm test
 | `npm run format:check` | Prettier check                |
 | `npm run typecheck`    | TypeScript type check         |
 | `npm run sync:catalog` | Refresh the committed catalog snapshot (`src/catalog/catalog.json`) from the packs repo |
+| `npm run check:catalog` | Fail when the committed snapshot differs from packs `main` (writes nothing) |
 
-**Catalog snapshot:** pack ids and profile tags are resolved from `catalog.json` (published by the packs repo), not hand-maintained in the engine. A snapshot is committed at `src/catalog/catalog.json` as the offline floor and copied into `dist/` at build. When packs change in a way the engine should ship by default, run `npm run sync:catalog` and commit the updated snapshot.
+**Catalog snapshot:** pack ids and profile tags are resolved from `catalog.json` (published by the packs repo), not hand-maintained in the engine. A snapshot is committed at `src/catalog/catalog.json` as the offline floor and copied into `dist/` at build. When packs change in a way the engine should ship by default, run `npm run sync:catalog` and commit the updated snapshot. CI runs `npm run check:catalog` on release PRs, so a release cannot ship a snapshot that lags packs `main`; refresh it on `main` and the release PR picks it up.
 
 ## Sync CLI and CI (downstream consumers)
 
@@ -120,9 +121,11 @@ If you need to add a new **collection** (a new `bluetemberg-rules-*` package) to
 
 Follow the contributing guide in the bluetemberg-packs repo. The package must be live on npm before the wizard can suggest it.
 
-### 2. Add a collection preset
+### 2. Refresh the catalog snapshot
 
-In `src/init/presets.ts`, add an entry to `RULE_COLLECTION_OVERLAYS`:
+Run `npm run sync:catalog` and commit `src/catalog/catalog.json`. The wizard offers every rules pack in the catalog, so this is all it takes for the collection to appear. Its profile tags and stacks come from the pack's `package.json` in the packs repo.
+
+Optionally, give it curated display text and a place in the list with an entry in `RULE_COLLECTION_OVERLAYS` in `src/init/presets.ts`:
 
 ```ts
 {
@@ -133,7 +136,7 @@ In `src/init/presets.ts`, add an entry to `RULE_COLLECTION_OVERLAYS`:
 },
 ```
 
-Rule ids and profile tags are **not** declared here — they're resolved from the catalog by `packageName` (via `resolveRuleCollections`). The overlay only fixes which collections the wizard offers, their display text, and their order.
+Rule ids and profile tags are **not** declared here — they're resolved from the catalog by `packageName` (via `resolveRuleCollections`). An overlay is optional: every rules pack in the catalog is offered anyway, and the overlay only sets its display text and its place in the list.
 
 ### 3. Update the docs
 
@@ -157,9 +160,9 @@ To wire a new agent package into the init wizard:
 
 Follow the contributing guide in the bluetemberg-packs repo. The package must be live on npm before the wizard can suggest it.
 
-### 2. Add a preset entry
+### 2. Refresh the catalog snapshot
 
-In `src/init/presets.ts`, add to `AGENT_OVERLAYS`:
+Run `npm run sync:catalog` and commit `src/catalog/catalog.json`; the wizard offers every agents pack in the catalog. Optionally, set curated display text, a curated default and a place in the list with an entry in `AGENT_OVERLAYS` in `src/init/presets.ts`:
 
 ```ts
 {
@@ -187,9 +190,9 @@ To wire a new skill package into the init wizard:
 
 Follow the contributing guide in the bluetemberg-packs repo. The package must be live on npm before the wizard can suggest it.
 
-### 2. Add a preset entry
+### 2. Refresh the catalog snapshot
 
-In `src/init/presets.ts`, add to `SKILL_OVERLAYS`:
+Run `npm run sync:catalog` and commit `src/catalog/catalog.json`; the wizard offers every skills pack in the catalog. Optionally, set curated display text, a curated default and a place in the list with an entry in `SKILL_OVERLAYS` in `src/init/presets.ts`:
 
 ```ts
 {

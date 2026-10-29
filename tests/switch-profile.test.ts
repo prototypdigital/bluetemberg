@@ -103,6 +103,27 @@ describe('switchProfile', () => {
     expect(manifest.packages['bluetemberg-agents-frontend-specialist']).toBeDefined();
   });
 
+  it('adds a stack-specific pack only when the project uses that stack', () => {
+    scaffold(root, baseAnswers);
+    expect(switchProfile(root, 'backend', { silent: true }).added).not.toContain(
+      'bluetemberg-agents-payload-specialist',
+    );
+
+    const withPayload = createTmpDir();
+    try {
+      writeFileSync(
+        join(withPayload, 'package.json'),
+        JSON.stringify({ dependencies: { payload: '3.0.0' } }),
+      );
+      scaffold(withPayload, baseAnswers);
+      expect(switchProfile(withPayload, 'backend', { silent: true }).added).toContain(
+        'bluetemberg-agents-payload-specialist',
+      );
+    } finally {
+      rmSync(withPayload, { recursive: true, force: true });
+    }
+  });
+
   it('never flags rule collections or third-party packs as stale', () => {
     scaffold(root, baseAnswers);
 

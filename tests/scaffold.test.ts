@@ -184,6 +184,26 @@ describe('scaffold', () => {
       expect(Object.values(manifest.packages)).not.toContain('^0.1.0');
     });
 
+    it('writes packs offered from the catalog without a curated overlay', () => {
+      scaffold(root, {
+        ...collectionsAnswers,
+        ruleCollections: ['tailwind'],
+        includeAgents: true,
+        agents: ['pr-reviewer'],
+        includeSkills: true,
+        skills: ['k6-load-testing'],
+      });
+
+      const manifest = JSON.parse(readFileSync(join(root, 'llm', 'packages.json'), 'utf8'));
+      expect(Object.keys(manifest.packages)).toEqual(
+        expect.arrayContaining([
+          'bluetemberg-rules-tailwind',
+          'bluetemberg-agents-pr-reviewer',
+          'bluetemberg-skills-k6-load-testing',
+        ]),
+      );
+    });
+
     it('does not create llm/packages.json when nothing resolves to a package', () => {
       scaffold(root, { ...collectionsAnswers, ruleCollections: [] });
 
