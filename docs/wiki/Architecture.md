@@ -121,6 +121,20 @@ The managed rules block is written only when `codex` is in `platforms`. A Claude
 
 **Known overlap:** when `codex` is selected alongside `claude` or `cursor`, both read the block through `AGENTS.md` as well as through their own scoped rules. Neither tool offers a way to skip part of `AGENTS.md`, so sync leaves this alone.
 
+### Why copilot-instructions.md is still a copy of AGENTS.md
+
+Copilot Chat in VS Code, the Copilot cloud agent, and Copilot CLI read both `AGENTS.md` and `.github/copilot-instructions.md`, so on those surfaces the project context loads twice. Sync keeps the copy anyway, because many other Copilot surfaces read `copilot-instructions.md` and not `AGENTS.md`. From GitHub's [custom instructions support table](https://docs.github.com/en/copilot/reference/custom-instructions-support):
+
+| Surface | `copilot-instructions.md` | `AGENTS.md` |
+| --- | --- | --- |
+| Copilot Chat on GitHub.com | yes | no |
+| Copilot code review on GitHub.com | yes | yes |
+| Copilot code review in VS Code, Visual Studio, JetBrains, Xcode | yes | no |
+| Copilot Chat in Visual Studio, JetBrains, Eclipse, Xcode | yes | no |
+| Copilot Chat in VS Code, cloud agent, Copilot CLI | yes | yes |
+
+Dropping the copy would leave every "no" row with no project context at all. Loading it twice in VS Code wastes some context, but it doesn't cause conflicting instructions, because both files hold the same text. The copy is bannered as generated, and the Codex rules block is stripped from it, so scoped rules still load only once, through `.github/instructions/`. (Eclipse code review doesn't support custom instructions, so it reads neither file.)
+
 ### Claude Code and AGENTS.md
 
 Since [v2.1.277](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md), Claude Code reads `AGENTS.md` natively, but only when there is no `CLAUDE.md`. From [Anthropic's docs](https://code.claude.com/docs/en/memory#agents-md):
