@@ -1,8 +1,9 @@
 import { basename } from 'node:path';
 import { MARKETPLACE_PLATFORM } from '../types.js';
-import type { InitAnswers, Platform, RuleCollectionPreset, TeamProfile } from '../types.js';
+import type { InitAnswers, Platform, TeamProfile } from '../types.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
-import { resolvePresetDefaults } from './preset-resolution.js';
+import { detectStacks } from '../stacks/detect.js';
+import { preselectedCollectionIds, resolvePresetDefaults } from './preset-resolution.js';
 import {
   resolveRuleCollections,
   resolveAgents,
@@ -13,20 +14,38 @@ import {
   DEFAULT_GITHUB_CONFIG,
 } from './presets.js';
 
-export function defaultRuleCollections(teamProfile: TeamProfile, catalog: Catalog): string[] {
-  if (teamProfile === 'custom') return [];
-  return resolveRuleCollections(catalog)
-    .filter((c: RuleCollectionPreset) => c.universal === true || (c.tags?.includes(teamProfile) ?? false))
-    .map((c) => c.id);
+/**
+ * Stacks that gate preselection: an explicit `stacks` answer (`--stacks`, `--config`) wins,
+ * otherwise whatever `detectStacks` finds in the target directory.
+ */
+export function projectStacksFor(targetDir: string, stacks?: Record<string, string>): Set<string> {
+  if (stacks !== undefined) return new Set(Object.keys(stacks));
+  return new Set(detectStacks(targetDir).keys());
 }
 
-export function agentsForProfile(teamProfile: TeamProfile, catalog: Catalog): string[] {
-  const resolved = resolvePresetDefaults(resolveAgents(catalog), teamProfile);
+export function defaultRuleCollections(
+  teamProfile: TeamProfile,
+  catalog: Catalog,
+  projectStacks: ReadonlySet<string>,
+): string[] {
+  return preselectedCollectionIds(resolveRuleCollections(catalog), teamProfile, projectStacks);
+}
+
+export function agentsForProfile(
+  teamProfile: TeamProfile,
+  catalog: Catalog,
+  projectStacks: ReadonlySet<string>,
+): string[] {
+  const resolved = resolvePresetDefaults(resolveAgents(catalog), teamProfile, projectStacks);
   return resolved.filter((a) => a.default).map((a) => a.id);
 }
 
-export function skillsForProfile(teamProfile: TeamProfile, catalog: Catalog): string[] {
-  const resolved = resolvePresetDefaults(resolveSkills(catalog), teamProfile);
+export function skillsForProfile(
+  teamProfile: TeamProfile,
+  catalog: Catalog,
+  projectStacks: ReadonlySet<string>,
+): string[] {
+  const resolved = resolvePresetDefaults(resolveSkills(catalog), teamProfile, projectStacks);
   return resolved.filter((s) => s.default).map((s) => s.id);
 }
 
@@ -35,18 +54,20 @@ function defaultMcpServerIds(): string[] {
 }
 
 function defaultGuardrailIds(teamProfile: TeamProfile): string[] {
-  const resolved = resolvePresetDefaults(GUARDRAIL_PRESETS, teamProfile);
+  const resolved = resolvePresetDefaults(GUARDRAIL_PRESETS, teamProfile, new Set());
   return resolved.filter((g) => g.default).map((g) => g.id);
 }
 
 /**
  * Baseline identical to submitting the wizard with only profile-based checkbox defaults:
  * collections source, all platforms checked, agents/skills/MCP inclusion with wizard defaults.
+ * Stack-specific packs are preselected only for stacks in `projectStacks` (detected by default).
  */
 export function buildInitAnswersFromProfile(
   teamProfile: TeamProfile,
   targetDir: string,
   catalog?: Catalog,
+  projectStacks: ReadonlySet<string> = projectStacksFor(targetDir),
 ): InitAnswers {
   const resolvedCatalog = catalog ?? loadCatalogSync(targetDir);
   return {
@@ -57,11 +78,11 @@ export function buildInitAnswersFromProfile(
     platforms: PLATFORM_CHOICES.filter((p) => p.id !== MARKETPLACE_PLATFORM).map((p) => p.id) as Platform[],
     ruleSource: 'collections',
     rules: [],
-    ruleCollections: defaultRuleCollections(teamProfile, resolvedCatalog),
+    ruleCollections: defaultRuleCollections(teamProfile, resolvedCatalog, projectStacks),
     includeAgents: true,
-    agents: agentsForProfile(teamProfile, resolvedCatalog),
+    agents: agentsForProfile(teamProfile, resolvedCatalog, projectStacks),
     includeSkills: true,
-    skills: skillsForProfile(teamProfile, resolvedCatalog),
+    skills: skillsForProfile(teamProfile, resolvedCatalog, projectStacks),
     includeMcp: true,
     mcpServers: defaultMcpServerIds(),
     marketplaceRemote: '',
@@ -81,7 +102,12 @@ export function finalizeNonInteractiveAnswers(
 ): InitAnswers {
   const teamProfile = overrides.teamProfile ?? profile;
   const catalog = loadCatalogSync(targetDir);
-  const base = buildInitAnswersFromProfile(teamProfile, targetDir, catalog);
+  const base = buildInitAnswersFromProfile(
+    teamProfile,
+    targetDir,
+    catalog,
+    projectStacksFor(targetDir, overrides.stacks),
+  );
 
   let ruleSource = base.ruleSource;
   if (overrides.ruleSource !== undefined) ruleSource = overrides.ruleSource;

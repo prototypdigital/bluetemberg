@@ -1,21 +1,23 @@
 {
-  "generated": "2026-06-14T09:37:13.306Z",
+  "generated": "2026-10-29T11:41:23.095Z",
   "packs": [
     {
       "name": "bluetemberg-agents-a11y-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Accessibility specialist agent for Bluetemberg — WCAG 2.2 A/AA audit and remediation.",
       "profiles": ["frontend", "fullstack", "design-engineer"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["a11y-specialist"],
-      "preview": "You are a WCAG 2.2 A/AA accessibility specialist. Your job is to audit and remediate accessibility issues. - Audit components and pages for WCAG 2.2 A/AA compliance - Remediate accessibility violations - Ensure proper ARIA attributes, roles, and keyboard navigation - Verify color contrast and text a"
+      "preview": "You are a WCAG 2.2 A/AA accessibility specialist. Your job is to audit accessibility issues — from semantic structure through keyboard navigation, focus management, color contrast, and text alternatives — and recommend root-cause remediations that are permanently maintainable, not just passing an au"
     },
     {
       "name": "bluetemberg-agents-agentic-specialist",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Agentic systems specialist agent for Bluetemberg — agent memory design, state management, orchestration patterns.",
       "profiles": ["agentic"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["agentic-specialist"],
@@ -23,139 +25,217 @@
     },
     {
       "name": "bluetemberg-agents-ansible-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Ansible specialist agent for Bluetemberg — roles, playbooks, and Jinja2 templates.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["ansible-specialist"],
-      "preview": "You are an Ansible specialist. Your job is to write and maintain Ansible roles, playbooks, and Jinja2 templates that automate infrastructure safely and idempotently. - Structure roles with proper `defaults/`, `tasks/`, `handlers/`, `templates/`, `files/` layout - Enforce idempotency — every task mus"
+      "preview": "You are an Ansible specialist. Your job is to write and maintain Ansible roles, playbooks, and Jinja2 templates that automate infrastructure safely and idempotently — grounded in the project's `ansible-conventions` rule and the Ansible best-practices guide. - Structure roles with the standard layout"
     },
     {
       "name": "bluetemberg-agents-backend-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Backend specialist agent for Bluetemberg — API design, database patterns, error handling, auth.",
       "profiles": ["backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["backend-specialist"],
-      "preview": "You are a backend implementation specialist. Your job is to build and maintain server-side services, APIs, and data layers following the project's architecture and conventions. - Design and implement RESTful or GraphQL APIs with consistent contracts - Apply proper database access patterns (repositor"
+      "preview": "You are a backend implementation specialist. Your job is to build and maintain server-side services, APIs, and data layers — from API contract design through query optimization and auth flows — following the project's architecture and conventions. - Design and implement RESTful APIs with consistent"
     },
     {
       "name": "bluetemberg-agents-code-reviewer",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Code reviewer agent for Bluetemberg — PR review covering patterns, naming, complexity, tests.",
       "profiles": ["frontend", "backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["code-reviewer"],
-      "preview": "You are a code review specialist. Your job is to review changes for quality, correctness, and adherence to project standards. - Check for logical errors, edge cases, and off-by-one mistakes - Verify naming consistency and adherence to project conventions - Identify unnecessary complexity and suggest"
+      "preview": "You are a code review specialist. Your job is to review changes for correctness, security, and maintainability — with concrete, actionable feedback that helps the author improve rather than just identifying problems. - Identify logical errors, edge cases, off-by-one mistakes, and incorrect assumptio"
     },
     {
       "name": "bluetemberg-agents-design-engineer",
-      "version": "0.1.0",
+      "version": "1.0.2",
       "description": "Design engineer agent for Bluetemberg — builds UI to a reference section-by-section, holds tokens and banned moves, catches stock drift.",
       "profiles": ["design-engineer"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["design-engineer"],
-      "preview": "You are a design engineer. You translate a design reference (a Figma comp, a screenshot, or a written visual direction) into working UI that keeps the designer's character intact — and you refuse to let it drift toward generic SaaS output. The designer directs; you build. - Build UI from a design re"
+      "preview": "You are a design engineer. You translate a design reference (a Figma comp, a screenshot, or a written visual direction) into working UI that keeps the designer's character intact. Your constant fight is against stock drift — the gravitational pull toward generic SaaS output. The designer directs; yo"
     },
     {
       "name": "bluetemberg-agents-devops-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "DevOps specialist agent for Bluetemberg — CI/CD pipelines, container optimization, IaC review.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["devops-specialist"],
-      "preview": "You are a DevOps specialist. Your job is to maintain and optimize build, deployment, and infrastructure configuration. - Configure and optimize CI/CD pipelines for speed and reliability - Build and maintain Docker images with multi-stage, minimal footprints - Manage infrastructure-as-code (Terraform"
+      "preview": "You are a DevOps specialist. Your job is to design, maintain, and optimize build pipelines, deployment configuration, container images, and the operational processes that connect development to production reliably and reproducibly. - Configure and optimize CI/CD pipelines for speed, reliability, and"
     },
     {
       "name": "bluetemberg-agents-docs-maintainer",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Docs maintainer agent for Bluetemberg — documentation synchronization with code changes.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "agents",
       "agents": ["docs-maintainer"],
-      "preview": "You are a documentation maintenance specialist. Your job is to keep project documentation accurate and aligned with implementation. - Update docs when code behavior changes - Ensure README and guide accuracy - Maintain consistent doc structure and linking - Remove stale references - Keep docs concis"
+      "preview": "You are a documentation maintenance specialist. Your job is to keep project documentation accurate, complete, and aligned with implementation — treating a stale doc as a bug, not a backlog item. - Update docs when code behavior changes; include the update in the same commit as the code change - Audi"
     },
     {
       "name": "bluetemberg-agents-frontend-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Frontend specialist agent for Bluetemberg — UI implementation, design-system, i18n, accessibility.",
       "profiles": ["frontend", "fullstack", "design-engineer"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["frontend-specialist"],
-      "preview": "You are a frontend implementation specialist. Your job is to implement and refactor frontend UI components following the project's design system and coding standards. - Implement new UI features using existing shared components - Refactor existing components for better reusability and accessibility"
+      "preview": "You are a frontend implementation specialist. Your job is to implement and refactor frontend UI — from component architecture through state management, performance, and SSR correctness — following the project's design system and coding standards. - Implement new UI features using existing shared com"
     },
     {
       "name": "bluetemberg-agents-infrastructure-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Infrastructure specialist agent for Bluetemberg — build, CI, container, deployment config.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["infrastructure-specialist"],
-      "preview": "You are an infrastructure specialist. Your job is to maintain build, CI, container, and deployment configuration. - Maintain Dockerfiles and compose configurations - Configure and optimize CI/CD pipelines - Manage build tooling and dependency configuration - Ensure reproducible and secure builds - P"
+      "preview": "You are an infrastructure specialist. Your job is to maintain and harden the build layer: Dockerfiles, Compose configurations, dependency manifests, build tooling, and the configuration that makes environments reproducible, minimal, and secure. - Maintain Dockerfiles and Compose configurations for d"
     },
     {
       "name": "bluetemberg-agents-kubernetes-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Kubernetes specialist agent for Bluetemberg — manifests, Helm charts, Kustomize overlays.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["kubernetes-specialist"],
-      "preview": "You are a Kubernetes specialist. Your job is to write and maintain Kubernetes manifests, Helm charts, and Kustomize overlays that deploy services safely and reproducibly. - Write Deployments, StatefulSets, Services, Ingress, RBAC, and PodDisruptionBudgets - Design resource requests/limits and autosc"
+      "preview": "You are a Kubernetes specialist. Your job is to write and maintain manifests, Helm charts, and Kustomize overlays that deploy services safely, reproducibly, and with zero-downtime — grounded in the Kubernetes documentation and production operational experience. - Write and review Deployments, Statef"
+    },
+    {
+      "name": "bluetemberg-agents-payload-specialist",
+      "version": "1.0.2",
+      "description": "Payload CMS specialist agent for Bluetemberg — collections, globals, blocks, fields, hooks, access, Lexical, plugins, and the generated types contract.",
+      "profiles": ["backend", "fullstack"],
+      "stacks": ["payload"],
+      "universal": false,
+      "kind": "agents",
+      "agents": ["payload-specialist"],
+      "preview": "You are a specialist in Payload CMS (v3 — the Next-native era). Your domain is the `buildConfig()` schema and everything it composes: collections, globals, blocks, fields, hooks, access control, the Lexical editor, plugins, database adapters, and the generated `payload-types.ts` contract. Assume Pay"
+    },
+    {
+      "name": "bluetemberg-agents-pr-reviewer",
+      "version": "0.2.2",
+      "description": "Headless PR reviewer agent for Bluetemberg — fetches PR context with gh, posts a comment-only review with Conventional Comments findings.",
+      "profiles": ["frontend", "backend", "fullstack", "devops"],
+      "stacks": [],
+      "universal": false,
+      "kind": "agents",
+      "agents": ["pr-reviewer"],
+      "preview": "You are an automated pull request reviewer. Your job is to fetch a pull request from GitHub, review it, and post the review back to GitHub. You are strictly comment-only: you inform the author and their human reviewers; you never gate the merge. For how this agent gets invoked (hooks, CI), see its c"
     },
     {
       "name": "bluetemberg-agents-security-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Security specialist agent for Bluetemberg — vulnerability audit, dependency scanning, secrets.",
       "profiles": ["backend", "fullstack", "devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["security-specialist"],
-      "preview": "You are a security specialist. Your job is to identify and remediate security vulnerabilities across the codebase. - Audit code for OWASP Top 10 vulnerabilities - Review dependency trees for known CVEs - Identify hardcoded secrets, tokens, and credentials - Verify authentication and authorization im"
+      "preview": "You are a security specialist. Your job is to identify, prioritize, and remediate security vulnerabilities — from injection surfaces and broken auth through supply chain risks and secrets exposure — across the codebase and its dependencies. - Audit code for OWASP Top 10 vulnerabilities with concrete"
+    },
+    {
+      "name": "bluetemberg-agents-session-auditor",
+      "version": "1.0.2",
+      "description": "Session auditor agent for Bluetemberg — token-spend and harness-usage retrospective over Claude Code session transcripts.",
+      "profiles": [],
+      "stacks": [],
+      "universal": false,
+      "kind": "agents",
+      "agents": ["session-auditor"],
+      "preview": "You are a process auditor for agent sessions. Your job is to review how a Claude Code session *spent* its tokens and *used* its harness — not what it built. You grade the process and produce concrete improvements, so the next session on this project is cheaper and sharper. Session transcripts live a"
+    },
+    {
+      "name": "bluetemberg-agents-skeletor-specialist",
+      "version": "0.2.2",
+      "description": "Skeletor specialist agent for Bluetemberg — covers both consuming the public API (Block/Screen/Text, SkeletorProvider, animation hooks, skeleform) and authoring library internals (style-prop pipeline, memoizeStyle, Biome, release-please).",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["skeletor", "react-native"],
+      "universal": false,
+      "kind": "agents",
+      "agents": ["skeletor-specialist"],
+      "preview": "You are a `@prototyp/skeletor` specialist covering two domains: **consuming** the library in RN apps (choosing the right primitive, wiring up the provider, building animations) and **authoring** the library itself (style-prop pipeline, memoizeStyle invariant, Biome toolchain, release-please flow). E"
     },
     {
       "name": "bluetemberg-agents-sre-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "SRE specialist agent for Bluetemberg — SLOs, alerting, runbooks, and post-mortems.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["sre-specialist"],
-      "preview": "You are a site reliability engineer. Your job is to ensure production services are observable, reliable, and operable by an on-call team. - Define Service Level Objectives (SLOs) and the SLIs that measure them - Write Prometheus alert rules, Grafana dashboards, and alerting policies - Author and mai"
+      "preview": "You are a site reliability engineer. Your job is to ensure production services are observable, reliable, and operable — drawing on the principles in the Google SRE Book and the practices a real on-call team needs to respond to incidents without heroics. - Define Service Level Objectives (SLOs) and t"
     },
     {
       "name": "bluetemberg-agents-test-specialist",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Test specialist agent for Bluetemberg — test creation, refactoring, and stabilization.",
       "profiles": ["frontend", "backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "agents",
       "agents": ["test-specialist"],
-      "preview": "You are a testing specialist. Your job is to create, refactor, and stabilize automated tests. - Write unit, integration, and e2e tests - Stabilize flaky tests with deterministic patterns - Ensure adequate test coverage for critical paths - Follow the project's testing conventions - Prefer determinis"
+      "preview": "You are a testing specialist. Your job is to create, refactor, and stabilize automated tests — ensuring the suite is fast, deterministic, and trustworthy. A test that fails intermittently is not a test; it is a scheduled source of confusion. - Write unit, integration, and e2e tests that verify behav"
     },
     {
       "name": "bluetemberg-guardrails-git",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Git guardrails for Bluetemberg — enforce conventional branch names on AI-created worktrees.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "guardrails",
       "guardrails": ["conventional-branch-names"],
-      "preview": "Blocks AI tools from creating worktrees with auto-generated names (e.g. `claude/some-name`). Requires a branch name in `type/description` format before the worktree is created."
+      "preview": "Blocks AI tools from creating worktrees with auto-generated names (e.g. `claude/some-name`). Requires a branch name in `type/description` format before the worktree is created. This is **deterministic enforcement**, not a prose convention an agent is asked to remember. A rule lives in context and de"
+    },
+    {
+      "name": "bluetemberg-rules-accessibility",
+      "version": "0.2.2",
+      "description": "Accessibility rules for Bluetemberg — WCAG 2.2 A/AA guidance for semantic HTML, ARIA, keyboard navigation, and more.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": [],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "accessible-forms",
+        "aria-only-when-needed",
+        "color-contrast",
+        "focus-management",
+        "keyboard-navigation",
+        "reduced-motion",
+        "semantic-html",
+        "text-alternatives"
+      ],
+      "preview": "Forms are among the most complex accessibility surfaces. WCAG 2.2 SC 1.3.1 (Info and Relationships), SC 3.3.1 (Error Identification), SC 3.3.2 (Labels or Instructions), and SC 4.1.2 (Name, Role, Value) all apply. - **Every input must have a programmatically associated label.** Use `<label htmlFor={i"
     },
     {
       "name": "bluetemberg-rules-agent-memory",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Agent memory rules for Bluetemberg — statelessness as a hard constraint, memory provenance, promotion through consolidation, and authority-ranked recall.",
       "profiles": ["agentic"],
+      "stacks": [],
       "universal": false,
       "kind": "rules",
       "rules": [
@@ -167,10 +247,22 @@
       "preview": "An LLM call is stateless. Nothing carries between turns except what you put back into the context window. Continuity is an engineering decision, not a model feature — and provider-managed memory APIs delegate the storage, not the decision. - For every piece of state, decide explicitly whether it mus"
     },
     {
+      "name": "bluetemberg-rules-commit-attribution",
+      "version": "0.2.1",
+      "description": "Commit and PR attribution hygiene rules for Bluetemberg — no AI agent-attribution residue in persisted artifacts. Opt-in: disclosing AI authorship is an org policy, and this rule conflicts with rulesets that require attribution.",
+      "profiles": [],
+      "stacks": [],
+      "universal": false,
+      "kind": "rules",
+      "rules": ["no-agent-attribution"],
+      "preview": "A `Co-Authored-By` trailer or a \"Generated with Claude Code\" footer turns every commit and PR into a visible record of which tool wrote it. That's noise the project didn't ask for, it clutters `git log` and PR history for every future reader, and it's rarely something a team decides on a commit-by-c"
+    },
+    {
       "name": "bluetemberg-rules-context-engineering",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Context engineering rules for Bluetemberg — structuring LLM context, managing token budgets, avoiding context pollution.",
       "profiles": ["agentic"],
+      "stacks": [],
       "universal": false,
       "kind": "rules",
       "rules": [
@@ -185,9 +277,10 @@
     },
     {
       "name": "bluetemberg-rules-design-craft",
-      "version": "0.1.0",
+      "version": "1.0.2",
       "description": "Anti-stock design-craft principles for building UI with AI — banned moves, real references, tokens-first, every state.",
       "profiles": ["design-engineer"],
+      "stacks": [],
       "universal": false,
       "kind": "rules",
       "rules": [
@@ -201,9 +294,10 @@
     },
     {
       "name": "bluetemberg-rules-devops",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Infrastructure rules for Bluetemberg — Docker, Terraform, Ansible, Kubernetes, Helm, CI/CD, shell scripts, and idempotency.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "rules",
       "rules": [
@@ -219,33 +313,52 @@
         "shell-script-standards",
         "terraform-conventions"
       ],
-      "preview": "Write Ansible roles and playbooks that are idempotent, readable, and maintainable. - Use fully qualified collection names (FQCN): `ansible.builtin.copy` not `copy`. - Every task must have a descriptive `name:`. - Avoid `shell` and `command` modules; prefer native modules. - When `shell`/`command` is"
+      "preview": "Non-idempotent or unnamed tasks make playbook runs unpredictable: re-runs report false changes, failures are hard to trace, and hardcoded secrets leak into logs and version control. Enforce idempotency in CI with `ansible-lint --profile production`. - Use fully qualified collection names (FQCN): `an"
     },
     {
       "name": "bluetemberg-rules-docs",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Documentation and diagnostics rules for Bluetemberg — docs parity, post-edit diagnostics, Mermaid diagrams.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "rules",
       "rules": ["docs-parity", "mermaid-diagrams", "post-edit-diagnostics"],
-      "preview": "A PR that changes behavior without updating docs is not done. - New or removed CLI flags, commands, or options - Changes to user-facing workflows (new prompts, removed choices, changed defaults) - New or removed public APIs, config options, or schema fields - Changes to output behavior or generated"
+      "preview": "A PR that changes behavior without updating docs is not done. **Why:** Docs that lag behind behavior mislead users into using flags, defaults, or APIs that no longer work, and the drift compounds with every unsynced change. Best enforced by a CI check that fails when source under a watched path chan"
     },
     {
       "name": "bluetemberg-rules-git",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Git workflow rules for Bluetemberg — branch protection, naming, PR workflow, git move, pre-commit checks.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "rules",
       "rules": ["git-move", "git-workflow", "pre-commit-checks"],
-      "preview": "If moving an existing file that is not `git ignored`, use `git mv {source} {dest}`, as this preserves the git history for the file and shows any new diff."
+      "preview": "**Why:** A plain `mv` makes git record a delete + add, so `git log --follow`, `git blame`, and review diffs lose the file's history and show the move as a full rewrite. When moving or renaming a tracked file (one not covered by `.gitignore`), use `git mv {source} {dest}` instead of `mv`. Git then re"
+    },
+    {
+      "name": "bluetemberg-rules-i18n",
+      "version": "1.0.3",
+      "description": "Internationalization rules for Bluetemberg — next-intl locale routing, Payload localized-field discipline, locale route guards, and message-key conventions.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["nextjs", "payload"],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "i18n-locale-routing",
+        "i18n-message-key-discipline",
+        "i18n-payload-localized-fields",
+        "i18n-route-guard"
+      ],
+      "preview": "Locale routing scattered across middleware, layouts, and link helpers drifts: a locale added in one place but not another produces 404s, untranslated pages, or links that drop the prefix. Define it once and import it everywhere. - Declare the supported `locales` array and the single `defaultLocale`"
     },
     {
       "name": "bluetemberg-rules-llm-api-product",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "LLM API and product-engineering rules for Bluetemberg — streaming, cost accounting, and cost-aware model selection.",
       "profiles": ["backend", "fullstack", "agentic"],
+      "stacks": [],
       "universal": false,
       "kind": "rules",
       "rules": ["cost-accounting", "model-selection-and-routing", "streaming"],
@@ -253,65 +366,172 @@
     },
     {
       "name": "bluetemberg-rules-nextjs",
-      "version": "0.2.0",
+      "version": "0.5.0",
       "description": "Next.js rules for Bluetemberg — NEXT_PUBLIC_* env var safety.",
       "profiles": ["frontend", "fullstack"],
+      "stacks": ["nextjs"],
       "universal": false,
       "kind": "rules",
       "rules": [
+        "nextjs-app-router-params",
         "nextjs-data-fetching",
+        "nextjs-force-static",
         "nextjs-image-optimization",
         "nextjs-metadata",
         "nextjs-public-env-vars",
-        "nextjs-server-components"
+        "nextjs-server-components",
+        "nextjs-server-only-boundary"
       ],
-      "preview": "In App Router, data fetching belongs in Server Components using async/await with the extended `fetch` API. `useEffect` + client-side API calls add a waterfall (page load → render → fetch → render again) and send a round-trip that a Server Component can eliminate entirely. - **Fetch data in Server Co"
+      "preview": "In Next.js 15+, `params` and `searchParams` are Promises. Reading a property without `await` yields `undefined` (or a runtime warning), so the page renders with missing data instead of failing loudly. Unvalidated locale/slug values then render empty or wrong pages instead of a proper 404. - `await p"
+    },
+    {
+      "name": "bluetemberg-rules-payload",
+      "version": "1.0.2",
+      "description": "Payload CMS rules for Bluetemberg — collection structure, snake_case dbName, composable access, field builders, revalidation hooks.",
+      "profiles": ["backend", "fullstack"],
+      "stacks": ["payload"],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "payload-collection-structure",
+        "payload-composable-access",
+        "payload-dbname-snake-case",
+        "payload-field-builder-pattern",
+        "payload-revalidation-hook-required"
+      ],
+      "preview": "Give every public-facing collection (rendered on the front end) the same skeleton. Targets Payload 3 (Next-native, Lexical, Drizzle/Postgres). Why: divergent shapes force editors and consuming code to special-case each collection, and a missing piece (versions, tracking fields, revalidation) ships a"
+    },
+    {
+      "name": "bluetemberg-rules-pr-links",
+      "version": "0.2.1",
+      "description": "GitHub PR and issue link formatting rules for Bluetemberg — full URLs over owner/repo#123 shorthand.",
+      "profiles": [],
+      "stacks": [],
+      "universal": false,
+      "kind": "rules",
+      "rules": ["github-full-urls"],
+      "preview": "The `owner/repo#123` shorthand only becomes a clickable link inside GitHub's own UI, and only within that same repository. In a chat response, a commit message, a doc, or a cross-repo reference it renders as inert plain text, forcing the reader to reconstruct the URL by hand. - Link to PRs and issue"
     },
     {
       "name": "bluetemberg-rules-security",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Security guardrail rules for Bluetemberg — secrets management, environment file protection, API error handling.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "rules",
       "rules": ["api-error-handling", "llm-package-hallucination", "never-read-env", "security-secrets"],
-      "preview": "All API endpoints must return structured, consistent error responses. Never expose stack traces, internal paths, or database details to clients. Always return errors with a consistent shape: ```json { \"error\": { \"code\": \"NOT_FOUND\", \"message\": \"Resource not found\" } } ``` - Map internal errors to ap"
+      "preview": "Leaked stack traces, SQL, or file paths hand attackers a map of your schema, ORM, and directory layout — turning a 500 into reconnaissance for the next exploit. All API endpoints must return structured, consistent error responses and never expose internal details to clients. Always return errors wit"
+    },
+    {
+      "name": "bluetemberg-rules-skeletor-authoring",
+      "version": "0.2.2",
+      "description": "Rules for contributing to @prototyp/skeletor for Bluetemberg — style-prop pipeline, polymorphic spacing, component structure, RN Animated, context defaults, and type derivation.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["skeletor"],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "skeletor-animation",
+        "skeletor-context-defaults",
+        "skeletor-spacing",
+        "skeletor-structure",
+        "skeletor-style-props",
+        "skeletor-types"
+      ],
+      "preview": "Skeletor builds its animation layer on React Native's built-in `Animated` API. Pulling in Reanimated, or returning a fresh animation object each render, breaks the library's zero-extra-dependency promise and causes animations to restart on every re-render. - Use RN's built-in `Animated` (`Animated.t"
+    },
+    {
+      "name": "bluetemberg-rules-skeletor-consumer",
+      "version": "0.2.2",
+      "description": "Rules for consuming @prototyp/skeletor in React Native apps — Block/Text/Screen primitives, SkeletorProvider config, animation hooks, and skeleform forms over raw RN primitives.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["react-native"],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "skeletor-animations",
+        "skeletor-forms",
+        "skeletor-primitives",
+        "skeletor-provider",
+        "skeletor-screen"
+      ],
+      "preview": "Skeletor's animation helpers compile element animations, run them on the native driver, and hand `Block`/`Text` an `animations` prop ready to interpolate. Hand-rolling `Animated.Value` + `Animated.timing`/`Animated.sequence` re-implements that boilerplate, is easy to get wrong on the native driver,"
+    },
+    {
+      "name": "bluetemberg-rules-tailwind",
+      "version": "0.3.0",
+      "description": "Tailwind CSS v4 rules for Bluetemberg — @theme token discipline, fluid typography, OKLch colors, and single-source breakpoints.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["tailwind"],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "tailwind-breakpoints-single-source",
+        "tailwind-custom-utilities",
+        "tailwind-fluid-typography",
+        "tailwind-theme-tokens"
+      ],
+      "preview": "When a breakpoint width lives both in the Tailwind theme and as a literal `768` in a `matchMedia`/resize handler, the two drift the moment one changes — JS reacts at a different width than CSS lays out. A single exported `cssVariables.js` keeps the CSS theme and JS logic reading the same numbers. -"
+    },
+    {
+      "name": "bluetemberg-rules-testing",
+      "version": "0.2.2",
+      "description": "Testing rules for Bluetemberg — determinism, isolation, and meaningful coverage.",
+      "profiles": ["frontend", "backend", "fullstack"],
+      "stacks": [],
+      "universal": false,
+      "kind": "rules",
+      "rules": [
+        "coverage-meaningful-not-vanity",
+        "flaky-test-policy",
+        "mocking-boundaries",
+        "test-data-builders",
+        "test-determinism",
+        "test-isolation",
+        "test-naming"
+      ],
+      "preview": "A line-coverage number tells you which lines were touched, not whether the software works. Tests that execute code without asserting outcomes inflate coverage metrics while providing no safety net — they are worse than no tests because they create false confidence. Coverage is a byproduct of writing"
     },
     {
       "name": "bluetemberg-rules-typescript",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "TypeScript code quality rules for Bluetemberg — type safety, coding standards, early returns, no console.log, design system reuse.",
       "profiles": ["frontend", "backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "rules",
       "rules": ["coding-standards", "design-system-reuse", "early-returns", "no-console-log", "type-safety"],
-      "preview": "Keep functions and components small, readable, and easy to reason about. - Prefer small, single-purpose functions. - Keep control flow shallow; avoid deep nesting. - Use early returns and guard clauses to reduce `else` blocks. - Extract complex logic into well-named helpers. - Favor descriptive name"
+      "preview": "**Why:** Deeply nested, multi-purpose functions hide bugs and make changes risky; small flat units are testable and reviewable in isolation. - Prefer small, single-purpose functions. - Keep control flow shallow; avoid deep nesting. - Use early returns and guard clauses to reduce `else` blocks. - Ext"
     },
     {
       "name": "bluetemberg-skills-api-design",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "API design skill for Bluetemberg — RESTful conventions, pagination, versioning.",
       "profiles": ["backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["api-design"],
-      "preview": "Use this skill when designing new API endpoints or reviewing existing API contracts. - New endpoint or route creation - API contract review or documentation - Pagination, filtering, or sorting implementation 1. The agent MUST follow RESTful resource naming (plural nouns, no verbs in paths). 2. The a"
+      "preview": "Use this skill when designing new HTTP API endpoints or reviewing existing API contracts. - New endpoint or route creation - API contract review or documentation - Pagination, filtering, or sorting implementation - Breaking change review before a version bump - Use plural nouns: `/users`, `/orders`,"
     },
     {
       "name": "bluetemberg-skills-ci-cd-best-practices",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "CI/CD best practices skill for Bluetemberg — pipeline optimization and caching strategies.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["ci-cd-best-practices"],
-      "preview": "Use this skill when creating or modifying CI/CD pipeline configuration. - New or modified GitHub Actions, GitLab CI, or similar workflow files - Build performance optimization - Adding new jobs, steps, or deployment stages 1. The agent MUST cache dependency installs (npm, pip, etc.) between runs. 2."
+      "preview": "Use this skill when creating or modifying CI/CD pipeline configuration. - New or modified GitHub Actions, GitLab CI, or similar workflow files - Build performance complaints or flaky pipeline investigation - Adding new jobs, steps, or deployment stages Never use `latest` or a mutable tag. Tags can b"
     },
     {
       "name": "bluetemberg-skills-code-review",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Code review skill for Bluetemberg — structured review checklist for PRs.",
       "profiles": ["frontend", "backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["code-review"],
@@ -319,9 +539,10 @@
     },
     {
       "name": "bluetemberg-skills-config-echo",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Config echo skill for Bluetemberg — verifies that synced configuration was actually loaded by the LLM.",
       "profiles": ["frontend", "backend", "fullstack", "devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["config-echo"],
@@ -329,9 +550,10 @@
     },
     {
       "name": "bluetemberg-skills-create-agent",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "description": "Meta-skill for scaffolding new bluetemberg agents — frontmatter, scoped tools, responsibilities and constraints, and sync.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "skills",
       "skills": ["create-agent"],
@@ -339,9 +561,10 @@
     },
     {
       "name": "bluetemberg-skills-create-pack",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Meta-skill for scaffolding a whole new bluetemberg pack — package.json metadata, llm/ layout, catalog registration, and validation.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "skills",
       "skills": ["create-pack"],
@@ -349,9 +572,10 @@
     },
     {
       "name": "bluetemberg-skills-create-rule",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "description": "Meta-skill for scaffolding new bluetemberg rules — frontmatter, the Why/Rules/BAD-GOOD/config/gotchas structure, and sync.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "skills",
       "skills": ["create-rule"],
@@ -359,9 +583,10 @@
     },
     {
       "name": "bluetemberg-skills-create-skill",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Meta-skill for scaffolding new bluetemberg skills — frontmatter, five required sections, and sync.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "skills",
       "skills": ["create-skill"],
@@ -369,29 +594,43 @@
     },
     {
       "name": "bluetemberg-skills-design-critique",
-      "version": "0.1.0",
+      "version": "1.0.2",
       "description": "Design critique skill for Bluetemberg — multi-lens review, hostile QA, and an impact-ranked fix list for built UI.",
       "profiles": ["design-engineer"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["design-critique"],
       "preview": "Use this skill when a view or flow is built and needs an honest, multi-angle review before it ships — the pass that finds what is wrong, where, and what to fix first. - A view or flow is functionally built and ready for a quality pass - Before shipping, deploying, or presenting a design - The work \""
     },
     {
+      "name": "bluetemberg-skills-design-system",
+      "version": "0.3.0",
+      "description": "Design-system reuse skill for Bluetemberg — reach for shadcn/Radix primitives, cn()/cva() composition, and asChild polymorphism before bespoke UI.",
+      "profiles": ["frontend", "fullstack", "design-engineer"],
+      "stacks": ["react"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["design-system"],
+      "preview": "Use this skill when building or reviewing a UI component in a shadcn + Radix codebase. The goal: reuse the existing system before inventing markup, lean on Radix for interaction/accessibility, and compose classes and variants through the house utilities instead of ad-hoc strings. This extends the `d"
+    },
+    {
       "name": "bluetemberg-skills-docs-upkeep",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Docs upkeep skill for Bluetemberg — keep docs aligned with implementation changes.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "skills",
       "skills": ["docs-upkeep"],
-      "preview": "Use this skill when code or workflow changes affect documented behavior. - Code change that alters documented behavior or public API - New feature, endpoint, or configuration option that needs documentation - Workflow, CI, or deployment process change 1. The agent MUST update affected docs in the sa"
+      "preview": "Use this skill when code or workflow changes affect documented behavior. - Code change that alters documented behavior or public API - New feature, endpoint, or configuration option that needs documentation - Workflow, CI, or deployment process change ```text Does the change alter a documented surfa"
     },
     {
       "name": "bluetemberg-skills-figma-to-code",
-      "version": "0.1.0",
+      "version": "1.0.2",
       "description": "Figma-to-code skill for Bluetemberg — the section-by-section design-to-code loop with prompt stacking, drift checks, and surgical refinement.",
       "profiles": ["design-engineer"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["figma-to-code"],
@@ -399,69 +638,186 @@
     },
     {
       "name": "bluetemberg-skills-infrastructure-drift-check",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Infrastructure drift check skill for Bluetemberg — verify IaC state matches deployed state.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["infrastructure-drift-check"],
-      "preview": "Use this skill before merging infrastructure-as-code changes to ensure the declared state is consistent with what is deployed. - Changes to `*.tf` files (Terraform) - Changes to Ansible playbooks or inventory - Changes to Kubernetes manifests (`k8s/`, `manifests/`, `helm/`) - Changes to Docker Compo"
+      "preview": "Use this skill before merging infrastructure-as-code changes to ensure declared state is consistent with what is deployed. - Changes to `*.tf` files (Terraform) - Changes to Ansible playbooks or inventory - Changes to Kubernetes manifests (`k8s/`, `manifests/`, `helm/`) - Changes to Docker Compose f"
+    },
+    {
+      "name": "bluetemberg-skills-integration-safety",
+      "version": "0.3.0",
+      "description": "Third-party integration-safety skill for Bluetemberg — lazy init, getRequiredEnv, safeParse over parse, fire-and-forget analytics, and safe widget script injection.",
+      "profiles": ["backend", "fullstack"],
+      "stacks": [],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["integration-safety"],
+      "preview": "Use this skill when wiring a third-party service into a Next.js app: an OAuth/Cognito client, a SOAP endpoint, a captcha or financing widget, an SMTP sender, or any external API. The goal: env and config resolve at runtime not build time, external responses can never throw mid-flow, analytics/widget"
+    },
+    {
+      "name": "bluetemberg-skills-k6-load-testing",
+      "version": "1.0.2",
+      "description": "k6 load-testing skill for Bluetemberg — scenario taxonomy, shared config/requests libs, p95 threshold discipline, and __ENV-parametrized suites wired into CI.",
+      "profiles": ["backend", "fullstack", "devops"],
+      "stacks": [],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["k6-load-testing"],
+      "preview": "Use this skill when you add or change a k6 load test — a new scenario, a threshold, a request helper, or the CI wiring that runs them. The goal: one shared config/requests layer feeds every scenario, thresholds come from measured baselines rather than guesses, and the suite is parametrized by enviro"
     },
     {
       "name": "bluetemberg-skills-migration-safety",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Migration safety skill for Bluetemberg — database migration review and rollback plans.",
       "profiles": ["backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["migration-safety"],
-      "preview": "Use this skill when creating or reviewing database schema migrations. - New migration file creation - Schema change review - Pre-deploy database change validation 1. The agent MUST verify every migration has a corresponding rollback (down migration). 2. The agent MUST flag destructive operations (DR"
+      "preview": "Use this skill when creating or reviewing database schema migrations. Every migration must survive a zero-downtime deploy and have a tested rollback path. - New migration file creation - Schema change review - Pre-deploy database change validation Scan the migration for: - `DROP TABLE`, `DROP COLUMN"
+    },
+    {
+      "name": "bluetemberg-skills-nextjs-caching",
+      "version": "0.3.0",
+      "description": "Next.js caching & ISR skill for Bluetemberg — unstable_cache keyParts vs tags discipline, revalidateTag call sites, and the ISR cache handler.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["nextjs"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["nextjs-caching"],
+      "preview": "Use this skill when you touch the Next.js framework caching layer: an `unstable_cache` call, a `revalidateTag` site, the ISR cache handler, a page's `dynamic`/`revalidate` export, or a cached media URL. This is the **framework** layer — distinct from `payload-cache-revalidation`, which owns the Payl"
+    },
+    {
+      "name": "bluetemberg-skills-orval-openapi",
+      "version": "0.3.0",
+      "description": "Orval OpenAPI client-generation skill for Bluetemberg — the build:api pipeline, tags-split output, the custom fetch mutator, and never hand-editing generated files.",
+      "profiles": ["backend", "fullstack"],
+      "stacks": [],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["orval-openapi"],
+      "preview": "Use this skill when working with an Orval-generated API client: after a backend API changes, when editing `orval.config.ts` or the fetch mutator, or when consuming generated React Query hooks and types. The goal: generated code is regenerated, never hand-edited, every request goes through the shared"
     },
     {
       "name": "bluetemberg-skills-patterns",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Patterns skill for Bluetemberg — apply reusable architecture and coding patterns.",
       "profiles": ["frontend", "backend", "fullstack"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["patterns"],
-      "preview": "Use this skill when implementing or reviewing feature structure, state placement, and code organization. - New feature implementation that requires architectural decisions - Code review where structure or state placement is in question - Refactoring to align existing code with established patterns 1"
+      "preview": "Use this skill when implementing features, reviewing structure, or deciding how to organize new code. - New feature implementation that requires architectural decisions - Code review where folder structure, naming, or module boundaries are in question - Refactoring to align existing code with establ"
+    },
+    {
+      "name": "bluetemberg-skills-payload-blocks",
+      "version": "0.3.0",
+      "description": "Payload CMS block-system skill for Bluetemberg — the co-located config.ts + Component.tsx pattern and the registry-dispatch RenderBlocks convention.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["payload"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["payload-blocks"],
+      "preview": "Use this skill when you add, edit, or render a Payload CMS block. A block is always two co-located files — a Payload schema and a React component — and is rendered through a registry dispatcher, never a hand-rolled `switch`. The goal: every block looks the same on disk, the renderer maps `blockType"
+    },
+    {
+      "name": "bluetemberg-skills-payload-cache-revalidation",
+      "version": "1.0.2",
+      "description": "Payload + Next.js cache revalidation skill for Bluetemberg — a single source of truth for cache tags and the per-locale vs locale-agnostic decision.",
+      "profiles": ["backend", "fullstack"],
+      "stacks": ["payload"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["payload-cache-revalidation"],
+      "preview": "Use this skill whenever you add or change a cached data fetch (`unstable_cache`) or a Payload revalidation hook in a Payload CMS + Next.js App Router project. The goal: the producer (the fetch that sets `tags`) and the consumer (the hook that calls `revalidateTag`) can never drift apart, and a tag's"
+    },
+    {
+      "name": "bluetemberg-skills-payload-migrations",
+      "version": "0.3.0",
+      "description": "Payload CMS migration workflow skill for Bluetemberg — generate-don't-handwrite, paired .ts/.json snapshots, and gated destructive changes.",
+      "profiles": ["backend", "fullstack"],
+      "stacks": ["payload"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["payload-migrations"],
+      "preview": "Use this skill whenever a schema-affecting change lands in a Payload CMS project — a new collection, a new/renamed/removed field, a changed column type — or whenever a file under `src/migrations/` is added, edited, or reviewed. The goal: the migration history stays a faithful, replayable record of t"
+    },
+    {
+      "name": "bluetemberg-skills-pr-review-loop",
+      "version": "0.2.2",
+      "description": "PR review loop skill for Bluetemberg — wire automated comment-only PR reviews via a local PostToolUse hook, without touching CI/CD.",
+      "profiles": ["frontend", "backend", "fullstack", "devops"],
+      "stacks": [],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["pr-review-loop"],
+      "preview": "Use this skill when wiring automated PR reviews into a project: every opened or updated pull request gets a prompt, comment-only review from a headless agent, without a human having to ask for one. The trigger is a local Claude Code `PostToolUse` hook: when an agent session runs `gh pr create`, a de"
     },
     {
       "name": "bluetemberg-skills-react-patterns",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "React patterns skill for Bluetemberg — component composition, hook extraction, state co-location.",
       "profiles": ["frontend", "fullstack", "design-engineer"],
+      "stacks": ["react"],
       "universal": false,
       "kind": "skills",
       "skills": ["react-patterns"],
-      "preview": "Use this skill when implementing or reviewing React components, hooks, or state management. - New React component or hook implementation - Component is growing too large or has mixed responsibilities - State is being lifted or passed through multiple layers - A custom hook is being written to wrap b"
+      "preview": "Use this skill when implementing or reviewing React components, hooks, or state management. - New React component or hook implementation - A component exceeds 150 lines or renders more than one logical section - A prop is passed through more than two layers without being used in the middle - Busines"
     },
     {
       "name": "bluetemberg-skills-rollback-plan",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Rollback plan skill for Bluetemberg — require tested rollback steps for every production change.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["rollback-plan"],
-      "preview": "Use this skill when reviewing infrastructure, deployment, or database changes that affect production systems. Every change must have a tested rollback path. - Changes to deployment manifests (Kubernetes, Docker Compose, Helm values) - Ansible playbooks targeting production inventory - Terraform chan"
+      "preview": "Use this skill when reviewing infrastructure, deployment, or database changes that affect production systems. Every change must have a tested rollback path before merge. - Changes to deployment manifests (Kubernetes, Docker Compose, Helm values) - Ansible playbooks targeting production inventory - T"
     },
     {
       "name": "bluetemberg-skills-security-audit",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Security audit skill for Bluetemberg — dependency audit, secrets scan, OWASP patterns.",
       "profiles": ["backend", "fullstack", "devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["security-audit"],
-      "preview": "Use this skill when reviewing code for security concerns or before deploying to production. - Pre-release or pre-deploy review - New authentication or authorization code - Code that handles user input, file uploads, or external data 1. The agent MUST check for hardcoded secrets, tokens, and credenti"
+      "preview": "Use this skill when reviewing code changes for security concerns or before deploying to production. Produce a triaged, actionable report — not a raw checklist dump. - Pre-release or pre-deploy review - New authentication, authorization, or session management code - Any code that handles user input,"
+    },
+    {
+      "name": "bluetemberg-skills-session-retrospective",
+      "version": "1.0.2",
+      "description": "Session retrospective skill for Bluetemberg — deterministic jq token/tool analysis of a Claude Code transcript plus a judged, severity-ordered process retrospective.",
+      "profiles": [],
+      "stacks": [],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["session-retrospective"],
+      "preview": "Use this skill to audit how a session spent its tokens and used its harness, and to turn that into a graded, severity-ordered retrospective with process improvements. > **Note:** This audits the *process* (spend, tool usage, delegation), not the *artifact*. For reviewing the code a session produced,"
+    },
+    {
+      "name": "bluetemberg-skills-skeletor-authoring",
+      "version": "0.2.2",
+      "description": "Skills for scaffolding @prototyp/skeletor primitives and hooks for Bluetemberg — folder + barrel + extract/memoize/displayName, and ref-stable RN Animated hooks.",
+      "profiles": ["frontend", "fullstack"],
+      "stacks": ["skeletor"],
+      "universal": false,
+      "kind": "skills",
+      "skills": ["new-skeletor-hook", "new-skeletor-primitive"],
+      "preview": "Use this skill when adding a `use*` hook to the `@prototyp/skeletor` library, so it matches the existing `useAnimateSequence` / `useLoopAnimation` / `useAnimationTimeline` shape. - \"add a skeletor hook\" / \"scaffold a `use*` animation hook\" - A new file is about to be created under `src/hooks/` in th"
     },
     {
       "name": "bluetemberg-skills-stack-change-review",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Stack change review skill for Bluetemberg — high-blast-radius infrastructure change review.",
       "profiles": ["devops", "pure-infra"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["stack-change-review"],
@@ -469,19 +825,21 @@
     },
     {
       "name": "bluetemberg-skills-sub-agent-design",
-      "version": "0.1.0",
+      "version": "0.2.2",
       "description": "Sub-agent design skill for Bluetemberg — plan, scope, and implement sub-agent architectures.",
       "profiles": ["agentic"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["sub-agent-design"],
-      "preview": "Use this skill when you need to break a complex agentic task into a coordinated set of sub-agents with defined responsibilities and communication contracts. - A single agent is doing too many things (context overloads, inconsistent outputs, hard-to-test) - A workflow has parallelizable phases that r"
+      "preview": "Use this skill when breaking a complex agentic task into a coordinated set of sub-agents with defined responsibilities and communication contracts. - A single agent is doing too many things (context overloads, inconsistent outputs, hard-to-test) - A workflow has parallelizable phases with no data de"
     },
     {
       "name": "bluetemberg-skills-visual-direction",
-      "version": "0.1.0",
+      "version": "1.0.2",
       "description": "Visual direction skill for Bluetemberg — explore distinct directions, lock one, and produce a banned-moves list and Design System Document.",
       "profiles": ["design-engineer"],
+      "stacks": [],
       "universal": false,
       "kind": "skills",
       "skills": ["visual-direction"],
@@ -489,9 +847,10 @@
     },
     {
       "name": "bluetemberg-skills-workspace-hygiene",
-      "version": "0.2.0",
+      "version": "0.3.2",
       "description": "Workspace hygiene skill for Bluetemberg — clean workspace state during edits.",
       "profiles": [],
+      "stacks": [],
       "universal": true,
       "kind": "skills",
       "skills": ["workspace-hygiene"],

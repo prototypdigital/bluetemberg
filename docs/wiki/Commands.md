@@ -53,7 +53,7 @@ Then, for **every** run:
 **Existing files are never overwritten.** `AGENTS.md`, `CLAUDE.md`, and the GitHub/community files are yours once they exist: re-running `init` keeps them and prints a "Kept N existing file(s)" list. Pass `--force` to replace them with the templates. The files bluetemberg owns (`bluetemberg.config.json`, `llm/packages.json`, `llm/mcp.json`, `llm/rule-sources.json`) are refreshed on every run.
 10. Runs an initial sync to generate all platform-specific files
 
-Collections are pre-selected based on the chosen profile. See [Profiles](Profiles) for what each team profile defaults to.
+The wizard offers every rules, agents and skills pack in the catalog. Packs are pre-selected based on the chosen profile; a pack that targets a stack (Payload, Next.js, Tailwind, …) is pre-selected only when that stack is detected, kept in the stack prompt, or passed with `--stacks`. See [Profiles](Profiles) for what each team profile defaults to.
 
 **Example:**
 
@@ -87,7 +87,7 @@ Then run `bluetemberg install` and `bluetemberg sync`. See [Profiles](Profiles#s
 
 ## `bluetemberg preview [profile]`
 
-Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`.
+Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`. Stack-specific packs are filtered by the stacks detected in the current directory, as `init` would; the ones it skips are listed at the end.
 
 | Option | Notes |
 | ------ | ----- |

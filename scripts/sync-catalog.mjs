@@ -1,9 +1,11 @@
 // Refresh the committed catalog snapshot from the packs repo `main` branch.
 // Run with `npm run sync:catalog`. The snapshot is the offline floor read by
 // `src/catalog/index.ts`; the project cache and live fetch layer on top of it.
-import { writeFileSync } from 'node:fs';
+// `npm run sync:catalog -- --check` writes nothing and exits 1 when the snapshot is stale.
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { format, resolveConfig } from 'prettier';
 
 const CATALOG_URL = 'https://raw.githubusercontent.com/prototypdigital/bluetemberg-packs/main/catalog.json';
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'catalog', 'catalog.json');
@@ -49,5 +51,22 @@ for (const pack of json.packs) {
   }
 }
 
-writeFileSync(OUT, JSON.stringify(json, null, 2) + '\n');
+// Format with the project's Prettier config so the snapshot passes `format:check` as written.
+const next = await format(JSON.stringify(json), { ...(await resolveConfig(OUT)), filepath: OUT });
+
+if (process.argv.includes('--check')) {
+  const current = readFileSync(OUT, 'utf8');
+  if (current === next) {
+    console.log(`Catalog snapshot is current (${json.packs.length} packs, generated ${json.generated}).`);
+    process.exit(0);
+  }
+  const committed = JSON.parse(current);
+  console.error(
+    `Catalog snapshot is stale: committed ${committed.packs?.length ?? '?'} packs (generated ${committed.generated}), ` +
+      `packs main has ${json.packs.length} (generated ${json.generated}). Run \`npm run sync:catalog\` and commit the result.`,
+  );
+  process.exit(1);
+}
+
+writeFileSync(OUT, next);
 console.log(`Wrote ${json.packs.length} packs to src/catalog/catalog.json (generated ${json.generated}).`);

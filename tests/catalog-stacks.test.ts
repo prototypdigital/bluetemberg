@@ -20,11 +20,14 @@ describe('catalog stacks field validation', () => {
     return root;
   }
 
+  // A name the real packs repo never publishes, so the snapshot fallback can't contain it.
+  const FIXTURE_PACK = 'bluetemberg-rules-stacks-fixture';
+
   const pack = (extra: Record<string, unknown>) => ({
     generated: '2026-01-01T00:00:00.000Z',
     packs: [
       {
-        name: 'bluetemberg-rules-payload',
+        name: FIXTURE_PACK,
         version: '0.1.0',
         description: '',
         kind: 'rules',
@@ -50,6 +53,6 @@ describe('catalog stacks field validation', () => {
     // assertCatalog throws on a non-string-array `stacks`; loadCatalogSync then uses the snapshot,
     // which never carries the fixture pack name.
     const catalog = loadCatalogSync(cacheRootWith(pack({ stacks: [1, 2, 3] })));
-    expect(catalog.packs.find((p) => p.name === 'bluetemberg-rules-payload')).toBeUndefined();
+    expect(catalog.packs.find((p) => p.name === FIXTURE_PACK)).toBeUndefined();
   });
 });

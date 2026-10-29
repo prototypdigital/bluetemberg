@@ -15,10 +15,11 @@ import type {
 import { parseSourceSpec, sourceKey } from '../sources/spec.js';
 import type { SourceManifest } from '../sources/types.js';
 import { DEFAULT_PACK_VERSION } from '../registry/manifest.js';
+import { loadCatalogSync } from '../catalog/index.js';
 import {
-  RULE_COLLECTION_OVERLAYS,
-  AGENT_OVERLAYS,
-  SKILL_OVERLAYS,
+  resolveRuleCollections,
+  resolveAgents,
+  resolveSkills,
   GUARDRAIL_PRESETS,
   MARKETPLACE_PLUGIN_PACKS,
 } from './presets.js';
@@ -195,26 +196,31 @@ function scaffoldEmptyRules(targetDir: string, state: ScaffoldState): void {
 
 function scaffoldPackageManifest(targetDir: string, answers: InitAnswers, state: ScaffoldState): void {
   const packages: Record<string, string> = {};
+  // Ids resolve against the same catalog-backed lists the wizard offered, curated or not.
+  const catalog = loadCatalogSync(targetDir);
 
   if (answers.ruleSource === 'collections') {
+    const collections = resolveRuleCollections(catalog);
     for (const collectionId of answers.ruleCollections) {
-      const preset = RULE_COLLECTION_OVERLAYS.find((c) => c.id === collectionId);
+      const preset = collections.find((c) => c.id === collectionId);
       if (!preset) continue;
       packages[preset.packageName] = DEFAULT_PACK_VERSION;
     }
   }
 
   if (answers.includeAgents) {
+    const agents = resolveAgents(catalog);
     for (const agentId of answers.agents) {
-      const preset = AGENT_OVERLAYS.find((a) => a.id === agentId);
+      const preset = agents.find((a) => a.id === agentId);
       if (!preset?.packageName) continue;
       packages[preset.packageName] = DEFAULT_PACK_VERSION;
     }
   }
 
   if (answers.includeSkills) {
+    const skills = resolveSkills(catalog);
     for (const skillId of answers.skills) {
-      const preset = SKILL_OVERLAYS.find((s) => s.id === skillId);
+      const preset = skills.find((s) => s.id === skillId);
       if (!preset?.packageName) continue;
       packages[preset.packageName] = DEFAULT_PACK_VERSION;
     }

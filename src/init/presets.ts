@@ -37,7 +37,8 @@ export const TEAM_PROFILES: TeamProfileChoice[] = [
 /**
  * Curated rule-collection overlays. Rule ids and profile tags are NOT declared here — they
  * are resolved from the catalog by `packageName` via `resolveRuleCollections`. This list only
- * fixes which collections the wizard offers, their display text, and their order.
+ * sets display text and order; every other rules pack in the catalog is offered after these,
+ * with display text taken from its catalog description.
  */
 export const RULE_COLLECTION_OVERLAYS: RuleCollectionOverlay[] = [
   {
@@ -106,7 +107,8 @@ export const RULE_COLLECTION_OVERLAYS: RuleCollectionOverlay[] = [
 
 /**
  * Curated agent overlays. Profile tags/universal are resolved from the catalog by `packageName`
- * via `resolveAgents`; this list fixes which agents the wizard offers, display text, defaults, and order.
+ * via `resolveAgents`; this list sets display text, defaults, and order. Uncurated agents packs
+ * in the catalog are offered after these.
  */
 export const AGENT_OVERLAYS: PresetOverlay[] = [
   {
@@ -211,7 +213,8 @@ export const AGENT_OVERLAYS: PresetOverlay[] = [
 
 /**
  * Curated skill overlays. Profile tags/universal are resolved from the catalog by `packageName`
- * via `resolveSkills`; this list fixes which skills the wizard offers, display text, defaults, and order.
+ * via `resolveSkills`; this list sets display text, defaults, and order. Uncurated skills packs
+ * in the catalog are offered after these.
  */
 export const SKILL_OVERLAYS: PresetOverlay[] = [
   {
@@ -336,42 +339,107 @@ function indexByPackage(catalog: Catalog): Map<string, CatalogPack> {
   return new Map(catalog.packs.map((p) => [p.name, p]));
 }
 
-/** Catalog-derived profile fields for a pack (universal packs carry no tags). */
-function profileFields(pack: CatalogPack | undefined): { universal?: boolean; tags?: TeamProfile[] } {
+/** Catalog-derived routing fields for a pack (universal packs carry no tags; stack-agnostic packs no stacks). */
+function profileFields(pack: CatalogPack | undefined): {
+  universal?: boolean;
+  tags?: TeamProfile[];
+  stacks?: string[];
+} {
   const universal = pack?.universal ?? false;
+  const stacks = pack?.stacks ?? [];
   return {
     universal: universal || undefined,
     tags: universal ? undefined : (pack?.profiles ?? []),
+    stacks: stacks.length > 0 ? stacks : undefined,
   };
 }
 
-/** Resolve rule-collection overlays against the catalog — rule ids and profile tags come from the matching pack. */
+/** Wizard id for a pack without an overlay: its package name minus the `bluetemberg-<kind>-` prefix. */
+function catalogId(pack: CatalogPack): string {
+  const prefix = `bluetemberg-${pack.kind}-`;
+  return pack.name.startsWith(prefix) ? pack.name.slice(prefix.length) : pack.name;
+}
+
+/** Display text for a pack without an overlay, split from its `<name> for Bluetemberg — <detail>` description. */
+function catalogDisplay(pack: CatalogPack, id: string): { name: string; description: string } {
+  const [head = '', ...detail] = pack.description.split(' — ');
+  const name = head.replace(/ for Bluetemberg$/i, '').trim();
+  if (!name || detail.length === 0) return { name: id, description: pack.description };
+  return { name, description: detail.join(' — ') };
+}
+
+/**
+ * Catalog packs of `kind` that no overlay curates, in catalog order. A pack whose derived id an
+ * overlay already uses is skipped so wizard ids stay unique.
+ */
+function uncuratedPacks(
+  catalog: Catalog,
+  kind: CatalogPack['kind'],
+  overlays: { id: string; packageName?: string }[],
+): CatalogPack[] {
+  const curatedPackages = new Set(overlays.map((o) => o.packageName));
+  const curatedIds = new Set(overlays.map((o) => o.id));
+  return catalog.packs.filter(
+    (p) => p.kind === kind && !curatedPackages.has(p.name) && !curatedIds.has(catalogId(p)),
+  );
+}
+
+/**
+ * Resolve rule collections: curated overlays first, then every other rules pack in the catalog.
+ * Rule ids and profile tags always come from the matching pack.
+ */
 export function resolveRuleCollections(catalog: Catalog): RuleCollectionPreset[] {
   const byPackage = indexByPackage(catalog);
-  return RULE_COLLECTION_OVERLAYS.flatMap((overlay) => {
+  const curated = RULE_COLLECTION_OVERLAYS.flatMap((overlay) => {
     const pack = byPackage.get(overlay.packageName);
     if (!pack) return [];
     return [{ ...overlay, rules: pack.rules ?? [], ...profileFields(pack) }];
   });
+  const uncurated = uncuratedPacks(catalog, 'rules', RULE_COLLECTION_OVERLAYS).map((pack) => {
+    const id = catalogId(pack);
+    return {
+      id,
+      packageName: pack.name,
+      ...catalogDisplay(pack, id),
+      rules: pack.rules ?? [],
+      ...profileFields(pack),
+    };
+  });
+  return [...curated, ...uncurated];
 }
 
-function resolvePresetOverlays(overlays: PresetOverlay[], catalog: Catalog): PresetItem[] {
+function resolvePresetOverlays(
+  overlays: PresetOverlay[],
+  catalog: Catalog,
+  kind: 'agents' | 'skills',
+): PresetItem[] {
   const byPackage = indexByPackage(catalog);
-  return overlays.flatMap((overlay) => {
+  const curated = overlays.flatMap((overlay) => {
     const pack = overlay.packageName ? byPackage.get(overlay.packageName) : undefined;
     if (overlay.packageName && !pack) return [];
     return [{ ...overlay, ...profileFields(pack) }];
   });
+  const uncurated = uncuratedPacks(catalog, kind, overlays).map((pack) => {
+    const id = catalogId(pack);
+    return {
+      id,
+      packageName: pack.name,
+      ...catalogDisplay(pack, id),
+      default: false,
+      ...profileFields(pack),
+    };
+  });
+  return [...curated, ...uncurated];
 }
 
-/** Resolve agent overlays against the catalog (profile tags from the matching pack). */
+/** Resolve agents: curated overlays, then every other agents pack in the catalog (profile tags from the pack). */
 export function resolveAgents(catalog: Catalog): PresetItem[] {
-  return resolvePresetOverlays(AGENT_OVERLAYS, catalog);
+  return resolvePresetOverlays(AGENT_OVERLAYS, catalog, 'agents');
 }
 
-/** Resolve skill overlays against the catalog (profile tags from the matching pack). */
+/** Resolve skills: curated overlays, then every other skills pack in the catalog (profile tags from the pack). */
 export function resolveSkills(catalog: Catalog): PresetItem[] {
-  return resolvePresetOverlays(SKILL_OVERLAYS, catalog);
+  return resolvePresetOverlays(SKILL_OVERLAYS, catalog, 'skills');
 }
 
 export const MCP_SERVER_PRESETS: PresetItem[] = [

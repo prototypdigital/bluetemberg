@@ -71,7 +71,7 @@ The interactive wizard will ask you to pick:
 - Target platforms (Cursor / Claude / Copilot / Gemini CLI / Windsurf / OpenAI Codex)
 - **Stacks** — detected from the project and pre-checked (e.g. Payload 3.4.1, Next 15); drive which rules apply by version, written to config `stacks` (`--stacks payload@3.4.1,nextjs@auto` in headless runs)
 - **Rule source** — versioned **rule collections** from the registry, or **empty** (bring your own rules / point at an external rule repo)
-- Rule collections pre-selected by profile — defaults depend on team type (see wiki **Profiles**)
+- Rule collections, agents and skills pre-selected by profile, with stack-specific packs pre-selected only when their stack is detected (see wiki **Profiles**)
 - Specialist agents (frontend, test, docs, a11y, infra, security, devops)
 - Skills (patterns, docs-upkeep, workspace-hygiene, code-review, api-design, etc.)
 - MCP presets via `llm/mcp.json` → Claude / Copilot / **Cursor** MCP config (interactive, context7, figma, github)

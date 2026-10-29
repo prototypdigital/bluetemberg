@@ -3,12 +3,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  AGENT_OVERLAYS,
   MCP_SERVER_PRESETS,
   PACKAGE_MANAGERS,
   PLATFORM_CHOICES,
+  resolveAgents,
   resolveRuleCollections,
-  SKILL_OVERLAYS,
+  resolveSkills,
   TEAM_PROFILES,
 } from './init/presets.js';
 import { loadCatalogSync } from './catalog/index.js';
@@ -50,8 +50,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
       packageName: c.packageName,
       tags: c.tags ?? [],
     })),
-    agents: AGENT_OVERLAYS.map((a) => ({ id: a.id, name: a.name, description: a.description })),
-    skills: SKILL_OVERLAYS.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+    agents: resolveAgents(catalog).map((a) => ({ id: a.id, name: a.name, description: a.description })),
+    skills: resolveSkills(catalog).map((s) => ({ id: s.id, name: s.name, description: s.description })),
     mcpServers: MCP_SERVER_PRESETS.map((m) => ({ id: m.id, name: m.name, description: m.description })),
     init: {
       options: [
