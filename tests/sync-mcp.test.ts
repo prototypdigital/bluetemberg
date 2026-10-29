@@ -128,6 +128,7 @@ describe('sync root .mcp.json', () => {
     // .mcp.json and .cursor/mcp.json still list context7, and the ownership sidecar should be removed.
     expect(check.outOfSync).toBe(3);
     expect(readRaw()).toBe(before);
+    expect(existsSync(join(root, 'llm', 'mcp-managed.json'))).toBe(true);
   });
 
   it('keeps extra fields a person added to a managed server', async () => {
@@ -154,6 +155,50 @@ describe('sync root .mcp.json', () => {
     expect(readRootMcp().mcpServers.context7).toEqual(BUILTIN_MCP_SERVERS.context7);
     expect(results.warnings.some((w) => w.includes('"context7" was hand-written'))).toBe(true);
     expect(readOwned()).toEqual(['context7']);
+  });
+
+  it('does not warn or rewrite when a hand-written entry matches the manifest in a different key order', async () => {
+    const typeFirst = { type: 'stdio', command: 'npx', args: ['-y', '@upstash/context7-mcp'] };
+    writeRootMcp({ mcpServers: { context7: typeFirst } });
+    const before = readRaw();
+    writeManifest(['context7']);
+
+    const results = await sync(root, { config: CONFIG, silent: true });
+
+    expect(results.warnings.filter((w) => w.includes('hand-written'))).toEqual([]);
+    expect(readRaw()).toBe(before);
+    expect(readOwned()).toEqual(['context7']);
+  });
+
+  it('writes managed entries type first', async () => {
+    writeManifest(['context7']);
+    await sync(root, { config: CONFIG, silent: true });
+
+    expect(Object.keys(readRootMcp().mcpServers.context7)).toEqual(['type', 'command', 'args']);
+  });
+
+  it('warns about a corrupt ownership file and replaces it', async () => {
+    writeManifest(['context7']);
+    writeFileSync(join(root, 'llm', 'mcp-managed.json'), '{ broken');
+
+    const results = await sync(root, { config: CONFIG, silent: true });
+
+    expect(results.warnings.some((w) => w.startsWith('llm/mcp-managed.json:'))).toBe(true);
+    expect(readOwned()).toEqual(['context7']);
+  });
+
+  it('leaves the Codex MCP block alone when llm/mcp.json does not parse', async () => {
+    const codexConfig: BlueprintConfig = { ...CONFIG, platforms: ['codex'] };
+    writeManifest(['context7']);
+    await sync(root, { config: codexConfig, silent: true });
+    const before = readFileSync(join(root, '.codex', 'config.toml'), 'utf8');
+    expect(before).toContain('context7');
+
+    writeFileSync(join(root, 'llm', 'mcp.json'), '{ broken');
+    const results = await sync(root, { config: codexConfig, silent: true });
+
+    expect(results.errors.filter((e) => e.includes('failed to parse'))).toHaveLength(1);
+    expect(readFileSync(join(root, '.codex', 'config.toml'), 'utf8')).toBe(before);
   });
 
   it('never rewrites a corrupt .mcp.json', async () => {

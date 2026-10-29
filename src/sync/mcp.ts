@@ -17,8 +17,12 @@ export const ROOT_MCP_FILE = '.mcp.json';
  */
 export const MCP_OWNERSHIP_FILE = 'mcp-managed.json';
 
-/** Fields of a server entry the manifest defines; any other field (e.g. `env`) a person added is kept. */
-const MANAGED_FIELDS = new Set(['type', 'command', 'args', 'url']);
+/**
+ * Fields of a server entry the manifest defines, in the order they are written (`type` first, as
+ * Claude Code writes them). Any other field (e.g. `env`) a person added is kept after them.
+ */
+const MANAGED_FIELDS = ['type', 'command', 'args', 'url'] as const;
+const MANAGED_FIELD_SET: ReadonlySet<string> = new Set(MANAGED_FIELDS);
 
 const OWNERSHIP_COMMENT =
   'Written by bluetemberg sync: the .mcp.json servers it manages (from llm/mcp.json). Do not edit.';
@@ -83,16 +87,31 @@ export function legacyMcpOutputs(sourceBase: string): { claude: string; copilot:
   };
 }
 
-function readOwnedServerIds(path: string): string[] {
-  if (!existsSync(path)) return [];
+/** Ids from the ownership sidecar, or an error when it exists but cannot be read as one. */
+function readOwnedServerIds(path: string): { ids: string[]; error?: string } {
+  if (!existsSync(path)) return { ids: [] };
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
     const servers = isPlainObject(parsed) ? parsed.servers : undefined;
-    return Array.isArray(servers) ? servers.filter((id): id is string => typeof id === 'string') : [];
-  } catch {
-    // Corrupt sidecar: own only what the manifest declares now.
-    return [];
+    if (!Array.isArray(servers)) return { ids: [], error: 'expected a "servers" array' };
+    return { ids: servers.filter((id): id is string => typeof id === 'string') };
+  } catch (err) {
+    return { ids: [], error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/** Structural equality for parsed JSON, ignoring object key order (array order still counts). */
+function jsonEqual(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((item, i) => jsonEqual(item, b[i]));
+  }
+  if (isPlainObject(a) && isPlainObject(b)) {
+    const keys = Object.keys(a);
+    if (keys.length !== Object.keys(b).length) return false;
+    return keys.every((key) => Object.hasOwn(b, key) && jsonEqual(a[key], b[key]));
+  }
+  return a === b;
 }
 
 type RootMcpRead =
@@ -114,12 +133,20 @@ function readRootMcp(path: string): RootMcpRead {
 
 /** Manifest-defined fields first, then every field a person added that the manifest does not set. */
 function managedEntry(config: McpServerConfig, previous: unknown): JsonObject {
-  const entry: JsonObject = { ...config };
+  const entry: JsonObject = {};
+  for (const field of MANAGED_FIELDS) {
+    if (config[field] !== undefined) entry[field] = config[field];
+  }
   if (!isPlainObject(previous)) return entry;
   for (const [key, value] of Object.entries(previous)) {
-    if (!MANAGED_FIELDS.has(key)) entry[key] = value;
+    if (!MANAGED_FIELD_SET.has(key)) entry[key] = value;
   }
   return entry;
+}
+
+/** Keeps a semantically unchanged entry exactly as it is on disk, so key order alone never rewrites the file. */
+function preferExisting(entry: JsonObject, existing: unknown): unknown {
+  return jsonEqual(entry, existing) ? existing : entry;
 }
 
 interface MergeResult {
@@ -141,8 +168,8 @@ function mergeServers(
   const takenOver: string[] = [];
   for (const [id, value] of Object.entries(current)) {
     if (Object.hasOwn(desired, id)) {
-      servers[id] = managedEntry(desired[id], value);
-      if (!owned.has(id) && JSON.stringify(servers[id]) !== JSON.stringify(value)) takenOver.push(id);
+      servers[id] = preferExisting(managedEntry(desired[id], value), value);
+      if (!owned.has(id) && servers[id] !== value) takenOver.push(id);
       continue;
     }
     if (owned.has(id)) continue;
@@ -190,7 +217,13 @@ function syncRootMcp(
 ): void {
   const mcpPath = join(ctx.root, ROOT_MCP_FILE);
   const ownershipPath = join(ctx.sourceBase, MCP_OWNERSHIP_FILE);
-  const owned = new Set(readOwnedServerIds(ownershipPath));
+  const ownership = readOwnedServerIds(ownershipPath);
+  if (ownership.error !== undefined && !ctx.checkMode) {
+    recordWarning(
+      `llm/${MCP_OWNERSHIP_FILE}: ${ownership.error} — servers removed from llm/mcp.json may be left in ${ROOT_MCP_FILE}; this sync rewrites it`,
+    );
+  }
+  const owned = new Set(ownership.ids);
   const desiredIds = Object.keys(desired);
   if (desiredIds.length === 0 && owned.size === 0) return;
 

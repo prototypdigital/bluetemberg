@@ -382,7 +382,7 @@ See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guid
 
 ## Uninstall
 
-1. Empty `llm/packages.json` (`{ "packages": {} }`) and delete any local sources under `llm/` you no longer want synced.
+1. Empty `llm/packages.json` (`{ "packages": {} }`) and delete any local sources under `llm/` you no longer want synced. Keep `llm/mcp-managed.json` until step 2 has run: it is how sync knows which `.mcp.json` servers are its own to remove.
 2. Run `npx bluetemberg sync --prune`. It deletes every generated file that carries the banner and removes the guardrail hooks it added to `.claude/settings.json`.
 3. Delete what's left by hand:
    - `bluetemberg.config.json`, `llm/` and `.bluetemberg/`
