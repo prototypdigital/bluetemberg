@@ -195,7 +195,12 @@ function buildNiOverrides(opts) {
   if (opts.platforms !== undefined) ov.platforms = csvList(opts.platforms);
   if (opts.ruleSource !== undefined) ov.ruleSource = opts.ruleSource;
 
-  if ((opts.rules ?? '') !== '') ov.rules = csvList(String(opts.rules));
+  // Template rules were retired; the flag is kept so existing scripts don't fail on an unknown option.
+  if ((opts.rules ?? '') !== '') {
+    console.warn(
+      'Warning: `--rules` is deprecated and ignored (template rules were retired). Use `--rule-collections`.',
+    );
+  }
 
   const ruleCollectionsRaw = opts.ruleCollections;
   if ((ruleCollectionsRaw ?? '') !== '') ov.ruleCollections = csvList(String(ruleCollectionsRaw));
@@ -246,10 +251,7 @@ program
   .option('--package-manager <id>', 'pnpm | npm | yarn')
   .option('--platforms <csv>', 'Comma-separated platforms (e.g. cursor,claude)')
   .option('--rule-source <mode>', 'collections | none')
-  .option(
-    '--rules <csv>',
-    'Template rule ids (profile universal rules are always merged; pure-infra omits app-code universals)',
-  )
+  .option('--rules <csv>', 'Deprecated and ignored (template rules were retired); use --rule-collections')
   .option('--rule-collections <csv>', 'Collections when `--rule-source collections`')
   .option('--agents <csv>')
   .option('--skills <csv>')
