@@ -96,7 +96,7 @@ your-project/
 │   ├── rules/                  # Your own vendor-neutral rules
 │   ├── agents/                 # Your own agent definitions
 │   ├── skills/                 # Your own skill workflows
-│   ├── guardrails/             # Optional — enforced hooks (Claude Code, Cursor, Copilot, Devin)
+│   ├── guardrails/             # Optional — enforced hooks (Claude Code, Cursor, Copilot, Devin, Codex)
 │   ├── mcp.json                # Optional — MCP presets and/or inline servers
 │   ├── mcp-managed.json        # Generated — which .mcp.json / .agents/mcp_config.json servers sync owns; commit
 │   ├── hooks.json              # Optional — Cursor hooks
@@ -246,7 +246,7 @@ check:
 message: 'EnterWorktree requires a conventional branch name (type/description).'
 ```
 
-Guardrails compile to Claude Code hooks in `.claude/settings.json`, to Cursor hooks in `.cursor/hooks.json` (for `PreToolUse` checks on `Bash`, which Cursor calls `Shell`), to GitHub Copilot hooks in `.github/hooks/bluetemberg-guardrails.json` (for `PreToolUse` checks on `Bash`; Copilot CLI, cloud agent and VS Code's Copilot harness), and to Devin Desktop hooks in `.devin/hooks.v1.json` (for `PreToolUse` checks on `Bash`, which Devin calls `exec`); other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
+Guardrails compile to Claude Code hooks in `.claude/settings.json`, to Cursor hooks in `.cursor/hooks.json` (for `PreToolUse` checks on `Bash`, which Cursor calls `Shell`), to GitHub Copilot hooks in `.github/hooks/bluetemberg-guardrails.json` (for `PreToolUse` checks on `Bash`; Copilot CLI, cloud agent and VS Code's Copilot harness), to Devin Desktop hooks in `.devin/hooks.v1.json` (for `PreToolUse` checks on `Bash`, which Devin calls `exec`), and to Codex hooks in a managed block in `.codex/config.toml` (for `PreToolUse` checks on `Bash`; Codex runs project hooks only after you trust them with `/hooks`). Other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
 
 ## Sync
 

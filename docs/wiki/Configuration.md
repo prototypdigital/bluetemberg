@@ -385,6 +385,7 @@ Codex reads `AGENTS.md` natively and uses TOML configuration, so it does not fol
 | `llm/agents/*.md`       | `.codex/agents/<name>.toml`             | Markdown body → `developer_instructions`; only `name` + `description` carry over.            |
 | `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`        | Vendor-neutral path; format unchanged. Configurable via `targets.skills.codex`.             |
 | `llm/mcp.json`          | `[mcp_servers.*]` in `.codex/config.toml` | Fenced managed block; hand-authored config preserved.                                       |
+| `llm/guardrails/*.md`   | `[[hooks.PreToolUse]]` in `.codex/config.toml` | Fenced managed block for `Bash` guardrails; Codex runs them once trusted with `/hooks`. See [Guardrails](Guardrails#codex). |
 
 `AGENTS.md` and `.codex/config.toml` are edited in place via managed blocks, so they are **not** removed by `--prune` (the generated `.codex/agents/*.toml` files **are** pruned). If `copilot` is also enabled, the rules block is stripped from its derived `copilot-instructions.md`, since Copilot receives scoped rules through `.github/instructions/`. The block is written only when `codex` or `gemini` is selected. For the reasoning, and for the overlap when it is combined with Claude Code, Cursor, Copilot, or Antigravity (all of which read `AGENTS.md` on at least some surfaces), see [Architecture](Architecture#why-the-rules-block-is-only-for-codex-and-gemini-cli).
 

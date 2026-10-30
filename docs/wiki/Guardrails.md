@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into an enforced hook. They compile to Claude Code, Cursor, GitHub Copilot and Devin Desktop today (see [Platform output](#platform-output)). Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
+Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into an enforced hook. They compile to Claude Code, Cursor, GitHub Copilot, Devin Desktop and Codex today (see [Platform output](#platform-output)). Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
 
 ## Where guardrails live
 
@@ -14,7 +14,7 @@ Sources merge with the same precedence as rules — a local file with the same n
 
 `init --non-interactive` adds the default guardrail pack to `llm/packages.json`; the interactive wizard doesn't ask about guardrails yet, so add it with `bluetemberg add bluetemberg-guardrails-git`. Run `bluetemberg install` and `bluetemberg sync` to activate it.
 
-Removing a guardrail — deleting the file, or `bluetemberg remove` on the pack that shipped it — removes its hook from `.claude/settings.json`, `.cursor/hooks.json`, `.github/hooks/bluetemberg-guardrails.json` and `.devin/hooks.v1.json` on the next `sync`. Only hooks bluetemberg generated are touched; hand-written entries in the same file stay.
+Removing a guardrail — deleting the file, or `bluetemberg remove` on the pack that shipped it — removes its hook from `.claude/settings.json`, `.cursor/hooks.json`, `.github/hooks/bluetemberg-guardrails.json`, `.devin/hooks.v1.json` and `.codex/config.toml` on the next `sync`. Only hooks bluetemberg generated are touched; hand-written entries in the same file stay.
 
 ## File format
 
@@ -45,8 +45,8 @@ Human-readable explanation of what this guardrail does.
 | `check.not_empty` | No | Fail when the field is empty |
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |
-| `message` | Yes | Shown to the agent when the check fails |
-| `platforms` | No | A YAML list that limits the guardrail to specific platforms (`claude`, `cursor`, `copilot`, `devin`; `windsurf` is accepted as an alias for `devin`). Leave it out to compile for every supported platform |
+| `message` | Yes | Shown to the agent when the check fails. Must not be blank |
+| `platforms` | No | A YAML list that limits the guardrail to specific platforms (`claude`, `cursor`, `copilot`, `devin`, `codex`; `windsurf` is accepted as an alias for `devin`). Leave it out to compile for every supported platform |
 
 At least one `check` condition is required — a guardrail with none is reported as a sync error.
 
@@ -81,7 +81,8 @@ This is deliberate. A guardrail that cannot check its own condition is not evide
 | Cursor | `preToolUse` entries in `.cursor/hooks.json`, for `PreToolUse` guardrails whose trigger has a Cursor equivalent (below) |
 | GitHub Copilot | `PreToolUse` entries in `.github/hooks/bluetemberg-guardrails.json`, for `PreToolUse` guardrails on `Bash` (below) |
 | Devin Desktop (formerly Windsurf) | `PreToolUse` groups in `.devin/hooks.v1.json`, for `PreToolUse` guardrails whose trigger has a Devin equivalent (below) |
-| Codex, Gemini, Antigravity | Not yet supported — guardrails are skipped |
+| Codex | A managed `[[hooks.PreToolUse]]` block in `.codex/config.toml`, for `PreToolUse` guardrails whose trigger has a Codex equivalent (below) |
+| Gemini, Antigravity | Not yet supported — guardrails are skipped |
 
 ### Cursor
 
@@ -146,6 +147,31 @@ Devin loads no hooks while a workspace is in Restricted Mode, but no agent runs 
 Sync owns only the entries it generated. Guardrail groups go first, and every group you wrote by hand is kept as it is. When the guardrails go away, sync removes only its own commands and deletes the file if nothing else is left in it. A `.devin/hooks.v1.json` that is not a valid hooks object is left untouched, and sync reports an error.
 
 Devin also loads the `hooks` key of `.claude/settings.json` by default (`read_config_from.claude`). There, a guardrail's matcher is the Claude tool name (`Bash`), which does not match `exec`, so Devin does not run the Claude Code entries a second time.
+
+### Codex
+
+Codex runs the same script as Claude Code, unchanged. A failed check exits 2 with the message on stderr, which Codex treats as a block and shows to the model. A passing check exits 0 with no output, which Codex reads as "continue": it never approves the command or skips Codex's own approval prompt.
+
+| Guardrail `trigger` (Claude Code tool) | Codex `tool_name` |
+| -------------------------------------- | ----------------- |
+| `Bash` | `Bash` |
+
+Codex reports its shell tool as `Bash` with `tool_input: { "command": "<the shell command string>" }`, so `check.field: command` reads the same value it does in Claude Code. That is the only field Codex sends: a `Bash` guardrail that checks another field (Claude's `description` or `timeout`) would read an empty value in Codex, so it is enforced in Claude Code only. No other trigger is mapped. Codex's `apply_patch` answers to `Write`/`Edit` matchers, but it takes the whole patch as `command` rather than Claude's `file_path`, so a check written for Claude's tools would read the wrong field. Unmapped triggers and `PostToolUse` guardrails are enforced in Claude Code only, and sync says so in its output.
+
+The entries go in a managed block in `.codex/config.toml`, between `# BEGIN BLUETEMBERG MANAGED HOOKS` and `# END BLUETEMBERG MANAGED HOOKS`, next to the managed MCP block. Everything outside the markers is yours and is kept, including your own `[[hooks.PreToolUse]]` tables. `sync --check` reports a hand-edited block as out of sync. When the guardrails go away, sync removes the block, and deletes the file if nothing else is left in it. If your config defines `hooks.PreToolUse` in a form that `[[hooks.PreToolUse]]` cannot extend (a plain array, or an inline table), sync leaves the file alone and reports an error. If you also keep hooks in `.codex/hooks.json`, Codex loads both and prints a startup warning about mixing the two formats in one layer; the hooks still run.
+
+What Codex requires before the hooks run:
+
+- **Trust.** Codex loads a project's `.codex/` layer only when the project is trusted, and runs each hook only after you trust it with `/hooks` in the Codex CLI. Trust is tied to the hook's contents, so a hook that changes (a new guardrail, an edited regex, an engine upgrade that changes the script) is skipped until you trust it again. Until then the guardrail is **not enforced**.
+- **Hooks on.** `[features] hooks = false` turns hooks off. Sync warns when the project config sets it; it cannot see your user-level `~/.codex/config.toml`.
+- **`jq` and `bash`.** A missing `jq` blocks the call (exit 2 with its own message). Codex runs the command with the session's shell (`zsh`, `bash` or `sh`, with `-c`), and any failure other than exit 2 fails open. That covers a timeout, a crash, a missing `bash`, or any other exit code. So does an `async` hook, which is why the entries never set `async`.
+- **macOS or Linux.** On Windows, Codex runs hooks through PowerShell or `cmd`, which cannot parse the POSIX-quoted `bash -c '…'` command. Each entry therefore sets `commandWindows` to a fixed name with no guardrail text in it, so `cmd` never parses a pack's message or regex. That name is not a command: Codex reports a hook error and lets the call through. Guardrails are **not enforced** in Codex on Windows.
+- **The main checkout.** In a linked git worktree, Codex ignores the worktree's `hooks` and reads them from the main checkout's `.codex/config.toml`. A guardrail added on a branch runs in Codex only once the main checkout is synced with it. Sync warns when it writes the hooks block inside a worktree.
+- **Your own hooks.** Codex trusts hooks by their position in the file. A `[[hooks.PreToolUse]]` group you add *below* the managed block shifts whenever the guardrails change, and has to be trusted again. Keep your own groups above the block. Codex also drops every hook in a layer if one entry in it does not match its hook schema, so a malformed hand-written hook switches the guardrails off too. Codex warns at startup when that happens.
+
+A guardrail checks the command as Codex starts it. Codex does not run `PreToolUse` for `write_stdin`, the tool that types into a command that is already running, so a command typed into an interactive shell the agent started earlier (`bash`, then `git push --force` on its stdin) is not checked. Treat a guardrail as a guard against the obvious call, not a sandbox.
+
+Codex never sees a guardrail limited to other platforms (`platforms: [claude]`, `[cursor]`, `[copilot]` or `[devin]`). A guardrail limited to `platforms: [codex]` compiles only for Codex.
 
 The `hooks` section in `.claude/settings.json` is bluetemberg-owned whenever guardrail sources or a project-local `llm/hooks.claude.json` exist, and fully regenerated on each sync: guardrail-generated entries come first, followed by entries from `llm/hooks.claude.json` (see [Writing Hooks](Writing-Hooks) for the full precedence contract). All other keys in the file are preserved.
 
