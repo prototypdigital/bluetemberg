@@ -163,17 +163,12 @@ const LEGACY_CLAUDE_HOOK_SCRIPTS = [
  * so hostile pack content cannot achieve shell or jq injection.
  */
 /**
- * Cursor runs the same checks with two additions, both because Cursor's entries are `failClosed`.
- * A missing `jq` exits 1 (a hook failure, which `failClosed` turns into a block) instead of reading
- * an empty field that every `not_matches` check passes. And a passing call prints `{}`: a
- * `failClosed` hook that prints nothing counts as failed, so silence would block every call. `{}`
- * carries no `permission`, so it never auto-approves anything.
+ * Cursor runs the same checks, and a passing call prints `{}`. Cursor's entries are `failClosed`, and
+ * a `failClosed` hook that prints nothing counts as failed, so silence would block every call. `{}`
+ * carries no `permission`, so it never auto-approves anything. A failure (a violated check, or `jq`
+ * missing or unable to read the payload) still exits 2 with nothing on stdout.
  */
-const CURSOR_HOOK_SCRIPT = [
-  'command -v jq >/dev/null 2>&1 || exit 1',
-  CLAUDE_HOOK_SCRIPT,
-  'printf "{}\\n"',
-].join('; ');
+const CURSOR_HOOK_SCRIPT = [CLAUDE_HOOK_SCRIPT, 'printf "{}\\n"'].join('; ');
 
 /** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */
 const TOOL_INPUT_PREFIX = 'tool_input.';
@@ -312,8 +307,8 @@ const CURSOR_TOOL_NAMES: Readonly<Record<string, string>> = { Bash: 'Shell' };
 /**
  * Cursor entries for the applicable guardrails, all on `preToolUse`. Cursor's `postToolUse` cannot
  * block or relay a message on exit 2, so a `PostToolUse` guardrail stays Claude Code only rather
- * than compiling to a hook that runs and does nothing. `failClosed` makes a crash, timeout or
- * missing `jq` block too: Cursor fails open by default, which would quietly turn a guardrail off.
+ * than compiling to a hook that runs and does nothing. `failClosed` makes a crash or timeout block
+ * too: Cursor fails open by default, which would quietly turn a guardrail off.
  */
 function buildCursorGuardrailHooks(
   ctx: GuardrailsSyncContext,

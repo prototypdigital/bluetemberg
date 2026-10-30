@@ -123,18 +123,19 @@ describe('guardrails for Cursor', () => {
     expect(block.stderr).toContain('Force-push is blocked');
   });
 
-  it('fails (exit 1, blocked by failClosed) when jq is missing instead of passing an empty field', async () => {
+  it('blocks when jq is missing instead of reading an empty field', async () => {
     writeGuardrail('no-force-push', NO_FORCE_PUSH);
     await sync(root, { config: CONFIG, silent: true });
     const command = readHooks().hooks.preToolUse?.[0]?.command ?? '';
     const bin = join(root, 'bin');
     mkdirSync(bin);
-    for (const tool of ['sh', 'bash', 'cat']) symlinkSync(join('/bin', tool), join(bin, tool));
+    for (const tool of ['sh', 'bash']) symlinkSync(join('/bin', tool), join(bin, tool));
 
-    const result = exec(command, { command: 'git push --force' }, { PATH: bin });
+    const result = exec(command, { command: 'git push origin feat/x' }, { PATH: bin });
 
-    expect(result.status).toBe(1);
+    expect(result.status).toBe(2);
     expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('is jq installed?');
   });
 
   it('leaves a PostToolUse guardrail to Claude Code: Cursor postToolUse cannot block', async () => {

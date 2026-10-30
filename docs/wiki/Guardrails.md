@@ -91,10 +91,7 @@ Cursor runs the same checks, and a failed check blocks the same way (exit code 2
 
 Only tools whose Cursor arguments are documented to match are mapped; Cursor documents `tool_input` for `Shell` alone. A guardrail whose trigger has no mapping (such as `EnterWorktree`, which has no Cursor equivalent) is enforced in Claude Code only, and sync says so in its output. So is a `hook_type: PostToolUse` guardrail: Cursor's `postToolUse` runs after the call and cannot block it.
 
-Each Cursor entry sets `failClosed: true`. By default Cursor lets a call through when a hook crashes, times out or exits with a code other than 2, which would silently switch a guardrail off. Two details follow from `failClosed`:
-
-- A passing check prints `{}`. A `failClosed` hook that prints nothing counts as failed, so a silent pass would block every shell command. `{}` makes no permission decision, so it never auto-approves a command.
-- When `jq` is not installed the hook exits 1, which blocks. Without `jq` the field cannot be read, and an empty field would pass every `not_matches` check.
+Each Cursor entry sets `failClosed: true`. By default Cursor lets a call through when a hook crashes, times out or exits with a code other than 2, which would silently switch a guardrail off. Because of `failClosed`, a passing check prints `{}`: a `failClosed` hook that prints nothing counts as failed, so a silent pass would block every shell command. `{}` makes no permission decision, so it never auto-approves a command.
 
 How `.cursor/hooks.json` is written depends on `llm/hooks.json`:
 
