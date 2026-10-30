@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.16.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.15.0...bluetemberg-v0.16.0) (2026-10-30)
+
+
+### Features
+
+* **cli:** add bluetemberg uninstall ([c6e8d2e](https://github.com/prototypdigital/bluetemberg/commit/c6e8d2e764d5774db33ec9c63a6ec5eb98f666c7))
+* **cli:** add bluetemberg uninstall ([f473388](https://github.com/prototypdigital/bluetemberg/commit/f473388dfa46dbae0407207ccfec81fbe33428a0))
+* **guardrails:** compile Bash guardrails to Codex hooks ([67a88a4](https://github.com/prototypdigital/bluetemberg/commit/67a88a4dbf111636ac8413cdb1f4582eaf2c9586))
+* **guardrails:** compile Bash guardrails to Codex hooks ([2fc9bd9](https://github.com/prototypdigital/bluetemberg/commit/2fc9bd97265637e0868564a57a9051e81f0a5170))
+* **guardrails:** compile Bash guardrails to Cursor hooks ([109a014](https://github.com/prototypdigital/bluetemberg/commit/109a014f59fa67810a1f834b919df908659d9ddf))
+* **guardrails:** compile Bash guardrails to Cursor hooks ([cb1b1a9](https://github.com/prototypdigital/bluetemberg/commit/cb1b1a969c51daab1139804a691883891e1386c6))
+* **guardrails:** compile Bash guardrails to Devin Desktop hooks ([077c23b](https://github.com/prototypdigital/bluetemberg/commit/077c23b18354b4fa97eec9da03e7b2df8ca355a4))
+* **guardrails:** compile Bash guardrails to Devin Desktop hooks ([bb2ec84](https://github.com/prototypdigital/bluetemberg/commit/bb2ec84b01490f7fbeb2e1740734f132b890ac53))
+* **guardrails:** compile Bash guardrails to GitHub Copilot hooks ([bba759d](https://github.com/prototypdigital/bluetemberg/commit/bba759d1992e5836238e19d6c9eb8f5df9191f2b))
+* **guardrails:** compile Bash guardrails to GitHub Copilot hooks ([00e5d51](https://github.com/prototypdigital/bluetemberg/commit/00e5d510c86e2dc98c038df765b10cebadd0fa48))
+
+
+### Bug Fixes
+
+* **guardrails:** block Copilot payloads with no tool_name instead of skipping them ([64530f4](https://github.com/prototypdigital/bluetemberg/commit/64530f452c1a992c4f8963684ce874cea08a35e7))
+* **guardrails:** close Codex Windows, field and worktree gaps ([50f4bdb](https://github.com/prototypdigital/bluetemberg/commit/50f4bdb50e4e9c7bf028823951365358e503b611))
+* **guardrails:** read the field as jq data, only under tool_input, and fail closed ([25a2b10](https://github.com/prototypdigital/bluetemberg/commit/25a2b10fbbc82ab1a8080511d29d9694ed14dac2))
+* **guardrails:** read the field from tool_input and send the block message to stderr ([c5366fe](https://github.com/prototypdigital/bluetemberg/commit/c5366fe088c5b700ab9c1c993790e37aa47b82c9))
+* **guardrails:** read the field from tool_input and send the block message to stderr ([ee69585](https://github.com/prototypdigital/bluetemberg/commit/ee695854af33df1613e87a5d0a17c2a69a836af5))
+* **guardrails:** reject a non-list platforms field instead of aborting sync ([c94c5be](https://github.com/prototypdigital/bluetemberg/commit/c94c5be72111db65c491bccf7b0f9e6bada0465d))
+* **guardrails:** stop Cursor guardrail hooks blocking passing calls ([e1d01de](https://github.com/prototypdigital/bluetemberg/commit/e1d01decde05609600b9c7d552f1f7db7c1a7250))
+
 ## [0.15.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.14.1...bluetemberg-v0.15.0) (2026-10-29)
 
 
