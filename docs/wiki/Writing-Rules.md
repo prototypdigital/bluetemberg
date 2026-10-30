@@ -53,6 +53,7 @@ stacks:
 
 Notes:
 
+- **Bound every range.** Write `'>=3 <4'`, not `'>=3'`: an open-ended range applies to every future major the day it ships, before anyone has checked the rule against it. Cap it at the majors you actually verified, and widen it (or add a sibling rule) when you check the next one. Don't reach past the latest release either — `'>=3 <6'` while the stack is on 3.x already claims two unreleased majors. [`bluetemberg stacks lint`](Commands#bluetemberg-stacks-lint-directory) flags both, and `bluetemberg stacks list <stack>@<major>` finds the rules to review when a new major lands. Use `'*'` only when the rule genuinely holds for every version.
 - **Version is a constraint on the rule, never part of the stack name.** There is no `payload-3` stack — there is `payload` plus a range.
 - Matching coerces loose versions, and a prerelease is matched as the release it previews: `15.0.0-canary.3` is treated as `15.0.0`, so it gets the `>=15` / `>=15.0.0` / `15.x` rules and never the `<15` ones — however the range is spelled.
 - Files are gated **independently**: when two files' ranges both match, both apply. Nothing picks a "winner" between them — if two rules contradict each other, give them non-overlapping ranges.

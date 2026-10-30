@@ -1,9 +1,10 @@
 import { existsSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import matter from 'gray-matter';
 import type { Catalog } from '../catalog/index.js';
 import type { BlueprintConfig, Stack, StackConstraint } from '../types.js';
 import { mergeSourceDirs, mergeSourceFiles, resolveExtendedSourceDirs } from '../sync/extends-loader.js';
+import { listDirs } from '../utils/fs.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
 import { resolveExternalSourceDirs } from '../sources/registry.js';
 import { buildStackMap, readFrontmatterStacks, resolveStacks, type StackMap } from './resolve.js';
@@ -116,28 +117,78 @@ export function collectDeclaredRanges(
   onWarning: (message: string) => void = () => {},
 ): DeclaredRange[] {
   const { local, dirs } = coverageSourceDirs(root, config, onWarning);
-  const stackMap = buildStackMap(catalog);
+  return harvestRanges(
+    dirs,
+    buildStackMap(catalog),
+    (kindDir) => resolve(dirname(kindDir)) === resolve(local),
+  );
+}
+
+/**
+ * Read every file's effective constraint from `dirs`, merged with sync's priority semantics.
+ * `isLocal` receives the kind dir a file was found in (`<source>/rules`, …); `prefix` is prepended
+ * to each id so a caller walking several unrelated trees can tell their files apart.
+ */
+function harvestRanges(
+  dirs: string[],
+  stackMap: StackMap,
+  isLocal: (kindDir: string) => boolean,
+  prefix = '',
+): DeclaredRange[] {
   const declared: DeclaredRange[] = [];
 
-  const record = (constraint: StackConstraint, id: string, isLocal: boolean): void => {
+  const record = (constraint: StackConstraint, id: string, kindDir: string): void => {
     for (const [stack, range] of Object.entries(constraint)) {
-      declared.push({ stack, range, origin: isLocal ? 'local' : 'catalog', from: id });
+      declared.push({ stack, range, origin: isLocal(kindDir) ? 'local' : 'catalog', from: `${prefix}${id}` });
     }
   };
 
   for (const kind of CONTENT_KINDS) {
     for (const [file, sourceDir] of mergeSourceFiles(dirs, kind, isContentFile)) {
       const id = basename(file, '.md');
-      const constraint = readConstraint(sourceDir, file, id, stackMap);
-      record(constraint, `${kind}/${id}`, sourceDir === join(local, kind));
+      record(readConstraint(sourceDir, file, id, stackMap), `${kind}/${id}`, sourceDir);
     }
   }
 
   const skills = mergeSourceDirs(dirs, 'skills', (dirPath) => existsSync(join(dirPath, 'SKILL.md')));
   for (const [name, sourceParent] of skills) {
-    const constraint = readConstraint(sourceParent, join(name, 'SKILL.md'), name, stackMap);
-    record(constraint, `skills/${name}`, sourceParent === join(local, 'skills'));
+    record(
+      readConstraint(sourceParent, join(name, 'SKILL.md'), name, stackMap),
+      `skills/${name}`,
+      sourceParent,
+    );
   }
 
   return declared;
+}
+
+/** Where a packs repo keeps each pack's guidance: `packages/<pack>/llm`. */
+const PACKS_REPO_SOURCE = 'llm';
+
+/**
+ * The pack source dirs of a packs repo (the authoring side: `packages/<pack>/llm`), keyed by pack
+ * dir name. Empty when `root` is not laid out as one — a consuming project has no root
+ * `catalog.json`, which is what tells the two apart.
+ */
+export function packsRepoSourceDirs(root: string): Map<string, string> {
+  const dirs = new Map<string, string>();
+  if (!existsSync(join(root, 'catalog.json'))) return dirs;
+  for (const name of listDirs(join(root, 'packages'))) {
+    const source = join(root, 'packages', name, PACKS_REPO_SOURCE);
+    if (existsSync(source)) dirs.set(name, source);
+  }
+  return dirs;
+}
+
+/**
+ * Collect the `stacks:` ranges authored in a packs repo, one pack at a time. Packs are not merged
+ * the way a project's sources are (a same-named rule in two packs is two rules here), and ids are
+ * prefixed with the pack (`bluetemberg-rules-payload/rules/payload-x`). Only frontmatter ranges
+ * are returned: the catalog's name-level tag is a consumer-side fallback, not something authored.
+ */
+export function collectPacksRepoRanges(root: string): DeclaredRange[] {
+  const noCatalog: StackMap = buildStackMap({ generated: '', packs: [] });
+  return [...packsRepoSourceDirs(root)].flatMap(([pack, dir]) =>
+    harvestRanges([dir], noCatalog, () => false, `${pack}/`),
+  );
 }
