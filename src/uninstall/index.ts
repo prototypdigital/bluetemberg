@@ -5,7 +5,12 @@ import { hasGeneratedBanner } from '../sync/banner.js';
 import { CLAUDE_HOOKS_MANIFEST } from '../sync/claude-hooks.js';
 import { MCP_OWNERSHIP_FILE } from '../sync/mcp.js';
 import { readIfExists } from '../utils/fs.js';
-import { measureChanges, measureChangesOnCopy, type ProjectChanges } from '../utils/project-changes.js';
+import {
+  isInside,
+  measureChanges,
+  measureChangesOnCopy,
+  type ProjectChanges,
+} from '../utils/project-changes.js';
 
 /**
  * `bluetemberg uninstall`: remove everything bluetemberg generated or manages and keep everything a
@@ -85,13 +90,17 @@ async function uninstallInPlace(root: string): Promise<void> {
 /**
  * The part `uninstall` and `eject` share: the config, the `.bluetemberg/` cache and its `.gitignore`
  * entry, and the machine state under the source dir (including the MCP ownership record). Your own
- * sources under the source dir stay; the dir goes only when nothing else is left in it.
+ * sources under the source dir stay; the dir goes only when nothing else is left in it. A source dir
+ * outside the project is left alone.
  */
 export function removeBluetembergState(root: string, sourceDir: string): void {
   removeGitignoreCacheEntry(root);
   removeIfBlank(root, '.gitignore');
-  for (const file of STATE_FILES) rmSync(join(sourceDir, file), { force: true });
-  removeIfEmptyDir(sourceDir);
+  // A source dir outside the project (`"source": "../shared/llm"`) is shared with other projects.
+  if (isInside(root, sourceDir)) {
+    for (const file of STATE_FILES) rmSync(join(sourceDir, file), { force: true });
+    removeIfEmptyDir(sourceDir);
+  }
   rmSync(join(root, CACHE_DIR), { recursive: true, force: true });
   rmSync(join(root, CONFIG_FILE), { force: true });
 }

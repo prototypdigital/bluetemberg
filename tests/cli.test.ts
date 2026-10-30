@@ -113,6 +113,39 @@ cliSuite('cli sync exit code', () => {
   });
 });
 
+cliSuite('cli eject', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+    writeFileSync(join(root, 'bluetemberg.config.json'), DEFAULT_CONFIG);
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('refuses without --yes when stdin is not a TTY and changes nothing', () => {
+    const r = runCli(['eject', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('--yes');
+    expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
+  });
+
+  it('--dry-run prints the plan and changes nothing', () => {
+    const r = runCli(['eject', '--dry-run', root], root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('bluetemberg.config.json');
+    expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(true);
+  });
+
+  it('--yes ejects, after which sync refuses to run', () => {
+    expect(runCli(['eject', '--yes', '--silent', root], root).status).toBe(0);
+    expect(existsSync(join(root, 'bluetemberg.config.json'))).toBe(false);
+    expect(runCli(['sync', root], root).status).toBe(1);
+  });
+});
+
 cliSuite('cli flags', () => {
   it('--help exits 0 and prints usage', () => {
     const r = runCli(['--help'], process.cwd());

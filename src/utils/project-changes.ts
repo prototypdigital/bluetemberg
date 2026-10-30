@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 
 /**
  * Measures what a whole-project procedure (`uninstall`, `eject`) changes by hashing every file
@@ -37,11 +37,36 @@ export async function measureChangesOnCopy(
 ): Promise<ProjectChanges> {
   const copy = mkdtempSync(join(tmpdir(), tempPrefix));
   try {
-    cpSync(root, copy, { recursive: true, filter: (src) => !isUnwalked(src, root) });
+    // verbatimSymlinks: by default cpSync rewrites a relative link as an absolute path into `root`,
+    // so a dry run writing through `AGENTS.md -> CLAUDE.md` would edit the real project.
+    cpSync(root, copy, { recursive: true, verbatimSymlinks: true, filter: (src) => !isUnwalked(src, root) });
+    retargetLinksIntoCopy(root, copy);
     return await measureChanges(copy, procedure);
   } finally {
     rmSync(copy, { recursive: true, force: true });
   }
+}
+
+/** Points absolute symlinks that target a path inside `root` at the same path inside `copy`. */
+function retargetLinksIntoCopy(root: string, copy: string): void {
+  const visit = (dir: string) => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, ent.name);
+      if (ent.isDirectory()) visit(path);
+      if (!ent.isSymbolicLink()) continue;
+      const target = readlinkSync(path);
+      if (!isAbsolute(target) || !isInside(root, target)) continue;
+      rmSync(path);
+      symlinkSync(join(copy, relative(root, target)), path);
+    }
+  };
+  visit(copy);
+}
+
+/** True when `path` is `root` itself or below it. */
+export function isInside(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel));
 }
 
 function isUnwalked(path: string, root: string): boolean {

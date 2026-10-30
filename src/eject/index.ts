@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { hasGeneratedBanner, stripGeneratedBanner, stripGeneratedBannerToml } from '../sync/banner.js';
+import { stripLeadingGeneratedBanner } from '../sync/banner.js';
 import { AGENTS_RULES_BLOCK_NOTICE } from '../sync/codex.js';
 import { loadConfig } from '../sync/index.js';
 import {
@@ -13,6 +13,7 @@ import {
 import { CACHE_DIR, CONFIG_FILE, removeBluetembergState } from '../uninstall/index.js';
 import { readIfExists } from '../utils/fs.js';
 import {
+  isInside,
   measureChanges,
   measureChangesOnCopy,
   UNWALKED,
@@ -56,7 +57,9 @@ export async function eject(root: string, options: EjectOptions = {}): Promise<E
   return measureChanges(root, ejectInPlace);
 }
 
-function ejectInPlace(root: string): void {
+function ejectInPlace(projectRoot: string): void {
+  // Real path throughout, so every rewrite is keyed the same way whichever spelling found the file.
+  const root = realpathSync(projectRoot);
   const config = loadConfig(root);
   const sourceDir = join(root, config.source || 'llm');
 
@@ -66,16 +69,21 @@ function ejectInPlace(root: string): void {
   removeBluetembergState(root, sourceDir);
 }
 
-/** New content for each file that loses a banner or managed-block markers, keyed by absolute path. */
+/**
+ * New content for each file that loses a banner or managed-block markers, keyed by real path so a
+ * symlinked `AGENTS.md` and the file it points at are one entry.
+ */
 function planRewrites(root: string, sourceDir: string): Map<string, string> {
   const rewrites = new Map<string, string>();
   for (const path of bannerCandidates(root, sourceDir)) {
     const content = readIfExists(path);
-    if (content === null || !hasGeneratedBanner(content)) continue;
-    rewrites.set(path, stripGeneratedBannerToml(stripGeneratedBanner(content)));
+    if (content === null) continue;
+    const stripped = stripLeadingGeneratedBanner(content);
+    if (stripped !== content) rewrites.set(path, stripped);
   }
   for (const { file, markers } of MANAGED_BLOCK_FILES) {
-    const path = join(root, file);
+    if (!existsSync(join(root, file))) continue;
+    const path = realPathInside(root, file);
     const content = rewrites.get(path) ?? readIfExists(path);
     if (content === null) continue;
     const unwrapped = markers.reduce(
@@ -85,6 +93,13 @@ function planRewrites(root: string, sourceDir: string): Map<string, string> {
     if (unwrapped !== content) rewrites.set(path, unwrapped);
   }
   return rewrites;
+}
+
+/** Real path of `root/file`, refusing a symlink that leads out of the project: eject edits only its own tree. */
+function realPathInside(root: string, file: string): string {
+  const path = realpathSync(join(root, file));
+  if (isInside(root, path)) return path;
+  throw new Error(`${file} links to ${path}, outside the project. Eject does not edit files outside it.`);
 }
 
 /** The AGENTS.md rules block opens with a "generated, do not edit" line that no longer holds. */

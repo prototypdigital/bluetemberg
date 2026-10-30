@@ -46,6 +46,33 @@ export function stripGeneratedBanner(content: string): string {
 }
 
 /**
+ * Removes a banner only from where the emitters put it: the first non-blank line of the file, or of
+ * the body after a leading frontmatter block. A banner quoted further down (in docs explaining it,
+ * say) is content and stays. Tolerates CRLF line endings, which a Windows checkout can introduce.
+ */
+export function stripLeadingGeneratedBanner(content: string): string {
+  const lines = content.split('\n');
+  const index = leadingBannerIndex(lines);
+  if (index === -1) return content;
+
+  lines.splice(index, lines[index + 1]?.trim() === '' ? 2 : 1);
+  return lines.join('\n');
+}
+
+function leadingBannerIndex(lines: string[]): number {
+  let index = 0;
+  if (lines[0]?.trimEnd() === '---') {
+    const close = lines.findIndex((line, i) => i > 0 && line.trimEnd() === '---');
+    if (close === -1) return -1;
+    index = close + 1;
+  }
+  while (index < lines.length && lines[index].trim() === '') index++;
+  const line = lines[index] ?? '';
+  const isBanner = line.startsWith(`<!-- ${BANNER_MARKER}`) || line.startsWith(`# ${BANNER_MARKER}`);
+  return isBanner ? index : -1;
+}
+
+/**
  * TOML cannot carry an HTML comment; `#` is its comment syntax. Same words, same marker, so
  * {@link hasGeneratedBanner} recognizes both forms.
  */
