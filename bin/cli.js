@@ -528,6 +528,54 @@ program
     }
   });
 
+const stacksCmd = program
+  .command('stacks')
+  .description('[maintainer] Inspect the stacks: ranges declared by guidance (lint, list)');
+
+stacksCmd
+  .command('lint')
+  .description('Flag open-ended stacks: ranges and ranges past the latest released major')
+  .argument('[directory]', 'Project root, or a packs repo (packages/<pack>/llm)', '.')
+  .option('--offline', 'Do not query the npm registry; use cached latest versions only')
+  .option('--json', 'Emit machine-readable JSON (findings, latest, unchecked, warnings)')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
+  .action(async (directory, options) => {
+    const { buildRangeLintReport, formatRangeLint } = await import('../dist/stacks/ranges.js');
+    try {
+      const report = await buildRangeLintReport(resolve(directory), { offline: options.offline });
+      if (!options.silent) {
+        console.log(options.json ? JSON.stringify(report, null, 2) : formatRangeLint(report).join('\n'));
+      }
+      if (report.findings.length > 0) process.exitCode = 1;
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+stacksCmd
+  .command('list')
+  .description('List guidance declaring a range for a stack (e.g. "payload@3" or "payload@>=3 <4")')
+  .argument('<stack>', 'Stack name with an optional @version or @range')
+  .argument('[directory]', 'Project root, or a packs repo (packages/<pack>/llm)', '.')
+  .option('--json', 'Emit machine-readable JSON (query, matches, nameLevel, warnings)')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
+  .action(async (stackSpec, directory, options) => {
+    const { buildRangeListReport, formatRangeList } = await import('../dist/stacks/ranges.js');
+    const atIdx = String(stackSpec).indexOf('@');
+    const stack = atIdx === -1 ? stackSpec : stackSpec.slice(0, atIdx);
+    const version = atIdx === -1 ? undefined : stackSpec.slice(atIdx + 1) || undefined;
+    try {
+      const report = buildRangeListReport(resolve(directory), stack, version);
+      if (!options.silent) {
+        console.log(options.json ? JSON.stringify(report, null, 2) : formatRangeList(report).join('\n'));
+      }
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
 program
   .command('scan-org')
   .description('[maintainer] Histogram stack+version usage across N repos vs catalog coverage (read-only)')
