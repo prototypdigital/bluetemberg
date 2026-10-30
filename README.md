@@ -96,7 +96,7 @@ your-project/
 │   ├── rules/                  # Your own vendor-neutral rules
 │   ├── agents/                 # Your own agent definitions
 │   ├── skills/                 # Your own skill workflows
-│   ├── guardrails/             # Optional — enforced hooks (Claude Code, Cursor, Copilot)
+│   ├── guardrails/             # Optional — enforced hooks (Claude Code, Cursor, Copilot, Devin)
 │   ├── mcp.json                # Optional — MCP presets and/or inline servers
 │   ├── mcp-managed.json        # Generated — which .mcp.json / .agents/mcp_config.json servers sync owns; commit
 │   ├── hooks.json              # Optional — Cursor hooks
@@ -114,6 +114,7 @@ your-project/
 ├── .github/hooks/bluetemberg-guardrails.json  # Generated guardrail hooks (Copilot) — other files in .github/hooks/ are yours
 ├── .gemini/settings.json       # `context.fileName` gains `AGENTS.md` (Gemini) — the rest is yours
 ├── .devin/rules/               # Generated (Devin Desktop) — do not edit
+├── .devin/hooks.v1.json        # Guardrail hooks (Devin Desktop) — hand-written hooks are kept
 ├── .windsurf/rules/            # Generated legacy mirror of .devin/rules/ (transition period) — do not edit
 ├── .agents/skills/             # Generated (Codex + Devin Desktop + Antigravity skills, vendor-neutral) — do not edit
 ├── .agents/rules/              # Generated (Antigravity) — do not edit
@@ -245,7 +246,7 @@ check:
 message: 'EnterWorktree requires a conventional branch name (type/description).'
 ```
 
-Guardrails compile to Claude Code hooks in `.claude/settings.json`, to Cursor hooks in `.cursor/hooks.json` (for `PreToolUse` checks on `Bash`, which Cursor calls `Shell`), and to GitHub Copilot hooks in `.github/hooks/bluetemberg-guardrails.json` (for `PreToolUse` checks on `Bash`; Copilot CLI, cloud agent and VS Code's Copilot harness); other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
+Guardrails compile to Claude Code hooks in `.claude/settings.json`, to Cursor hooks in `.cursor/hooks.json` (for `PreToolUse` checks on `Bash`, which Cursor calls `Shell`), to GitHub Copilot hooks in `.github/hooks/bluetemberg-guardrails.json` (for `PreToolUse` checks on `Bash`; Copilot CLI, cloud agent and VS Code's Copilot harness), and to Devin Desktop hooks in `.devin/hooks.v1.json` (for `PreToolUse` checks on `Bash`, which Devin calls `exec`); other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
 
 ## Sync
 
@@ -306,7 +307,7 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 
 ² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Only Codex and Gemini CLI get that block. Every other platform receives scoped rules through its own directory, and most of them also read `AGENTS.md`, so folding rules in for them would load each rule twice. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
 
-³ Devin Desktop is the former Windsurf (renamed 2026-06-02). Use the platform id `devin`; `windsurf` is still accepted as an alias and behaves identically. Rules go to `.devin/rules/` and, for a transition period, are mirrored to the legacy `.windsurf/rules/` that Devin still reads — the mirror will be dropped in a later release. Skills go to `.agents/skills/`, which Devin shares with Codex and Antigravity (written once). Devin deprecated workflows in favor of skills, so `llm/commands/` no longer emits `.windsurf/workflows/`; run `bluetemberg sync --prune` once to remove the old generated `.windsurf/workflows/` and `.windsurf/skills/` files.
+³ Devin Desktop is the former Windsurf (renamed 2026-06-02). Use the platform id `devin`; `windsurf` is still accepted as an alias and behaves identically. Rules go to `.devin/rules/` and, for a transition period, are mirrored to the legacy `.windsurf/rules/` that Devin still reads — the mirror will be dropped in a later release. Skills go to `.agents/skills/`, which Devin shares with Codex and Antigravity (written once). Devin deprecated workflows in favor of skills, so `llm/commands/` no longer emits `.windsurf/workflows/`; run `bluetemberg sync --prune` once to remove the old generated `.windsurf/workflows/` and `.windsurf/skills/` files. `Bash` [guardrails](#guardrails) compile to Devin hooks in `.devin/hooks.v1.json`.
 
 ## How sync works
 
@@ -391,7 +392,7 @@ npx bluetemberg uninstall             # show the plan, confirm, remove (--yes to
 npm uninstall bluetemberg
 ```
 
-`uninstall` deletes every generated file, `bluetemberg.config.json`, `.bluetemberg/` and the state files under `llm/` (`packages.json` and its lock, `mcp.json`, `mcp-managed.json`, the rule-sources files). It takes bluetemberg's own entries out of shared files and leaves everything else in them: managed MCP servers from `.mcp.json`, the synced hooks and marketplace keys from `.claude/settings.json`, the generated guardrail entries from `.cursor/hooks.json` and `.github/hooks/bluetemberg-guardrails.json`, `AGENTS.md` from `.gemini/settings.json`, the managed blocks from `AGENTS.md` and `.codex/config.toml`, and the `.bluetemberg/` line from `.gitignore` (the `.npmrc` line stays).
+`uninstall` deletes every generated file, `bluetemberg.config.json`, `.bluetemberg/` and the state files under `llm/` (`packages.json` and its lock, `mcp.json`, `mcp-managed.json`, the rule-sources files). It takes bluetemberg's own entries out of shared files and leaves everything else in them: managed MCP servers from `.mcp.json`, the synced hooks and marketplace keys from `.claude/settings.json`, the generated guardrail entries from `.cursor/hooks.json`, `.github/hooks/bluetemberg-guardrails.json` and `.devin/hooks.v1.json`, `AGENTS.md` from `.gemini/settings.json`, the managed blocks from `AGENTS.md` and `.codex/config.toml`, and the `.bluetemberg/` line from `.gitignore` (the `.npmrc` line stays).
 
 It keeps what you wrote: your own sources under `llm/` (rules, agents, skills, commands, prompts, hooks), and the `AGENTS.md`, `CLAUDE.md` and GitHub files `init` scaffolded. The dry run performs the real procedure on a temporary copy, so its list is exactly what a real run changes. Commit first if you want an easy undo.
 

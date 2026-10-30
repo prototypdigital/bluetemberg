@@ -237,7 +237,7 @@ export function buildCopilotGuardrailCommand(
   return buildGuardrailCommand(guardrail, COPILOT_HOOK_SCRIPT, [toolNamePattern]);
 }
 
-function buildGuardrailCommand(
+export function buildGuardrailCommand(
   guardrail: GuardrailFrontmatter,
   script = CLAUDE_HOOK_SCRIPT,
   extraArgs: readonly string[] = [],
@@ -276,6 +276,8 @@ function buildGuardrailCommand(
  *
  * Copilot: compiled and written by `syncCopilotGuardrailHooks` (`guardrails-copilot.ts`) from
  * `applied`, the guardrails that survive validation and version gating.
+ *
+ * Devin: compiled and written by `syncDevinGuardrailHooks` (`guardrails-devin.ts`) from `applied`.
  *
  * Other platforms: no-op (not yet supported).
  */
@@ -349,7 +351,7 @@ export interface GuardrailHooks {
   cursor: CursorHooksSection | null;
   /**
    * The guardrails that passed validation and version gating, for host writers that live in their
-   * own module (`guardrails-copilot.ts`); `null` when no guardrail sources exist.
+   * own module (`guardrails-copilot.ts`, `guardrails-devin.ts`); `null` when no guardrail sources exist.
    */
   applied: GuardrailFrontmatter[] | null;
 }
