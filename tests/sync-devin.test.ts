@@ -119,7 +119,12 @@ describe('Devin Desktop target', () => {
     } finally {
       console.log = orig;
     }
-    expect(logs.filter((line) => line.includes('-> .agents/skills/'))).toHaveLength(1);
+    // Once for llm/skills/, once for llm/commands/ship.md migrated to a skill.
+    expect(logs.filter((line) => line.includes('-> .agents/skills/'))).toEqual([
+      '  -> .agents/skills/ (1 skills)',
+      '  -> .agents/skills/ (1 skills)',
+    ]);
+    expect(existsSync(join(root, '.agents', 'skills', 'ship', 'SKILL.md'))).toBe(true);
 
     const pruned = await sync(root, { config: both, prune: true, silent: true });
     expect(pruned.errors).toEqual([]);

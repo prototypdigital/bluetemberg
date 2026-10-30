@@ -6,21 +6,11 @@ import type { SyncSink } from './pipeline.js';
 import type { ClaudeHooksSection } from './claude-hooks.js';
 import type { CursorHookEntry, CursorHooksSection } from './hooks.js';
 import { buildCodexGuardrailHooks, type CodexHooksSection } from './guardrails-codex.js';
-import { mergeSourceFiles } from './extends-loader.js';
+import { mergeContentKind } from './sources.js';
 import { ereIssue } from './ere.js';
-import {
-  describeLowConfidence,
-  describeStackMismatch,
-  matchStackConstraint,
-  type DetectedStacks,
-} from '../stacks/match.js';
-import {
-  buildStackMap,
-  frontmatterStackIssues,
-  readFrontmatterStacks,
-  resolveStacks,
-  type StackMap,
-} from '../stacks/resolve.js';
+import { describeLowConfidence, type DetectedStacks } from '../stacks/match.js';
+import { buildStackMap, type StackMap } from '../stacks/resolve.js';
+import { evaluateStackGate } from '../stacks/gate.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
   /** All source dirs in priority order: local, then `extends`, then packs. */
@@ -95,6 +85,18 @@ function guardrailRegexIssue(check: GuardrailCheck): string | null {
   }
 
   return null;
+}
+
+const INVALID_FRONTMATTER =
+  'invalid frontmatter — requires trigger, check.field, and message; check.matches/not_matches must be strings and platforms a list when present';
+
+/**
+ * Why sync would reject a guardrail before version gating, or `null` when it is well-formed.
+ * Shared with `bluetemberg why` so a rejected guardrail is explained in sync's own words.
+ */
+export function guardrailValidationIssue(data: unknown): string | null {
+  if (!isGuardrailFrontmatter(data)) return INVALID_FRONTMATTER;
+  return guardrailRegexIssue(data.check);
 }
 
 /** Wrap an arbitrary string as a single POSIX shell token (`'...'`, with embedded `'` escaped). */
@@ -299,7 +301,7 @@ export function syncGuardrails(
   ctx: GuardrailsSyncContext,
   recordError: (message: string) => void,
 ): GuardrailHooks {
-  const merged = mergeSourceFiles(ctx.sourceDirs, 'guardrails', (f) => f.endsWith('.md'));
+  const merged = mergeContentKind(ctx.sourceDirs, 'guardrails');
   if (merged.size === 0) return { claude: null, cursor: null, codex: null, applied: null };
 
   const stackMap = buildStackMap(ctx.catalog);
@@ -310,15 +312,10 @@ export function syncGuardrails(
       const { data } = matter.read(join(sourceDir, file));
       // Capture the raw record before the type guard narrows `data` to GuardrailFrontmatter.
       const record = data as Record<string, unknown>;
-      if (!isGuardrailFrontmatter(data)) {
-        recordError(
-          `guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message; check.matches/not_matches must be strings and platforms a list when present`,
-        );
-        continue;
-      }
-      const regexIssue = guardrailRegexIssue(data.check);
-      if (regexIssue !== null) {
-        recordError(`guardrails/${file}: ${regexIssue}`);
+      const invalid = guardrailValidationIssue(data);
+      // `isGuardrailFrontmatter` is already covered by `invalid`; it is repeated to narrow `data`.
+      if (invalid !== null || !isGuardrailFrontmatter(data)) {
+        recordError(`guardrails/${file}: ${invalid ?? INVALID_FRONTMATTER}`);
         continue;
       }
       const reason = versionFilterReason(ctx, file, sourceDir, record, stackMap);
@@ -432,15 +429,13 @@ function versionFilterReason(
   data: Record<string, unknown>,
   stackMap: StackMap,
 ): string | null {
-  const issues = frontmatterStackIssues(data);
-  if (issues.length > 0) {
-    const msg = `guardrails/${file}: invalid stack range(s) ${issues.join(', ')} — fix the range; until then the guardrail is mis-gated`;
+  const gate = evaluateStackGate(basename(file, '.md'), sourceDir, data, stackMap, ctx.detectedStacks);
+  if (gate.issues.length > 0) {
+    const msg = `guardrails/${file}: invalid stack range(s) ${gate.issues.join(', ')} — fix the range; until then the guardrail is mis-gated`;
     ctx.results.warnings.push(msg);
     ctx.log(`  WARN: ${msg}`);
   }
-  const constraint = resolveStacks(basename(file, '.md'), sourceDir, readFrontmatterStacks(data), stackMap);
-  const result = matchStackConstraint(constraint, ctx.detectedStacks);
-  for (const stack of result.lowConfidence) {
+  for (const stack of gate.match.lowConfidence) {
     const det = ctx.detectedStacks.get(stack);
     if (!det || ctx.warnedLowConfidence.has(stack)) continue;
     ctx.warnedLowConfidence.add(stack);
@@ -448,7 +443,7 @@ function versionFilterReason(
     ctx.results.warnings.push(msg);
     ctx.log(`  WARN: ${msg}`);
   }
-  return result.matched ? null : describeStackMismatch(result);
+  return gate.matched ? null : gate.reason;
 }
 
 /**

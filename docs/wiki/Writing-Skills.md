@@ -86,6 +86,61 @@ Reference supporting files from `SKILL.md` by their path relative to the skill d
 
 `sync --check` compares supporting files byte for byte. `sync --prune` treats a skill directory as one unit: when its `SKILL.md` carries the banner, a supporting file that no longer exists in the source is removed, and so is the whole directory once the skill itself is gone.
 
+## Migrating commands and prompts
+
+Every host has folded slash commands and prompt files into skills:
+
+- Claude Code merged custom commands into skills; a skill and a command with the same name both create `/name`, and the skill wins ([Claude Code: Skills](https://code.claude.com/docs/en/skills)).
+- VS Code runs prompt files only in the Local harness and recommends migrating them to skills, with a built-in "Convert Prompt to Skills" migration ([VS Code 1.129](https://code.visualstudio.com/updates/v1_129), [Migrate customizations](https://code.visualstudio.com/docs/agent-customization/migrate-customizations)).
+- Devin Desktop replaced workflows with skills ([Devin: Workflows](https://docs.devin.ai/desktop/cascade/workflows)).
+
+So sync now also writes each `llm/commands/*.md` and `llm/prompts/*.md` file as a **generated skill**, to every skills target of the enabled platforms (`.claude/skills/`, `.github/skills/`, `.cursor/skills/`, `.agents/skills/`). Before, a command reached Claude Code only and a prompt reached Copilot only.
+
+| Source                          | Generated skill                  |
+| ------------------------------- | -------------------------------- |
+| `llm/commands/ship.md`          | `<skills dir>/ship/SKILL.md`     |
+| `llm/prompts/review.md`         | `<skills dir>/review/SKILL.md`   |
+| `llm/prompts/fix.prompt.md`     | `<skills dir>/fix/SKILL.md`      |
+
+The body is copied as written. The frontmatter changes like this:
+
+- **`name`**: the file name without `.md` (and without `.prompt`). A prompt file's own `name` field takes precedence, because that is what VS Code put after the `/`.
+- **`description`**: the source `description`. Without one, the first heading or line of the body is used, since every host requires a description.
+- **`disable-model-invocation: true`**: keeps the skill user-invoked, the way the command or prompt was. VS Code's and Cursor's own migrations make the same choice. An explicit value in the source is kept. Codex and Devin ignore that field, so in the skills dir they read (`.agents/skills/`) a user-only skill also gets their own switch: `triggers: [user]` in the frontmatter when **devin** is enabled ([Devin CLI skills](https://docs.devin.ai/cli/extensibility/skills/overview)), and an `agents/openai.yaml` with `policy.allow_implicit_invocation: false` when **codex** is enabled ([Codex skills](https://learn.chatgpt.com/docs/build-skills)). Antigravity has no such switch, so it may still load a migrated command on its own initiative ([Antigravity skills](https://antigravity.google/docs/skills)); keep a command with side effects out of `llm/commands/` if Antigravity is enabled, or guard it with a [guardrail](Guardrails).
+- **Other fields** of a command (`argument-hint`, `allowed-tools`, `model`, …) are Claude Code skill fields too, and are carried over. A prompt's `agent`, `mode`, `model` and `tools` have no skill equivalent. They are left out with a warning, as VS Code's migration does. For a fixed agent, model or tool set, write a [custom agent](Writing-Agents) instead.
+
+`$ARGUMENTS` and `$1`-style placeholders are substituted by Claude Code only. Other hosts pass the text after the command to the model as context.
+
+Invocation keeps working where the host supports `/name` for skills: Claude Code, Copilot in VS Code, Cursor, and Antigravity. Codex mentions skills as `$name`. Devin Cloud uses `@skills:name`. Gemini CLI gets no skills from sync.
+
+### Name collisions
+
+- **A real skill wins.** If `llm/skills/<name>/` exists (locally, in `extends` or in a pack), no skill is generated for the command or prompt of that name, and sync warns.
+- **A hand-written skill in an output dir is never overwritten.** A `SKILL.md` without the generated-file banner is kept, and so is a dir that holds files but no `SKILL.md` (a bannered `SKILL.md` there would let `--prune` delete those files). Sync warns.
+- **Frontmatter that is not valid YAML** gets no skill, with a warning; the legacy output is still written, as before.
+- **A command beats a prompt** of the same name, with a warning.
+- **A name that is not a valid skill name** (lowercase letters, digits and single hyphens, at most 64 characters, per the [Agent Skills spec](https://agentskills.io/specification)) gets no skill. Copilot silently ignores a skill with an invalid name, so sync warns instead of writing one.
+
+Generated skills carry the banner, so `sync --check`, `sync --prune` and `bluetemberg uninstall` treat them like any other generated output.
+
+### Transition and removal plan
+
+| Release   | `.claude/commands/` and `.github/prompts/`                                                                 | Generated skills |
+| --------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
+| 0.17      | Still written. Each sync warns once that they are deprecated.                                              | Written          |
+| 0.18.0    | No longer written. `bluetemberg sync --prune` removes the old generated files.                             | Written          |
+
+To migrate a command or prompt for good, move it into `llm/skills/` and give it skill frontmatter:
+
+```bash
+mkdir -p llm/skills/ship
+git mv llm/commands/ship.md llm/skills/ship/SKILL.md
+# add name, description and disable-model-invocation: true to the frontmatter
+bluetemberg sync --prune
+```
+
+The skill is then a real skill: it can ship supporting files, packs can carry it, and the deprecation warning goes away once `llm/commands/` and `llm/prompts/` are empty.
+
 ## Naming convention
 
 - Each skill is a **directory** containing `SKILL.md`

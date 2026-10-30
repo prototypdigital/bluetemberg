@@ -293,20 +293,22 @@ export async function searchSources(
  * Resolve cached external-source content dirs for sync, in manifest order (lowest
  * priority — caller appends after local + extends + packs). Mirrors
  * `resolvePackSourceDirs`: warns (never throws) for sources that are declared but
- * unlocked/uncached, or locked but no longer in the manifest.
+ * unlocked/uncached, or locked but no longer in the manifest. `labels[i]` names the source behind
+ * `dirs[i]` as `key@ref`, for diagnostics (`bluetemberg why`).
  */
 export function resolveExternalSourceDirs(
   root: string,
   source = 'llm',
-): { dirs: string[]; warnings: string[] } {
+): { dirs: string[]; labels: string[]; warnings: string[] } {
   const manifest = readSourceManifest(root, source);
   const lock = readSourceLock(root, source);
 
   const manifestKeys = Object.keys(manifest.sources);
   const lockKeys = Object.keys(lock.sources);
-  if (manifestKeys.length === 0 && lockKeys.length === 0) return { dirs: [], warnings: [] };
+  if (manifestKeys.length === 0 && lockKeys.length === 0) return { dirs: [], labels: [], warnings: [] };
 
   const dirs: string[] = [];
+  const labels: string[] = [];
   const warnings: string[] = [];
 
   for (const key of manifestKeys) {
@@ -325,6 +327,7 @@ export function resolveExternalSourceDirs(
       continue;
     }
     dirs.push(dir);
+    labels.push(`${key}@${shortRef(entry.ref)}`);
   }
 
   for (const key of lockKeys) {
@@ -335,7 +338,7 @@ export function resolveExternalSourceDirs(
     }
   }
 
-  return { dirs, warnings };
+  return { dirs, labels, warnings };
 }
 
 // ---------------------------------------------------------------------------

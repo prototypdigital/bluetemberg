@@ -12,6 +12,7 @@ import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
+import { syncLegacySkills } from './legacy-skills.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
 import { dropLegacyGeminiRulesTarget, syncGeminiSettings } from './gemini.js';
 import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
@@ -24,37 +25,21 @@ import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
 import { syncDevinGuardrailHooks } from './guardrails-devin.js';
 import { syncClaudeHooks } from './claude-hooks.js';
 import {
+  DEFAULT_SYNC_PLATFORMS,
   normalizePlatforms,
   normalizeTargets,
   resolveAgentTargets,
   resolveRuleTargets,
   resolveSkillTargets,
 } from './targets.js';
-import {
-  resolveExtendedSourceDirs,
-  mergeSourceFiles,
-  mergeSourceDirs,
-  findShadowedEntries,
-} from './extends-loader.js';
-import { resolvePackSourceDirs } from '../registry/index.js';
-import { resolveExternalSourceDirs } from '../sources/registry.js';
+import { findShadowedEntries } from './extends-loader.js';
+import { mergeContentKind, resolveSyncSources } from './sources.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
-import {
-  describeLowConfidence,
-  describeStackMismatch,
-  isValidStackRange,
-  matchStackConstraint,
-  type DetectedStacks,
-} from '../stacks/match.js';
-import {
-  buildStackMap,
-  frontmatterStackIssues,
-  readFrontmatterStacks,
-  resolveStacks,
-  type StackMap,
-} from '../stacks/resolve.js';
+import { describeLowConfidence, isValidStackRange, type DetectedStacks } from '../stacks/match.js';
+import { buildStackMap, type StackMap } from '../stacks/resolve.js';
+import { evaluateStackGate } from '../stacks/gate.js';
 import type { Platform, BlueprintConfig, SyncOptions, SyncResults, TeamProfile } from '../types.js';
 
 const VALID_PLATFORMS: readonly Platform[] = [
@@ -298,7 +283,7 @@ const DISCOVERY_SKIP_DIRS = new Set([
  * having a config, so recursive sync needs no npm/pnpm/yarn workspace parsing. Skips heavy/generated
  * dirs and dotfolders. Returns absolute paths, root-first then lexical, for deterministic ordering.
  */
-function discoverConfigDirs(root: string): string[] {
+export function discoverConfigDirs(root: string): string[] {
   const start = resolve(root);
   const found: string[] = [];
   const pending = [start];
@@ -543,22 +528,20 @@ function gateByVersion(
   stackMap: StackMap,
   label: string,
 ): VersionGate {
-  const issues = frontmatterStackIssues(frontmatter);
-  if (issues.length > 0) {
+  const gate = evaluateStackGate(id, kindDir, frontmatter, stackMap, ctx.detectedStacks);
+  if (gate.issues.length > 0) {
     recordWarning(
       ctx,
-      `${label}: invalid stack range(s) ${issues.join(', ')} — fix the range; until then the file is mis-gated`,
+      `${label}: invalid stack range(s) ${gate.issues.join(', ')} — fix the range; until then the file is mis-gated`,
     );
   }
-  const constraint = resolveStacks(id, kindDir, readFrontmatterStacks(frontmatter), stackMap);
-  const result = matchStackConstraint(constraint, ctx.detectedStacks);
-  for (const stack of result.lowConfidence) {
+  for (const stack of gate.match.lowConfidence) {
     if (ctx.warnedLowConfidence.has(stack)) continue;
     ctx.warnedLowConfidence.add(stack);
     const det = ctx.detectedStacks.get(stack);
     if (det) recordWarning(ctx, describeLowConfidence(stack, det, label));
   }
-  return { matched: result.matched, reason: result.matched ? '' : describeStackMismatch(result) };
+  return { matched: gate.matched, reason: gate.reason };
 }
 
 /**
@@ -588,16 +571,11 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     configWarnings.push(w),
   );
   // `windsurf` is an alias for `devin`; every emitter below sees only the canonical id.
-  const platforms = normalizePlatforms(config.platforms || ['cursor', 'claude', 'copilot']);
-  const sourceBase = join(root, config.source || 'llm');
-  const { dirs: extendedDirs, warnings: extendsWarnings } = resolveExtendedSourceDirs(config.extends, root);
-  const { dirs: packDirs, warnings: packWarnings } = resolvePackSourceDirs(root, config.source || 'llm');
-  const { dirs: externalDirs, warnings: externalWarnings } = resolveExternalSourceDirs(
-    root,
-    config.source || 'llm',
-  );
+  const platforms = normalizePlatforms(config.platforms || DEFAULT_SYNC_PLATFORMS);
+  const resolvedSources = resolveSyncSources(root, config);
+  const { sourceBase, extendedDirs, packDirs, externalDirs } = resolvedSources;
   // Priority: local sourceBase first, then extends entries, then registry packs, then external sources.
-  const sourceDirs = [sourceBase, ...extendedDirs, ...packDirs, ...externalDirs];
+  const sourceDirs = resolvedSources.sources.map((s) => s.dir);
 
   const results: SyncResults = { synced: 0, outOfSync: 0, stale: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
@@ -636,9 +614,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   };
 
   // Surface extends, pack, and external-source resolution warnings before sync output.
-  for (const w of extendsWarnings) recordWarning(ctx, w);
-  for (const w of packWarnings) recordWarning(ctx, w);
-  for (const w of externalWarnings) recordWarning(ctx, w);
+  for (const w of resolvedSources.warnings) recordWarning(ctx, w);
   for (const w of configWarnings) recordWarning(ctx, w);
 
   logDetectedStacks(ctx);
@@ -684,6 +660,11 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncDevinGuardrailHooks(ctx, guardrailHooks.applied, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
+  syncLegacySkills(
+    ctx,
+    (msg) => recordError(ctx, msg),
+    (msg) => recordWarning(ctx, msg),
+  );
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
   syncCodexConfig(ctx, guardrailHooks.codex, (msg) => recordError(ctx, msg));
@@ -912,7 +893,7 @@ function logVersionFiltered(ctx: SyncContext, appliedCount: number, excluded: Ma
 }
 
 function syncRules(ctx: SyncContext): void {
-  const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
+  const merged = mergeContentKind(ctx.sourceDirs, 'rules');
   if (merged.size === 0) return;
 
   const excluded = resolveExcludedFiles(ctx, merged, 'rules');
@@ -955,7 +936,7 @@ function syncRules(ctx: SyncContext): void {
 }
 
 function syncAgents(ctx: SyncContext): void {
-  const merged = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
+  const merged = mergeContentKind(ctx.sourceDirs, 'agents');
   if (merged.size === 0) return;
 
   const excluded = resolveExcludedFiles(ctx, merged, 'agents');
@@ -998,9 +979,7 @@ function syncAgents(ctx: SyncContext): void {
 }
 
 function syncSkills(ctx: SyncContext): void {
-  const merged = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
-    existsSync(join(dirPath, 'SKILL.md')),
-  );
+  const merged = mergeContentKind(ctx.sourceDirs, 'skills');
   if (merged.size === 0) return;
 
   const excluded = resolveExcludedSkills(ctx, merged);

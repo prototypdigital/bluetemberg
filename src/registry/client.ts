@@ -61,6 +61,45 @@ export async function fetchPackageMetadata(
 }
 
 /**
+ * Fetch a package's dist-tags (`{ latest, next, … }`) — the cheap alternative to
+ * {@link fetchPackageMetadata} when only the current release matters. Full metadata for a
+ * framework like `next` runs to tens of megabytes; this endpoint is a few bytes.
+ *
+ * @throws If the HTTP request fails or the package is not found.
+ */
+export async function fetchDistTags(
+  name: string,
+  registryUrl?: string,
+  root?: string,
+  timeoutMs = FETCH_TIMEOUT_MS,
+): Promise<Record<string, string>> {
+  const base = (registryUrl || DEFAULT_REGISTRY).replace(/\/$/, '');
+  const url = `${base}/-/package/${encodePackageName(name)}/dist-tags`;
+
+  const res = await fetch(url, {
+    headers: { Accept: 'application/json', ...registryAuthHeaders(base, root) },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+
+  if (res.status === 404) {
+    throw new Error(`Package "${name}" not found in registry ${redactCredentials(base)}`);
+  }
+  if (!res.ok) {
+    throw new Error(`Registry request failed: ${res.status} ${res.statusText} (${redactCredentials(url)})`);
+  }
+
+  const data = (await res.json()) as unknown;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`Registry returned malformed dist-tags for "${name}"`);
+  }
+  return Object.fromEntries(
+    Object.entries(data as Record<string, unknown>).filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
+}
+
+/**
  * Search the npm registry for packages matching a query.
  *
  * By default appends `keywords:bluetemberg-pack` so only rule packs are returned.

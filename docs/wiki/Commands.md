@@ -204,6 +204,62 @@ npx bluetemberg coverage payload@3.4.0
 npx bluetemberg coverage nextjs --json
 ```
 
+## `bluetemberg why <file> [directory]`
+
+Explain why one rule, agent, skill or guardrail is **included** in or **excluded** from this project. It answers from the same source resolution and version gate sync uses, so it cannot disagree with what sync wrote.
+
+`<file>` can take any of three forms. The report says which one matched (tried in this order):
+
+| Form | Example | Notes |
+| ---- | ------- | ----- |
+| Source path | `llm/rules/payload-v3.md`, `llm/skills/migrate/`, `.bluetemberg/packs/<pack>/<ver>/llm/rules/x.md` | Relative (to the project directory, or failing that the current directory), `./`-prefixed or absolute. Naming a copy that a higher-priority source shadows explains the copy sync actually uses, with a note. |
+| Generated path | `.claude/rules/payload-v3.md`, `.cursor/rules/x.mdc`, `.claude/skills/migrate` | Resolved against the configured targets, so it works for an excluded item too (the path sync *would* write) and names the platform. |
+| Id | `payload-v3`, `rules/payload-v3` | A bare id matches every kind that ships it; prefix the kind to pick one. |
+
+For each match it reports:
+
+- **source**: the winning copy (`local`, `extends <entry>`, `<pack>@<version>`, or `<source>@<ref>` for an external source) plus any shadowed lower-priority copies.
+- **constraint**: whether it came from the file's own `stacks:` frontmatter (version-precise), the owning pack's catalog tag (name-only, `*`), or nothing (stack-agnostic).
+- **each `stack: range`** checked against the detected version, with its confidence and where it came from. A coerced (low-confidence) detection is flagged.
+- **why it's out**: a version mismatch, an absent stack, or (for a guardrail) frontmatter or regex sync rejects. It also lists invalid ranges and, when the item is included, the generated outputs.
+
+```bash
+npx bluetemberg why payload-v3
+npx bluetemberg why .claude/rules/payload-v3.md --json
+```
+
+```
+"payload-v3" matched as id.
+
+rules/payload-v3: EXCLUDED — payload >=3 <4 (you're on 2.5.0)
+  source:     local (llm/rules/payload-v3.md)
+  constraint: frontmatter `stacks:` (version-precise)
+    ✘ payload ">=3 <4" vs 2.5.0 (declared, from config)
+```
+
+Exits 1 when nothing matches `<file>`. In a monorepo, a path inside a package (`packages/web/llm/rules/payload-v3.md`, `packages/web/.claude/rules/payload-v3.md`) is answered by that package's own config and detected stacks, the decision `sync` made there, and the report names the package. An id typed at the workspace root answers for the root config only and warns; pass the package directory instead (`npx bluetemberg why payload-v3 packages/web`).
+
+### Upgrade diff: `bluetemberg why --diff <stack@version> [directory]`
+
+List the items that would be **added** or **removed** if a stack were at the given version, without writing anything. It re-runs the gate with that version substituted for the detected one. Repeat `--diff` to move several stacks at once. A partial version is completed the way the gate compares it (`payload@4` → `4.0.0`), and a stack that isn't detected today is treated as newly present. A stack that is neither detected nor named by any constraint can't change the set, so it gets a warning (likely a typo, e.g. `Payload@4`) instead of a silent "no change". At a monorepo root, pass the package directory.
+
+```bash
+npx bluetemberg why --diff payload@4
+npx bluetemberg why --diff payload@4 --diff nextjs@15 --json
+```
+
+```
+If payload 3.4.1 → 4.0.0 (nothing is written):
+  + rules/payload-v4 [local] — was: payload >=4 (you're on 3.4.1)
+  - rules/payload-v3 [local] — payload >=3 <4 (you're on 4.0.0)
+  unchanged: 14 included, 0 excluded
+```
+
+| Option | Description |
+| ------ | ----------- |
+| `--diff <stack@version>` | Diff the resolved set at this hypothetical version (repeatable). Takes no `<file>` |
+| `--json` | Emit the report as JSON (`matchedAs`, `matches[]`, … or `overrides[]`, `added[]`, `removed[]`, `unchanged`) |
+
 ## `bluetemberg scan-org [paths...]`
 
 **Maintainer tooling** — read-only. Scan N repositories and build a `(stack, version)` usage histogram against the installed catalog, then rank the uncovered buckets by usage so you author the highest-impact rules first. It reuses the exact detection that gates rules at sync. It **never writes** anything.
@@ -246,6 +302,48 @@ Progress is written to **stderr**, so `--json` output on stdout stays clean for 
 - Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.
 - Remote detection only reads `package-lock.json`; repos using `yarn.lock`/`pnpm-lock.yaml` resolve to `coerced` confidence from the manifest range (still useful for a histogram). Scan a local clone for `exact` versions across any package manager.
 
+## `bluetemberg stacks lint [directory]`
+
+**Maintainer tooling** — read-only. Lint the lifecycle of the `stacks:` ranges guidance declares. Two findings, both meaning a rule silently applies to versions nobody has checked it against:
+
+- **`open-ended`** — the range has no upper bound (`>=2`, `>13.4`, `^2 || >=4`). It will match every future major the day it ships.
+- **`past-latest-major`** — the range is bounded, but reaches past the stack's latest release (`>=3 <6` while Payload is on 3.x). For a `0.x` stack the release line is the minor (`>=0.81 <0.90` while React Native is on 0.82).
+
+The directory is either a **consuming project** — the lint reads exactly the guidance `coverage` reads (the project's source dir, `extends`, installed packs, external sources) — or a **packs repo**, recognised by a root `catalog.json` plus `packages/<pack>/llm/`. In a packs repo every pack is read on its own (ids are prefixed with the pack) and only authored frontmatter ranges are linted. `*` is never flagged: an explicit "any version" is a deliberate name-level claim.
+
+**Where "latest" comes from:** the npm registry's `dist-tags` for the stack's package (`nextjs` → `next`, mapped by the same [stack table](Configuration#stacks) detection uses; other names are their own package). It is always the public registry (`registry.npmjs.org`) — stack packages are public frameworks — and answers are cached for 24 hours in `$XDG_CACHE_HOME/bluetemberg/latest-versions.json` (default `~/.cache/bluetemberg/`). With `--offline`, or when the registry cannot be reached, a cached answer of any age is used; with none, the stack is reported as **unchecked** (`NOTE: could not check latest major for payload (offline)`), and only its open-ended ranges are flagged.
+
+| Option | Description |
+| ------ | ----------- |
+| `--offline` | Never query the registry; use cached latest versions only |
+| `--json` | Emit machine-readable JSON: `mode` (`project` \| `packs-repo`), `checked`, `findings[]` (`kind`, `stack`, `range`, `from`, `origin`, `latest`, `message`), `latest[]` (per stack: `package`, `latest`, `source` — `registry` \| `cache` \| `stale-cache` — `checkedAt`, `note`), `unchecked[]`, `warnings[]` |
+| `--silent` | Suppress output; the exit code still reports the result |
+
+Exits **1** when there are findings, so it can gate CI. Unchecked stacks alone do not fail it, so a `past-latest-major` finding can appear online and not offline. In a consuming project the findings include installed packs' ranges, marked `(catalog)`, which only the pack can fix; your own are marked `(local)`. A CI gate on pack content belongs in the packs repo.
+
+```bash
+npx bluetemberg stacks lint                          # this project's available guidance
+npx bluetemberg stacks lint ../bluetemberg-packs     # every pack, where rules are authored
+npx bluetemberg stacks lint --offline --json
+```
+
+## `bluetemberg stacks list <stack>[@version|@range] [directory]`
+
+**Maintainer tooling** — read-only. List the guidance that declares a range for a stack — "every rule pinned to Payload 3". With a version or range, only declarations that admit it are listed: a declaration matches when some version satisfies both. A partial version is its whole line (`payload@3` = any 3.x), an exact one is a point matched the way sync matches a detected version (`payload@3.4.1`; a prerelease such as `3.4.1-canary.2` counts as 3.4.1), and a range is a window (`"payload@>=3 <5"`). Without one, every ranged declaration for the stack is listed.
+
+Name-level declarations (`*`, or a pack-tagged file with no range of its own) apply to any version, so they are listed apart under `nameLevel`, never mixed into the pinned matches. The directory works as for [`stacks lint`](#bluetemberg-stacks-lint-directory): a consuming project or a packs repo. An invalid version or range is an error, not an empty list.
+
+| Option | Description |
+| ------ | ----------- |
+| `--json` | Emit machine-readable JSON: `mode`, `query`, `matches[]` (`stack`, `range`, `from`, `origin`), `nameLevel[]`, `warnings[]` |
+| `--silent` | Suppress output |
+
+```bash
+npx bluetemberg stacks list payload@3
+npx bluetemberg stacks list "payload@>=3 <5" ../bluetemberg-packs --json
+npx bluetemberg stacks list nextjs
+```
+
 ## `bluetemberg mcp serve [directory]`
 
 Run Bluetemberg itself as an [MCP](https://modelcontextprotocol.io) server over **stdio**, exposing the stack model as tools so an agent gets structured coverage without shelling out. It is the same machinery behind the `--json` flags — one implementation, two surfaces — and is **read-only** (it never writes files).
@@ -257,6 +355,7 @@ Tools:
 | `bluetemberg_detect_stacks` | — | Detected stacks, versions, confidence, coverage, gaps, warnings |
 | `bluetemberg_query_coverage` | `stack`, optional `version` | Whether version-correct guidance exists for the stack, with the gap `reason` when it does not |
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
+| `bluetemberg_why` | `file` (source path, generated path or id), or `diff` (array of `stack@version`) | The [`why`](#bluetemberg-why-file-directory) report for one item, or the upgrade diff |
 | `bluetemberg_org_histogram` | `roots` (array of repo paths), `org`, `repos`, `since` — all optional; combine local roots with a remote org scan | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
 
 Register it with an MCP client (example for Claude Code's `.mcp.json`):

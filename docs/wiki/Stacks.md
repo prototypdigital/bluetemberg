@@ -94,6 +94,7 @@ Three guarantees back this up — guidance is **never silently dropped**:
   ```
 - **Two sources shipping the same file warns.** When two packs (or `extends` entries) both ship `rules/testing.md`, the higher-priority one wins and the other copy — with its own `stacks:` range — is ignored. Sync names both. A local copy is the deliberate override and stays quiet.
 - **Every exclusion lists its reason** (rules, guardrails, agents, and skills alike), so you can audit that wrong-version content was correctly withheld — hidden, not wrong-here.
+- **You can ask about any one file.** `bluetemberg why <file>` explains a single rule, agent, skill or guardrail: which source it came from, whether its constraint is its own `stacks:` or its pack's catalog tag, the detected version and confidence it was checked against, and the verdict. `bluetemberg why --diff payload@4` previews what an upgrade would add and remove before you bump the dependency. Both use the gate itself, so they can't disagree with sync. See [Commands](Commands#bluetemberg-why-file-directory).
 - **The gate applies on every platform, Codex included.** A withheld rule stays out of the managed rules block in `AGENTS.md`, and a withheld agent gets no `.codex/agents/*.toml`. Claude Code and Copilot read `AGENTS.md` too, so a rule that leaked into that block would reach them as well.
 
 ## Coverage: the same model, asked backwards
@@ -114,6 +115,14 @@ A query for `(stack, version)` therefore has four outcomes:
 Note the third row carefully: a single stack-agnostic file inside a pack the catalog tags `["react"]` covers *every* React version. Coverage says so honestly — that file really does apply — but a version era whose only guidance is generic is not the same as one with a rule written for it, so those buckets are ranked separately rather than folded into "covered".
 
 Read it with [`bluetemberg detect`](Commands#bluetemberg-detect-directory) and [`bluetemberg coverage`](Commands#bluetemberg-coverage-stackversion-directory) for one project, or [`bluetemberg scan-org`](Commands#bluetemberg-scan-org-paths) to rank across N repos by how many are affected: `gaps` first (nothing covers them), then `weakCoverage` (covered name-level only).
+
+## Range lifecycle: bounded ranges, checked against real releases
+
+A range is a claim that the guidance is right for those versions. `>=3` claims Payload 4, 5 and 6 too — versions that did not exist when the rule was written. The day Payload 4 ships, every Payload-4 project receives the rule, and coverage reports Payload 4 as `covered`, with nothing to say whether anyone checked. The same happens, more quietly, with a bounded range that reaches past the latest release (`>=3 <6` while Payload is on 3).
+
+[`bluetemberg stacks lint`](Commands#bluetemberg-stacks-lint-directory) flags both: `open-ended` ranges, and `past-latest-major` ranges checked against the stack's latest release on npm (cached, and degrading to an "unchecked" note offline rather than guessing). The fix is the same either way — bound the range to the majors you checked (`>=3 <4`), and widen it when you check the next one. When a new major ships, [`bluetemberg stacks list payload@3`](Commands#bluetemberg-stacks-list-stackversionrange-directory) lists every rule pinned to the old one: the review list for the new major.
+
+Both commands run on a consuming project (the guidance it has available) or on a packs repo (where rules are authored), so a maintainer can lint before publishing and a team can see what it actually installed.
 
 ## Versioning strategy: two tiers, mirroring the ecosystem
 
@@ -142,4 +151,5 @@ Version-aware routing is maturing. Tracked in [issue #212](https://github.com/pr
 - [Configuration → `stacks`](Configuration#stacks) — declaring/pinning project stacks
 - [Writing Rules → `stacks`](Writing-Rules#stacks-optional) — the frontmatter constraint
 - [Commands → `bluetemberg detect`](Commands#bluetemberg-detect-directory) — inspect resolved versions
+- [Commands → `bluetemberg stacks lint`](Commands#bluetemberg-stacks-lint-directory) — flag ranges nobody has checked
 - [Guardrails](Guardrails) — the same gate applies to guardrails
