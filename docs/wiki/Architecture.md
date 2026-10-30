@@ -51,8 +51,8 @@ llm/
 ├── mcp-managed.json    # Generated: the .mcp.json / .agents/mcp_config.json servers sync owns (commit it)
 ├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
 ├── hooks.claude.json   # Optional: Claude Code hooks → hooks key of .claude/settings.json (project-local only; packs cannot ship these)
-├── commands/           # Optional: Claude slash commands → .claude/commands/*.md
-└── prompts/            # Optional: Copilot prompts → .github/prompts/*.prompt.md
+├── commands/           # Optional: slash commands → generated skills + .claude/commands/*.md (deprecated)
+└── prompts/            # Optional: prompt files → generated skills + .github/prompts/*.prompt.md (deprecated)
 ```
 
 For optional sync extensions, MCP/hooks details, and roadmap, see [Adapters](Adapters).
