@@ -241,7 +241,7 @@ The directory is either a **consuming project** — the lint reads exactly the g
 | `--json` | Emit machine-readable JSON: `mode` (`project` \| `packs-repo`), `checked`, `findings[]` (`kind`, `stack`, `range`, `from`, `origin`, `latest`, `message`), `latest[]` (per stack: `package`, `latest`, `source` — `registry` \| `cache` \| `stale-cache` — `checkedAt`, `note`), `unchecked[]`, `warnings[]` |
 | `--silent` | Suppress output; the exit code still reports the result |
 
-Exits **1** when there are findings, so it can gate CI. Unchecked stacks alone do not fail it.
+Exits **1** when there are findings, so it can gate CI. Unchecked stacks alone do not fail it, so a `past-latest-major` finding can appear online and not offline. In a consuming project the findings include installed packs' ranges, marked `(catalog)`, which only the pack can fix; your own are marked `(local)`. A CI gate on pack content belongs in the packs repo.
 
 ```bash
 npx bluetemberg stacks lint                          # this project's available guidance
@@ -251,7 +251,7 @@ npx bluetemberg stacks lint --offline --json
 
 ## `bluetemberg stacks list <stack>[@version|@range] [directory]`
 
-**Maintainer tooling** — read-only. List the guidance that declares a range for a stack — "every rule pinned to Payload 3". With a version or range, only declarations that admit it are listed: a declaration matches when some version satisfies both. A partial version is its whole line (`payload@3` = any 3.x), an exact one is a point (`payload@3.4.1`), and a range is a window (`"payload@>=3 <5"`). Without one, every ranged declaration for the stack is listed.
+**Maintainer tooling** — read-only. List the guidance that declares a range for a stack — "every rule pinned to Payload 3". With a version or range, only declarations that admit it are listed: a declaration matches when some version satisfies both. A partial version is its whole line (`payload@3` = any 3.x), an exact one is a point matched the way sync matches a detected version (`payload@3.4.1`; a prerelease such as `3.4.1-canary.2` counts as 3.4.1), and a range is a window (`"payload@>=3 <5"`). Without one, every ranged declaration for the stack is listed.
 
 Name-level declarations (`*`, or a pack-tagged file with no range of its own) apply to any version, so they are listed apart under `nameLevel`, never mixed into the pinned matches. The directory works as for [`stacks lint`](#bluetemberg-stacks-lint-directory): a consuming project or a packs repo. An invalid version or range is an error, not an empty list.
 

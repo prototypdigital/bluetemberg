@@ -1,3 +1,4 @@
+import { valid } from 'semver';
 import { loadCatalogSync } from '../catalog/index.js';
 import { loadConfig } from '../sync/index.js';
 import type { Stack } from '../types.js';
@@ -14,6 +15,7 @@ import {
   rangeHasUpperBound,
   rangesIntersect,
   unreleasedLineRange,
+  versionSatisfies,
 } from './match.js';
 
 /**
@@ -167,6 +169,16 @@ export async function buildRangeLintReport(root: string, opts: LatestOptions = {
 }
 
 /**
+ * Whether a declared range admits the queried version or range. An exact version is matched the
+ * way sync matches a detected one ({@link versionSatisfies}: `3.4.1-canary.2` counts as 3.4.1), so
+ * the list agrees with what sync would apply; a partial version or range matches by intersection.
+ */
+function admitsQuery(range: string, query: string): boolean {
+  if (valid(query) !== null) return versionSatisfies(query, range);
+  return rangesIntersect(range, query);
+}
+
+/**
  * List the declarations for `stack`, narrowed to those admitting `version` when one is given. The
  * query may be an exact version (`3.4.1`), a partial one (`3` = any 3.x), or a range (`>=3 <5`):
  * a declaration matches when some version satisfies both.
@@ -184,7 +196,7 @@ export function buildRangeListReport(root: string, stack: Stack, version?: strin
   const nameLevel = forStack.filter((d) => isWildcardRange(d.range)).map(toEntry);
   const matches = forStack
     .filter((d) => !isWildcardRange(d.range))
-    .filter((d) => version === undefined || rangesIntersect(d.range, version))
+    .filter((d) => version === undefined || admitsQuery(d.range, version))
     .map(toEntry);
 
   return { root, mode, query: { stack, version: version ?? null }, matches, nameLevel, warnings };
@@ -219,7 +231,7 @@ export function formatRangeLint(report: RangeLintReport): string[] {
   }
   lines.push(`${report.findings.length} issue(s):`);
   for (const f of report.findings) {
-    lines.push(`  ✗ ${f.from}  ${f.stack}: "${f.range}"  ${f.kind}`);
+    lines.push(`  ✗ ${f.from}  ${f.stack}: "${f.range}"  ${f.kind}  (${f.origin})`);
     lines.push(`      ${f.message}`);
   }
   lines.push('Bound each range to the majors the guidance was checked against (e.g. ">=3 <4").');

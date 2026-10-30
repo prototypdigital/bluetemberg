@@ -76,7 +76,9 @@ async function fetchLatestFromRegistry(pkg: string, root: string): Promise<strin
 function isCacheEntry(value: unknown): value is CacheEntry {
   if (!value || typeof value !== 'object') return false;
   const entry = value as Record<string, unknown>;
-  return typeof entry.latest === 'string' && typeof entry.fetchedAt === 'string';
+  return (
+    typeof entry.latest === 'string' && valid(entry.latest) !== null && typeof entry.fetchedAt === 'string'
+  );
 }
 
 /** Read the cache, dropping malformed entries. A missing or corrupt file is an empty cache. */
@@ -100,9 +102,10 @@ function writeCache(path: string, cache: LatestCache): void {
   }
 }
 
+/** A future `fetchedAt` (clock skew, a hand-edited file) is not fresh — it would otherwise never expire. */
 function isFresh(entry: CacheEntry, now: number): boolean {
-  const fetched = new Date(entry.fetchedAt).getTime();
-  return !Number.isNaN(fetched) && now - fetched <= CACHE_MAX_AGE_MS;
+  const age = now - new Date(entry.fetchedAt).getTime();
+  return age >= 0 && age <= CACHE_MAX_AGE_MS;
 }
 
 function fromCache(

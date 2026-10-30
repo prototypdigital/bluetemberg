@@ -159,9 +159,12 @@ describe('buildRangeLintReport', () => {
     expect(fetchLatest).not.toHaveBeenCalled();
     expect(report.findings.map((f) => [f.kind, f.range])).toEqual([['open-ended', '>=2']]);
     expect(report.unchecked).toEqual([{ stack: 'payload', package: 'payload', reason: 'offline' }]);
-    expect(formatRangeLint(report)).toContain(
+    const lines = formatRangeLint(report);
+    expect(lines).toContain(
       'NOTE: could not check latest major for payload (offline) — only open-ended ranges were flagged for it',
     );
+    // The origin tells a consumer its own rules (local) apart from installed packs' (catalog).
+    expect(lines).toContain('  ✗ rules/payload-open  payload: ">=2"  open-ended  (local)');
   });
 
   it('reports a registry failure as unchecked instead of throwing', async () => {
@@ -263,6 +266,27 @@ describe('resolveLatestVersions cache', () => {
     expect(readFileSync(cacheFile, 'utf8')).toBe('not json');
   });
 
+  it('ignores cache entries that are not versions or are dated in the future', async () => {
+    mkdirSync(join(cacheFile, '..'), { recursive: true });
+    writeFileSync(
+      cacheFile,
+      JSON.stringify({
+        payload: { latest: 'garbage', fetchedAt: '2026-10-30T11:00:00.000Z' },
+        next: { latest: '15.0.0', fetchedAt: '3000-01-01T00:00:00.000Z' },
+      }),
+    );
+    const fetchLatest = registry({ payload: '3.92.1', next: '16.4.3' });
+    const results = await resolveLatestVersions(root, ['payload', 'nextjs'], {
+      cacheFile,
+      now: () => NOW,
+      fetchLatest,
+    });
+    expect(results.map((r) => [r.latest, r.source])).toEqual([
+      ['16.4.3', 'registry'],
+      ['3.92.1', 'registry'],
+    ]);
+  });
+
   it('never writes a cache file for an offline run with no cache', async () => {
     await resolveLatestVersions(root, ['payload'], { cacheFile, offline: true });
     expect(existsSync(cacheFile)).toBe(false);
@@ -283,6 +307,13 @@ describe('buildRangeListReport', () => {
     expect(report.query).toEqual({ stack: 'payload', version: '3.2.0' });
     expect(report.matches.map((m) => m.from)).toEqual(['rules/payload-3']);
     expect(report.nameLevel.map((m) => m.from)).toEqual(['rules/payload-any']);
+  });
+
+  it('matches a prerelease query the way sync matches a detected prerelease', () => {
+    // Sync applies `>=3 <4` to a project on 3.4.1-canary.2 (versionSatisfies coerces to 3.4.1);
+    // plain semver intersection would say no, and the list would disagree with sync.
+    const report = buildRangeListReport(root, 'payload', '3.4.1-canary.2');
+    expect(report.matches.map((m) => m.from)).toEqual(['rules/payload-3', 'rules/payload-3-4']);
   });
 
   it('treats a partial version as its whole line ("payload 3" = any 3.x)', () => {
