@@ -183,7 +183,24 @@ describe('guardrails for GitHub Copilot', () => {
     const result = execRaw(command, 'not json at all');
 
     expect(result.status).toBe(2);
-    expect(result.stderr).toContain('could not read the hook payload');
+    expect(result.stderr).toContain('could not read tool_name');
+  });
+
+  it.each([
+    [
+      'the camelCase toolName/toolArgs shape',
+      { toolName: 'bash', toolArgs: '{"command":"git push --force"}' },
+    ],
+    ['an object with no tool_name', { tool_input: { command: 'git push --force' } }],
+    ['a null tool_name', { tool_name: null, tool_input: { command: 'git push --force' } }],
+    ['a null payload', null],
+  ])('blocks %s instead of skipping it as another tool', async (_label, payload) => {
+    const command = await generatedCommand();
+
+    const result = execRaw(command, JSON.stringify(payload));
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('could not read tool_name');
   });
 
   it('blocks a payload whose tool_input is not an object', async () => {

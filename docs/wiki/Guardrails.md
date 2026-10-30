@@ -115,7 +115,7 @@ How the hook behaves:
 
 - **Violated check:** exits 2 and prints `{"permissionDecision":"deny","permissionDecisionReason":"<message>"}` on stdout, which is how the message reaches the agent; the message also goes to stderr.
 - **Passing check:** exits 0 with no output. Copilot reads empty output as no decision, so the call goes through its normal permission flow. The hook never returns `allow`, so it never auto-approves anything.
-- **Cannot evaluate:** `jq` missing, a payload that is not JSON, or a field it cannot read exits 2 and blocks. Copilot also treats a crash or any other non-zero exit from a `preToolUse` command hook as a deny.
+- **Cannot evaluate:** `jq` missing, a payload that is not JSON, a payload with no string `tool_name` (such as the camelCase `toolName`/`toolArgs` shape), or a field it cannot read exits 2 and blocks. VS Code's Local harness runs the hook for every tool (see below), so there a missing `jq` blocks every tool call, not only shell commands. Copilot also treats a crash or any other non-zero exit from a `preToolUse` command hook as a deny.
 - **Other tools:** the command checks `tool_name` itself and exits 0 for anything that is not `Bash`. VS Code's older Local harness loads `.github/hooks/*.json` too but ignores `matcher`, so without this check a guardrail would run against every tool.
 
 Limits to know about:

@@ -181,7 +181,9 @@ const CURSOR_HOOK_SCRIPT = [CLAUDE_HOOK_SCRIPT, 'printf "{}\\n"'].join('; ');
  * never by a pack). VS Code's Local harness also loads `.github/hooks/*.json` but ignores `matcher`,
  * so without the gate a check would run against every tool's arguments (a `not_empty` guardrail
  * would deny every call). The payload is read once and replayed on stdin (`exec <<<`) for the shared
- * steps; a payload jq cannot read blocks.
+ * steps. A payload with no string `tool_name` blocks rather than reading as "another tool": that is
+ * the camelCase `toolName`/`toolArgs` shape, which the shared steps cannot read, and skipping it
+ * would let every call through.
  *
  * The deny: Copilot shows the agent `permissionDecisionReason` from stdout, which it merges with the
  * exit-2 deny, so the message goes there as well as to stderr. jq builds that JSON from `$4` as
@@ -190,8 +192,8 @@ const CURSOR_HOOK_SCRIPT = [CLAUDE_HOOK_SCRIPT, 'printf "{}\\n"'].join('; ');
  */
 const COPILOT_HOOK_SCRIPT = [
   'in=$(cat)',
-  `t=$(printf "%s" "$in" | jq -r '.tool_name // empty' 2>/dev/null)`,
-  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi',
+  `t=$(printf "%s" "$in" | jq -r 'if (.tool_name | type) == "string" then .tool_name else error("no tool_name") end' 2>/dev/null)`,
+  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read tool_name from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi',
   '[[ "$t" =~ $6 ]]; s=$?; if [ "$s" -eq 2 ]; then printf "bluetemberg guardrail: invalid tool-name pattern. Blocking.\\n" >&2; exit 2; elif [ "$s" -ne 0 ]; then exit 0; fi',
   'exec <<<"$in"',
   ...GUARDRAIL_CHECK_STEPS,
