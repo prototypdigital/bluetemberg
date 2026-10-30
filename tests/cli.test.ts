@@ -23,11 +23,14 @@ function createTmpDir(): string {
 
 const cliSuite = existsSync(distSync) ? describe : describe.skip;
 
+const DEFAULT_CONFIG = JSON.stringify({ platforms: ['cursor', 'claude', 'copilot'], source: 'llm' });
+
 cliSuite('cli sync exit code', () => {
   let root: string;
 
   beforeEach(() => {
     root = createTmpDir();
+    writeFileSync(join(root, 'bluetemberg.config.json'), DEFAULT_CONFIG);
   });
 
   afterEach(() => {
@@ -79,6 +82,17 @@ cliSuite('cli sync exit code', () => {
     runCli(['sync', '--silent', root], root);
     const r = runCli(['sync', '--check', '--silent', root], root);
     expect(r.status).toBe(0);
+  });
+
+  it('exits 1 without a config instead of syncing on defaults', () => {
+    rmSync(join(root, 'bluetemberg.config.json'));
+    mkdirSync(join(root, 'llm', 'rules'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'rules', 'test.md'), '---\ndescription: Test\n---\n\n# Test\n');
+
+    const r = runCli(['sync', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('nothing to sync');
+    expect(existsSync(join(root, '.claude'))).toBe(false);
   });
 
   it('exits 1 when config file contains invalid JSON', () => {

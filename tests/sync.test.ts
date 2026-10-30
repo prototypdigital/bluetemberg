@@ -5,7 +5,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 import { parse as tomlParse } from 'smol-toml';
-import { sync, loadConfig, shouldExitWithFailure } from '../src/sync/index.js';
+import { sync, loadConfig, hasSyncConfig, shouldExitWithFailure } from '../src/sync/index.js';
 import { hasGeneratedBanner, stripGeneratedBanner, withGeneratedBanner } from '../src/sync/banner.js';
 import type { BlueprintConfig } from '../src/types.js';
 
@@ -1033,6 +1033,18 @@ describe('loadConfig', () => {
     expect(config.source).toBe('llm');
     expect(config.targets.agents?.cursor).toEqual({ dir: '.cursor/agents', ext: '.md' });
     expect(config.targets.skills?.cursor).toEqual({ dir: '.cursor/skills' });
+  });
+
+  it('hasSyncConfig: false without any config, true with one here or (recursing) in a package below', () => {
+    expect(hasSyncConfig(root)).toBe(false);
+
+    mkdirSync(join(root, 'packages', 'web'), { recursive: true });
+    writeFileSync(join(root, 'packages', 'web', 'bluetemberg.config.json'), '{"platforms":["claude"]}');
+    expect(hasSyncConfig(root)).toBe(true);
+    expect(hasSyncConfig(root, false)).toBe(false);
+
+    writeFileSync(join(root, 'bluetemberg.config.json'), '{"platforms":["claude"]}');
+    expect(hasSyncConfig(root, false)).toBe(true);
   });
 
   it('reads bluetemberg.config.json when present', () => {

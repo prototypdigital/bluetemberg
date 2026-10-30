@@ -53,12 +53,19 @@ export function generatedBannerToml(sourceId: string): string {
   return `# ${BANNER_MARKER} from ${sourceId}. Do not edit — run \`bluetemberg sync\` after editing the source.`;
 }
 
-/** Prepends the TOML banner (idempotent: an existing one is replaced). */
-export function withGeneratedBannerToml(content: string, sourceId: string): string {
+/** The TOML counterpart of {@link stripGeneratedBanner}: removes the banner and the blank line after it. */
+export function stripGeneratedBannerToml(content: string): string {
   const lines = content.split('\n');
   const index = lines.findIndex((line) => line.startsWith(`# ${BANNER_MARKER}`));
-  if (index !== -1) lines.splice(index, lines[index + 1] === '' ? 2 : 1);
-  return `${generatedBannerToml(sourceId)}\n\n${lines.join('\n')}`;
+  if (index === -1) return content;
+
+  lines.splice(index, lines[index + 1] === '' ? 2 : 1);
+  return lines.join('\n');
+}
+
+/** Prepends the TOML banner (idempotent: an existing one is replaced). */
+export function withGeneratedBannerToml(content: string, sourceId: string): string {
+  return `${generatedBannerToml(sourceId)}\n\n${stripGeneratedBannerToml(content)}`;
 }
 
 /**

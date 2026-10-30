@@ -1,22 +1,11 @@
-import { createHash } from 'node:crypto';
-import {
-  copyFileSync,
-  cpSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadConfig, sync } from '../sync/index.js';
 import { hasGeneratedBanner } from '../sync/banner.js';
 import { CLAUDE_HOOKS_MANIFEST } from '../sync/claude-hooks.js';
 import { MCP_OWNERSHIP_FILE } from '../sync/mcp.js';
 import { readIfExists } from '../utils/fs.js';
+import { measureChanges, measureChangesOnCopy, type ProjectChanges } from '../utils/project-changes.js';
 
 /**
  * `bluetemberg uninstall`: remove everything bluetemberg generated or manages and keep everything a
@@ -31,15 +20,10 @@ export interface UninstallOptions {
   dryRun?: boolean;
 }
 
-export interface UninstallResult {
-  /** Paths relative to the project root that were (or would be) deleted. */
-  removed: string[];
-  /** Paths relative to the project root that were (or would be) edited in place. */
-  edited: string[];
-}
+export type UninstallResult = ProjectChanges;
 
-const CONFIG_FILE = 'bluetemberg.config.json';
-const CACHE_DIR = '.bluetemberg';
+export const CONFIG_FILE = 'bluetemberg.config.json';
+export const CACHE_DIR = '.bluetemberg';
 const STAGING_DIR = `${CACHE_DIR}/uninstall`;
 /** Machine state under the source dir: written by bluetemberg commands, not by people. */
 const STATE_FILES = [
@@ -58,31 +42,14 @@ const WHOLE_FILE_OUTPUTS: { source: string; output: string }[] = [
 const GITIGNORE_CACHE_LINES = new Set(['# Bluetemberg cache', '.bluetemberg/']);
 /** What `init` writes to `.prettierignore`; a file holding nothing else is removed. */
 const PRETTIERIGNORE_INIT_LINES = new Set(['llm/', 'docs/wiki/', 'plugins/']);
-/** Never snapshotted: large, and never touched by uninstall. */
-const UNWALKED = new Set(['.git', 'node_modules']);
 
 export async function uninstall(root: string, options: UninstallOptions = {}): Promise<UninstallResult> {
   if (!existsSync(join(root, CONFIG_FILE))) {
     throw new Error(`No ${CONFIG_FILE} found in ${root}, so there is nothing to uninstall.`);
   }
-  if (options.dryRun) return dryRun(root);
-
-  const before = snapshot(root);
-  await uninstallInPlace(root);
-  return diffSnapshots(before, snapshot(root));
-}
-
-/** The real procedure, run against a throwaway copy, so the report matches what a real run does. */
-async function dryRun(root: string): Promise<UninstallResult> {
-  const copy = mkdtempSync(join(tmpdir(), 'bluetemberg-uninstall-'));
-  try {
-    cpSync(root, copy, { recursive: true, filter: (src) => !isUnwalked(src, root) });
-    const before = snapshot(copy);
-    await uninstallInPlace(copy);
-    return diffSnapshots(before, snapshot(copy));
-  } finally {
-    rmSync(copy, { recursive: true, force: true });
-  }
+  // The real procedure, run against a throwaway copy, so the report matches what a real run does.
+  if (options.dryRun) return measureChangesOnCopy(root, 'bluetemberg-uninstall-', uninstallInPlace);
+  return measureChanges(root, uninstallInPlace);
 }
 
 async function uninstallInPlace(root: string): Promise<void> {
@@ -111,9 +78,18 @@ async function uninstallInPlace(root: string): Promise<void> {
   for (const { source, output } of WHOLE_FILE_OUTPUTS) {
     if (existsSync(join(sourceDir, source))) rmSync(join(root, output), { force: true });
   }
+  removeIfOnlyLines(root, '.prettierignore', PRETTIERIGNORE_INIT_LINES);
+  removeBluetembergState(root, sourceDir);
+}
+
+/**
+ * The part `uninstall` and `eject` share: the config, the `.bluetemberg/` cache and its `.gitignore`
+ * entry, and the machine state under the source dir (including the MCP ownership record). Your own
+ * sources under the source dir stay; the dir goes only when nothing else is left in it.
+ */
+export function removeBluetembergState(root: string, sourceDir: string): void {
   removeGitignoreCacheEntry(root);
   removeIfBlank(root, '.gitignore');
-  removeIfOnlyLines(root, '.prettierignore', PRETTIERIGNORE_INIT_LINES);
   for (const file of STATE_FILES) rmSync(join(sourceDir, file), { force: true });
   removeIfEmptyDir(sourceDir);
   rmSync(join(root, CACHE_DIR), { recursive: true, force: true });
@@ -252,39 +228,4 @@ function parseObject(raw: string | null): Record<string, unknown> | null {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function isUnwalked(path: string, root: string): boolean {
-  const rel = path.slice(root.length + 1);
-  return UNWALKED.has(rel.split(/[\\/]/)[0] ?? '');
-}
-
-/** Every file under `root` (dotfiles included) mapped to a content hash, skipping `.git` and `node_modules`. */
-function snapshot(root: string): Map<string, string> {
-  const files = new Map<string, string>();
-  const visit = (rel: string) => {
-    for (const ent of readdirSync(join(root, rel), { withFileTypes: true })) {
-      const child = rel ? join(rel, ent.name) : ent.name;
-      if (!rel && UNWALKED.has(ent.name)) continue;
-      if (ent.isDirectory()) visit(child);
-      else if (ent.isFile()) files.set(child, hashFile(join(root, child)));
-    }
-  };
-  visit('');
-  return files;
-}
-
-function hashFile(path: string): string {
-  return createHash('sha256').update(readFileSync(path)).digest('hex');
-}
-
-function diffSnapshots(before: Map<string, string>, after: Map<string, string>): UninstallResult {
-  const removed: string[] = [];
-  const edited: string[] = [];
-  for (const [path, hash] of before) {
-    const now = after.get(path);
-    if (now === undefined) removed.push(path);
-    else if (now !== hash) edited.push(path);
-  }
-  return { removed: removed.sort(), edited: edited.sort() };
 }

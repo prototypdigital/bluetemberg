@@ -339,8 +339,15 @@ program
   .option('--verbose', 'Emit debug output: resolved source dirs, per-file origins, warnings')
   .option('--no-recursive', 'Sync only this directory; do not descend into configured workspace packages')
   .action(async (directory, options) => {
-    const { sync, loadConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
+    const { sync, loadConfig, hasSyncConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
     const root = resolve(directory);
+
+    if (!hasSyncConfig(root, options.recursive)) {
+      console.error(
+        `Error: No bluetemberg.config.json found for ${root}, so there is nothing to sync. Run \`bluetemberg init\` to set one up.`,
+      );
+      process.exit(1);
+    }
 
     // Validate the local config early for a clean error + exit code. Sync (re)loads config per
     // package, so a recursive run picks up each workspace package's own merged config and stacks.
@@ -448,6 +455,60 @@ program
           'Kept: AGENTS.md, CLAUDE.md, the GitHub files init scaffolded, and your own sources under llm/.',
         );
         console.log('Finish with: npm uninstall bluetemberg');
+      }
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+function printEjectPlan(result, verb) {
+  console.log(`\n  ${verb} remove (bluetemberg config and state):`);
+  for (const line of summarizePaths(result.removed)) console.log(`    ${line}`);
+  if (result.edited.length > 0) {
+    console.log(`\n  ${verb} edit (generated banners and managed-block markers only):`);
+    for (const line of summarizePaths(result.edited)) console.log(`    ${line}`);
+  }
+}
+
+program
+  .command('eject')
+  .description(
+    'Keep the generated files as plain files you own; remove banners, config and bluetemberg state',
+  )
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--dry-run', 'Show what would be removed or edited, change nothing')
+  .option('-y, --yes', 'Skip the confirmation prompt')
+  .option('--silent', 'Suppress output')
+  .action(async (directory, options) => {
+    const { eject } = await import('../dist/eject/index.js');
+    const root = resolve(directory);
+    try {
+      if (options.dryRun) {
+        printEjectPlan(await eject(root, { dryRun: true }), 'Would');
+        return;
+      }
+      if (!options.yes) {
+        if (!process.stdin.isTTY) {
+          console.error('Error: eject deletes files. Pass --yes to confirm, or --dry-run to preview.');
+          process.exit(1);
+        }
+        printEjectPlan(await eject(root, { dryRun: true }), 'Will');
+        const { confirm } = await import('@inquirer/prompts');
+        if (!(await confirm({ message: 'Eject bluetemberg from this project?', default: false }))) {
+          console.log('Nothing changed.');
+          return;
+        }
+      }
+      const result = await eject(root);
+      if (!options.silent) {
+        console.log(`\nRemoved ${result.removed.length} file(s), edited ${result.edited.length}.`);
+        console.log(
+          'Kept as plain files you own: every generated file, AGENTS.md, MCP servers, hooks and guardrails, and your sources under llm/ (nothing syncs them now).',
+        );
+        console.log(
+          'Finish with: npm uninstall bluetemberg, and drop any package.json scripts that call it.',
+        );
       }
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

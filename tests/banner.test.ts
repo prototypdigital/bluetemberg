@@ -4,6 +4,7 @@ import {
   generatedBannerToml,
   hasGeneratedBanner,
   stripGeneratedBanner,
+  stripGeneratedBannerToml,
   withGeneratedBanner,
   withGeneratedBannerToml,
 } from '../src/sync/banner.js';
@@ -107,5 +108,16 @@ describe('hasGeneratedBanner', () => {
     expect(hasGeneratedBanner('---\ndescription: mine\n---\n\n# Mine\n')).toBe(false);
     expect(hasGeneratedBanner('name = "mine"\n')).toBe(false);
     expect(hasGeneratedBanner('')).toBe(false);
+  });
+});
+
+describe('stripGeneratedBannerToml', () => {
+  it('restores the pre-banner TOML exactly', () => {
+    const toml = 'name = "a"\n';
+    expect(stripGeneratedBannerToml(withGeneratedBannerToml(toml, 'agents/a.md'))).toBe(toml);
+  });
+
+  it('leaves unbannered content alone', () => {
+    expect(stripGeneratedBannerToml('# a comment\nname = "a"\n')).toBe('# a comment\nname = "a"\n');
   });
 });
