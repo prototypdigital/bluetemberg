@@ -101,17 +101,41 @@ function shellQuote(value: string): string {
  * non-match) is the only outcome that lets `not_matches` pass, and status 0 the only one
  * that lets `matches` pass. The compile failure is reported as itself, not as the
  * guardrail's message, so a broken pattern is not mistaken for a violated rule.
+ *
+ * `check.field` is a path into the tool's arguments, which every host nests under `tool_input`;
+ * a field not found there is read from the payload root, so a path written against the whole
+ * payload (`tool_input.name`) still resolves. The block message goes to stderr, the stream Claude
+ * Code feeds back to the model on exit 2.
  */
 const CLAUDE_HOOK_SCRIPT = [
-  'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+  'v=$(cat | jq -r "(.tool_input.$1 // .$1) // empty" 2>/dev/null)',
   'fail=',
   'bad=',
   'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
   'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
   'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
   'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
-  'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+  'if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; exit 2; fi',
 ].join('; ');
+
+/**
+ * Scripts earlier engines generated. A settings file synced by one of them still carries its
+ * command, and orphan cleanup must recognize it as a guardrail hook once the source is gone.
+ * The first read `.<field>` from the payload root (always empty for tool arguments, which Claude
+ * Code nests under `tool_input`) and printed the block message to stdout, which Claude ignores.
+ */
+const LEGACY_CLAUDE_HOOK_SCRIPTS = [
+  [
+    'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+    'fail=',
+    'bad=',
+    'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+    'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
+    'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
+    'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
+    'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+  ].join('; '),
+];
 
 /**
  * Builds the bash hook command for a Claude PreToolUse/PostToolUse hook from
@@ -123,6 +147,9 @@ const CLAUDE_HOOK_SCRIPT = [
  */
 /** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */
 const CLAUDE_COMMAND_PREFIX = `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetemberg `;
+const KNOWN_COMMAND_PREFIXES = [CLAUDE_HOOK_SCRIPT, ...LEGACY_CLAUDE_HOOK_SCRIPTS].map(
+  (script) => `bash -c ${shellQuote(script)} bluetemberg `,
+);
 
 /**
  * True for a hook command this module generated. Lets the settings writer tell a guardrail's hook
@@ -130,7 +157,7 @@ const CLAUDE_COMMAND_PREFIX = `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetem
  * the latter is never touched.
  */
 export function isGuardrailHookCommand(command: string): boolean {
-  return command.startsWith(CLAUDE_COMMAND_PREFIX);
+  return KNOWN_COMMAND_PREFIXES.some((prefix) => command.startsWith(prefix));
 }
 
 function buildClaudeCommand(guardrail: GuardrailFrontmatter): string {

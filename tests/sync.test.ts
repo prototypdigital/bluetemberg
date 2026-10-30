@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -1806,16 +1806,16 @@ message: "Branch name required"
     );
 
     // Execute the stored command exactly as a shell would. Empty field input fires the
-    // not_empty branch, which prints the message verbatim and exits 2.
-    let stdout = '';
+    // not_empty branch, which prints the message verbatim to stderr and exits 2.
+    let stderr = '';
     try {
-      stdout = execSync(command, { input: '{}', encoding: 'utf8' });
+      execSync(command, { input: '{}', encoding: 'utf8', stdio: 'pipe' });
     } catch (err) {
-      stdout = String((err as { stdout?: string }).stdout ?? '');
+      stderr = String((err as { stderr?: string }).stderr ?? '');
     }
 
     expect(existsSync(marker)).toBe(false); // neither payload executed
-    expect(stdout).toContain('; touch'); // message printed as literal data
+    expect(stderr).toContain('; touch'); // message printed as literal data
   });
 
   it('rejects a guardrail whose condition regex is not valid POSIX ERE', async () => {
@@ -1868,6 +1868,69 @@ message: "Branch name required"
       expect(command).not.toBe(generated);
       expect(runHook(command, input), `not_matches=${bad} must block, not allow`).toBe(2);
     }
+  });
+
+  it('generated hook reads the field from tool_input, as Claude Code sends it', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+    const payload = (name: unknown) =>
+      JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'EnterWorktree', tool_input: { name } });
+
+    expect(runHook(command, payload('feat/branch')), 'a conventional name is allowed').toBe(0);
+    expect(runHook(command, payload('claude/auto')), 'the auto-generated prefix is blocked').toBe(2);
+    expect(runHook(command, payload('')), 'an empty name is blocked').toBe(2);
+    expect(runHook(command, JSON.stringify({ tool_input: {} })), 'a missing name is blocked').toBe(2);
+  });
+
+  it('generated hook also resolves a field written as a full payload path', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL.replace('field: name', 'field: tool_input.name'));
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+
+    expect(runHook(command, JSON.stringify({ tool_input: { name: 'feat/branch' } }))).toBe(0);
+    expect(runHook(command, JSON.stringify({ tool_input: { name: 'claude/auto' } }))).toBe(2);
+  });
+
+  it('generated hook sends the block message to stderr, where Claude Code reads it', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+
+    const run = spawnSync('sh', ['-c', command], {
+      input: JSON.stringify({ tool_input: { name: 'claude/auto' } }),
+      encoding: 'utf8',
+    });
+    expect(run.status).toBe(2);
+    expect(run.stdout).toBe('');
+    expect(run.stderr.trim().length).toBeGreaterThan(0);
+  });
+
+  it('still recognizes a hook an earlier engine generated, so orphan cleanup removes it', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    // Rewrite the command into the pre-fix script: field read from the payload root, message on stdout.
+    const current = String(readPreToolUseHooks()[0].hooks[0].command);
+    const legacy = current
+      .replace('(.tool_input.$1 // .$1) // empty', '.$1 // empty')
+      .replace('"$4" >&2; exit 2', '"$4"; exit 2');
+    expect(legacy).not.toBe(current);
+    const settingsPath = join(root, '.claude', 'settings.json');
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        hooks: { PreToolUse: [{ matcher: 'EnterWorktree', hooks: [{ type: 'command', command: legacy }] }] },
+      }),
+    );
+    rmSync(join(root, 'llm', 'guardrails'), { recursive: true });
+
+    await sync(root, { config, silent: true });
+
+    expect(readPreToolUseHooks()).toHaveLength(0);
   });
 
   /** PreToolUse entries in the generated settings.json, or `[]` when none were written. */

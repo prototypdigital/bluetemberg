@@ -41,7 +41,7 @@ Human-readable explanation of what this guardrail does.
 | ----- | -------- | ----------- |
 | `trigger` | Yes | Tool name the hook matches (e.g. `EnterWorktree`) |
 | `hook_type` | No | `PreToolUse` (default) or `PostToolUse` |
-| `check.field` | Yes | Field extracted from the tool input JSON |
+| `check.field` | Yes | Path into the tool's arguments (`tool_input` in the hook payload), e.g. `name` or `command`. A path not found there is read from the payload root, so `tool_input.name` works too |
 | `check.not_empty` | No | Fail when the field is empty |
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |
