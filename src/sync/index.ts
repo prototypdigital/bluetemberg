@@ -12,6 +12,7 @@ import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
+import { syncLegacySkills } from './legacy-skills.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
 import { dropLegacyGeminiRulesTarget, syncGeminiSettings } from './gemini.js';
 import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
@@ -674,6 +675,11 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncDevinGuardrailHooks(ctx, guardrailHooks.applied, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
+  syncLegacySkills(
+    ctx,
+    (msg) => recordError(ctx, msg),
+    (msg) => recordWarning(ctx, msg),
+  );
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
   syncCodexConfig(ctx, guardrailHooks.codex, (msg) => recordError(ctx, msg));

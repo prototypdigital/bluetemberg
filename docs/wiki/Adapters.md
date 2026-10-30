@@ -1,6 +1,6 @@
 # Adapters and sync extensions
 
-Bluetemberg’s sync engine runs a **pipeline of steps**: vendor-neutral sources under `llm/` are read first; built-in steps validate, normalize, and write provider-specific files through one write helper (`commitPlannedWrite`). Rules use the **transform + copy** path (frontmatter mapping). Steps that need different shapes (MCP JSON, Cursor hooks, Claude commands, Copilot prompt filenames) are separate pipeline stages. You can extend the end of the run with optional **`adapters`** in `bluetemberg.config.json` (ESM modules loaded via `import()`), similar in spirit to small plug-in hooks.
+Bluetemberg’s sync engine runs a **pipeline of steps**: vendor-neutral sources under `llm/` are read first; built-in steps validate, normalize, and write provider-specific files through one write helper (`commitPlannedWrite`). Rules use the **transform + copy** path (frontmatter mapping). Steps that need different shapes (MCP JSON, Cursor hooks, Claude commands, Copilot prompt filenames, commands and prompts translated into skills) are separate pipeline stages. You can extend the end of the run with optional **`adapters`** in `bluetemberg.config.json` (ESM modules loaded via `import()`), similar in spirit to small plug-in hooks.
 
 ## Trust and security (`adapters`)
 
@@ -31,8 +31,9 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 | `AGENTS.md` | `.github/copilot-instructions.md` (rules block stripped) | When file exists and **copilot** is in `platforms` |
 | — | `AGENTS.md` added to `context.fileName` in `.gemini/settings.json` (merged; other settings kept) | When **gemini** is in `platforms` |
 | `llm/mcp.json` | Root `.mcp.json` (merged; managed servers tracked in `llm/mcp-managed.json`) for `claude` / `copilot`, `.cursor/mcp.json`; `[mcp_servers.*]` block in `.codex/config.toml`; `mcpServers` merged into `.agents/mcp_config.json` (Antigravity; tracked in the same sidecar) | When file exists and each platform is enabled |
-| `llm/commands/*.md` | `.claude/commands/*.md` | When files exist and **claude** is in `platforms` |
-| `llm/prompts/*.md` | `.github/prompts/*.prompt.md` | When files exist and **copilot** is in `platforms` |
+| `llm/commands/*.md` | `.claude/commands/*.md` (deprecated, removed in 0.18.0) | When files exist and **claude** is in `platforms` |
+| `llm/prompts/*.md` | `.github/prompts/*.prompt.md` (deprecated, removed in 0.18.0) | When files exist and **copilot** is in `platforms` |
+| `llm/commands/*.md`, `llm/prompts/*.md` | A generated `<name>/SKILL.md` in every skills dir (`targets.skills`) — see [Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts) | When files exist, for every platform with a skills target; a real skill of the same name wins |
 | `llm/skills/`, `llm/agents/`, `llm/rules/` | `plugins/{name}/`, `.claude-plugin/marketplace.json`; `extraKnownMarketplaces` in `.claude/settings.json` when `marketplace.remote` is set | When **claude-marketplace** is in `platforms` — see [Marketplace](Marketplace) |
 | `adapters` in config | User-defined ESM modules (last sync step) | When `adapters` is a non-empty array of specifiers |
 
