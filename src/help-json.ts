@@ -211,6 +211,20 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           ],
         },
         {
+          name: 'why',
+          args: '[file] [directory]',
+          description:
+            'Explain why a rule, agent, skill or guardrail is included or excluded (file = source path, generated path, or id).',
+          options: [
+            {
+              long: '--diff <stack@version>',
+              description:
+                'List what would be added/removed if the stack were at this version (repeatable; writes nothing).',
+            },
+            { long: '--json', description: 'Emit machine-readable JSON.' },
+          ],
+        },
+        {
           name: 'scan-org',
           args: '[paths...]',
           description:
@@ -242,6 +256,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'bluetemberg_detect_stacks',
           'bluetemberg_query_coverage',
           'bluetemberg_list_stacks',
+          'bluetemberg_why',
           'bluetemberg_org_histogram',
         ],
         note: 'Read-only. The gated scaffold_from_gap tool (M7 create-loop) is intentionally absent.',

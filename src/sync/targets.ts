@@ -41,6 +41,9 @@ export function dirKey(dir: string): string {
   return key.length > 1 && key.endsWith('/') ? key.slice(0, -1) : key;
 }
 
+/** Platforms sync targets when the config names none. */
+export const DEFAULT_SYNC_PLATFORMS: readonly Platform[] = ['cursor', 'claude', 'copilot'];
+
 /** Resolve the `windsurf` alias to `devin` and drop duplicates, keeping order. */
 export function normalizePlatforms(platforms: readonly Platform[]): Platform[] {
   return [...new Set(platforms.map((p) => (p === LEGACY_DEVIN_PLATFORM ? DEVIN_PLATFORM : p)))];

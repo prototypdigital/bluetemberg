@@ -94,6 +94,7 @@ Three guarantees back this up — guidance is **never silently dropped**:
   ```
 - **Two sources shipping the same file warns.** When two packs (or `extends` entries) both ship `rules/testing.md`, the higher-priority one wins and the other copy — with its own `stacks:` range — is ignored. Sync names both. A local copy is the deliberate override and stays quiet.
 - **Every exclusion lists its reason** (rules, guardrails, agents, and skills alike), so you can audit that wrong-version content was correctly withheld — hidden, not wrong-here.
+- **You can ask about any one file.** `bluetemberg why <file>` explains a single rule, agent, skill or guardrail: which source it came from, whether its constraint is its own `stacks:` or its pack's catalog tag, the detected version and confidence it was checked against, and the verdict. `bluetemberg why --diff payload@4` previews what an upgrade would add and remove before you bump the dependency. Both use the gate itself, so they can't disagree with sync. See [Commands](Commands#bluetemberg-why-file-directory).
 - **The gate applies on every platform, Codex included.** A withheld rule stays out of the managed rules block in `AGENTS.md`, and a withheld agent gets no `.codex/agents/*.toml`. Claude Code and Copilot read `AGENTS.md` too, so a rule that leaked into that block would reach them as well.
 
 ## Coverage: the same model, asked backwards
