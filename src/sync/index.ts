@@ -20,6 +20,7 @@ import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
 import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails } from './guardrails.js';
+import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
 import { syncClaudeHooks } from './claude-hooks.js';
 import {
   normalizePlatforms,
@@ -668,6 +669,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     (msg) => recordWarning(ctx, msg),
   );
   syncHooks(ctx, guardrailHooks.cursor, (msg) => recordError(ctx, msg));
+  syncCopilotGuardrailHooks(ctx, guardrailHooks.applied, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
