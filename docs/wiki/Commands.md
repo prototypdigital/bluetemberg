@@ -190,7 +190,7 @@ Explain why one rule, agent, skill or guardrail is **included** in or **excluded
 
 | Form | Example | Notes |
 | ---- | ------- | ----- |
-| Source path | `llm/rules/payload-v3.md`, `llm/skills/migrate/`, `.bluetemberg/packs/<pack>/<ver>/llm/rules/x.md` | Relative, `./`-prefixed or absolute. Naming a copy that a higher-priority source shadows explains the copy sync actually uses, with a note. |
+| Source path | `llm/rules/payload-v3.md`, `llm/skills/migrate/`, `.bluetemberg/packs/<pack>/<ver>/llm/rules/x.md` | Relative (to the project directory, or failing that the current directory), `./`-prefixed or absolute. Naming a copy that a higher-priority source shadows explains the copy sync actually uses, with a note. |
 | Generated path | `.claude/rules/payload-v3.md`, `.cursor/rules/x.mdc`, `.claude/skills/migrate` | Resolved against the configured targets, so it works for an excluded item too (the path sync *would* write) and names the platform. |
 | Id | `payload-v3`, `rules/payload-v3` | A bare id matches every kind that ships it; prefix the kind to pick one. |
 
@@ -215,11 +215,11 @@ rules/payload-v3: EXCLUDED — payload >=3 <4 (you're on 2.5.0)
     ✘ payload ">=3 <4" vs 2.5.0 (declared, from config)
 ```
 
-Exits 1 when nothing matches `<file>`. In a monorepo, `why` answers for one package: pass that package's directory (`npx bluetemberg why payload-v3 packages/web`) to see the decision `sync` made against its own config and stacks.
+Exits 1 when nothing matches `<file>`. In a monorepo, a path inside a package (`packages/web/llm/rules/payload-v3.md`, `packages/web/.claude/rules/payload-v3.md`) is answered by that package's own config and detected stacks, the decision `sync` made there, and the report names the package. An id typed at the workspace root answers for the root config only and warns; pass the package directory instead (`npx bluetemberg why payload-v3 packages/web`).
 
 ### Upgrade diff: `bluetemberg why --diff <stack@version> [directory]`
 
-List the items that would be **added** or **removed** if a stack were at the given version, without writing anything. It re-runs the gate with that version substituted for the detected one. Repeat `--diff` to move several stacks at once. A partial version is completed the way the gate compares it (`payload@4` → `4.0.0`), and a stack that isn't detected today is treated as newly present.
+List the items that would be **added** or **removed** if a stack were at the given version, without writing anything. It re-runs the gate with that version substituted for the detected one. Repeat `--diff` to move several stacks at once. A partial version is completed the way the gate compares it (`payload@4` → `4.0.0`), and a stack that isn't detected today is treated as newly present. A stack that is neither detected nor named by any constraint can't change the set, so it gets a warning (likely a typo, e.g. `Payload@4`) instead of a silent "no change". At a monorepo root, pass the package directory.
 
 ```bash
 npx bluetemberg why --diff payload@4

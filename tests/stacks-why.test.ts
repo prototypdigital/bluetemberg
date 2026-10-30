@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync } from '../src/sync/index.js';
@@ -242,6 +242,69 @@ describe('bluetemberg why <file>', () => {
     });
   });
 
+  describe('paths the user types', () => {
+    beforeEach(() => {
+      writeConfig(root, { stacks: { payload: '3.4.1' } });
+      writeRule(root, 'payload-v3', 'stacks:\n  payload: ">=3 <4"');
+    });
+
+    it('normalizes `..` segments and falls back to a cwd-relative path', () => {
+      expect(buildWhyReport(root, 'llm/rules/../rules/payload-v3.md').matchedAs).toBe('source');
+
+      const cwd = join(root, 'llm');
+      expect(buildWhyReport(root, 'rules/payload-v3.md', { cwd }).matchedAs).toBe('source');
+      // A bare id still resolves as an id; a cwd fallback never shadows it.
+      expect(buildWhyReport(root, 'payload-v3', { cwd }).matchedAs).toBe('id');
+    });
+
+    it('matches an absolute path through a symlinked root', () => {
+      const link = `${root}-link`;
+      symlinkSync(root, link);
+      try {
+        const report = buildWhyReport(link, join(realpathSync(root), 'llm/rules/payload-v3.md'));
+        expect(report.matchedAs).toBe('source');
+      } finally {
+        rmSync(link, { force: true });
+      }
+    });
+
+    it('does not match a path outside the project that bluetemberg did not generate', () => {
+      expect(buildWhyReport(root, '/etc/hosts').matchedAs).toBeNull();
+      expect(buildWhyReport(root, 'README.md').matchedAs).toBeNull();
+    });
+  });
+
+  describe('monorepo', () => {
+    beforeEach(() => {
+      // Root has no payload; the package pins payload 3 — sync decides the package's copy against 3.
+      writeConfig(root);
+      writeRule(root, 'payload-v3', 'stacks:\n  payload: ">=3 <4"');
+      const pkg = join(root, 'packages', 'web');
+      mkdirSync(pkg, { recursive: true });
+      writeConfig(pkg, { stacks: { payload: '3.4.1' } });
+      writeRule(pkg, 'payload-v3', 'stacks:\n  payload: ">=3 <4"');
+    });
+
+    it("answers a path inside a package with that package's config, as sync does", () => {
+      for (const query of [
+        'packages/web/llm/rules/payload-v3.md',
+        'packages/web/.claude/rules/payload-v3.md',
+      ]) {
+        const report = buildWhyReport(root, query);
+        expect(report.package).toBe('packages/web');
+        expect(only(report).included).toBe(true);
+        expect(formatWhyReport(report).join('\n')).toMatch(/Answered for package packages\/web/);
+      }
+    });
+
+    it('warns that an id at the workspace root answers for the root config only', () => {
+      const report = buildWhyReport(root, 'payload-v3');
+      expect(report.package).toBeNull();
+      expect(only(report).included).toBe(false);
+      expect(report.warnings.join('\n')).toMatch(/monorepo: 1 package\(s\).*packages\/web/);
+    });
+  });
+
   it('explains a shadowed pack copy by pointing at the local copy that wins', () => {
     writeConfig(root);
     const packDir = installFakePack(root, 'some-pack', '1.2.0');
@@ -378,6 +441,18 @@ describe('bluetemberg why --diff <stack@version>', () => {
 
     expect(one.added).toEqual([]);
     expect(both.added.map((e) => e.id)).toEqual(['both']);
+  });
+
+  it('warns when the overridden stack is neither detected nor gated on (a likely typo)', () => {
+    upgradeFixture();
+
+    const report = buildWhyDiff(root, [parseStackOverride('Payload@4')]);
+
+    expect(report.added).toEqual([]);
+    expect(report.warnings).toEqual([
+      expect.stringMatching(/--diff Payload: not detected .* \(known stacks: payload\)/),
+    ]);
+    expect(buildWhyDiff(root, [parseStackOverride('payload@4')]).warnings).toEqual([]);
   });
 
   it('rejects a malformed stack@version spec', () => {

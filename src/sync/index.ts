@@ -283,7 +283,7 @@ const DISCOVERY_SKIP_DIRS = new Set([
  * having a config, so recursive sync needs no npm/pnpm/yarn workspace parsing. Skips heavy/generated
  * dirs and dotfolders. Returns absolute paths, root-first then lexical, for deterministic ordering.
  */
-function discoverConfigDirs(root: string): string[] {
+export function discoverConfigDirs(root: string): string[] {
   const start = resolve(root);
   const found: string[] = [];
   const pending = [start];

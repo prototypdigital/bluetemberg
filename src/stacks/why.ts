@@ -1,10 +1,11 @@
-import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { existsSync, realpathSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import matter from 'gray-matter';
 import { coerce, valid } from 'semver';
 import { loadCatalogSync } from '../catalog/index.js';
 import { readSourcePackName } from '../catalog/ownership.js';
 import type { BlueprintConfig, Platform } from '../types.js';
-import { loadConfig } from '../sync/index.js';
+import { discoverConfigDirs, loadConfig } from '../sync/index.js';
 import { dropLegacyGeminiRulesTarget } from '../sync/gemini.js';
 import { guardrailValidationIssue } from '../sync/guardrails.js';
 import { AGENTS_MD_RULE_PLATFORMS } from '../sync/codex.js';
@@ -90,6 +91,11 @@ export interface WhyItem {
 
 export interface WhyReport {
   query: string;
+  /**
+   * In a monorepo, the package (relative to the root passed in) whose own config and detected
+   * stacks answered — the one `sync` decides this file against. `null` = that root itself.
+   */
+  package: string | null;
   /** How the query was resolved; `null` when nothing matched. */
   matchedAs: WhyMatchForm | null;
   /** For an output path, the platform(s) whose target it is. */
@@ -314,15 +320,23 @@ function dedupe<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
 
-/** Normalize a user-typed path to project-relative forward-slash form. */
-function normalizeQuery(root: string, query: string): string {
-  const trimmed = query.trim();
-  const rel = isAbsolute(trimmed) ? relative(root, trimmed) : trimmed;
-  return rel
+/** Forward-slash form of a relative path, without `./` prefixes or trailing slashes. */
+function cleanRelative(path: string): string {
+  return path
     .split(sep)
     .join('/')
     .replace(/^(\.\/)+/, '')
     .replace(/\/+$/, '');
+}
+
+/**
+ * `abs` relative to `base`. When the plain form escapes `base` but both exist, retry on real paths,
+ * so a symlinked root (macOS `/tmp` → `/private/tmp`) still matches the paths sync works with.
+ */
+function relativeTo(base: string, abs: string): string {
+  const rel = relative(base, abs);
+  if (!rel.startsWith('..') || !existsSync(abs) || !existsSync(base)) return rel;
+  return relative(realpathSync(base), realpathSync(abs));
 }
 
 interface QueryMatch {
@@ -380,19 +394,83 @@ function matchId(ctx: WhyContext, query: string): QueryMatch | null {
   return { form: 'id', items, platforms: [], note: null };
 }
 
-/** Build the `why <file>` report. `<file>` may be a source path, a generated path, or an id. */
-export function buildWhyReport(root: string, query: string): WhyReport {
-  const ctx = loadWhyContext(root);
-  const normalized = normalizeQuery(root, query);
-  const match =
-    matchSourcePath(ctx, normalized) ?? matchOutputPath(ctx, normalized) ?? matchId(ctx, normalized);
+export interface WhyOptions {
+  /**
+   * The caller's working directory. A relative `<file>` is read against the project root first and,
+   * if that matches nothing, against `cwd` — so a shell-completed path works whatever the root.
+   */
+  cwd?: string;
+}
+
+/** Package config dirs below `root` (a monorepo's workspace map), deepest first. */
+function nestedPackages(root: string): string[] {
+  const start = resolve(root);
+  return discoverConfigDirs(start)
+    .filter((dir) => dir !== start)
+    .sort((a, b) => b.length - a.length);
+}
+
+/** The deepest package dir containing `abs`, or `root` when none does. */
+function owningProject(root: string, packages: string[], abs: string): string {
+  return packages.find((dir) => !relativeTo(dir, abs).startsWith('..')) ?? resolve(root);
+}
+
+/** Root-relative, then cwd-relative absolute readings of a path-like query. */
+function queryPaths(root: string, query: string, cwd: string | undefined): string[] {
+  const paths = [resolve(root, query)];
+  if (cwd !== undefined && resolve(cwd, query) !== paths[0]) paths.push(resolve(cwd, query));
+  return paths;
+}
+
+function monorepoWarning(root: string, packages: string[]): string {
+  const names = packages.map((dir) => relative(root, dir).split(sep).join('/')).sort();
+  return (
+    `monorepo: ${names.length} package(s) have their own config (${names.join(', ')}); this answers ` +
+    'for the root config only, while sync decides each package against its own detected stacks — ' +
+    'pass a path inside the package, or the package directory'
+  );
+}
+
+/**
+ * Build the `why <file>` report. `<file>` may be a source path, a generated path, or an id. In a
+ * monorepo, a path inside a package is answered by that package's config — the one sync uses.
+ */
+export function buildWhyReport(root: string, query: string, options: WhyOptions = {}): WhyReport {
+  const packages = nestedPackages(root);
+  const contexts = new Map<string, WhyContext>();
+  const contextFor = (dir: string): WhyContext => {
+    const cached = contexts.get(dir);
+    if (cached) return cached;
+    const ctx = loadWhyContext(dir);
+    contexts.set(dir, ctx);
+    return ctx;
+  };
+
+  const trimmed = query.trim();
+  for (const abs of queryPaths(root, trimmed, options.cwd)) {
+    const project = owningProject(root, packages, abs);
+    const ctx = contextFor(project);
+    const rel = cleanRelative(relativeTo(project, abs));
+    const match = matchSourcePath(ctx, rel) ?? matchOutputPath(ctx, rel);
+    if (match) return toReport(ctx, query, match, project === resolve(root) ? null : relative(root, project));
+  }
+
+  const ctx = contextFor(resolve(root));
+  const match = matchId(ctx, cleanRelative(trimmed));
+  const report = toReport(ctx, query, match, null);
+  if (packages.length > 0) report.warnings.push(monorepoWarning(root, packages));
+  return report;
+}
+
+function toReport(ctx: WhyContext, query: string, match: QueryMatch | null, pkg: string | null): WhyReport {
   return {
     query,
+    package: pkg === null ? null : pkg.split(sep).join('/'),
     matchedAs: match?.form ?? null,
     platforms: match?.platforms ?? [],
     note: match?.note ?? null,
     matches: (match?.items ?? []).map((item) => explainItem(ctx, item)),
-    warnings: ctx.warnings,
+    warnings: [...ctx.warnings],
   };
 }
 
@@ -430,8 +508,10 @@ export function buildWhyDiff(root: string, overrides: StackOverride[]): WhyDiffR
     added: [],
     removed: [],
     unchanged: { included: 0, excluded: 0 },
-    warnings: ctx.warnings,
+    warnings: [...ctx.warnings, ...unknownStackWarnings(ctx, overrides)],
   };
+  const packages = nestedPackages(root);
+  if (packages.length > 0) report.warnings.push(monorepoWarning(root, packages));
 
   for (const item of ctx.items) {
     const before = exclusionReason(item, gateFor(ctx, item, ctx.detected));
@@ -451,6 +531,24 @@ export function buildWhyDiff(root: string, overrides: StackOverride[]): WhyDiffR
     (after === null ? report.added : report.removed).push(entry);
   }
   return report;
+}
+
+/**
+ * A stack that is neither detected nor named by any constraint cannot change the set, so an
+ * override of it is almost always a typo (`Payload@4`, `next@15` for `nextjs`) — say so rather
+ * than reporting a reassuring "no change".
+ */
+function unknownStackWarnings(ctx: WhyContext, overrides: StackOverride[]): string[] {
+  const gated = new Set(
+    ctx.items.flatMap((item) => Object.keys(gateFor(ctx, item, ctx.detected).constraint)),
+  );
+  return overrides
+    .filter((o) => !ctx.detected.has(o.stack) && !gated.has(o.stack))
+    .map((o) => {
+      const known = [...new Set([...ctx.detected.keys(), ...gated])].sort();
+      const hint = known.length > 0 ? ` (known stacks: ${known.join(', ')})` : '';
+      return `--diff ${o.stack}: not detected and no rule, agent, skill or guardrail is gated on it — check the stack id${hint}`;
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -510,6 +608,8 @@ export function formatWhyReport(report: WhyReport): string[] {
   }
   const platforms = report.platforms.length > 0 ? ` (${report.platforms.join(', ')})` : '';
   lines.push(`"${report.query}" matched as ${MATCH_FORM_LABEL[report.matchedAs]}${platforms}.`);
+  if (report.package)
+    lines.push(`Answered for package ${report.package} (its own config and detected stacks).`);
   if (report.note) lines.push(report.note);
   for (const item of report.matches) lines.push('', ...formatItem(item));
   return lines;

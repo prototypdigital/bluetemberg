@@ -610,7 +610,7 @@ program
         return;
       }
       if (file === undefined) throw new Error('pass a <file> to explain, or --diff <stack@version>');
-      const report = buildWhyReport(resolve(directory), file);
+      const report = buildWhyReport(resolve(directory), file, { cwd: process.cwd() });
       print(report, formatWhyReport(report));
       if (report.matchedAs === null) process.exitCode = 1;
     } catch (err) {
