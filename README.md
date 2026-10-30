@@ -244,7 +244,7 @@ check:
 message: 'EnterWorktree requires a conventional branch name (type/description).'
 ```
 
-Guardrails compile to Claude Code hooks in `.claude/settings.json` today; other platforms don't run them. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
+Guardrails compile to Claude Code hooks in `.claude/settings.json` and to Cursor hooks in `.cursor/hooks.json` (for `Bash` checks, which Cursor calls `Shell`); other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
 
 ## Sync
 

@@ -111,6 +111,7 @@ async function uninstallInPlace(root: string): Promise<void> {
   for (const { source, output } of WHOLE_FILE_OUTPUTS) {
     if (existsSync(join(sourceDir, source))) rmSync(join(root, output), { force: true });
   }
+  removeEmptyCursorHooks(root);
   removeGitignoreCacheEntry(root);
   removeIfBlank(root, '.gitignore');
   removeIfOnlyLines(root, '.prettierignore', PRETTIERIGNORE_INIT_LINES);
@@ -205,6 +206,16 @@ function removeAgentsMdFromGemini(root: string): void {
   }
   const updated = { ...settings, context: { ...context, fileName } };
   writeFileSync(path, `${JSON.stringify(updated, null, 2)}\n`);
+}
+
+/** Guardrail cleanup leaves `{ version, hooks: {} }` when guardrails were the file's only source. */
+function removeEmptyCursorHooks(root: string): void {
+  const path = join(root, '.cursor', 'hooks.json');
+  const parsed = parseObject(readIfExists(path));
+  if (!parsed || !isPlainObject(parsed.hooks) || Object.keys(parsed.hooks).length > 0) return;
+  if (Object.keys(parsed).some((key) => key !== 'version' && key !== 'hooks')) return;
+  rmSync(path);
+  removeIfEmptyDir(join(root, '.cursor'));
 }
 
 /** Drops the `.bluetemberg/` cache entry and its comment. The `.npmrc` entry stays: it guards tokens. */
