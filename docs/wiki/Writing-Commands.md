@@ -7,7 +7,7 @@ Project-local **slash commands** live under `llm/commands/` as Markdown files. T
 - to `.claude/commands/` (Claude Code), adding only the generated-file banner. Deprecated; see the removal plan.
 - as a generated skill, `<skills dir>/<name>/SKILL.md`, to every skills target of the enabled platforms (`.claude/skills/`, `.github/skills/`, `.cursor/skills/`, `.agents/skills/`). The skill gets `name`, a `description` and `disable-model-invocation: true`, so it stays a command the user runs as `/name`.
 
-Claude Code resolves a skill and a command with the same name to the skill, so `/name` keeps working, unchanged, while both exist.
+Claude Code resolves a skill and a command with the same name to the skill, so `/name` keeps working, unchanged, while both exist. Codex and Devin get their own user-only switches in `.agents/skills/`; Antigravity has none and may load the skill on its own (see [Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts)).
 
 ## Layout
 

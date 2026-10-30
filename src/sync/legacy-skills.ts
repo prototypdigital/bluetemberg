@@ -1,12 +1,12 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 import type { BlueprintConfig, Platform } from '../types.js';
 import { listFiles } from '../utils/fs.js';
-import { hasGeneratedBanner, withGeneratedBanner } from './banner.js';
+import { hasGeneratedBanner, withGeneratedBanner, withGeneratedBannerToml } from './banner.js';
 import { mergeSourceDirs } from './extends-loader.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
-import { resolveSkillTargets } from './targets.js';
+import { dirKey, normalizePlatforms, resolveSkillTargets } from './targets.js';
 
 /**
  * Commands (`llm/commands/`) and prompt files (`llm/prompts/`) predate skills. Every host has
@@ -111,10 +111,19 @@ function resolveSkillName(data: Record<string, unknown>, fileName: string, kind:
  * the model's own initiative (the same choice VS Code's and Cursor's migrations make). A command's
  * other fields are Claude Code skill fields too and are kept; a prompt loses its prompt-only ones.
  */
+export interface LegacySkillOptions {
+  /**
+   * Devin ignores `disable-model-invocation`; its own switch is `triggers: [user]`. Only set for a
+   * skills dir Devin reads, so other hosts never see a field they do not know.
+   */
+  devinTriggers?: boolean;
+}
+
 export function toLegacySkillContent(
   source: string,
   fileName: string,
   kind: LegacySkillKind,
+  options: LegacySkillOptions = {},
 ): LegacySkillTranslation {
   const parsed = matter(source);
   const rest: Record<string, unknown> = { ...parsed.data };
@@ -135,20 +144,44 @@ export function toLegacySkillContent(
     'disable-model-invocation': true,
     ...rest,
   };
+  if (options.devinTriggers && data['disable-model-invocation'] === true && !('triggers' in data)) {
+    data.triggers = ['user'];
+  }
   return { name, content: matter.stringify(parsed.content, data), dropped };
 }
 
 interface PlannedLegacySkill {
   name: string;
-  content: string;
+  source: LegacySkillSource;
+  text: string;
+  /** Whether the skill is user-invoked only, which Codex and Devin need told their own way. */
+  userOnly: boolean;
 }
 
+/**
+ * The legacy stages copy a command or prompt without parsing it, so a frontmatter block that is not
+ * valid YAML used to sync fine. That stays a warning here: an error would fail the whole sync and
+ * block `--prune` for a file that still reaches `.claude/commands/` or `.github/prompts/`.
+ */
 function translate(
   source: LegacySkillSource,
-  recordError: (message: string) => void,
+  text: string,
+  recordWarning: (message: string) => void,
 ): LegacySkillTranslation | null {
   try {
-    return toLegacySkillContent(readFileSync(source.path, 'utf8'), source.name, source.kind);
+    return toLegacySkillContent(text, source.name, source.kind);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordWarning(
+      `${source.sourceId}: frontmatter could not be parsed, so no skill is generated for it (${message}).`,
+    );
+    return null;
+  }
+}
+
+function readSource(source: LegacySkillSource, recordError: (message: string) => void): string | null {
+  try {
+    return readFileSync(source.path, 'utf8');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     recordError(`${source.sourceId} -> skill: ${message}`);
@@ -187,7 +220,9 @@ function planLegacySkills(
   const planned: PlannedLegacySkill[] = [];
 
   for (const source of listLegacySkillSources(ctx.sourceBase)) {
-    const translation = translate(source, recordError);
+    const text = readSource(source, recordError);
+    if (text === null) continue;
+    const translation = translate(source, text, recordWarning);
     if (!translation) continue;
     const { name, content, dropped } = translation;
 
@@ -202,7 +237,8 @@ function planLegacySkills(
       );
     }
     claimed.set(name, source.sourceId);
-    planned.push({ name, content: withGeneratedBanner(content, source.sourceId) });
+    const userOnly = matter(content).data['disable-model-invocation'] === true;
+    planned.push({ name, source, text, userOnly });
   }
   return planned;
 }
@@ -227,6 +263,31 @@ function warnLegacyOutputs(ctx: LegacySkillsSyncContext, recordWarning: (message
   );
 }
 
+/** The skills dirs a platform reads, normalized, among the enabled platforms. */
+function skillDirsOf(ctx: LegacySkillsSyncContext, platform: Platform): Set<string> {
+  if (!normalizePlatforms(ctx.platforms).includes(platform)) return new Set();
+  return new Set(resolveSkillTargets(ctx.config, [platform]).map(([, target]) => dirKey(target.dir)));
+}
+
+/**
+ * Codex ignores `disable-model-invocation`; a skill opts out of implicit invocation in its own
+ * `agents/openai.yaml`. YAML takes the same `#` banner as TOML, so prune recognizes the file.
+ */
+function codexPolicy(sourceId: string): string {
+  return withGeneratedBannerToml('policy:\n  allow_implicit_invocation: false\n', sourceId);
+}
+
+/**
+ * True when the output dir holds something sync did not write: a `SKILL.md` without the banner, or
+ * files with no `SKILL.md` at all. Writing a bannered `SKILL.md` there would make `--prune` treat
+ * every file in the dir as generated and delete it, so the dir is left alone.
+ */
+function isHandWritten(skillDir: string): boolean {
+  const skillMd = join(skillDir, 'SKILL.md');
+  if (existsSync(skillMd)) return !hasGeneratedBanner(readFileSync(skillMd, 'utf8'));
+  return existsSync(skillDir) && readdirSync(skillDir).length > 0;
+}
+
 /** Writes each command and prompt as a generated skill to every skills target. */
 export function syncLegacySkills(
   ctx: LegacySkillsSyncContext,
@@ -241,26 +302,34 @@ export function syncLegacySkills(
   const planned = planLegacySkills(ctx, recordError, recordWarning);
   if (planned.length === 0) return;
 
+  const devinDirs = skillDirsOf(ctx, 'devin');
+  const codexDirs = skillDirsOf(ctx, 'codex');
+
   ctx.log(`Commands and prompts as skills: ${planned.length} source file(s)`);
   for (const [, target] of targets) {
+    const dir = dirKey(target.dir);
     let written = 0;
-    for (const { name, content } of planned) {
-      const outPath = join(ctx.root, target.dir, name, 'SKILL.md');
-      if (isHandWritten(outPath)) {
+    for (const skill of planned) {
+      const skillDir = join(ctx.root, target.dir, skill.name);
+      if (isHandWritten(skillDir)) {
         recordWarning(
-          `${target.dir}/${name}/SKILL.md was written by hand, so it is kept and no skill is generated there.`,
+          `${target.dir}/${skill.name}/ holds files bluetemberg did not write, so it is kept and no skill is generated there.`,
         );
         continue;
       }
-      commitPlannedWrite(ctx, outPath, content);
+      const { content } = toLegacySkillContent(skill.text, skill.source.name, skill.source.kind, {
+        devinTriggers: devinDirs.has(dir),
+      });
+      commitPlannedWrite(
+        ctx,
+        join(skillDir, 'SKILL.md'),
+        withGeneratedBanner(content, skill.source.sourceId),
+      );
+      if (skill.userOnly && codexDirs.has(dir)) {
+        commitPlannedWrite(ctx, join(skillDir, 'agents', 'openai.yaml'), codexPolicy(skill.source.sourceId));
+      }
       written++;
     }
     if (!ctx.checkMode) ctx.log(`  -> ${target.dir}/ (${written} skills)`);
   }
-}
-
-/** A `SKILL.md` without the generated banner is somebody's work, never overwritten by a migration. */
-function isHandWritten(path: string): boolean {
-  if (!existsSync(path)) return false;
-  return !hasGeneratedBanner(readFileSync(path, 'utf8'));
 }

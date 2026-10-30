@@ -106,7 +106,7 @@ The body is copied as written. The frontmatter changes like this:
 
 - **`name`**: the file name without `.md` (and without `.prompt`). A prompt file's own `name` field takes precedence, because that is what VS Code put after the `/`.
 - **`description`**: the source `description`. Without one, the first heading or line of the body is used, since every host requires a description.
-- **`disable-model-invocation: true`**: keeps the skill user-invoked, the way the command or prompt was. VS Code's and Cursor's own migrations make the same choice. An explicit value in the source is kept.
+- **`disable-model-invocation: true`**: keeps the skill user-invoked, the way the command or prompt was. VS Code's and Cursor's own migrations make the same choice. An explicit value in the source is kept. Codex and Devin ignore that field, so in the skills dir they read (`.agents/skills/`) a user-only skill also gets their own switch: `triggers: [user]` in the frontmatter when **devin** is enabled ([Devin CLI skills](https://docs.devin.ai/cli/extensibility/skills/overview)), and an `agents/openai.yaml` with `policy.allow_implicit_invocation: false` when **codex** is enabled ([Codex skills](https://learn.chatgpt.com/docs/build-skills)). Antigravity has no such switch, so it may still load a migrated command on its own initiative ([Antigravity skills](https://antigravity.google/docs/skills)); keep a command with side effects out of `llm/commands/` if Antigravity is enabled, or guard it with a [guardrail](Guardrails).
 - **Other fields** of a command (`argument-hint`, `allowed-tools`, `model`, …) are Claude Code skill fields too, and are carried over. A prompt's `agent`, `mode`, `model` and `tools` have no skill equivalent. They are left out with a warning, as VS Code's migration does. For a fixed agent, model or tool set, write a [custom agent](Writing-Agents) instead.
 
 `$ARGUMENTS` and `$1`-style placeholders are substituted by Claude Code only. Other hosts pass the text after the command to the model as context.
@@ -116,7 +116,8 @@ Invocation keeps working where the host supports `/name` for skills: Claude Code
 ### Name collisions
 
 - **A real skill wins.** If `llm/skills/<name>/` exists (locally, in `extends` or in a pack), no skill is generated for the command or prompt of that name, and sync warns.
-- **A hand-written skill in an output dir is never overwritten.** A `SKILL.md` without the generated-file banner is kept, and sync warns.
+- **A hand-written skill in an output dir is never overwritten.** A `SKILL.md` without the generated-file banner is kept, and so is a dir that holds files but no `SKILL.md` (a bannered `SKILL.md` there would let `--prune` delete those files). Sync warns.
+- **Frontmatter that is not valid YAML** gets no skill, with a warning; the legacy output is still written, as before.
 - **A command beats a prompt** of the same name, with a warning.
 - **A name that is not a valid skill name** (lowercase letters, digits and single hyphens, at most 64 characters, per the [Agent Skills spec](https://agentskills.io/specification)) gets no skill. Copilot silently ignores a skill with an invalid name, so sync warns instead of writing one.
 

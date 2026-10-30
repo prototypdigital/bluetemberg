@@ -179,9 +179,77 @@ describe('commands and prompts synced as skills', () => {
 
     expect(read(root, '.claude/skills/ship/SKILL.md')).toBe('---\nname: ship\ndescription: Mine\n---\n');
     expect(hasGeneratedBanner(read(root, '.github/skills/ship/SKILL.md'))).toBe(true);
-    expect(results.warnings.some((w) => w.includes('.claude/skills/ship/SKILL.md was written by hand'))).toBe(
-      true,
-    );
+    expect(
+      results.warnings.some((w) => w.includes('.claude/skills/ship/ holds files bluetemberg did not write')),
+    ).toBe(true);
+  });
+
+  it('leaves an output dir alone that holds files but no SKILL.md, so prune cannot delete them', async () => {
+    write(root, '.claude/skills/ship/notes.md', '# mine\n');
+    write(root, 'llm/commands/ship.md', '# Ship\n');
+
+    await sync(root, { config: allSkillPlatforms, silent: true });
+    await sync(root, { config: allSkillPlatforms, prune: true, silent: true });
+
+    expect(existsSync(join(root, '.claude', 'skills', 'ship', 'SKILL.md'))).toBe(false);
+    expect(read(root, '.claude/skills/ship/notes.md')).toBe('# mine\n');
+  });
+
+  it('lets a skill from extends win over a local command', async () => {
+    const shared = mkdtempSync(join(tmpdir(), 'bt-legacy-shared-'));
+    try {
+      write(shared, 'skills/deploy/SKILL.md', '---\nname: deploy\ndescription: Shared\n---\n\nShared.\n');
+      write(root, 'llm/commands/deploy.md', '# Command\n');
+
+      const results = await sync(root, { config: { ...allSkillPlatforms, extends: [shared] }, silent: true });
+
+      expect(frontmatter(read(root, '.claude/skills/deploy/SKILL.md')).description).toBe('Shared');
+      expect(results.warnings.some((w) => w.includes('commands/deploy.md') && w.includes('skill wins'))).toBe(
+        true,
+      );
+    } finally {
+      rmSync(shared, { recursive: true, force: true });
+    }
+  });
+
+  it('warns instead of failing the sync on frontmatter that is not valid YAML', async () => {
+    write(root, 'llm/commands/broken.md', '---\ndescription: [unclosed\n---\n\nBody\n');
+
+    const results = await sync(root, { config: allSkillPlatforms, silent: true });
+
+    expect(results.errors).toEqual([]);
+    expect(existsSync(join(root, '.claude', 'commands', 'broken.md'))).toBe(true);
+    expect(existsSync(join(root, '.claude', 'skills', 'broken'))).toBe(false);
+    expect(
+      results.warnings.some((w) => w.includes('commands/broken.md: frontmatter could not be parsed')),
+    ).toBe(true);
+  });
+
+  it('opts a user-only skill out of implicit invocation in Codex and Devin, and nowhere else', async () => {
+    write(root, 'llm/commands/ship.md', '# Ship\n');
+
+    await sync(root, {
+      config: { platforms: ['claude', 'codex', 'devin'], source: 'llm', targets: {} },
+      silent: true,
+    });
+
+    const agentsSkill = read(root, '.agents/skills/ship/SKILL.md');
+    expect(frontmatter(agentsSkill).triggers).toEqual(['user']);
+    const policy = read(root, '.agents/skills/ship/agents/openai.yaml');
+    expect(hasGeneratedBanner(policy)).toBe(true);
+    expect(policy).toContain('policy:\n  allow_implicit_invocation: false\n');
+
+    expect(frontmatter(read(root, '.claude/skills/ship/SKILL.md')).triggers).toBeUndefined();
+    expect(existsSync(join(root, '.claude', 'skills', 'ship', 'agents'))).toBe(false);
+  });
+
+  it('writes no Codex policy for a skill the source makes model-invocable', async () => {
+    write(root, 'llm/commands/auto.md', '---\ndescription: d\ndisable-model-invocation: false\n---\nx\n');
+
+    await sync(root, { config: { platforms: ['codex', 'devin'], source: 'llm', targets: {} }, silent: true });
+
+    expect(existsSync(join(root, '.agents', 'skills', 'auto', 'agents', 'openai.yaml'))).toBe(false);
+    expect(frontmatter(read(root, '.agents/skills/auto/SKILL.md')).triggers).toBeUndefined();
   });
 
   it('gives a command and a prompt with the same name one skill, the command', async () => {
@@ -266,9 +334,12 @@ describe('commands and prompts synced as skills', () => {
     rmSync(join(root, 'llm', 'commands', 'drop.md'));
 
     const stale = await sync(root, { config: allSkillPlatforms, check: true, silent: true });
-    expect(stale.stale).toBe(1 + SKILL_DIRS.length);
+    // .claude/commands/drop.md, one SKILL.md per skills dir, and Codex's agents/openai.yaml.
+    expect(stale.stale).toBe(1 + SKILL_DIRS.length + 1);
 
     await sync(root, { config: allSkillPlatforms, prune: true, silent: true });
+    const check = await sync(root, { config: allSkillPlatforms, check: true, silent: true });
+    expect(check.stale).toBe(0);
     for (const dir of SKILL_DIRS) {
       expect(existsSync(join(root, dir, 'drop'))).toBe(false);
       expect(existsSync(join(root, dir, 'keep', 'SKILL.md'))).toBe(true);

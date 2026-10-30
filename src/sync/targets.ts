@@ -35,7 +35,8 @@ type TargetKind = keyof typeof LEGACY_DEFAULT_DIRS;
  * Compare output dirs regardless of `./` prefixes, trailing slashes or the OS separator. `normalize`
  * collapses repeated separators, so at most one trailing `/` is left to drop.
  */
-function dirKey(dir: string): string {
+/** A target dir normalized for comparison: `./.agents/skills/` and `.agents/skills` are one dir. */
+export function dirKey(dir: string): string {
   const key = normalize(dir).split(sep).join('/');
   return key.length > 1 && key.endsWith('/') ? key.slice(0, -1) : key;
 }

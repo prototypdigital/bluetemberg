@@ -327,7 +327,7 @@ rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypd
 
 ² `.windsurf/rules/` is a transitional mirror for Devin builds that still read the legacy path; it will be dropped in a later release.
 
-⁴ Every host has moved commands and prompt files into skills, so each `llm/commands/` and `llm/prompts/` file is also written as a generated `<name>/SKILL.md` to the platform's skills dir, with `disable-model-invocation: true` so it stays a `/name` the user runs. The `.claude/commands/` and `.github/prompts/` outputs are deprecated: sync warns, and stops writing them in 0.18.0. A real skill of the same name wins. See [Migrating commands and prompts](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills#migrating-commands-and-prompts).
+⁴ Every host has moved commands and prompt files into skills, so each `llm/commands/` and `llm/prompts/` file is also written as a generated `<name>/SKILL.md` to the platform's skills dir, with `disable-model-invocation: true` so it stays a `/name` the user runs (plus `triggers: [user]` for Devin and `agents/openai.yaml` for Codex, which ignore that field; Antigravity has no equivalent). The `.claude/commands/` and `.github/prompts/` outputs are deprecated: sync warns, and stops writing them in 0.18.0. A real skill of the same name wins. See [Migrating commands and prompts](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills#migrating-commands-and-prompts).
 
 Rules get platform-specific frontmatter transforms:
 
