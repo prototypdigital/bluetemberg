@@ -778,16 +778,21 @@ export async function verify(root: string, options: RegistryVerifyOptions = {}):
  *
  * Returns directories in manifest order (lower priority than local source and
  * `extends` entries — caller handles priority ordering) along with any warnings
- * about packs that are declared but missing from the lockfile or cache.
+ * about packs that are declared but missing from the lockfile or cache. `labels[i]` names the pack
+ * behind `dirs[i]` as `name@version`, for diagnostics (`bluetemberg why`).
  */
-export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: string[]; warnings: string[] } {
+export function resolvePackSourceDirs(
+  root: string,
+  source = 'llm',
+): { dirs: string[]; labels: string[]; warnings: string[] } {
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
 
   const manifestNames = Object.keys(manifest.packages);
   const lockNames = Object.keys(lock.packages);
-  if (manifestNames.length === 0 && lockNames.length === 0) return { dirs: [], warnings: [] };
+  if (manifestNames.length === 0 && lockNames.length === 0) return { dirs: [], labels: [], warnings: [] };
   const dirs: string[] = [];
+  const labels: string[] = [];
   const warnings: string[] = [];
 
   // Sync must stay read-only (it runs with --check in CI), so legacy manifests
@@ -816,6 +821,7 @@ export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: str
     }
 
     dirs.push(dir);
+    labels.push(`${name}@${lockEntry.version}`);
   }
 
   // Warn about stale lockfile entries that are no longer in the manifest.
@@ -827,7 +833,7 @@ export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: str
     }
   }
 
-  return { dirs, warnings };
+  return { dirs, labels, warnings };
 }
 
 // ---------------------------------------------------------------------------

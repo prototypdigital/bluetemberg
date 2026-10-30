@@ -6,7 +6,7 @@ import type { Platform } from '../types.js';
 import { readIfExists } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
 import { commitPlannedDelete, commitPlannedWrite } from './pipeline.js';
-import { mergeSourceFiles } from './extends-loader.js';
+import { mergeContentKind } from './sources.js';
 import type { McpServerConfig } from '../mcp/registry.js';
 import { loadMcpManifest } from './mcp.js';
 import {
@@ -65,7 +65,7 @@ function assertRuleQuotesNoMarker(file: string, body: string): void {
 
 /** Builds the inner body of the AGENTS.md rules block (empty when there are no rules). */
 function buildRulesBlock(ctx: CodexSyncContext): string {
-  const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
+  const merged = mergeContentKind(ctx.sourceDirs, 'rules');
   const applied = [...merged].filter(([file]) => !ctx.excludedRules?.has(file));
   if (applied.length === 0) return '';
 
@@ -186,7 +186,7 @@ function processAgentFile(
 export function syncCodexAgents(ctx: CodexSyncContext, recordError: (message: string) => void): void {
   if (!ctx.platforms.includes('codex')) return;
 
-  const merged = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
+  const merged = mergeContentKind(ctx.sourceDirs, 'agents');
   if (merged.size === 0) return;
 
   const outDir = join(ctx.root, '.codex', 'agents');

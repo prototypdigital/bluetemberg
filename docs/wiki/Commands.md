@@ -182,6 +182,62 @@ npx bluetemberg coverage payload@3.4.0
 npx bluetemberg coverage nextjs --json
 ```
 
+## `bluetemberg why <file> [directory]`
+
+Explain why one rule, agent, skill or guardrail is **included** in or **excluded** from this project. It answers from the same source resolution and version gate sync uses, so it cannot disagree with what sync wrote.
+
+`<file>` can take any of three forms. The report says which one matched (tried in this order):
+
+| Form | Example | Notes |
+| ---- | ------- | ----- |
+| Source path | `llm/rules/payload-v3.md`, `llm/skills/migrate/`, `.bluetemberg/packs/<pack>/<ver>/llm/rules/x.md` | Relative (to the project directory, or failing that the current directory), `./`-prefixed or absolute. Naming a copy that a higher-priority source shadows explains the copy sync actually uses, with a note. |
+| Generated path | `.claude/rules/payload-v3.md`, `.cursor/rules/x.mdc`, `.claude/skills/migrate` | Resolved against the configured targets, so it works for an excluded item too (the path sync *would* write) and names the platform. |
+| Id | `payload-v3`, `rules/payload-v3` | A bare id matches every kind that ships it; prefix the kind to pick one. |
+
+For each match it reports:
+
+- **source**: the winning copy (`local`, `extends <entry>`, `<pack>@<version>`, or `<source>@<ref>` for an external source) plus any shadowed lower-priority copies.
+- **constraint**: whether it came from the file's own `stacks:` frontmatter (version-precise), the owning pack's catalog tag (name-only, `*`), or nothing (stack-agnostic).
+- **each `stack: range`** checked against the detected version, with its confidence and where it came from. A coerced (low-confidence) detection is flagged.
+- **why it's out**: a version mismatch, an absent stack, or (for a guardrail) frontmatter or regex sync rejects. It also lists invalid ranges and, when the item is included, the generated outputs.
+
+```bash
+npx bluetemberg why payload-v3
+npx bluetemberg why .claude/rules/payload-v3.md --json
+```
+
+```
+"payload-v3" matched as id.
+
+rules/payload-v3: EXCLUDED — payload >=3 <4 (you're on 2.5.0)
+  source:     local (llm/rules/payload-v3.md)
+  constraint: frontmatter `stacks:` (version-precise)
+    ✘ payload ">=3 <4" vs 2.5.0 (declared, from config)
+```
+
+Exits 1 when nothing matches `<file>`. In a monorepo, a path inside a package (`packages/web/llm/rules/payload-v3.md`, `packages/web/.claude/rules/payload-v3.md`) is answered by that package's own config and detected stacks, the decision `sync` made there, and the report names the package. An id typed at the workspace root answers for the root config only and warns; pass the package directory instead (`npx bluetemberg why payload-v3 packages/web`).
+
+### Upgrade diff: `bluetemberg why --diff <stack@version> [directory]`
+
+List the items that would be **added** or **removed** if a stack were at the given version, without writing anything. It re-runs the gate with that version substituted for the detected one. Repeat `--diff` to move several stacks at once. A partial version is completed the way the gate compares it (`payload@4` → `4.0.0`), and a stack that isn't detected today is treated as newly present. A stack that is neither detected nor named by any constraint can't change the set, so it gets a warning (likely a typo, e.g. `Payload@4`) instead of a silent "no change". At a monorepo root, pass the package directory.
+
+```bash
+npx bluetemberg why --diff payload@4
+npx bluetemberg why --diff payload@4 --diff nextjs@15 --json
+```
+
+```
+If payload 3.4.1 → 4.0.0 (nothing is written):
+  + rules/payload-v4 [local] — was: payload >=4 (you're on 3.4.1)
+  - rules/payload-v3 [local] — payload >=3 <4 (you're on 4.0.0)
+  unchanged: 14 included, 0 excluded
+```
+
+| Option | Description |
+| ------ | ----------- |
+| `--diff <stack@version>` | Diff the resolved set at this hypothetical version (repeatable). Takes no `<file>` |
+| `--json` | Emit the report as JSON (`matchedAs`, `matches[]`, … or `overrides[]`, `added[]`, `removed[]`, `unchanged`) |
+
 ## `bluetemberg scan-org [paths...]`
 
 **Maintainer tooling** — read-only. Scan N repositories and build a `(stack, version)` usage histogram against the installed catalog, then rank the uncovered buckets by usage so you author the highest-impact rules first. It reuses the exact detection that gates rules at sync. It **never writes** anything.
@@ -277,6 +333,7 @@ Tools:
 | `bluetemberg_detect_stacks` | — | Detected stacks, versions, confidence, coverage, gaps, warnings |
 | `bluetemberg_query_coverage` | `stack`, optional `version` | Whether version-correct guidance exists for the stack, with the gap `reason` when it does not |
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
+| `bluetemberg_why` | `file` (source path, generated path or id), or `diff` (array of `stack@version`) | The [`why`](#bluetemberg-why-file-directory) report for one item, or the upgrade diff |
 | `bluetemberg_org_histogram` | `roots` (array of repo paths), `org`, `repos`, `since` — all optional; combine local roots with a remote org scan | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
 
 Register it with an MCP client (example for Claude Code's `.mcp.json`):

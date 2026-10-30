@@ -47,6 +47,7 @@ describe('STACKS_MCP_TOOLS', () => {
       'bluetemberg_detect_stacks',
       'bluetemberg_query_coverage',
       'bluetemberg_list_stacks',
+      'bluetemberg_why',
       'bluetemberg_org_histogram',
     ]);
     expect(names).not.toContain('bluetemberg_scaffold_from_gap'); // parked (M7)

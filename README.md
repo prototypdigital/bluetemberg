@@ -214,9 +214,11 @@ Inspect detection and coverage — these have a `--json` twin for agents:
 ```bash
 npx bluetemberg detect              # detected stacks, versions, confidence, gaps
 npx bluetemberg coverage payload@3  # is there version-correct guidance for this stack?
+npx bluetemberg why payload-v3      # why is this rule in (or out)? source, constraint, version matched
+npx bluetemberg why --diff payload@4  # what an upgrade would add/remove, without writing anything
 ```
 
-Or expose the same model to an agent as MCP tools (`bluetemberg_detect_stacks`, `bluetemberg_query_coverage`, `bluetemberg_list_stacks`, `bluetemberg_org_histogram`) — read-only, over stdio:
+Or expose the same model to an agent as MCP tools (`bluetemberg_detect_stacks`, `bluetemberg_query_coverage`, `bluetemberg_list_stacks`, `bluetemberg_why`, `bluetemberg_org_histogram`) — read-only, over stdio:
 
 ```bash
 npx bluetemberg mcp serve
