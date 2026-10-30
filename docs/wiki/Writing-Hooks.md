@@ -24,13 +24,13 @@ Cursor **hooks** are configured with JSON at `llm/hooks.json`. Sync validates an
 ```
 
 - **`version`** — Optional; must be a positive integer if present. Defaults to `1` when omitted.
-- **`hooks`** — Object whose keys are hook event names (any string, for forward compatibility). Each value is an array of objects with a non-empty **`command`** string (path or shell command; resolved per Cursor’s rules).
+- **`hooks`** — Object whose keys are hook event names (any string, for forward compatibility). Each value is an array of objects with a non-empty **`command`** string (path or shell command; resolved per Cursor’s rules). The optional per-entry fields `matcher` (string), `timeout` (seconds) and `failClosed` (boolean) are kept; any other field is dropped.
 
 Invalid JSON or structure produces a sync **error**; no partial file is written for that step.
 
 ### When sync runs
 
-Hooks are emitted only if **`cursor`** is in `platforms`. If `llm/hooks.json` is missing, sync does nothing for hooks (it does not delete an existing `.cursor/hooks.json`).
+Hooks are emitted only if **`cursor`** is in `platforms`. Sync writes `.cursor/hooks.json` whole from `llm/hooks.json`, with any [Guardrails](Guardrails) entries first. If `llm/hooks.json` is missing, entries you wrote by hand in `.cursor/hooks.json` are kept, and sync only adds or removes the entries it generates for guardrails.
 
 ## Claude Code hooks (`llm/hooks.claude.json`)
 

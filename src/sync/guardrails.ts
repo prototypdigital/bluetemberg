@@ -4,7 +4,7 @@ import type { GuardrailCheck, GuardrailFrontmatter, Platform } from '../types.js
 import type { Catalog } from '../catalog/index.js';
 import type { SyncSink } from './pipeline.js';
 import type { ClaudeHooksSection } from './claude-hooks.js';
-import type { CursorHooksSection } from './hooks.js';
+import type { CursorHookEntry, CursorHooksSection } from './hooks.js';
 import { mergeSourceFiles } from './extends-loader.js';
 import { ereIssue } from './ere.js';
 import {
@@ -162,11 +162,26 @@ const LEGACY_CLAUDE_HOOK_SCRIPTS = [
  * positional arguments to a fixed script — never interpolated into the script body —
  * so hostile pack content cannot achieve shell or jq injection.
  */
+/**
+ * Cursor runs the same checks with two additions, both because Cursor's entries are `failClosed`.
+ * A missing `jq` exits 1 (a hook failure, which `failClosed` turns into a block) instead of reading
+ * an empty field that every `not_matches` check passes. And a passing call prints `{}`: a
+ * `failClosed` hook that prints nothing counts as failed, so silence would block every call. `{}`
+ * carries no `permission`, so it never auto-approves anything.
+ */
+const CURSOR_HOOK_SCRIPT = [
+  'command -v jq >/dev/null 2>&1 || exit 1',
+  CLAUDE_HOOK_SCRIPT,
+  'printf "{}\\n"',
+].join('; ');
+
 /** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */
-const CLAUDE_COMMAND_PREFIX = `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetemberg `;
 const TOOL_INPUT_PREFIX = 'tool_input.';
-const KNOWN_COMMAND_PREFIXES = [CLAUDE_HOOK_SCRIPT, ...LEGACY_CLAUDE_HOOK_SCRIPTS].map(
-  (script) => `bash -c ${shellQuote(script)} bluetemberg `,
+function commandPrefix(script: string): string {
+  return `bash -c ${shellQuote(script)} bluetemberg `;
+}
+const KNOWN_COMMAND_PREFIXES = [CLAUDE_HOOK_SCRIPT, CURSOR_HOOK_SCRIPT, ...LEGACY_CLAUDE_HOOK_SCRIPTS].map(
+  commandPrefix,
 );
 
 /**
@@ -183,7 +198,7 @@ function toolInputPath(field: string): string {
   return field.startsWith(TOOL_INPUT_PREFIX) ? field.slice(TOOL_INPUT_PREFIX.length) : field;
 }
 
-function buildGuardrailCommand(guardrail: GuardrailFrontmatter): string {
+function buildGuardrailCommand(guardrail: GuardrailFrontmatter, script = CLAUDE_HOOK_SCRIPT): string {
   const { check, message } = guardrail;
 
   if (!check.not_empty && !check.matches && !check.not_matches) return '';
@@ -196,7 +211,7 @@ function buildGuardrailCommand(guardrail: GuardrailFrontmatter): string {
     check.not_empty ? '1' : '',
   ];
 
-  return `${CLAUDE_COMMAND_PREFIX}${args.map(shellQuote).join(' ')}`;
+  return `${commandPrefix(script)}${args.map(shellQuote).join(' ')}`;
 }
 
 /**
@@ -211,8 +226,8 @@ function buildGuardrailCommand(guardrail: GuardrailFrontmatter): string {
  * empty section means guardrail sources exist but none currently apply (so a previously
  * managed `hooks` key must be cleared, not left stale).
  *
- * Cursor: returns `preToolUse` / `postToolUse` entries for `.cursor/hooks.json`, written by
- * `syncHooks` together with `llm/hooks.json`. Only triggers with a verified Cursor equivalent
+ * Cursor: returns `preToolUse` entries for `.cursor/hooks.json`, written by `syncHooks` together
+ * with `llm/hooks.json`. Only `PreToolUse` guardrails whose trigger has a verified Cursor equivalent
  * compile (see {@link CURSOR_TOOL_NAMES}); the rest are logged as Claude Code only.
  *
  * Other platforms: no-op (not yet supported).
@@ -294,44 +309,40 @@ export interface GuardrailHooks {
  */
 const CURSOR_TOOL_NAMES: Readonly<Record<string, string>> = { Bash: 'Shell' };
 
-const CURSOR_EVENTS: Readonly<Record<string, string>> = {
-  PreToolUse: 'preToolUse',
-  PostToolUse: 'postToolUse',
-};
-
 /**
- * Cursor entries for the applicable guardrails. Cursor runs the same fixed script (exit 2 blocks),
- * and `failClosed` makes a crash, timeout or missing `jq` block too: Cursor fails open by default,
- * which would quietly turn a guardrail off.
+ * Cursor entries for the applicable guardrails, all on `preToolUse`. Cursor's `postToolUse` cannot
+ * block or relay a message on exit 2, so a `PostToolUse` guardrail stays Claude Code only rather
+ * than compiling to a hook that runs and does nothing. `failClosed` makes a crash, timeout or
+ * missing `jq` block too: Cursor fails open by default, which would quietly turn a guardrail off.
  */
 function buildCursorGuardrailHooks(
   ctx: GuardrailsSyncContext,
   guardrails: GuardrailFrontmatter[],
 ): CursorHooksSection {
-  const section: CursorHooksSection = {};
-  const unmapped: string[] = [];
+  const entries: CursorHookEntry[] = [];
+  const claudeOnly = new Set<string>();
   for (const guardrail of guardrails) {
     if (guardrail.platforms && !(guardrail.platforms as string[]).includes('cursor')) continue;
+    const command = buildGuardrailCommand(guardrail, CURSOR_HOOK_SCRIPT);
+    if (!command) continue;
     const toolName = CURSOR_TOOL_NAMES[guardrail.trigger];
-    const event = CURSOR_EVENTS[guardrail.hook_type ?? 'PreToolUse'];
-    const command = buildGuardrailCommand(guardrail);
-    if (!toolName || !event || !command) {
-      if (command) unmapped.push(guardrail.trigger);
+    const hookType = guardrail.hook_type ?? 'PreToolUse';
+    if (!toolName || hookType !== 'PreToolUse') {
+      claudeOnly.add(hookType === 'PreToolUse' ? guardrail.trigger : `${guardrail.trigger} (${hookType})`);
       continue;
     }
-    (section[event] ??= []).push({ command, matcher: `^${toolName}$`, failClosed: true });
+    entries.push({ command, matcher: `^${toolName}$`, failClosed: true });
   }
 
   if (!ctx.checkMode) {
-    const count = Object.values(section).reduce((n, entries) => n + entries.length, 0);
-    if (count > 0) ctx.log(`Guardrails: ${count} guardrail(s) -> .cursor/hooks.json`);
-    if (unmapped.length > 0) {
+    if (entries.length > 0) ctx.log(`Guardrails: ${entries.length} guardrail(s) -> .cursor/hooks.json`);
+    if (claudeOnly.size > 0) {
       ctx.log(
-        `Guardrails: no Cursor equivalent for ${[...new Set(unmapped)].join(', ')}; enforced in Claude Code only`,
+        `Guardrails: no Cursor equivalent for ${[...claudeOnly].join(', ')}; enforced in Claude Code only`,
       );
     }
   }
-  return section;
+  return entries.length > 0 ? { preToolUse: entries } : {};
 }
 
 /**

@@ -1,9 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sync } from '../src/sync/index.js';
+import { uninstall } from '../src/uninstall/index.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 const CONFIG: BlueprintConfig = { platforms: ['cursor'], source: 'llm', targets: {} };
@@ -66,13 +75,17 @@ describe('guardrails for Cursor', () => {
   }
 
   /** Runs a generated command the way Cursor does: through a shell, payload on stdin. */
-  function run(command: string, toolInput: Record<string, unknown>): number | null {
+  function exec(command: string, toolInput: Record<string, unknown>, env?: NodeJS.ProcessEnv) {
     const payload = JSON.stringify({
       hook_event_name: 'preToolUse',
       tool_name: 'Shell',
       tool_input: toolInput,
     });
-    return spawnSync('sh', ['-c', command], { input: payload, encoding: 'utf8' }).status;
+    return spawnSync('sh', ['-c', command], { input: payload, encoding: 'utf8', env });
+  }
+
+  function run(command: string, toolInput: Record<string, unknown>): number | null {
+    return exec(command, toolInput).status;
   }
 
   it('compiles a Bash guardrail to a fail-closed preToolUse entry on Shell', async () => {
@@ -93,6 +106,121 @@ describe('guardrails for Cursor', () => {
 
     expect(run(command, { command: 'git push --force origin main' })).toBe(2);
     expect(run(command, { command: 'git push origin feat/x' })).toBe(0);
+  });
+
+  it('prints {} on a passing call, since a failClosed hook with no output blocks', async () => {
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+    await sync(root, { config: CONFIG, silent: true });
+    const command = readHooks().hooks.preToolUse?.[0]?.command ?? '';
+
+    const pass = exec(command, { command: 'git push origin feat/x', working_directory: root });
+    expect(pass.status).toBe(0);
+    expect(JSON.parse(pass.stdout)).toEqual({});
+
+    const block = exec(command, { command: 'git push --force', working_directory: root });
+    expect(block.status).toBe(2);
+    expect(block.stdout).toBe('');
+    expect(block.stderr).toContain('Force-push is blocked');
+  });
+
+  it('fails (exit 1, blocked by failClosed) when jq is missing instead of passing an empty field', async () => {
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+    await sync(root, { config: CONFIG, silent: true });
+    const command = readHooks().hooks.preToolUse?.[0]?.command ?? '';
+    const bin = join(root, 'bin');
+    mkdirSync(bin);
+    for (const tool of ['sh', 'bash', 'cat']) symlinkSync(join('/bin', tool), join(bin, tool));
+
+    const result = exec(command, { command: 'git push --force' }, { PATH: bin });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+  });
+
+  it('leaves a PostToolUse guardrail to Claude Code: Cursor postToolUse cannot block', async () => {
+    writeGuardrail(
+      'no-force-push',
+      NO_FORCE_PUSH.replace('trigger: Bash', 'trigger: Bash\nhook_type: PostToolUse'),
+    );
+
+    await sync(root, { config: CONFIG, silent: true });
+
+    expect(existsSync(hooksPath())).toBe(false);
+  });
+
+  it('adds guardrail entries to a hand-written file without llm/hooks.json and keeps its entries', async () => {
+    const mine = { command: './mine.sh', matcher: 'Read', timeout: 5 };
+    mkdirSync(join(root, '.cursor'), { recursive: true });
+    writeFileSync(
+      hooksPath(),
+      JSON.stringify({ version: 1, hooks: { preToolUse: [mine], stop: [{ command: './s.sh' }] } }),
+    );
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+
+    await sync(root, { config: CONFIG, silent: true });
+    await sync(root, { config: CONFIG, silent: true });
+
+    const { hooks } = readHooks();
+    expect(hooks.preToolUse?.map((e) => e.command.startsWith('bash -c'))).toEqual([true, false]);
+    expect(hooks.preToolUse?.[1]).toEqual(mine);
+    expect(hooks.stop).toEqual([{ command: './s.sh' }]);
+  });
+
+  it('does not touch a hand-written file that is not valid JSON', async () => {
+    mkdirSync(join(root, '.cursor'), { recursive: true });
+    writeFileSync(hooksPath(), '{ not json');
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+
+    const results = await sync(root, { config: CONFIG, silent: true });
+
+    expect(results.errors).toEqual([expect.stringContaining('.cursor/hooks.json')]);
+    expect(readFileSync(hooksPath(), 'utf8')).toBe('{ not json');
+  });
+
+  it('keeps matcher and timeout from llm/hooks.json entries', async () => {
+    const entry = { command: './mine.sh', matcher: '^Shell$', timeout: 10, failClosed: true };
+    mkdirSync(join(root, 'llm'), { recursive: true });
+    writeFileSync(join(root, 'llm', 'hooks.json'), JSON.stringify({ hooks: { preToolUse: [entry] } }));
+
+    await sync(root, { config: CONFIG, silent: true });
+
+    expect(readHooks()).toEqual({ version: 1, hooks: { preToolUse: [entry] } });
+  });
+
+  it('does not overwrite the file when llm/hooks.json is invalid', async () => {
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+    await sync(root, { config: CONFIG, silent: true });
+    const before = readFileSync(hooksPath(), 'utf8');
+    writeFileSync(join(root, 'llm', 'hooks.json'), '{ "hooks": [] }');
+
+    const results = await sync(root, { config: CONFIG, silent: true });
+
+    expect(results.errors).not.toEqual([]);
+    expect(readFileSync(hooksPath(), 'utf8')).toBe(before);
+  });
+
+  it('deletes the file once the guardrails that were its only content are gone', async () => {
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+    await sync(root, { config: CONFIG, silent: true });
+    rmSync(join(root, 'llm', 'guardrails'), { recursive: true });
+
+    const check = await sync(root, { config: CONFIG, silent: true, check: true });
+    expect(check.outOfSync).toBe(1);
+    expect(existsSync(hooksPath())).toBe(true);
+
+    await sync(root, { config: CONFIG, silent: true });
+    expect(existsSync(hooksPath())).toBe(false);
+  });
+
+  it('uninstall removes a guardrail-only hooks file', async () => {
+    writeFileSync(join(root, 'bluetemberg.config.json'), JSON.stringify(CONFIG));
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+    await sync(root, { silent: true, recursive: false });
+    expect(existsSync(hooksPath())).toBe(true);
+
+    await uninstall(root);
+
+    expect(existsSync(hooksPath())).toBe(false);
   });
 
   it('skips a trigger with no Cursor equivalent instead of writing an empty file', async () => {
