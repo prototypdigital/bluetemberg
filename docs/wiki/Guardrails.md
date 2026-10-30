@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into an enforced hook. They compile to Claude Code, Cursor and GitHub Copilot today (see [Platform output](#platform-output)). Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
+Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into an enforced hook. They compile to Claude Code, Cursor, GitHub Copilot and Devin Desktop today (see [Platform output](#platform-output)). Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
 
 ## Where guardrails live
 
@@ -14,7 +14,7 @@ Sources merge with the same precedence as rules — a local file with the same n
 
 `init --non-interactive` adds the default guardrail pack to `llm/packages.json`; the interactive wizard doesn't ask about guardrails yet, so add it with `bluetemberg add bluetemberg-guardrails-git`. Run `bluetemberg install` and `bluetemberg sync` to activate it.
 
-Removing a guardrail — deleting the file, or `bluetemberg remove` on the pack that shipped it — removes its hook from `.claude/settings.json`, `.cursor/hooks.json` and `.github/hooks/bluetemberg-guardrails.json` on the next `sync`. Only hooks bluetemberg generated are touched; hand-written entries in the same file stay.
+Removing a guardrail — deleting the file, or `bluetemberg remove` on the pack that shipped it — removes its hook from `.claude/settings.json`, `.cursor/hooks.json`, `.github/hooks/bluetemberg-guardrails.json` and `.devin/hooks.v1.json` on the next `sync`. Only hooks bluetemberg generated are touched; hand-written entries in the same file stay.
 
 ## File format
 
@@ -46,7 +46,7 @@ Human-readable explanation of what this guardrail does.
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |
 | `message` | Yes | Shown to the agent when the check fails |
-| `platforms` | No | Limit to specific platforms (`claude`, `cursor`, `copilot`). Leave it out to compile for every supported platform |
+| `platforms` | No | A YAML list that limits the guardrail to specific platforms (`claude`, `cursor`, `copilot`, `devin`; `windsurf` is accepted as an alias for `devin`). Leave it out to compile for every supported platform |
 
 At least one `check` condition is required — a guardrail with none is reported as a sync error.
 
@@ -80,7 +80,8 @@ This is deliberate. A guardrail that cannot check its own condition is not evide
 | Claude Code | `hooks` section in `.claude/settings.json` (`PreToolUse`/`PostToolUse` command hooks) |
 | Cursor | `preToolUse` entries in `.cursor/hooks.json`, for `PreToolUse` guardrails whose trigger has a Cursor equivalent (below) |
 | GitHub Copilot | `PreToolUse` entries in `.github/hooks/bluetemberg-guardrails.json`, for `PreToolUse` guardrails on `Bash` (below) |
-| Codex, Devin, Gemini, Antigravity | Not yet supported — guardrails are skipped |
+| Devin Desktop (formerly Windsurf) | `PreToolUse` groups in `.devin/hooks.v1.json`, for `PreToolUse` guardrails whose trigger has a Devin equivalent (below) |
+| Codex, Gemini, Antigravity | Not yet supported — guardrails are skipped |
 
 ### Cursor
 
@@ -127,6 +128,24 @@ Limits to know about:
 - **Folder trust:** the hooks reference says repository hooks "require workspace admission" (in its agent-scoped hooks section), so expect Copilot CLI to run them only in a folder you have trusted.
 
 The file is written the same way as Cursor's without `llm/hooks.json`: generated entries go first, entries you add by hand to the file are kept, and the file (and an empty `.github/hooks/`) is deleted when nothing else is left in it. A file that is not valid JSON is left alone and reported as a sync error. Other files in `.github/hooks/` are never read or written.
+
+### Devin Desktop
+
+Devin Local, the Devin Desktop agent, shares Devin CLI's hook harness and reads project hooks from `.devin/hooks.v1.json` ([Devin hooks](https://docs.devin.ai/cli/extensibility/hooks/overview)). That file uses the Claude Code hook format, so Devin runs the same script as Claude Code: a failed check exits 2, which blocks the call, and its message goes to stderr, which Devin hands to the agent as the block reason. The trigger is mapped to Devin's tool name, and `check.field` reads Devin's `tool_input`:
+
+| Guardrail `trigger` (Claude Code tool) | Devin `tool_name` |
+| -------------------------------------- | ----------------- |
+| `Bash` | `exec` |
+
+Only `exec` is mapped: Devin documents its `tool_input` as `{ command, shell_id }`, so `check.field: command` reads the same argument as in Claude Code. Devin's other tools (`edit`, `write`, …) have no documented argument names, so a guardrail on `Edit`, `Write` or `EnterWorktree` is enforced in Claude Code only, and sync says so. Devin notes that its tool names can vary by mode, model and integrations; the matcher covers `exec` only, the shell tool name it documents. So is a `hook_type: PostToolUse` guardrail, which would run after the call.
+
+A passing check exits 0 and prints nothing, which Devin treats as "carry on normally". The hook never prints an `approve` decision, so it never auto-approves a command. If `jq` is missing or the payload cannot be read, the hook exits 2 and blocks. Devin treats every other failure — any exit code other than 0 or 2, a timeout, or `bash` not starting at all — as a logged error that **does not block**. Devin added a `fail_closed: true` hook option in v3000.11.205, but its placement in the file is not documented yet, so sync does not emit it.
+
+Devin loads no hooks while a workspace is in Restricted Mode, but no agent runs there either.
+
+Sync owns only the entries it generated. Guardrail groups go first, and every group you wrote by hand is kept as it is. When the guardrails go away, sync removes only its own commands and deletes the file if nothing else is left in it. A `.devin/hooks.v1.json` that is not a valid hooks object is left untouched, and sync reports an error.
+
+Devin also loads the `hooks` key of `.claude/settings.json` by default (`read_config_from.claude`). There, a guardrail's matcher is the Claude tool name (`Bash`), which does not match `exec`, so Devin does not run the Claude Code entries a second time.
 
 The `hooks` section in `.claude/settings.json` is bluetemberg-owned whenever guardrail sources or a project-local `llm/hooks.claude.json` exist, and fully regenerated on each sync: guardrail-generated entries come first, followed by entries from `llm/hooks.claude.json` (see [Writing Hooks](Writing-Hooks) for the full precedence contract). All other keys in the file are preserved.
 
