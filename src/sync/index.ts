@@ -655,10 +655,10 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncCopilotInstructions(ctx);
   // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
   // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
-  const guardrailClaudeHooks = syncGuardrails(ctx, (msg) => recordError(ctx, msg));
+  const guardrailHooks = syncGuardrails(ctx, (msg) => recordError(ctx, msg));
   syncClaudeHooks(
     ctx,
-    guardrailClaudeHooks,
+    guardrailHooks.claude,
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
   );
@@ -667,7 +667,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
   );
-  syncHooks(ctx, (msg) => recordError(ctx, msg));
+  syncHooks(ctx, guardrailHooks.cursor, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));

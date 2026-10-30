@@ -351,7 +351,7 @@ After changing `mcp.json`, run `bluetemberg sync` (or your `sync:llm-config` scr
 
 ## Cursor hooks (`llm/hooks.json`)
 
-When this file exists and **`cursor`** is in `platforms`, sync writes **`.cursor/hooks.json`** with the same logical content (validated JSON). See [Writing Hooks](Writing-Hooks).
+When this file exists and **`cursor`** is in `platforms`, sync writes **`.cursor/hooks.json`** with the same logical content (validated JSON), composed with any [Guardrails](Guardrails)-generated entries. See [Writing Hooks](Writing-Hooks).
 
 ## Claude Code hooks (`llm/hooks.claude.json`)
 
