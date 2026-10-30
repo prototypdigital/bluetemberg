@@ -51,7 +51,16 @@ function isGuardrailFrontmatter(data: unknown): data is GuardrailFrontmatter {
   if (typeof check.field !== 'string' || !SAFE_FIELD.test(check.field)) return false;
   // A non-string regex (a YAML number, list, or map) would reach `shellQuote` as a
   // non-string and fail there with a type error; reject the shape up front instead.
-  return isOptionalString(check.matches) && isOptionalString(check.not_matches);
+  if (!isOptionalString(check.matches) || !isOptionalString(check.not_matches)) return false;
+  // Every host filters on `platforms` as a list; a scalar (`platforms: devin`) or a map would
+  // reach those filters as a non-array and throw, aborting the whole sync.
+  return isOptionalStringList(d.platforms);
+}
+
+/** True when a frontmatter value is absent (missing or an empty YAML key) or a list of strings. */
+function isOptionalStringList(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
 /** True when a frontmatter value is absent (missing or an empty YAML key) or a string. */
@@ -298,7 +307,7 @@ export function syncGuardrails(
       const record = data as Record<string, unknown>;
       if (!isGuardrailFrontmatter(data)) {
         recordError(
-          `guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message; check.matches/not_matches must be strings when present`,
+          `guardrails/${file}: invalid frontmatter — requires trigger, check.field, and message; check.matches/not_matches must be strings and platforms a list when present`,
         );
         continue;
       }

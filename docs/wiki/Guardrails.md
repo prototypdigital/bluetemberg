@@ -46,7 +46,7 @@ Human-readable explanation of what this guardrail does.
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |
 | `message` | Yes | Shown to the agent when the check fails |
-| `platforms` | No | Limit to specific platforms (`claude`, `cursor`, `copilot`, `devin`; `windsurf` is accepted as an alias for `devin`). Leave it out to compile for every supported platform |
+| `platforms` | No | A YAML list that limits the guardrail to specific platforms (`claude`, `cursor`, `copilot`, `devin`; `windsurf` is accepted as an alias for `devin`). Leave it out to compile for every supported platform |
 
 At least one `check` condition is required — a guardrail with none is reported as a sync error.
 
@@ -137,7 +137,7 @@ Devin Local, the Devin Desktop agent, shares Devin CLI's hook harness and reads 
 | -------------------------------------- | ----------------- |
 | `Bash` | `exec` |
 
-Only `exec` is mapped: Devin documents its `tool_input` as `{ command, shell_id }`, so `check.field: command` reads the same argument as in Claude Code. Devin's other tools (`edit`, `write`, …) have no documented argument names, so a guardrail on `Edit`, `Write` or `EnterWorktree` is enforced in Claude Code only, and sync says so. So is a `hook_type: PostToolUse` guardrail, which would run after the call.
+Only `exec` is mapped: Devin documents its `tool_input` as `{ command, shell_id }`, so `check.field: command` reads the same argument as in Claude Code. Devin's other tools (`edit`, `write`, …) have no documented argument names, so a guardrail on `Edit`, `Write` or `EnterWorktree` is enforced in Claude Code only, and sync says so. Devin notes that its tool names can vary by mode, model and integrations; the matcher covers `exec` only, the shell tool name it documents. So is a `hook_type: PostToolUse` guardrail, which would run after the call.
 
 A passing check exits 0 and prints nothing, which Devin treats as "carry on normally". The hook never prints an `approve` decision, so it never auto-approves a command. If `jq` is missing or the payload cannot be read, the hook exits 2 and blocks. Devin treats every other failure — any exit code other than 0 or 2, a timeout, or `bash` not starting at all — as a logged error that **does not block**. Devin added a `fail_closed: true` hook option in v3000.11.205, but its placement in the file is not documented yet, so sync does not emit it.
 

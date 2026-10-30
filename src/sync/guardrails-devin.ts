@@ -188,6 +188,6 @@ export function syncDevinGuardrailHooks(
     commitPlannedWrite(ctx, outPath, renderHooksFile(hooks));
   }
   if (!ctx.checkMode && !hasGuardrailEntries) {
-    ctx.log(`Hooks: removed ${existing.generated} guardrail hook(s) whose source is gone`);
+    ctx.log(`Devin hooks: removed ${existing.generated} guardrail hook(s) whose source is gone`);
   }
 }

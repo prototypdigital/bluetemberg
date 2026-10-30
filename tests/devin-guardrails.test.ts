@@ -273,6 +273,24 @@ describe('guardrails for Devin Desktop', () => {
     expect(existsSync(hooksPath())).toBe(written);
   });
 
+  it.each(['devin', '{ devin: true }', '[1]'])(
+    'reports platforms: %s as invalid instead of aborting the sync',
+    async (platforms) => {
+      writeGuardrail(
+        'no-force-push',
+        NO_FORCE_PUSH.replace('trigger: Bash', `trigger: Bash\nplatforms: ${platforms}`),
+      );
+
+      const results = await sync(root, {
+        config: { ...CONFIG, platforms: ['devin', 'claude', 'cursor'] },
+        silent: true,
+      });
+
+      expect(results.errors).toEqual([expect.stringContaining('platforms a list')]);
+      expect(existsSync(hooksPath())).toBe(false);
+    },
+  );
+
   it('accepts windsurf as the platform id in the config', async () => {
     writeGuardrail('no-force-push', NO_FORCE_PUSH);
 
