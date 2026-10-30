@@ -384,19 +384,15 @@ See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guid
 
 ## Uninstall
 
-1. Empty `llm/packages.json` (`{ "packages": {} }`) and delete any local sources under `llm/` you no longer want synced. Keep `llm/mcp-managed.json` until step 2 has run: it is how sync knows which `.mcp.json` and `.agents/mcp_config.json` servers are its own to remove.
-2. Run `npx bluetemberg sync --prune`. It deletes every generated file that carries the banner and removes the guardrail hooks it added to `.claude/settings.json`.
-3. Delete what's left by hand:
-   - `bluetemberg.config.json`, `llm/` and `.bluetemberg/`
-   - the JSON outputs: `.cursor/mcp.json`, `.cursor/hooks.json` (sync already removed its own servers from `.mcp.json` and `.agents/mcp_config.json` once `llm/mcp.json` was gone)
-   - `.github/copilot-instructions.md` (a copy of `AGENTS.md`)
-   - the `AGENTS.md` entry in `context.fileName` of `.gemini/settings.json`
-   - the `BLUETEMBERG MANAGED` block in `.codex/config.toml`
-   - `extraKnownMarketplaces` / `enabledPlugins` in `.claude/settings.json`, if you used a marketplace remote
-   - the `.bluetemberg/` line in `.gitignore` and the `llm/` / `docs/wiki/` lines in `.prettierignore`
-4. `npm uninstall bluetemberg`.
+```bash
+npx bluetemberg uninstall --dry-run   # list what would be removed or edited
+npx bluetemberg uninstall             # show the plan, confirm, remove (--yes to skip the prompt)
+npm uninstall bluetemberg
+```
 
-`AGENTS.md`, `CLAUDE.md` and the GitHub files `init` scaffolded are ordinary files you own; keep or delete them.
+`uninstall` deletes every generated file, `bluetemberg.config.json`, `.bluetemberg/` and the state files under `llm/` (`packages.json` and its lock, `mcp.json`, `mcp-managed.json`, the rule-sources files). It takes bluetemberg's own entries out of shared files and leaves everything else in them: managed MCP servers from `.mcp.json`, the synced hooks and marketplace keys from `.claude/settings.json`, `AGENTS.md` from `.gemini/settings.json`, the managed blocks from `AGENTS.md` and `.codex/config.toml`, and the `.bluetemberg/` line from `.gitignore` (the `.npmrc` line stays).
+
+It keeps what you wrote: your own sources under `llm/` (rules, agents, skills, commands, prompts, hooks), and the `AGENTS.md`, `CLAUDE.md` and GitHub files `init` scaffolded. The dry run performs the real procedure on a temporary copy, so its list is exactly what a real run changes. Commit first if you want an easy undo.
 
 ## Documentation
 
