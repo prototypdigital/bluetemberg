@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.17.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.16.0...bluetemberg-v0.17.0) (2026-10-30)
+
+
+### Features
+
+* **cli:** add bluetemberg eject to keep generated files and drop bluetemberg ([e814fda](https://github.com/prototypdigital/bluetemberg/commit/e814fda0c13d76f6f1ec4e0e54cfa155c9675c03))
+* **cli:** add bluetemberg eject to keep generated files and drop bluetemberg ([8c3a948](https://github.com/prototypdigital/bluetemberg/commit/8c3a9481730516ee8c4df950e698e985a7996c8f)), closes [#288](https://github.com/prototypdigital/bluetemberg/issues/288)
+* **stacks:** add `why` to explain inclusion and diff stack upgrades ([b5429dd](https://github.com/prototypdigital/bluetemberg/commit/b5429dd9b7444483c552f7a5c81da6dc6697ffa0))
+* **stacks:** add `why` to explain inclusion and diff stack upgrades ([fb0daa1](https://github.com/prototypdigital/bluetemberg/commit/fb0daa1b8bbc56111f14c57f265d2660d2f5e2e0)), closes [#293](https://github.com/prototypdigital/bluetemberg/issues/293)
+* **stacks:** add range lifecycle lint and list-by-range query ([e31d9d5](https://github.com/prototypdigital/bluetemberg/commit/e31d9d5b846c1a7b0ea4dafb0d0ec1da4070be87))
+* **stacks:** add range lifecycle lint and list-by-range query ([53ad3dc](https://github.com/prototypdigital/bluetemberg/commit/53ad3dc690ab54448ecd91c25e8ecc8f23134031)), closes [#294](https://github.com/prototypdigital/bluetemberg/issues/294)
+* **sync:** migrate commands and prompt files to skills ([73337e1](https://github.com/prototypdigital/bluetemberg/commit/73337e19cdab89cbf819a9a3039c054ceb4cc0df))
+* **sync:** migrate commands and prompt files to skills ([756479c](https://github.com/prototypdigital/bluetemberg/commit/756479cca29fd7f382994c8d3df56807af201e73))
+
+
+### Bug Fixes
+
+* **eject:** keep dry runs inside the copy and strip only emitted banners ([b2021dd](https://github.com/prototypdigital/bluetemberg/commit/b2021ddd914c8f3a9c3d593fca37a4a191b86442))
+* **stacks:** match list queries like sync and harden the latest-version cache ([934bb8a](https://github.com/prototypdigital/bluetemberg/commit/934bb8a1fd37d64690e60d6929da8be8e3b79c5f))
+* **stacks:** route `why` to the monorepo package sync uses and flag unknown --diff stacks ([5b94940](https://github.com/prototypdigital/bluetemberg/commit/5b94940ea497d8cd947c4fbab910d61e70e3411d))
+* **sync:** keep migrated commands user-only on Codex and Devin ([43d9941](https://github.com/prototypdigital/bluetemberg/commit/43d9941f40f078cfa1551415f01b00864a8dddad))
+
 ## [0.16.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.15.0...bluetemberg-v0.16.0) (2026-10-30)
 
 
