@@ -1,4 +1,5 @@
-import { join, basename, relative } from 'node:path';
+import { existsSync, statSync } from 'node:fs';
+import { join, basename, dirname, relative, resolve } from 'node:path';
 import matter from 'gray-matter';
 import { parse as tomlParse, stringify as tomlStringify } from 'smol-toml';
 import type { Platform } from '../types.js';
@@ -262,6 +263,24 @@ function applyBlock(
   return { content: output, touched: true };
 }
 
+function warn(ctx: CodexSyncContext, msg: string): void {
+  ctx.results.warnings.push(msg);
+  ctx.log(`  WARN: ${msg}`);
+}
+
+/**
+ * True when `root` sits in a linked git worktree: the nearest `.git` above it is a file pointing at
+ * the main repository, not a directory. Codex replaces such a checkout's `hooks` with the main
+ * checkout's (`merge_root_checkout_project_hooks`).
+ */
+function isLinkedWorktree(root: string): boolean {
+  for (let dir = resolve(root); ; dir = dirname(dir)) {
+    const dotGit = join(dir, '.git');
+    if (existsSync(dotGit)) return statSync(dotGit).isFile();
+    if (dirname(dir) === dir) return false;
+  }
+}
+
 function isValidToml(content: string | null): boolean {
   if (content === null) return true;
   try {
@@ -300,10 +319,17 @@ function applyHooksBlock(
     return { content: current, touched: false };
   }
   if (codexHooksDisabled(parsed)) {
-    const msg =
-      '.codex/config.toml turns hooks off ([features] hooks = false), so Codex will not run the guardrail hooks';
-    ctx.results.warnings.push(msg);
-    ctx.log(`  WARN: ${msg}`);
+    warn(
+      ctx,
+      '.codex/config.toml turns hooks off ([features] hooks = false), so Codex will not run the guardrail hooks',
+    );
+  }
+  if (isLinkedWorktree(ctx.root)) {
+    warn(
+      ctx,
+      '.codex/config.toml is in a linked git worktree. Codex reads project hooks from the main checkout, so these ' +
+        'guardrail hooks run only once the main checkout is synced with them',
+    );
   }
   return step;
 }

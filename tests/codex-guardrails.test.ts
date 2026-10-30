@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as tomlParse } from 'smol-toml';
 import { sync } from '../src/sync/index.js';
+import { CODEX_WINDOWS_COMMAND } from '../src/sync/guardrails-codex.js';
 import { uninstall } from '../src/uninstall/index.js';
 import type { BlueprintConfig } from '../src/types.js';
 
@@ -55,7 +56,9 @@ command = "./mine.sh"
 
 interface CodexConfig {
   model?: string;
-  hooks?: { PreToolUse?: { matcher: string; hooks: { type: string; command: string }[] }[] };
+  hooks?: {
+    PreToolUse?: { matcher: string; hooks: { type: string; command: string; commandWindows?: string }[] }[];
+  };
 }
 
 describe('guardrails for Codex', () => {
@@ -122,7 +125,9 @@ describe('guardrails for Codex', () => {
     const groups = readConfig().hooks?.PreToolUse ?? [];
     expect(groups).toHaveLength(1);
     expect(groups[0]?.matcher).toBe('^Bash$');
-    expect(groups[0]?.hooks).toEqual([{ type: 'command', command: expect.stringMatching(/^bash -c /) }]);
+    expect(groups[0]?.hooks).toEqual([
+      { type: 'command', command: expect.stringMatching(/^bash -c /), commandWindows: CODEX_WINDOWS_COMMAND },
+    ]);
     expect(raw).not.toContain('async');
   });
 
@@ -334,5 +339,57 @@ describe('guardrails for Codex', () => {
       expect.stringContaining('guardrails/no-force-push.md: invalid frontmatter'),
     ]);
     expect(existsSync(configPath())).toBe(false);
+  });
+  it('gives Windows a fixed command with no pack text, so cmd never parses pack content', async () => {
+    writeGuardrail('no-force-push', NO_FORCE_PUSH.replace(/message: .*/, "message: 'Blocked & calc | more'"));
+
+    await sync(root, { config: CONFIG, silent: true });
+
+    const handler = readConfig().hooks?.PreToolUse?.[0]?.hooks[0];
+    expect(handler?.command).toContain('Blocked & calc');
+    expect(handler?.commandWindows).toBe(CODEX_WINDOWS_COMMAND);
+    expect(CODEX_WINDOWS_COMMAND).toMatch(/^[a-z-]+$/);
+  });
+
+  it.each([
+    ['description', { not_empty: true }],
+    ['tool_input.timeout', { not_matches: '^0$' }],
+  ])('leaves a Bash check on %s to Claude Code: Codex sends only command', async (field, cond) => {
+    const [key, value] = Object.entries(cond)[0] ?? [];
+    writeGuardrail(
+      'bash-field',
+      `---\ntrigger: Bash\ncheck:\n  field: ${field}\n  ${key}: ${JSON.stringify(value)}\nmessage: 'x'\n---\n`,
+    );
+
+    const results = await sync(root, { config: CONFIG, silent: true });
+
+    expect(results.errors).toEqual([]);
+    expect(existsSync(configPath())).toBe(false);
+  });
+
+  it('accepts tool_input.command as the field', async () => {
+    writeGuardrail('no-force-push', NO_FORCE_PUSH.replace('field: command', 'field: tool_input.command'));
+
+    await sync(root, { config: CONFIG, silent: true });
+
+    expect(exec(guardrailCommand(), payload('git push --force')).status).toBe(2);
+  });
+
+  it('warns in a linked git worktree, where Codex reads hooks from the main checkout', async () => {
+    writeFileSync(join(root, '.git'), 'gitdir: /elsewhere/.git/worktrees/x\n');
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+
+    const results = await sync(root, { config: CONFIG, silent: true });
+
+    expect(results.warnings).toEqual([expect.stringContaining('linked git worktree')]);
+  });
+
+  it('does not warn about worktrees in a regular checkout', async () => {
+    mkdirSync(join(root, '.git'));
+    writeGuardrail('no-force-push', NO_FORCE_PUSH);
+
+    const results = await sync(root, { config: CONFIG, silent: true });
+
+    expect(results.warnings).toEqual([]);
   });
 });
