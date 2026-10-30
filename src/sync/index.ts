@@ -332,6 +332,16 @@ export function loadConfig(root: string): BlueprintConfig {
   return validateConfig(effective, files[0].path);
 }
 
+/**
+ * True when there is a config for sync to act on: one in `root`'s ancestor chain, or (when sync may
+ * recurse) a package config below it. {@link loadConfig} falls back to built-in defaults without one,
+ * which the CLI must not do: a project with no config never opted in, or has ejected or uninstalled.
+ */
+export function hasSyncConfig(root: string, recursive = true): boolean {
+  if (collectConfigFiles(root).length > 0) return true;
+  return recursive && discoverConfigDirs(root).length > 0;
+}
+
 function dedupe<T>(values: T[]): T[] {
   return [...new Set(values)];
 }

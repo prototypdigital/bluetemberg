@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   injectManagedBlock,
   stripManagedBlock,
+  unwrapManagedBlock,
   ManagedBlockError,
   AGENTS_RULES_MARKERS,
 } from '../src/sync/managed-block.js';
@@ -197,5 +198,22 @@ describe('stripManagedBlock', () => {
   it('rejects malformed markers rather than leaking generated content', () => {
     const malformed = `${M.end}\n\n${M.begin}\ngenerated\n${M.end}\n`;
     expect(() => stripManagedBlock(malformed, M, F)).toThrow(ManagedBlockError);
+  });
+});
+
+describe('unwrapManagedBlock', () => {
+  it('removes the markers and keeps the content in place', () => {
+    const file = `# Mine\n\n${M.begin}\ngenerated\n${M.end}\n\nAfter.\n`;
+    expect(unwrapManagedBlock(file, M, F)).toBe('# Mine\n\ngenerated\n\nAfter.\n');
+  });
+
+  it('applies mapInner to each block body', () => {
+    const file = `${M.begin}\nnotice\n\nbody\n${M.end}\n`;
+    expect(unwrapManagedBlock(file, M, F, (inner) => inner.replace('notice\n\n', ''))).toBe('body\n');
+  });
+
+  it('is a no-op without markers and rejects malformed ones', () => {
+    expect(unwrapManagedBlock('# Mine\n', M, F)).toBe('# Mine\n');
+    expect(() => unwrapManagedBlock(`${M.begin}\nx\n`, M, F)).toThrow(ManagedBlockError);
   });
 });

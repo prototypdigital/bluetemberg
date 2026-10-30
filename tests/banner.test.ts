@@ -4,6 +4,8 @@ import {
   generatedBannerToml,
   hasGeneratedBanner,
   stripGeneratedBanner,
+  stripGeneratedBannerToml,
+  stripLeadingGeneratedBanner,
   withGeneratedBanner,
   withGeneratedBannerToml,
 } from '../src/sync/banner.js';
@@ -107,5 +109,36 @@ describe('hasGeneratedBanner', () => {
     expect(hasGeneratedBanner('---\ndescription: mine\n---\n\n# Mine\n')).toBe(false);
     expect(hasGeneratedBanner('name = "mine"\n')).toBe(false);
     expect(hasGeneratedBanner('')).toBe(false);
+  });
+});
+
+describe('stripGeneratedBannerToml', () => {
+  it('restores the pre-banner TOML exactly', () => {
+    const toml = 'name = "a"\n';
+    expect(stripGeneratedBannerToml(withGeneratedBannerToml(toml, 'agents/a.md'))).toBe(toml);
+  });
+
+  it('leaves unbannered content alone', () => {
+    expect(stripGeneratedBannerToml('# a comment\nname = "a"\n')).toBe('# a comment\nname = "a"\n');
+  });
+});
+
+describe('stripLeadingGeneratedBanner', () => {
+  it('strips the banner where the emitters put it, with or without frontmatter', () => {
+    const body = '# Rule\n';
+    const fm = '---\ndescription: d\n---\n';
+    expect(stripLeadingGeneratedBanner(withGeneratedBanner(body, SOURCE))).toBe(body);
+    expect(stripLeadingGeneratedBanner(withGeneratedBanner(fm + body, SOURCE))).toBe(`${fm}\n${body}`);
+    expect(stripLeadingGeneratedBanner(withGeneratedBannerToml('name = "a"\n', SOURCE))).toBe('name = "a"\n');
+  });
+
+  it('leaves a banner that is quoted below the start of the body', () => {
+    const doc = `# Docs\n\n${generatedBanner(SOURCE)}\n`;
+    expect(stripLeadingGeneratedBanner(doc)).toBe(doc);
+  });
+
+  it('handles CRLF line endings', () => {
+    const crlf = withGeneratedBanner('---\nd: 1\n---\n# R\n', SOURCE).replace(/\n/g, '\r\n');
+    expect(stripLeadingGeneratedBanner(crlf)).toBe('---\r\nd: 1\r\n---\r\n\r\n# R\r\n');
   });
 });

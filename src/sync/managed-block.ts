@@ -147,6 +147,36 @@ export function stripManagedBlock(content: string, markers: BlockMarkers, filePa
 }
 
 /**
+ * Returns `content` with every managed block's markers removed and its body kept in place, so the
+ * generated content becomes plain content. `mapInner` can rewrite each body first (e.g. to drop a
+ * "generated, do not edit" line). No-op when the markers are absent.
+ *
+ * @param filePath - Label for diagnostics (a path relative to the project root).
+ * @throws {ManagedBlockError} when the markers are malformed.
+ */
+export function unwrapManagedBlock(
+  content: string,
+  markers: BlockMarkers,
+  filePath: string,
+  mapInner: (inner: string) => string = (inner) => inner,
+): string {
+  const blocks = findManagedBlocks(content, markers, filePath);
+  if (blocks.length === 0) return content;
+
+  const sections: string[] = [];
+  let cursor = 0;
+  for (const range of blocks) {
+    sections.push(content.slice(cursor, range.start));
+    const inner = content.slice(range.start + markers.begin.length, range.end - markers.end.length);
+    sections.push(mapInner(inner.trim()));
+    cursor = range.end;
+  }
+  sections.push(content.slice(cursor));
+
+  return rejoin(...sections);
+}
+
+/**
  * Injects (or replaces, or removes) a managed block in `existing`.
  *
  * Duplicated blocks (both sides of a merge kept) collapse into the first one — the fenced region is
