@@ -33,11 +33,12 @@ export interface GuardrailsSyncContext extends SyncSink {
 }
 
 /**
- * `check.field` becomes part of a `jq` filter (`.<field>`). Constrain it to a
- * dotted JSON-key path so it can never inject jq or shell syntax. Guardrails
- * are installed from third-party packs, so their content is untrusted.
+ * `check.field` is a dotted JSON-key path (`name`, `tool_input.name`, `file-path`). The hook hands
+ * it to `jq` as data (`--arg`) and splits it into a `getpath` path, so it is never parsed as jq or
+ * shell syntax; the pattern still keeps it a plain path with no empty segments, since guardrails are
+ * installed from third-party packs and their content is untrusted.
  */
-const SAFE_FIELD = /^[A-Za-z0-9_.-]+$/;
+const SAFE_FIELD = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/;
 
 function isGuardrailFrontmatter(data: unknown): data is GuardrailFrontmatter {
   if (!data || typeof data !== 'object') return false;
@@ -101,17 +102,56 @@ function shellQuote(value: string): string {
  * non-match) is the only outcome that lets `not_matches` pass, and status 0 the only one
  * that lets `matches` pass. The compile failure is reported as itself, not as the
  * guardrail's message, so a broken pattern is not mistaken for a violated rule.
+ *
+ * `check.field` is a path into the tool's arguments, which every host nests under `tool_input`,
+ * and only there is it read: the payload root carries host keys (`cwd`, `session_id`, ...) that a
+ * missing or `null` argument of the same name must not fall through to. A path written against the
+ * whole payload (`tool_input.name`) is normalized before it reaches the script (`toolInputPath`).
+ * The path reaches jq as `--arg` data and is resolved
+ * with `getpath`, so a key jq cannot spell as `.a.b` (`file-path`, `0`) still reads correctly. A
+ * jq failure (jq missing, a payload that is not JSON or not shaped like the path) blocks instead
+ * of reading as an empty value, which would let a `not_matches` check pass. The block message goes
+ * to stderr, the stream Claude Code feeds back to the model on exit 2.
  */
 const CLAUDE_HOOK_SCRIPT = [
-  'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+  `v=$(jq -r --arg f "$1" '($f / ".") as $p | .tool_input | getpath($p) // empty' 2>/dev/null)`,
+  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read field .%s from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" "$1" >&2; exit 2; fi',
   'fail=',
   'bad=',
   'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
   'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
   'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
   'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
-  'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+  'if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; exit 2; fi',
 ].join('; ');
+
+/**
+ * Scripts earlier engines generated. A settings file synced by one of them still carries its
+ * command, and orphan cleanup must recognize it as a guardrail hook once the source is gone.
+ * Both read `.<field>` from the payload root (always empty for tool arguments, which Claude Code
+ * nests under `tool_input`) and printed the block message to stdout, which Claude ignores. The
+ * first (v0.6.0–v0.12.0) also let a `not_matches` regex that failed to compile pass.
+ */
+const LEGACY_CLAUDE_HOOK_SCRIPTS = [
+  [
+    'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+    'fail=',
+    'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+    'if [ -n "$2" ] && [[ "$v" =~ $2 ]]; then fail=1; fi',
+    'if [ -n "$3" ] && ! [[ "$v" =~ $3 ]]; then fail=1; fi',
+    'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+  ].join('; '),
+  [
+    'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+    'fail=',
+    'bad=',
+    'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+    'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
+    'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
+    'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
+    'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+  ].join('; '),
+];
 
 /**
  * Builds the bash hook command for a Claude PreToolUse/PostToolUse hook from
@@ -123,6 +163,10 @@ const CLAUDE_HOOK_SCRIPT = [
  */
 /** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */
 const CLAUDE_COMMAND_PREFIX = `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetemberg `;
+const TOOL_INPUT_PREFIX = 'tool_input.';
+const KNOWN_COMMAND_PREFIXES = [CLAUDE_HOOK_SCRIPT, ...LEGACY_CLAUDE_HOOK_SCRIPTS].map(
+  (script) => `bash -c ${shellQuote(script)} bluetemberg `,
+);
 
 /**
  * True for a hook command this module generated. Lets the settings writer tell a guardrail's hook
@@ -130,7 +174,12 @@ const CLAUDE_COMMAND_PREFIX = `bash -c ${shellQuote(CLAUDE_HOOK_SCRIPT)} bluetem
  * the latter is never touched.
  */
 export function isGuardrailHookCommand(command: string): boolean {
-  return command.startsWith(CLAUDE_COMMAND_PREFIX);
+  return KNOWN_COMMAND_PREFIXES.some((prefix) => command.startsWith(prefix));
+}
+
+/** The path under `tool_input` a field names; a field written as a full payload path drops its `tool_input.` prefix. */
+function toolInputPath(field: string): string {
+  return field.startsWith(TOOL_INPUT_PREFIX) ? field.slice(TOOL_INPUT_PREFIX.length) : field;
 }
 
 function buildClaudeCommand(guardrail: GuardrailFrontmatter): string {
@@ -139,7 +188,7 @@ function buildClaudeCommand(guardrail: GuardrailFrontmatter): string {
   if (!check.not_empty && !check.matches && !check.not_matches) return '';
 
   const args = [
-    check.field,
+    toolInputPath(check.field),
     check.not_matches ?? '',
     check.matches ?? '',
     message,

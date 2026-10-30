@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -1806,16 +1806,16 @@ message: "Branch name required"
     );
 
     // Execute the stored command exactly as a shell would. Empty field input fires the
-    // not_empty branch, which prints the message verbatim and exits 2.
-    let stdout = '';
+    // not_empty branch, which prints the message verbatim to stderr and exits 2.
+    let stderr = '';
     try {
-      stdout = execSync(command, { input: '{}', encoding: 'utf8' });
+      execSync(command, { input: '{}', encoding: 'utf8', stdio: 'pipe' });
     } catch (err) {
-      stdout = String((err as { stdout?: string }).stdout ?? '');
+      stderr = String((err as { stderr?: string }).stderr ?? '');
     }
 
     expect(existsSync(marker)).toBe(false); // neither payload executed
-    expect(stdout).toContain('; touch'); // message printed as literal data
+    expect(stderr).toContain('; touch'); // message printed as literal data
   });
 
   it('rejects a guardrail whose condition regex is not valid POSIX ERE', async () => {
@@ -1853,7 +1853,7 @@ message: "Branch name required"
     await sync(root, { config, silent: true });
 
     const generated = String(readPreToolUseHooks()[0].hooks[0].command);
-    const input = JSON.stringify({ name: 'feat/branch' });
+    const input = JSON.stringify({ tool_input: { name: 'feat/branch' } });
 
     // Baseline: a name that satisfies the condition is allowed, so a non-zero exit below is
     // the malformed regex being caught and not the guardrail simply denying everything.
@@ -1869,6 +1869,138 @@ message: "Branch name required"
       expect(runHook(command, input), `not_matches=${bad} must block, not allow`).toBe(2);
     }
   });
+
+  it('generated hook reads the field from tool_input, as Claude Code sends it', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+    const payload = (name: unknown) =>
+      JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'EnterWorktree', tool_input: { name } });
+
+    expect(runHook(command, payload('feat/branch')), 'a conventional name is allowed').toBe(0);
+    expect(runHook(command, payload('claude/auto')), 'the auto-generated prefix is blocked').toBe(2);
+    expect(runHook(command, payload('')), 'an empty name is blocked').toBe(2);
+    expect(runHook(command, JSON.stringify({ tool_input: {} })), 'a missing name is blocked').toBe(2);
+  });
+
+  it('generated hook also resolves a field written as a full payload path', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL.replace('field: name', 'field: tool_input.name'));
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+
+    expect(runHook(command, JSON.stringify({ tool_input: { name: 'feat/branch' } }))).toBe(0);
+    expect(runHook(command, JSON.stringify({ tool_input: { name: 'claude/auto' } }))).toBe(2);
+  });
+
+  it('generated hook sends the block message to stderr, where Claude Code reads it', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL);
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+
+    const run = spawnSync('sh', ['-c', command], {
+      input: JSON.stringify({ tool_input: { name: 'claude/auto' } }),
+      encoding: 'utf8',
+    });
+    expect(run.status).toBe(2);
+    expect(run.stdout).toBe('');
+    expect(run.stderr.trim().length).toBeGreaterThan(0);
+  });
+
+  it('generated hook reads a hyphenated key, which jq cannot spell as .a-b', async () => {
+    writeGuardrail(
+      'test-guardrail',
+      VALID_GUARDRAIL.replace('field: name', 'field: file-path').replace('  not_empty: true\n', ''),
+    );
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+
+    expect(runHook(command, JSON.stringify({ tool_input: { 'file-path': 'claude/auto' } }))).toBe(2);
+    expect(runHook(command, JSON.stringify({ tool_input: { 'file-path': 'feat/branch' } }))).toBe(0);
+  });
+
+  it('generated hook never reads a missing or null argument from the payload root', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL.replace('field: name', 'field: cwd'));
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+
+    // The host always sets a root `cwd`; it must not satisfy `not_empty` for the tool argument.
+    expect(runHook(command, JSON.stringify({ cwd: '/repo', tool_input: {} }))).toBe(2);
+    expect(runHook(command, JSON.stringify({ cwd: '/repo', tool_input: { cwd: null } }))).toBe(2);
+    expect(runHook(command, JSON.stringify({ cwd: '/repo', tool_input: { cwd: '/repo/sub' } }))).toBe(0);
+  });
+
+  it('generated hook blocks when the payload cannot be read, rather than treating it as empty', async () => {
+    // not_matches alone is the check an unreadable field would otherwise let through.
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL.replace('  not_empty: true\n', ''));
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    await sync(root, { config, silent: true });
+    const command = String(readPreToolUseHooks()[0].hooks[0].command);
+
+    const run = spawnSync('sh', ['-c', command], { input: 'not json', encoding: 'utf8' });
+    expect(run.status).toBe(2);
+    expect(run.stderr).toContain('could not read field .name');
+    expect(runHook(command, JSON.stringify({ tool_input: 'a string' }))).toBe(2);
+  });
+
+  it('rejects a field path with an empty segment', async () => {
+    writeGuardrail('test-guardrail', VALID_GUARDRAIL.replace('field: name', 'field: .name'));
+    const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+    const results = await sync(root, { config, silent: true });
+
+    expect(results.errors.some((e) => e.includes('test-guardrail'))).toBe(true);
+    expect(readPreToolUseHooks()).toHaveLength(0);
+  });
+
+  // Literal copies of the scripts released engines emitted, so a change to the current script
+  // cannot silently redefine what "legacy" means here.
+  const LEGACY_SCRIPTS = {
+    'v0.6.0–v0.12.0': [
+      'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+      'fail=',
+      'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+      'if [ -n "$2" ] && [[ "$v" =~ $2 ]]; then fail=1; fi',
+      'if [ -n "$3" ] && ! [[ "$v" =~ $3 ]]; then fail=1; fi',
+      'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+    ],
+    'v0.12.1–v0.14.1': [
+      'v=$(cat | jq -r ".$1 // empty" 2>/dev/null)',
+      'fail=',
+      'bad=',
+      'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+      'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
+      'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
+      'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
+      'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+    ],
+  };
+
+  it.each(Object.entries(LEGACY_SCRIPTS))(
+    'still recognizes a hook the %s engine generated, so orphan cleanup removes it',
+    async (_release, lines) => {
+      const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+      const legacy = `bash -c ${quote(lines.join('; '))} bluetemberg 'name' '^claude/' '' 'Branch name required' '1'`;
+      const settingsPath = join(root, '.claude', 'settings.json');
+      mkdirSync(dirname(settingsPath), { recursive: true });
+      writeFileSync(
+        settingsPath,
+        JSON.stringify({
+          hooks: {
+            PreToolUse: [{ matcher: 'EnterWorktree', hooks: [{ type: 'command', command: legacy }] }],
+          },
+        }),
+      );
+      const config: BlueprintConfig = { platforms: ['claude'], source: 'llm', targets: {} };
+
+      await sync(root, { config, silent: true });
+
+      expect(readPreToolUseHooks()).toHaveLength(0);
+    },
+  );
 
   /** PreToolUse entries in the generated settings.json, or `[]` when none were written. */
   function readPreToolUseHooks(): { hooks: { command: string }[] }[] {
