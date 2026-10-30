@@ -230,6 +230,13 @@ npx bluetemberg scan-org --org acme --json               # every repo in the acm
 npx bluetemberg scan-org --repos acme/app,acme/web       # specific repos
 ```
 
+And keep the ranges themselves honest — flag ranges that would silently apply to majors nobody checked, and find every rule pinned to a version:
+
+```bash
+npx bluetemberg stacks lint                  # open-ended ranges, ranges past the latest major
+npx bluetemberg stacks list payload@3        # every rule declaring a range that admits Payload 3
+```
+
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
 
 ## Guardrails

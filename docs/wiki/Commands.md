@@ -224,6 +224,48 @@ Progress is written to **stderr**, so `--json` output on stdout stays clean for 
 - Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.
 - Remote detection only reads `package-lock.json`; repos using `yarn.lock`/`pnpm-lock.yaml` resolve to `coerced` confidence from the manifest range (still useful for a histogram). Scan a local clone for `exact` versions across any package manager.
 
+## `bluetemberg stacks lint [directory]`
+
+**Maintainer tooling** — read-only. Lint the lifecycle of the `stacks:` ranges guidance declares. Two findings, both meaning a rule silently applies to versions nobody has checked it against:
+
+- **`open-ended`** — the range has no upper bound (`>=2`, `>13.4`, `^2 || >=4`). It will match every future major the day it ships.
+- **`past-latest-major`** — the range is bounded, but reaches past the stack's latest release (`>=3 <6` while Payload is on 3.x). For a `0.x` stack the release line is the minor (`>=0.81 <0.90` while React Native is on 0.82).
+
+The directory is either a **consuming project** — the lint reads exactly the guidance `coverage` reads (the project's source dir, `extends`, installed packs, external sources) — or a **packs repo**, recognised by a root `catalog.json` plus `packages/<pack>/llm/`. In a packs repo every pack is read on its own (ids are prefixed with the pack) and only authored frontmatter ranges are linted. `*` is never flagged: an explicit "any version" is a deliberate name-level claim.
+
+**Where "latest" comes from:** the npm registry's `dist-tags` for the stack's package (`nextjs` → `next`, mapped by the same [stack table](Configuration#stacks) detection uses; other names are their own package). It is always the public registry (`registry.npmjs.org`) — stack packages are public frameworks — and answers are cached for 24 hours in `$XDG_CACHE_HOME/bluetemberg/latest-versions.json` (default `~/.cache/bluetemberg/`). With `--offline`, or when the registry cannot be reached, a cached answer of any age is used; with none, the stack is reported as **unchecked** (`NOTE: could not check latest major for payload (offline)`), and only its open-ended ranges are flagged.
+
+| Option | Description |
+| ------ | ----------- |
+| `--offline` | Never query the registry; use cached latest versions only |
+| `--json` | Emit machine-readable JSON: `mode` (`project` \| `packs-repo`), `checked`, `findings[]` (`kind`, `stack`, `range`, `from`, `origin`, `latest`, `message`), `latest[]` (per stack: `package`, `latest`, `source` — `registry` \| `cache` \| `stale-cache` — `checkedAt`, `note`), `unchecked[]`, `warnings[]` |
+| `--silent` | Suppress output; the exit code still reports the result |
+
+Exits **1** when there are findings, so it can gate CI. Unchecked stacks alone do not fail it.
+
+```bash
+npx bluetemberg stacks lint                          # this project's available guidance
+npx bluetemberg stacks lint ../bluetemberg-packs     # every pack, where rules are authored
+npx bluetemberg stacks lint --offline --json
+```
+
+## `bluetemberg stacks list <stack>[@version|@range] [directory]`
+
+**Maintainer tooling** — read-only. List the guidance that declares a range for a stack — "every rule pinned to Payload 3". With a version or range, only declarations that admit it are listed: a declaration matches when some version satisfies both. A partial version is its whole line (`payload@3` = any 3.x), an exact one is a point (`payload@3.4.1`), and a range is a window (`"payload@>=3 <5"`). Without one, every ranged declaration for the stack is listed.
+
+Name-level declarations (`*`, or a pack-tagged file with no range of its own) apply to any version, so they are listed apart under `nameLevel`, never mixed into the pinned matches. The directory works as for [`stacks lint`](#bluetemberg-stacks-lint-directory): a consuming project or a packs repo. An invalid version or range is an error, not an empty list.
+
+| Option | Description |
+| ------ | ----------- |
+| `--json` | Emit machine-readable JSON: `mode`, `query`, `matches[]` (`stack`, `range`, `from`, `origin`), `nameLevel[]`, `warnings[]` |
+| `--silent` | Suppress output |
+
+```bash
+npx bluetemberg stacks list payload@3
+npx bluetemberg stacks list "payload@>=3 <5" ../bluetemberg-packs --json
+npx bluetemberg stacks list nextjs
+```
+
 ## `bluetemberg mcp serve [directory]`
 
 Run Bluetemberg itself as an [MCP](https://modelcontextprotocol.io) server over **stdio**, exposing the stack model as tools so an agent gets structured coverage without shelling out. It is the same machinery behind the `--json` flags — one implementation, two surfaces — and is **read-only** (it never writes files).

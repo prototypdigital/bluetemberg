@@ -67,6 +67,14 @@ describe('collectDeclaredRanges', () => {
     ]);
   });
 
+  it('attributes local files correctly when the source dir is configured with a trailing slash', () => {
+    writeRule(join(root, 'llm'), 'effects-r18', 'react: ">=18 <19"');
+
+    expect(collectDeclaredRanges(root, { ...CONFIG, source: 'llm/' }, emptyCatalog())).toEqual([
+      { stack: 'react', range: '>=18 <19', origin: 'local', from: 'rules/effects-r18' },
+    ]);
+  });
+
   it('harvests every kind that can carry a constraint (rules, agents, skills, guardrails)', () => {
     writeRule(join(root, 'llm'), 'r', 'react: ">=18 <19"');
     writeFile(join(root, 'llm', 'agents', 'a.md'), '---\nname: a\nstacks:\n  nextjs: ">=15 <16"\n---\n');
