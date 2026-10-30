@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into an enforced hook. They compile to Claude Code and Cursor today (see [Platform output](#platform-output)). Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
+Guardrails are declarative hook definitions. You describe a check once — "block this tool call when a field looks wrong" — and `bluetemberg sync` translates it into an enforced hook. They compile to Claude Code, Cursor and GitHub Copilot today (see [Platform output](#platform-output)). Unlike rules (which an AI assistant can ignore), guardrails are enforced by the platform itself.
 
 ## Where guardrails live
 
@@ -14,7 +14,7 @@ Sources merge with the same precedence as rules — a local file with the same n
 
 `init --non-interactive` adds the default guardrail pack to `llm/packages.json`; the interactive wizard doesn't ask about guardrails yet, so add it with `bluetemberg add bluetemberg-guardrails-git`. Run `bluetemberg install` and `bluetemberg sync` to activate it.
 
-Removing a guardrail — deleting the file, or `bluetemberg remove` on the pack that shipped it — removes its hook from `.claude/settings.json` on the next `sync`. Only hooks bluetemberg generated are touched; hand-written entries in the same file stay.
+Removing a guardrail — deleting the file, or `bluetemberg remove` on the pack that shipped it — removes its hook from `.claude/settings.json`, `.cursor/hooks.json` and `.github/hooks/bluetemberg-guardrails.json` on the next `sync`. Only hooks bluetemberg generated are touched; hand-written entries in the same file stay.
 
 ## File format
 
@@ -46,7 +46,7 @@ Human-readable explanation of what this guardrail does.
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |
 | `message` | Yes | Shown to the agent when the check fails |
-| `platforms` | No | Limit to specific platforms (`claude`, `cursor`). Leave it out to compile for every supported platform |
+| `platforms` | No | Limit to specific platforms (`claude`, `cursor`, `copilot`). Leave it out to compile for every supported platform |
 
 At least one `check` condition is required — a guardrail with none is reported as a sync error.
 
@@ -79,7 +79,8 @@ This is deliberate. A guardrail that cannot check its own condition is not evide
 | -------- | ------ |
 | Claude Code | `hooks` section in `.claude/settings.json` (`PreToolUse`/`PostToolUse` command hooks) |
 | Cursor | `preToolUse` entries in `.cursor/hooks.json`, for `PreToolUse` guardrails whose trigger has a Cursor equivalent (below) |
-| Copilot, Codex, Devin, Gemini, Antigravity | Not yet supported — guardrails are skipped |
+| GitHub Copilot | `PreToolUse` entries in `.github/hooks/bluetemberg-guardrails.json`, for `PreToolUse` guardrails on `Bash` (below) |
+| Codex, Devin, Gemini, Antigravity | Not yet supported — guardrails are skipped |
 
 ### Cursor
 
@@ -97,6 +98,35 @@ How `.cursor/hooks.json` is written depends on `llm/hooks.json`:
 
 - **With `llm/hooks.json`:** sync owns the file and writes it whole, guardrail entries first, then the `llm/hooks.json` entries.
 - **Without it:** sync puts the guardrail entries first and keeps every entry you wrote by hand. When the guardrails go away, sync removes only the entries it generated, and deletes the file if nothing else is left in it.
+
+### GitHub Copilot
+
+Copilot CLI, the Copilot cloud agent and VS Code's Copilot harness share one hook runtime, and all three load every `*.json` file in `.github/hooks/` ([GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference), [VS Code: Configure agent hooks](https://code.visualstudio.com/docs/agent-customization/hooks)). Guardrails get a file of their own there, `.github/hooks/bluetemberg-guardrails.json`, so they never share a file with hooks you wrote.
+
+Entries use the PascalCase `PreToolUse` event. With it, Copilot reports `tool_name` as the Claude tool name (`Bash`, not `bash`) and passes the parsed tool arguments as `tool_input`, so `check.field` reads the same arguments it does for Claude Code. Each entry has `matcher: "Bash"` and a `bash` command:
+
+| Guardrail `trigger` (Claude Code tool) | Copilot tool |
+| -------------------------------------- | ------------ |
+| `Bash` | `bash` (reported as `Bash`; arguments `{ command }`) |
+
+Only `Bash` is mapped: it is the only tool whose arguments Copilot documents as matching Claude's. A guardrail on any other trigger, and any `hook_type: PostToolUse` guardrail (Copilot's `postToolUse` runs after the call and cannot deny it), is enforced in Claude Code only, and sync says so.
+
+How the hook behaves:
+
+- **Violated check:** exits 2 and prints `{"permissionDecision":"deny","permissionDecisionReason":"<message>"}` on stdout, which is how the message reaches the agent; the message also goes to stderr.
+- **Passing check:** exits 0 with no output. Copilot reads empty output as no decision, so the call goes through its normal permission flow. The hook never returns `allow`, so it never auto-approves anything.
+- **Cannot evaluate:** `jq` missing, a payload that is not JSON, or a field it cannot read exits 2 and blocks. Copilot also treats a crash or any other non-zero exit from a `preToolUse` command hook as a deny.
+- **Other tools:** the command checks `tool_name` itself and exits 0 for anything that is not `Bash`. VS Code's older Local harness loads `.github/hooks/*.json` too but ignores `matcher`, so without this check a guardrail would run against every tool.
+
+Limits to know about:
+
+- **Timeouts fail open.** Copilot lets the call through when a hook times out (30 s by default), even for `preToolUse`, and there is no setting to change that. The check is a single `jq` read and a regex, so in practice it finishes well within the limit.
+- **Windows is not covered.** Entries carry only a `bash` command, so Copilot on Windows (which runs the `powershell` field) does not run them. The cloud agent runs on Linux.
+- **VS Code's Local harness is not covered.** It sends its own tool names, so the tool-name check skips them. Use the Copilot harness (the **Copilot** session target).
+- **Running both Claude Code and Copilot targets:** Copilot CLI also reads `.claude/settings.json`, so it may run the Claude Code copy of a `Bash` guardrail as well. Both deny the same calls.
+- **Folder trust:** the hooks reference says repository hooks "require workspace admission" (in its agent-scoped hooks section), so expect Copilot CLI to run them only in a folder you have trusted.
+
+The file is written the same way as Cursor's without `llm/hooks.json`: generated entries go first, entries you add by hand to the file are kept, and the file (and an empty `.github/hooks/`) is deleted when nothing else is left in it. A file that is not valid JSON is left alone and reported as a sync error. Other files in `.github/hooks/` are never read or written.
 
 The `hooks` section in `.claude/settings.json` is bluetemberg-owned whenever guardrail sources or a project-local `llm/hooks.claude.json` exist, and fully regenerated on each sync: guardrail-generated entries come first, followed by entries from `llm/hooks.claude.json` (see [Writing Hooks](Writing-Hooks) for the full precedence contract). All other keys in the file are preserved.
 

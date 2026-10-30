@@ -114,7 +114,7 @@ function shellQuote(value: string): string {
  * of reading as an empty value, which would let a `not_matches` check pass. The block message goes
  * to stderr, the stream Claude Code feeds back to the model on exit 2.
  */
-const CLAUDE_HOOK_SCRIPT = [
+const GUARDRAIL_CHECK_STEPS = [
   `v=$(jq -r --arg f "$1" '($f / ".") as $p | .tool_input | getpath($p) // empty' 2>/dev/null)`,
   'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read field .%s from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" "$1" >&2; exit 2; fi',
   'fail=',
@@ -123,8 +123,12 @@ const CLAUDE_HOOK_SCRIPT = [
   'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
   'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
   'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
-  'if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; exit 2; fi',
-].join('; ');
+];
+
+/** A violated check: the guardrail's message on stderr, exit 2. */
+const CLAUDE_DENY_STEP = 'if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; exit 2; fi';
+
+const CLAUDE_HOOK_SCRIPT = [...GUARDRAIL_CHECK_STEPS, CLAUDE_DENY_STEP].join('; ');
 
 /**
  * Scripts earlier engines generated. A settings file synced by one of them still carries its
@@ -170,14 +174,41 @@ const LEGACY_CLAUDE_HOOK_SCRIPTS = [
  */
 const CURSOR_HOOK_SCRIPT = [CLAUDE_HOOK_SCRIPT, 'printf "{}\\n"'].join('; ');
 
+/**
+ * GitHub Copilot runs the same checks behind a tool-name gate, and denies with a JSON reason.
+ *
+ * The gate: `$6` is an anchored ERE of the tool names the guardrail applies to (set by the engine,
+ * never by a pack). VS Code's Local harness also loads `.github/hooks/*.json` but ignores `matcher`,
+ * so without the gate a check would run against every tool's arguments (a `not_empty` guardrail
+ * would deny every call). The payload is read once and replayed on stdin (`exec <<<`) for the shared
+ * steps; a payload jq cannot read blocks.
+ *
+ * The deny: Copilot shows the agent `permissionDecisionReason` from stdout, which it merges with the
+ * exit-2 deny, so the message goes there as well as to stderr. jq builds that JSON from `$4` as
+ * data. A passing call exits 0 with no output, which Copilot reads as "no decision": it never
+ * auto-approves. Any other failure exits non-zero, which Copilot treats as a deny for `preToolUse`.
+ */
+const COPILOT_HOOK_SCRIPT = [
+  'in=$(cat)',
+  `t=$(printf "%s" "$in" | jq -r '.tool_name // empty' 2>/dev/null)`,
+  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi',
+  '[[ "$t" =~ $6 ]]; s=$?; if [ "$s" -eq 2 ]; then printf "bluetemberg guardrail: invalid tool-name pattern. Blocking.\\n" >&2; exit 2; elif [ "$s" -ne 0 ]; then exit 0; fi',
+  'exec <<<"$in"',
+  ...GUARDRAIL_CHECK_STEPS,
+  `if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; jq -cn --arg r "$4" '{permissionDecision: "deny", permissionDecisionReason: $r}'; exit 2; fi`,
+].join('; ');
+
 /** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */
 const TOOL_INPUT_PREFIX = 'tool_input.';
 function commandPrefix(script: string): string {
   return `bash -c ${shellQuote(script)} bluetemberg `;
 }
-const KNOWN_COMMAND_PREFIXES = [CLAUDE_HOOK_SCRIPT, CURSOR_HOOK_SCRIPT, ...LEGACY_CLAUDE_HOOK_SCRIPTS].map(
-  commandPrefix,
-);
+const KNOWN_COMMAND_PREFIXES = [
+  CLAUDE_HOOK_SCRIPT,
+  CURSOR_HOOK_SCRIPT,
+  COPILOT_HOOK_SCRIPT,
+  ...LEGACY_CLAUDE_HOOK_SCRIPTS,
+].map(commandPrefix);
 
 /**
  * True for a hook command this module generated. Lets the settings writer tell a guardrail's hook
@@ -193,7 +224,22 @@ function toolInputPath(field: string): string {
   return field.startsWith(TOOL_INPUT_PREFIX) ? field.slice(TOOL_INPUT_PREFIX.length) : field;
 }
 
-function buildGuardrailCommand(guardrail: GuardrailFrontmatter, script = CLAUDE_HOOK_SCRIPT): string {
+/**
+ * The Copilot hook command for a guardrail, gated to the tool names `toolNamePattern` (an anchored
+ * ERE the engine supplies) matches. Empty when the guardrail defines no conditions.
+ */
+export function buildCopilotGuardrailCommand(
+  guardrail: GuardrailFrontmatter,
+  toolNamePattern: string,
+): string {
+  return buildGuardrailCommand(guardrail, COPILOT_HOOK_SCRIPT, [toolNamePattern]);
+}
+
+function buildGuardrailCommand(
+  guardrail: GuardrailFrontmatter,
+  script = CLAUDE_HOOK_SCRIPT,
+  extraArgs: readonly string[] = [],
+): string {
   const { check, message } = guardrail;
 
   if (!check.not_empty && !check.matches && !check.not_matches) return '';
@@ -204,6 +250,7 @@ function buildGuardrailCommand(guardrail: GuardrailFrontmatter, script = CLAUDE_
     check.matches ?? '',
     message,
     check.not_empty ? '1' : '',
+    ...extraArgs,
   ];
 
   return `${commandPrefix(script)}${args.map(shellQuote).join(' ')}`;
@@ -225,6 +272,9 @@ function buildGuardrailCommand(guardrail: GuardrailFrontmatter, script = CLAUDE_
  * with `llm/hooks.json`. Only `PreToolUse` guardrails whose trigger has a verified Cursor equivalent
  * compile (see {@link CURSOR_TOOL_NAMES}); the rest are logged as Claude Code only.
  *
+ * Copilot: compiled and written by `syncCopilotGuardrailHooks` (`guardrails-copilot.ts`) from
+ * `applied`, the guardrails that survive validation and version gating.
+ *
  * Other platforms: no-op (not yet supported).
  */
 export function syncGuardrails(
@@ -232,7 +282,7 @@ export function syncGuardrails(
   recordError: (message: string) => void,
 ): GuardrailHooks {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'guardrails', (f) => f.endsWith('.md'));
-  if (merged.size === 0) return { claude: null, cursor: null };
+  if (merged.size === 0) return { claude: null, cursor: null, applied: null };
 
   const stackMap = buildStackMap(ctx.catalog);
   const guardrails: GuardrailFrontmatter[] = [];
@@ -283,6 +333,7 @@ export function syncGuardrails(
       ? buildGuardrailHooksSection(ctx, guardrails, recordError)
       : null,
     cursor: ctx.platforms.includes('cursor') ? buildCursorGuardrailHooks(ctx, guardrails) : null,
+    applied: guardrails,
   };
 }
 
@@ -294,6 +345,11 @@ export function syncGuardrails(
 export interface GuardrailHooks {
   claude: ClaudeHooksSection | null;
   cursor: CursorHooksSection | null;
+  /**
+   * The guardrails that passed validation and version gating, for host writers that live in their
+   * own module (`guardrails-copilot.ts`); `null` when no guardrail sources exist.
+   */
+  applied: GuardrailFrontmatter[] | null;
 }
 
 /**

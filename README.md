@@ -96,7 +96,7 @@ your-project/
 │   ├── rules/                  # Your own vendor-neutral rules
 │   ├── agents/                 # Your own agent definitions
 │   ├── skills/                 # Your own skill workflows
-│   ├── guardrails/             # Optional — enforced hooks (Claude Code)
+│   ├── guardrails/             # Optional — enforced hooks (Claude Code, Cursor, Copilot)
 │   ├── mcp.json                # Optional — MCP presets and/or inline servers
 │   ├── mcp-managed.json        # Generated — which .mcp.json / .agents/mcp_config.json servers sync owns; commit
 │   ├── hooks.json              # Optional — Cursor hooks
@@ -111,6 +111,7 @@ your-project/
 ├── .claude/settings.json       # Generated keys only (`hooks`, marketplace) — the rest is yours
 ├── .github/instructions/ agents/ skills/ prompts/   # Generated — do not edit
 ├── .github/copilot-instructions.md  # Copy of AGENTS.md for Copilot — do not edit
+├── .github/hooks/bluetemberg-guardrails.json  # Generated guardrail hooks (Copilot) — other files in .github/hooks/ are yours
 ├── .gemini/settings.json       # `context.fileName` gains `AGENTS.md` (Gemini) — the rest is yours
 ├── .devin/rules/               # Generated (Devin Desktop) — do not edit
 ├── .windsurf/rules/            # Generated legacy mirror of .devin/rules/ (transition period) — do not edit
@@ -244,7 +245,7 @@ check:
 message: 'EnterWorktree requires a conventional branch name (type/description).'
 ```
 
-Guardrails compile to Claude Code hooks in `.claude/settings.json` and to Cursor hooks in `.cursor/hooks.json` (for `PreToolUse` checks on `Bash`, which Cursor calls `Shell`); other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
+Guardrails compile to Claude Code hooks in `.claude/settings.json`, to Cursor hooks in `.cursor/hooks.json` (for `PreToolUse` checks on `Bash`, which Cursor calls `Shell`), and to GitHub Copilot hooks in `.github/hooks/bluetemberg-guardrails.json` (for `PreToolUse` checks on `Bash`; Copilot CLI, cloud agent and VS Code's Copilot harness); other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
 
 ## Sync
 
@@ -390,7 +391,7 @@ npx bluetemberg uninstall             # show the plan, confirm, remove (--yes to
 npm uninstall bluetemberg
 ```
 
-`uninstall` deletes every generated file, `bluetemberg.config.json`, `.bluetemberg/` and the state files under `llm/` (`packages.json` and its lock, `mcp.json`, `mcp-managed.json`, the rule-sources files). It takes bluetemberg's own entries out of shared files and leaves everything else in them: managed MCP servers from `.mcp.json`, the synced hooks and marketplace keys from `.claude/settings.json`, `AGENTS.md` from `.gemini/settings.json`, the managed blocks from `AGENTS.md` and `.codex/config.toml`, and the `.bluetemberg/` line from `.gitignore` (the `.npmrc` line stays).
+`uninstall` deletes every generated file, `bluetemberg.config.json`, `.bluetemberg/` and the state files under `llm/` (`packages.json` and its lock, `mcp.json`, `mcp-managed.json`, the rule-sources files). It takes bluetemberg's own entries out of shared files and leaves everything else in them: managed MCP servers from `.mcp.json`, the synced hooks and marketplace keys from `.claude/settings.json`, the generated guardrail entries from `.cursor/hooks.json` and `.github/hooks/bluetemberg-guardrails.json`, `AGENTS.md` from `.gemini/settings.json`, the managed blocks from `AGENTS.md` and `.codex/config.toml`, and the `.bluetemberg/` line from `.gitignore` (the `.npmrc` line stays).
 
 It keeps what you wrote: your own sources under `llm/` (rules, agents, skills, commands, prompts, hooks), and the `AGENTS.md`, `CLAUDE.md` and GitHub files `init` scaffolded. The dry run performs the real procedure on a temporary copy, so its list is exactly what a real run changes. Commit first if you want an easy undo.
 
