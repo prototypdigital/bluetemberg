@@ -394,6 +394,67 @@ program
     }
   });
 
+/** One line per top-level path: hundreds of generated files read better as counts. */
+function summarizePaths(paths) {
+  const groups = new Map();
+  for (const path of paths) {
+    const parts = path.split(/[\\/]/);
+    const key = parts.length > 2 ? `${parts[0]}/${parts[1]}/` : path;
+    groups.set(key, (groups.get(key) ?? 0) + 1);
+  }
+  return [...groups].map(([key, count]) => (count > 1 ? `${key} (${count} files)` : key));
+}
+
+function printUninstallPlan(result, verb) {
+  console.log(`\n  ${verb} remove:`);
+  for (const line of summarizePaths(result.removed)) console.log(`    ${line}`);
+  if (result.edited.length > 0) {
+    console.log(`\n  ${verb} edit (bluetemberg-owned keys, blocks or lines only):`);
+    for (const path of result.edited) console.log(`    ${path}`);
+  }
+}
+
+program
+  .command('uninstall')
+  .description('Remove generated output, managed config and bluetemberg state; keep files you wrote')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--dry-run', 'Show what would be removed or edited, change nothing')
+  .option('-y, --yes', 'Skip the confirmation prompt')
+  .option('--silent', 'Suppress output')
+  .action(async (directory, options) => {
+    const { uninstall } = await import('../dist/uninstall/index.js');
+    const root = resolve(directory);
+    try {
+      if (options.dryRun) {
+        printUninstallPlan(await uninstall(root, { dryRun: true }), 'Would');
+        return;
+      }
+      if (!options.yes) {
+        if (!process.stdin.isTTY) {
+          console.error('Error: uninstall deletes files. Pass --yes to confirm, or --dry-run to preview.');
+          process.exit(1);
+        }
+        printUninstallPlan(await uninstall(root, { dryRun: true }), 'Will');
+        const { confirm } = await import('@inquirer/prompts');
+        if (!(await confirm({ message: 'Uninstall bluetemberg from this project?', default: false }))) {
+          console.log('Nothing changed.');
+          return;
+        }
+      }
+      const result = await uninstall(root);
+      if (!options.silent) {
+        console.log(`\nRemoved ${result.removed.length} file(s), edited ${result.edited.length}.`);
+        console.log(
+          'Kept: AGENTS.md, CLAUDE.md, the GitHub files init scaffolded, and your own sources under llm/.',
+        );
+        console.log('Finish with: npm uninstall bluetemberg');
+      }
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
 program
   .command('preview')
   .description(

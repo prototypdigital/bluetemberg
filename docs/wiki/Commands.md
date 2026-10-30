@@ -85,6 +85,20 @@ Then run `bluetemberg install` and `bluetemberg sync`. See [Profiles](Profiles#s
 | ------ | ----- |
 | `--silent` | Suppress output (exit code still reports failure) |
 
+## `bluetemberg uninstall [directory]`
+
+Removes bluetemberg from a project: every generated file, `bluetemberg.config.json`, `.bluetemberg/`, and the state files under `llm/` (`packages.json`, `packages-lock.json`, `mcp.json`, `mcp-managed.json`, `rule-sources.json`, `rule-sources-lock.json`). In shared files it removes only bluetemberg's own entries: managed servers in `.mcp.json` and `.agents/mcp_config.json`, the synced `hooks` key and the marketplace's `extraKnownMarketplaces` / `enabledPlugins` entries in `.claude/settings.json`, `AGENTS.md` in `.gemini/settings.json` `context.fileName`, the managed blocks in `AGENTS.md` and `.codex/config.toml`, and the `.bluetemberg/` entry in `.gitignore`.
+
+Kept: your own sources under `llm/`, the `AGENTS.md`, `CLAUDE.md` and GitHub files `init` scaffolded, and anything else you wrote. Run `npm uninstall bluetemberg` afterwards.
+
+| Flag | Description |
+| ---- | ----------- |
+| `--dry-run` | Run the procedure on a temporary copy and list what would be removed or edited; the project is untouched |
+| `-y`, `--yes` | Skip the confirmation prompt (required without a TTY) |
+| `--silent` | Suppress output |
+
+Without `--yes`, the command prints the dry-run plan and asks before changing anything. Uninstall runs on the given directory only, not on nested monorepo packages.
+
 ## `bluetemberg preview [profile]`
 
 Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`. Stack-specific packs are filtered by the stacks detected in the current directory, as `init` would; the ones it skips are listed at the end.
