@@ -1,21 +1,23 @@
 import { join, basename, relative } from 'node:path';
 import matter from 'gray-matter';
-import { stringify as tomlStringify } from 'smol-toml';
+import { parse as tomlParse, stringify as tomlStringify } from 'smol-toml';
 import type { Platform } from '../types.js';
 import { readIfExists } from '../utils/fs.js';
 import type { SyncSink } from './pipeline.js';
-import { commitPlannedWrite } from './pipeline.js';
+import { commitPlannedDelete, commitPlannedWrite } from './pipeline.js';
 import { mergeSourceFiles } from './extends-loader.js';
 import type { McpServerConfig } from '../mcp/registry.js';
 import { loadMcpManifest } from './mcp.js';
 import {
   AGENTS_RULES_MARKERS,
+  CODEX_HOOKS_MARKERS,
   CODEX_MCP_MARKERS,
   ManagedBlockError,
   injectManagedBlock,
 } from './managed-block.js';
 import type { BlockMarkers } from './managed-block.js';
 import { withGeneratedBannerToml } from './banner.js';
+import { codexHooksDisabled, renderCodexHooksBlock, type CodexHooksSection } from './guardrails-codex.js';
 
 // Codex has no per-file rule API; see Architecture.md "Special sync" for the full design.
 export interface CodexSyncContext extends SyncSink {
@@ -232,22 +234,118 @@ function buildMcpInner(sourceBase: string, recordError: (message: string) => voi
   }
 }
 
-/** Injects a managed `[mcp_servers.*]` block into `.codex/config.toml`, preserving hand-authored config. */
-export function syncCodexConfig(ctx: CodexSyncContext, recordError: (message: string) => void): void {
+/** File content after one managed block is applied, and whether the block touched the file at all. */
+interface BlockStep {
+  content: string | null;
+  touched: boolean;
+}
+
+/**
+ * Applies one managed block to `current`. `inner` of `null` leaves the file alone (its source could
+ * not be read), and an empty `inner` only matters when an earlier sync left markers to clear.
+ */
+function applyBlock(
+  ctx: CodexSyncContext,
+  filePath: string,
+  current: string | null,
+  inner: string | null,
+  markers: BlockMarkers,
+  recordError: (message: string) => void,
+): BlockStep {
+  const untouched = { content: current, touched: false };
+  if (inner === null) return untouched;
+  if (inner.length === 0 && !hasAnyMarker(current, markers)) return untouched;
+
+  const output = injectOrRecord(ctx, filePath, current, inner, markers, recordError);
+  if (output === null) return untouched;
+  if (output.length === 0 && current === null) return untouched;
+  return { content: output, touched: true };
+}
+
+function isValidToml(content: string | null): boolean {
+  if (content === null) return true;
+  try {
+    tomlParse(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Applies the guardrail hooks block, keeping the file as it was when the result would not be valid
+ * TOML. That happens when hand-written config already defines `hooks.PreToolUse` as a plain array or
+ * inline table, which `[[hooks.PreToolUse]]` cannot extend; writing it anyway would break the whole
+ * file for Codex, not just the hooks.
+ */
+function applyHooksBlock(
+  ctx: CodexSyncContext,
+  filePath: string,
+  current: string | null,
+  inner: string,
+  recordError: (message: string) => void,
+): BlockStep {
+  const step = applyBlock(ctx, filePath, current, inner, CODEX_HOOKS_MARKERS, recordError);
+  if (!step.touched || inner.length === 0 || step.content === null) return step;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = tomlParse(step.content);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message.split('\n')[0] : String(err);
+    const cause = isValidToml(current)
+      ? `adding the guardrail hooks block would leave invalid TOML (${detail}); move hand-written hooks to [[hooks.PreToolUse]] tables or .codex/hooks.json`
+      : `the file is not valid TOML (${detail}); fix it`;
+    recordError(`.codex/config.toml: ${cause}. The Codex guardrail hooks were not written.`);
+    return { content: current, touched: false };
+  }
+  if (codexHooksDisabled(parsed)) {
+    const msg =
+      '.codex/config.toml turns hooks off ([features] hooks = false), so Codex will not run the guardrail hooks';
+    ctx.results.warnings.push(msg);
+    ctx.log(`  WARN: ${msg}`);
+  }
+  return step;
+}
+
+/**
+ * Single writer of `.codex/config.toml`: injects the managed `[mcp_servers.*]` block and the managed
+ * guardrail `[[hooks.PreToolUse]]` block, preserving hand-authored config around them. Both blocks go
+ * in one pass so `--check` compares one planned file, not two that each miss the other's change. A
+ * file that ends up empty (it only ever held managed blocks) is removed.
+ */
+export function syncCodexConfig(
+  ctx: CodexSyncContext,
+  guardrailHooks: CodexHooksSection | null,
+  recordError: (message: string) => void,
+): void {
   if (!ctx.platforms.includes('codex')) return;
 
   const configPath = join(ctx.root, '.codex', 'config.toml');
   const existing = readIfExists(configPath);
 
-  const inner = buildMcpInner(ctx.sourceBase, recordError);
-  if (inner === null) return;
+  const mcp = applyBlock(
+    ctx,
+    configPath,
+    existing,
+    buildMcpInner(ctx.sourceBase, recordError),
+    CODEX_MCP_MARKERS,
+    recordError,
+  );
+  const hooks = applyHooksBlock(
+    ctx,
+    configPath,
+    mcp.content,
+    renderCodexHooksBlock(guardrailHooks),
+    recordError,
+  );
+  if (!mcp.touched && !hooks.touched) return;
 
-  if (inner.length === 0 && !hasAnyMarker(existing, CODEX_MCP_MARKERS)) return;
-
-  const output = injectOrRecord(ctx, configPath, existing, inner, CODEX_MCP_MARKERS, recordError);
-  if (output === null) return;
-  if (output.length === 0 && existing === null) return;
-
-  commitPlannedWrite(ctx, configPath, output);
-  if (!ctx.checkMode) ctx.log('Codex MCP: merged into .codex/config.toml');
+  const output = hooks.content ?? '';
+  if (output.length === 0) {
+    commitPlannedDelete(ctx, configPath);
+  } else {
+    commitPlannedWrite(ctx, configPath, output);
+  }
+  if (!ctx.checkMode && mcp.touched) ctx.log('Codex MCP: merged into .codex/config.toml');
 }

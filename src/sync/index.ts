@@ -676,7 +676,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
   syncCodexRules(ctx, (msg) => recordError(ctx, msg));
   syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
-  syncCodexConfig(ctx, (msg) => recordError(ctx, msg));
+  syncCodexConfig(ctx, guardrailHooks.codex, (msg) => recordError(ctx, msg));
   syncGeminiSettings(ctx, (msg) => recordError(ctx, msg));
   checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 

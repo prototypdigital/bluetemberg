@@ -5,6 +5,7 @@ import type { Catalog } from '../catalog/index.js';
 import type { SyncSink } from './pipeline.js';
 import type { ClaudeHooksSection } from './claude-hooks.js';
 import type { CursorHookEntry, CursorHooksSection } from './hooks.js';
+import { buildCodexGuardrailHooks, type CodexHooksSection } from './guardrails-codex.js';
 import { mergeSourceFiles } from './extends-loader.js';
 import { ereIssue } from './ere.js';
 import {
@@ -45,7 +46,9 @@ function isGuardrailFrontmatter(data: unknown): data is GuardrailFrontmatter {
   if (!data || typeof data !== 'object') return false;
   const d = data as Record<string, unknown>;
   if (typeof d.trigger !== 'string' || !d.trigger) return false;
-  if (typeof d.message !== 'string' || !d.message) return false;
+  // Blank counts as missing: Codex reads an exit 2 with nothing but whitespace on stderr as a failed
+  // hook, not a block, so a blank message would let a violating call through there.
+  if (typeof d.message !== 'string' || !d.message.trim()) return false;
   if (!d.check || typeof d.check !== 'object' || Array.isArray(d.check)) return false;
   const check = d.check as Record<string, unknown>;
   if (typeof check.field !== 'string' || !SAFE_FIELD.test(check.field)) return false;
@@ -121,7 +124,8 @@ function shellQuote(value: string): string {
  * with `getpath`, so a key jq cannot spell as `.a.b` (`file-path`, `0`) still reads correctly. A
  * jq failure (jq missing, a payload that is not JSON or not shaped like the path) blocks instead
  * of reading as an empty value, which would let a `not_matches` check pass. The block message goes
- * to stderr, the stream Claude Code feeds back to the model on exit 2.
+ * to stderr, the stream Claude Code feeds back to the model on exit 2. Codex runs this script unchanged:
+ * it also blocks on exit 2 with the reason on stderr, and treats a silent exit 0 as "continue".
  */
 const GUARDRAIL_CHECK_STEPS = [
   `v=$(jq -r --arg f "$1" '($f / ".") as $p | .tool_input | getpath($p) // empty' 2>/dev/null)`,
@@ -285,6 +289,7 @@ export function buildGuardrailCommand(
  *
  * Copilot: compiled and written by `syncCopilotGuardrailHooks` (`guardrails-copilot.ts`) from
  * `applied`, the guardrails that survive validation and version gating.
+  if (merged.size === 0) return { claude: null, cursor: null, applied: null };
  *
  * Devin: compiled and written by `syncDevinGuardrailHooks` (`guardrails-devin.ts`) from `applied`.
  *
@@ -295,7 +300,7 @@ export function syncGuardrails(
   recordError: (message: string) => void,
 ): GuardrailHooks {
   const merged = mergeSourceFiles(ctx.sourceDirs, 'guardrails', (f) => f.endsWith('.md'));
-  if (merged.size === 0) return { claude: null, cursor: null, applied: null };
+  if (merged.size === 0) return { claude: null, cursor: null, codex: null, applied: null };
 
   const stackMap = buildStackMap(ctx.catalog);
   const guardrails: GuardrailFrontmatter[] = [];
@@ -346,6 +351,9 @@ export function syncGuardrails(
       ? buildGuardrailHooksSection(ctx, guardrails, recordError)
       : null,
     cursor: ctx.platforms.includes('cursor') ? buildCursorGuardrailHooks(ctx, guardrails) : null,
+    codex: ctx.platforms.includes('codex')
+      ? buildCodexGuardrailHooks(ctx, guardrails, (g) => buildGuardrailCommand(g))
+      : null,
     applied: guardrails,
   };
 }
@@ -358,6 +366,7 @@ export function syncGuardrails(
 export interface GuardrailHooks {
   claude: ClaudeHooksSection | null;
   cursor: CursorHooksSection | null;
+  codex: CodexHooksSection | null;
   /**
    * The guardrails that passed validation and version gating, for host writers that live in their
    * own module (`guardrails-copilot.ts`, `guardrails-devin.ts`); `null` when no guardrail sources exist.

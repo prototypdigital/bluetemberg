@@ -32,6 +32,12 @@ export const CODEX_MCP_MARKERS: BlockMarkers = {
   end: '# END BLUETEMBERG MANAGED MCP SERVERS',
 };
 
+/** TOML markers for the guardrail hooks block injected into `.codex/config.toml`. */
+export const CODEX_HOOKS_MARKERS: BlockMarkers = {
+  begin: '# BEGIN BLUETEMBERG MANAGED HOOKS',
+  end: '# END BLUETEMBERG MANAGED HOOKS',
+};
+
 /** Raised when a file's managed-block markers are malformed and cannot be paired safely. */
 export class ManagedBlockError extends Error {
   constructor(message: string) {
