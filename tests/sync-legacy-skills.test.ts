@@ -9,7 +9,8 @@ import { toLegacySkillContent } from '../src/sync/legacy-skills.js';
 import { uninstall } from '../src/uninstall/index.js';
 import type { BlueprintConfig } from '../src/types.js';
 
-const SKILL_DIRS = ['.claude/skills', '.github/skills', '.cursor/skills', '.agents/skills'];
+// Cursor and Codex share `.agents/skills`.
+const SKILL_DIRS = ['.claude/skills', '.github/skills', '.agents/skills'];
 
 const allSkillPlatforms: BlueprintConfig = {
   platforms: ['claude', 'copilot', 'cursor', 'codex'],
@@ -297,12 +298,24 @@ describe('commands and prompts synced as skills', () => {
     write(root, 'llm/commands/ship.md', '# Ship\n');
 
     const results = await sync(root, {
-      config: { platforms: ['gemini'], source: 'llm', targets: {} },
+      config: { platforms: ['gemini'], source: 'llm', targets: { skills: {} } },
       silent: true,
     });
 
     expect(results.errors).toEqual([]);
     expect(existsSync(join(root, '.agents', 'skills', 'ship'))).toBe(false);
+  });
+
+  it('gives Gemini CLI the shared .agents/skills dir', async () => {
+    write(root, 'llm/commands/ship.md', '# Ship\n');
+
+    const results = await sync(root, {
+      config: { platforms: ['gemini'], source: 'llm', targets: {} },
+      silent: true,
+    });
+
+    expect(results.errors).toEqual([]);
+    expect(existsSync(join(root, '.agents', 'skills', 'ship', 'SKILL.md'))).toBe(true);
   });
 
   it('is idempotent under sync --check', async () => {

@@ -39,8 +39,11 @@ export interface EjectOptions {
 
 export type EjectResult = ProjectChanges;
 
-/** Generated outputs carry a banner only in these formats (HTML comment in markdown, `#` in TOML). */
-const BANNERED_EXTENSIONS = new Set(['.md', '.mdc', '.toml']);
+/**
+ * Generated outputs carry a banner only in these formats: an HTML comment in markdown, `#` in TOML
+ * and in YAML (a Codex skill's `agents/openai.yaml`).
+ */
+const BANNERED_EXTENSIONS = new Set(['.md', '.mdc', '.toml', '.yaml', '.yml']);
 
 /** Files sync fences managed blocks into, and the markers each one can hold. */
 const MANAGED_BLOCK_FILES: { file: string; markers: BlockMarkers[] }[] = [

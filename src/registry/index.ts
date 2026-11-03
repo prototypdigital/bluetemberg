@@ -829,14 +829,33 @@ export function resolvePackSourceDirs(
   root: string,
   source = 'llm',
 ): { dirs: string[]; labels: string[]; warnings: string[] } {
+  const { dirs, labels, warnings } = resolvePackSources(root, source);
+  return { dirs, labels, warnings };
+}
+
+/** An installed pack as sync reads it: what is locked, and where its cached copy lives. */
+export interface PackSource {
+  name: string;
+  version: string;
+  /** The lockfile's tarball integrity (`sha512-…`), which `verify` checks the cache against. */
+  integrity: string;
+}
+
+/** {@link resolvePackSourceDirs} plus the locked name, version and integrity behind each dir. */
+export function resolvePackSources(
+  root: string,
+  source = 'llm',
+): { dirs: string[]; labels: string[]; packs: PackSource[]; warnings: string[] } {
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
 
   const manifestNames = Object.keys(manifest.packages);
   const lockNames = Object.keys(lock.packages);
-  if (manifestNames.length === 0 && lockNames.length === 0) return { dirs: [], labels: [], warnings: [] };
+  if (manifestNames.length === 0 && lockNames.length === 0)
+    return { dirs: [], labels: [], packs: [], warnings: [] };
   const dirs: string[] = [];
   const labels: string[] = [];
+  const packs: PackSource[] = [];
   const warnings: string[] = [];
 
   // Sync must stay read-only (it runs with --check in CI), so legacy manifests
@@ -866,6 +885,7 @@ export function resolvePackSourceDirs(
 
     dirs.push(dir);
     labels.push(`${name}@${lockEntry.version}`);
+    packs.push({ name, version: lockEntry.version, integrity: lockEntry.integrity });
   }
 
   // Warn about stale lockfile entries that are no longer in the manifest.
@@ -877,7 +897,7 @@ export function resolvePackSourceDirs(
     }
   }
 
-  return { dirs, labels, warnings };
+  return { dirs, labels, packs, warnings };
 }
 
 // ---------------------------------------------------------------------------

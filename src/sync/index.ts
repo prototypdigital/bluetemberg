@@ -2,12 +2,14 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
-import { toClaudeAgentContent } from './claude-agent-tools.js';
+import { claudeAgentNameProblem, toClaudeAgentContent } from './claude-agent-tools.js';
 import { withGeneratedBanner } from './banner.js';
 import { listDirs, listFiles } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
-import { collectStaleOutputs, pruneStaleOutputs } from './prune.js';
-import { copySkillSupportingFiles } from './skill-files.js';
+import { collectStaleOutputs, pruneStaleOutputs, type StaleOutput } from './prune.js';
+import { copySkillSupportingFiles, isHandWrittenSkillDir } from './skill-files.js';
+import { stampSkillMetadata } from './skill-metadata.js';
+import type { PackSource } from '../registry/index.js';
 import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
@@ -31,8 +33,11 @@ import {
   normalizeTargets,
   resolveAgentTargets,
   resolveRuleTargets,
+  resolveSkillOutputs,
   resolveSkillTargets,
-  skillDirReaders,
+  skillDirsFor,
+  skillPlatformsWithoutOutput,
+  type SkillOutput,
 } from './targets.js';
 import { findShadowedEntries, normalizeExtends, toExtendsEntries } from './extends-loader.js';
 import {
@@ -56,7 +61,6 @@ import { buildStackMap, type StackMap } from '../stacks/resolve.js';
 import { evaluateStackGate } from '../stacks/gate.js';
 import {
   KNOWN_PLATFORMS,
-  allowsAnyPlatform,
   unknownPlatforms,
   allowsPlatform,
   buildPlatformMap,
@@ -69,6 +73,7 @@ import type {
   BlueprintConfig,
   ExtendsEntry,
   SyncOptions,
+  SkillTargetConfig,
   SyncResults,
   TeamProfile,
 } from '../types.js';
@@ -532,6 +537,8 @@ interface SyncContext extends SyncSink {
    * once per view, and a message they repeat word for word is recorded once.
    */
   recorded?: Set<string>;
+  /** The locked pack behind each pack source's `skills/` dir, for the `SKILL.md` metadata stamp. */
+  packsBySkillsDir: Map<string, PackSource>;
 }
 
 /** False when this exact message was already recorded by another source view's pass. */
@@ -747,6 +754,9 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     platformMap: buildPlatformMap(catalog),
     rulePlatforms: new Map(),
     agentPlatforms: new Map(),
+    packsBySkillsDir: new Map(
+      resolvedSources.sources.flatMap((s) => (s.pack ? [[join(s.dir, 'skills'), s.pack] as const] : [])),
+    ),
   };
 
   // Surface extends, pack, and external-source resolution warnings before sync output.
@@ -900,13 +910,17 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   if (checkMode) reportStaleOutputs(ctx);
 
   if (prune && results.errors.length === 0) {
-    pruneStaleOutputs({
+    const removed = pruneStaleOutputs({
       root,
       config,
       platforms,
       expectedPaths: expectedOutputPaths,
       log,
     });
+    logSkillsMigrationNote(ctx, removed, true);
+  } else {
+    const stale = collectStaleOutputs({ root, config, platforms, expectedPaths: expectedOutputPaths });
+    logSkillsMigrationNote(ctx, stale, false);
   }
 
   if (!orchestrated) printSummary(log, results, checkMode);
@@ -933,6 +947,29 @@ function reportStaleOutputs(ctx: SyncContext): void {
   }
   ctx.results.outOfSync += stale.length;
   ctx.results.stale += stale.length;
+}
+
+/**
+ * Skills used to be copied to each tool's own dir. Shown while old copies are left (and once more
+ * when `--prune` removes them), so it stops by itself after the one migration run.
+ */
+function logSkillsMigrationNote(ctx: SyncContext, files: StaleOutput[], pruned: boolean): void {
+  // Hand-written skills left in a retired dir are kept for good; only generated copies need the note.
+  const generated = files.filter((file) => file.kind === 'generated');
+  const dirs = [...new Set(generated.flatMap((file) => (file.retiredDir ? [file.retiredDir] : [])))];
+  if (dirs.length === 0) return;
+  const where = dirs.map((dir) => `${dir}/`).join(' and ');
+  const targets = resolveSkillTargets(ctx.config, ctx.platforms)
+    .map(([, target]) => `${target.dir}/`)
+    .join(', ');
+  ctx.log(`\nSkills now sync to ${targets} only; the per-tool copies are no longer written.`);
+  if (pruned) {
+    ctx.log(`  Removed the generated copies from ${where}. Hand-written skills there were kept.`);
+    return;
+  }
+  ctx.log(
+    `  ${where} still holds old generated copies, which a tool can load instead of the new ones (Cursor prefers .cursor/skills/). Run \`bluetemberg sync --prune\` once to remove them; hand-written skills there are kept.`,
+  );
 }
 
 /** Print the trailing summary (Done / out-of-sync, plus warning and error counts). */
@@ -1188,6 +1225,14 @@ function syncAgents(ctx: SyncContext): void {
       written++;
       try {
         const source = readFileSync(join(sourceDir, file), 'utf8');
+        const nameProblem = platform === 'claude' ? claudeAgentNameProblem(source, file) : null;
+        if (nameProblem) {
+          recordWarning(
+            ctx,
+            `agents/${file}: ${nameProblem}, so Claude Code would skip it; not written to ${targetConfig.dir}/. Rename the agent.`,
+          );
+          continue;
+        }
         const platformContent = platform === 'claude' ? toClaudeAgentContent(source) : source;
         const content = withGeneratedBanner(platformContent, `agents/${file}`);
         const outName = file.replace(/\.md$/, targetConfig.ext);
@@ -1212,13 +1257,13 @@ function syncSkills(ctx: SyncContext): void {
   const { excluded } = gates;
   const appliedCount = merged.size - excluded.size;
 
-  const skillTargets = resolveSkillTargets(ctx.config, ctx.platforms);
-  // A dir several platforms read (`.agents/skills/`) gets a skill when any of them is allowed.
-  const readers = skillDirReaders(ctx.config, ctx.platforms);
+  const outputs = resolveSkillOutputs(ctx.config, ctx.platforms);
+  const routes = skillRoutes(outputs, merged, excluded, gates.platforms);
 
   ctx.log(`Skills: ${merged.size} source directories`);
   logVersionFiltered(ctx, appliedCount, excluded);
   logPlatformLimited(ctx, gates, 'skills');
+  warnSkillPlatformsWithoutOutput(ctx);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -1227,22 +1272,25 @@ function syncSkills(ctx: SyncContext): void {
     }
   }
 
-  for (const [platform, targetConfig] of skillTargets) {
-    const dirReaders = readers.get(dirKey(targetConfig.dir)) ?? [platform];
+  for (const [targetConfig, dirNames] of routes) {
     let written = 0;
-    for (const [dirName, sourceParent] of merged) {
-      if (excluded.has(dirName)) continue;
-      if (!allowsAnyPlatform(gates.platforms.get(dirName), dirReaders)) continue;
-      written++;
+    for (const dirName of dirNames) {
+      const sourceParent = merged.get(dirName) ?? '';
+      const outDir = join(ctx.root, targetConfig.dir, dirName);
       try {
-        const srcSkill = join(sourceParent, dirName, 'SKILL.md');
-        const outDir = join(ctx.root, targetConfig.dir, dirName);
-
-        const content = withGeneratedBanner(readFileSync(srcSkill, 'utf8'), `skills/${dirName}/SKILL.md`);
-        const outPath = join(outDir, 'SKILL.md');
-
-        commitPlannedWrite(ctx, outPath, content);
+        const raw = readFileSync(join(sourceParent, dirName, 'SKILL.md'), 'utf8');
+        if (isHandWrittenSkillDir(outDir, raw)) {
+          recordWarning(
+            ctx,
+            `${targetConfig.dir}/${dirName}/ holds a skill bluetemberg did not write (no banner), so it is kept and skills/${dirName} is not synced there. Rename one of them; if it is an old copy from before bluetemberg marked its output, delete it and sync again.`,
+          );
+          continue;
+        }
+        const sourceId = `skills/${dirName}/SKILL.md`;
+        const source = stampPackMetadata(ctx, raw, sourceParent, dirName);
+        commitPlannedWrite(ctx, join(outDir, 'SKILL.md'), withGeneratedBanner(source, sourceId));
         copySkillSupportingFiles(ctx, join(sourceParent, dirName), outDir);
+        written++;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordError(ctx, `skills/${dirName} -> ${targetConfig.dir}: ${message}`);
@@ -1250,6 +1298,65 @@ function syncSkills(ctx: SyncContext): void {
     }
 
     if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${written} skills)`);
+  }
+}
+
+/**
+ * Which skills each dir gets, in output order: a shared dir takes a skill when one of its own readers
+ * is allowed, and a Cursor-only skill gets Cursor's private dir (`skillDirsFor`). A dir with no
+ * skill this pass is still listed, so its count is logged.
+ */
+function skillRoutes(
+  outputs: readonly SkillOutput[],
+  merged: ReadonlyMap<string, string>,
+  excluded: ReadonlyMap<string, string>,
+  lists: ReadonlyMap<string, readonly string[] | null | undefined>,
+): Map<SkillTargetConfig, string[]> {
+  const routes = new Map<SkillTargetConfig, string[]>(outputs.map((output) => [output.target, []]));
+  const byDir = new Map<string, SkillTargetConfig>(
+    outputs.map((output) => [dirKey(output.target.dir), output.target]),
+  );
+  for (const dirName of merged.keys()) {
+    if (excluded.has(dirName)) continue;
+    for (const { target } of skillDirsFor(outputs, lists.get(dirName))) {
+      const key = dirKey(target.dir);
+      const routed = byDir.get(key) ?? target;
+      byDir.set(key, routed);
+      routes.set(routed, [...(routes.get(routed) ?? []), dirName]);
+    }
+  }
+  return routes;
+}
+
+/**
+ * An explicit `targets.skills` replaces the defaults, so a platform it leaves out silently gets no
+ * skills, which is what an upgraded config does to Gemini CLI. Warned once per run, naming the entry.
+ */
+function warnSkillPlatformsWithoutOutput(ctx: SyncContext): void {
+  for (const platform of skillPlatformsWithoutOutput(ctx.config, ctx.platforms)) {
+    const entry = JSON.stringify({ [platform]: DEFAULT_TARGETS.skills[platform] })
+      .slice(1, -1)
+      .replace(/:/g, ': ');
+    recordWarning(
+      ctx,
+      `${platform} is in platforms but gets no skills: targets.skills in bluetemberg.config.json does not list it. Add ${entry} to targets.skills, or drop the section to use the defaults.`,
+    );
+  }
+}
+
+/**
+ * A skill's `SKILL.md`, stamped with the pack it came from when it came from one. A stamp that cannot
+ * be applied (the frontmatter is not valid YAML, say) is a warning: the skill still syncs as is.
+ */
+function stampPackMetadata(ctx: SyncContext, content: string, sourceParent: string, dirName: string): string {
+  const pack = ctx.packsBySkillsDir.get(sourceParent);
+  if (!pack) return content;
+  try {
+    return stampSkillMetadata(content, pack);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordWarning(ctx, `skills/${dirName} (${pack.name}): pack metadata not stamped: ${message}`);
+    return content;
   }
 }
 

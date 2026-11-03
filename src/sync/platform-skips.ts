@@ -2,7 +2,7 @@ import type { BlueprintConfig, Platform } from '../types.js';
 import { allowsAnyPlatform, allowsPlatform } from '../catalog/platforms.js';
 import { AGENTS_MD_RULE_PLATFORMS } from './codex.js';
 import type { ContentKind } from './sources.js';
-import { normalizePlatforms, skillDirReaders } from './targets.js';
+import { normalizePlatforms, resolveSkillOutputs, skillDirsFor } from './targets.js';
 
 /**
  * The platforms that compile guardrails into hooks: Claude Code (`guardrails.ts`), Cursor
@@ -47,8 +47,7 @@ function readsSharedOutput(
     return readers.includes(platform) && allowsAnyPlatform(list, readers);
   }
   if (kind !== 'skills') return false;
-  for (const readers of skillDirReaders(config, configured).values()) {
-    if (readers.includes(platform) && allowsAnyPlatform(list, readers)) return true;
-  }
-  return false;
+  return skillDirsFor(resolveSkillOutputs(config, configured), list).some((output) =>
+    output.platforms.includes(platform),
+  );
 }

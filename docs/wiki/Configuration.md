@@ -22,7 +22,7 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
       "copilot": { "dir": ".github/agents", "ext": ".agent.md" }
     },
     "skills": {
-      "cursor": { "dir": ".cursor/skills" },
+      "cursor": { "dir": ".agents/skills" },
       "claude": { "dir": ".claude/skills" },
       "copilot": { "dir": ".github/skills" }
     }
@@ -197,7 +197,7 @@ On Windows, Git may checkout files with CRLF. Check mode compares normalized lin
 ```
 .cursor/rules/** text eol=lf
 .cursor/agents/** text eol=lf
-.cursor/skills/** text eol=lf
+.agents/skills/** text eol=lf
 .claude/** text eol=lf
 .github/instructions/** text eol=lf
 .github/agents/** text eol=lf
@@ -263,16 +263,17 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 
 | Platform    | Default dir        |
 | ----------- | ------------------ |
-| cursor      | `.cursor/skills`   |
+| cursor      | `.agents/skills` (none while Claude's dir is written) |
 | claude      | `.claude/skills`   |
 | copilot     | `.github/skills`   |
 | devin       | `.agents/skills`   |
 | codex       | `.agents/skills`   |
 | antigravity | `.agents/skills`   |
+| gemini      | `.agents/skills`   |
 
-Devin Desktop, Codex and Antigravity share `.agents/skills`; sync writes each skill there once, and `--prune` removes it once.
+Skills are synced as `<skill-name>/SKILL.md` within the target directory. When several platforms share a dir (`.agents/skills`), it is written and pruned once. Cursor also reads `.claude/skills` and lists a skill once, so with `claude` enabled Cursor's default target is dropped and Cursor reads Claude's copy. A dir you set yourself is always written. Why each host gets the dir it gets is in [Adapters](Adapters#skills-dirs-per-host).
 
-Skills are synced as `<skill-name>/SKILL.md` within the target directory. When several platforms share a directory (Devin and Codex both load `.agents/skills/`), it is written and pruned once.
+A `targets.skills.cursor` entry pointing at `.cursor/skills` (what `init` wrote before) means the default. To keep writing a Cursor-only copy, point it at another dir.
 
 > Codex rules, agents, and MCP do **not** use the `targets` tables above — they have fixed,
 > non-per-file outputs. See [OpenAI Codex](#openai-codex-codex) below. Only `targets.skills.codex`
@@ -395,10 +396,10 @@ Markdown files in this directory (except `README.md`) are copied to **`.claude/c
 Windsurf became Devin Desktop on 2026-06-02. Devin reads `AGENTS.md`, workspace rules from `.devin/rules/*.md` (preferred) and `.windsurf/rules/*.md` (legacy fallback), and skills from `.agents/skills/`.
 
 - **Rules** go to `.devin/rules/` with `trigger: always_on` (for `scope: '**'`) or `trigger: glob` plus `globs:`. For a transition period they are also mirrored to `.windsurf/rules/`, so a Devin build that still reads only the legacy path keeps them. **The mirror will be dropped in a later release**, so make sure your team is on a Devin build that reads `.devin/rules/` before then.
-- **Skills** go to `.agents/skills/`, shared with Codex and Antigravity. Bluetemberg no longer writes `.windsurf/skills/`.
+- **Skills** go to `.agents/skills/`, shared with Codex, Antigravity, Gemini CLI and Cursor. Bluetemberg no longer writes `.windsurf/skills/`.
 - **Guardrails** compile to `PreToolUse` hooks in `.devin/hooks.v1.json` for `Bash` checks (Devin's `exec` tool). Hand-written hooks in that file are kept. See [Guardrails](Guardrails#devin-desktop).
 - **Workflows** are gone: Devin deprecated them in favor of skills (2026-07-29), so `llm/commands/` no longer emits `.windsurf/workflows/`. Ship the procedure as a skill instead.
-- **Upgrading:** generated files left in `.windsurf/workflows/` and `.windsurf/skills/` show up as `STALE:` in `sync --check`. Run `bluetemberg sync --prune` once to remove them. A workflow file without the banner is left alone. A skill directory is handled as one unit, like every [stale skill directory](#stale-generated-files-sync---prune): if its `SKILL.md` carries the banner, the whole directory goes, including any file you added to it. If its `SKILL.md` has no banner, the directory is left alone.
+- **Upgrading:** generated files left in `.windsurf/workflows/` and `.windsurf/skills/` show up as `STALE:` in `sync --check`. Run `bluetemberg sync --prune` once to remove them. A workflow file without the banner is left alone. A skill there goes when its `SKILL.md` carries the banner. Its other files go only when they are identical to the live copy in `.agents/skills/`; any other file stays and is listed, in a dir no host loads once `SKILL.md` is gone. If its `SKILL.md` has no banner, the directory is left alone. `.cursor/skills/` is pruned the same way (see [Adapters](Adapters#skills-dirs-per-host)).
 
 ## Copilot prompt files (`llm/prompts/`)
 
@@ -426,8 +427,11 @@ For **Gemini CLI for Enterprise** (Gemini Code Assist Standard / Enterprise lice
 | ---------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `AGENTS.md`      | `context.fileName` in `.gemini/settings.json`      | `AGENTS.md` is added to the list; with no list yet it becomes `["AGENTS.md", "GEMINI.md"]`, so a hand-written `GEMINI.md` still loads. |
 | `llm/rules/*.md` | managed block in `AGENTS.md`                       | The same block Codex reads, with each rule's `scope` noted as `_Applies to: …_`.          |
+| `llm/skills/*/`  | `.agents/skills/<name>/`                           | Gemini CLI reads `.agents/skills/` (ahead of `.gemini/skills/`). Shared with Codex, Devin and Antigravity. Configurable via `targets.skills.gemini`. |
 
-Sync owns only that one entry in `.gemini/settings.json`. Every other setting is kept, a file that already lists `AGENTS.md` is left byte for byte, and a file sync cannot parse as JSON (for example one with comments) is never overwritten: sync records an error asking for the one-line edit instead. Agents, skills, and MCP are not emitted for Gemini CLI.
+**Skills on an existing config:** an explicit `targets.skills` section (which `init` writes) replaces the defaults, and configs written before Gemini CLI got skills have no `gemini` entry. Add `"gemini": { "dir": ".agents/skills" }` to `targets.skills`, or Gemini CLI gets no skills. Sync warns about this, naming the entry to add, for any enabled platform that reads skills but has no skills output.
+
+Sync owns only that one entry in `.gemini/settings.json`. Every other setting is kept, a file that already lists `AGENTS.md` is left byte for byte, and a file sync cannot parse as JSON (for example one with comments) is never overwritten: sync records an error asking for the one-line edit instead. Agents and MCP are not emitted for Gemini CLI.
 
 **Upgrading from an earlier bluetemberg:** sync used to copy `AGENTS.md` into a bannered `GEMINI.md` and write rules to `.gemini/context/`, which Gemini CLI never loaded. Both are now reported as `STALE:` by `sync --check`; run `bluetemberg sync --prune` to delete the bannered copies (hand-written files there are kept), and remove any `targets.rules.gemini` entry from your config.
 
@@ -438,7 +442,7 @@ Antigravity CLI succeeds Gemini CLI for individual users. It reads `AGENTS.md` (
 | Source                  | Output                                     | Notes                                                                                     |
 | ----------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `llm/rules/*.md`        | `.agents/rules/<name>.md`                  | `scope: '**'` → `trigger: always_on`; otherwise `trigger: glob`, `globs: scope`. Configurable via `targets.rules.antigravity`. |
-| `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`           | Shared with Codex and Devin Desktop. Configurable via `targets.skills.antigravity`.        |
+| `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`           | Shared with Codex, Devin Desktop, Gemini CLI and Cursor. Configurable via `targets.skills.antigravity`. |
 | `llm/mcp.json`          | `mcpServers` in `.agents/mcp_config.json`  | stdio servers as `command` / `args`, remote ones as `serverUrl`.                           |
 
 **Moving from `gemini`:** if your config has explicit `targets.rules` or `targets.skills` sections (`init` writes them), they replace the defaults, so add `"antigravity": { "dir": ".agents/rules", "ext": ".md" }` to `targets.rules` and `"antigravity": { "dir": ".agents/skills" }` to `targets.skills`; otherwise Antigravity gets no rules or skills. The bannered `GEMINI.md` and `.gemini/context/` files from the old Gemini integration are reported as stale with `antigravity` selected too (Antigravity loads `GEMINI.md`), so `bluetemberg sync --prune` removes them.

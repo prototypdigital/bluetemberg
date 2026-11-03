@@ -1,7 +1,7 @@
 import type { BlueprintConfig, Platform } from '../types.js';
 import { AGENTS_MD_RULE_PLATFORMS } from './codex.js';
 import type { ContentKind, SourceView } from './sources.js';
-import { dirKey, resolveAgentTargets, resolveRuleTargets, resolveSkillTargets } from './targets.js';
+import { dirKey, resolveAgentTargets, resolveRuleTargets, resolveSkillOutputs } from './targets.js';
 
 /**
  * Some outputs are written for more than one platform: Codex, Devin and Antigravity all load
@@ -18,10 +18,11 @@ function contentOutputs(config: BlueprintConfig, platform: Platform): Array<[str
     targets: Array<[Platform, { dir: string }]>,
     kind: ContentKind,
   ): Array<[string, ContentKind]> => targets.map(([, target]) => [`${dirKey(target.dir)}/`, kind]);
+  // Skills are not per platform: which dir a platform writes depends on its group (Cursor is left to
+  // Claude's dir when they share one), so `skillWriters` places them.
   const outputs = [
     ...dirsOf(resolveRuleTargets(config, [platform]), 'rules'),
     ...dirsOf(resolveAgentTargets(config, [platform]), 'agents'),
-    ...dirsOf(resolveSkillTargets(config, [platform]), 'skills'),
   ];
   if (AGENTS_MD_RULE_PLATFORMS.includes(platform)) outputs.push(['AGENTS.md', 'rules']);
   return outputs;
@@ -38,12 +39,25 @@ export function findSplitSharedOutputs(
   groups: ReadonlyMap<ContentKind, readonly SourceView[]>,
 ): string[] {
   const writers = new Map<string, { platform: Platform; group: number }[]>();
+  const add = (output: string, platform: Platform, group: number): void => {
+    writers.set(output, [...(writers.get(output) ?? []), { platform, group }]);
+  };
   for (const [kind, kindGroups] of groups) {
     kindGroups.forEach((group, groupIndex) => {
+      if (kind === 'skills') {
+        // A covered reader (Cursor, left to Claude's dir) writes nothing of its own.
+        for (const output of resolveSkillOutputs(config, group.platforms)) {
+          for (const platform of output.platforms) {
+            if (!output.covered.includes(platform))
+              add(`${dirKey(output.target.dir)}/`, platform, groupIndex);
+          }
+        }
+        return;
+      }
       for (const platform of group.platforms) {
         for (const [output, outputKind] of contentOutputs(config, platform)) {
           if (outputKind !== kind) continue;
-          writers.set(output, [...(writers.get(output) ?? []), { platform, group: groupIndex }]);
+          add(output, platform, groupIndex);
         }
       }
     });

@@ -24,7 +24,7 @@ Source of truth for all AI tool configuration lives in `llm/`:
 - `llm/agents/` — specialist agent definitions
 - `llm/skills/` — on-demand skill workflows
 
-Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/`, `.cursor/agents/`, `.cursor/skills/`, `.claude/`, `.github/instructions/`, `.github/agents/`, `.github/skills/`, and related paths. These generated files should not be edited directly.
+Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/`, `.cursor/agents/`, `.claude/`, `.github/instructions/`, `.github/agents/`, `.github/skills/`, and related paths. These generated files should not be edited directly.
 
 ## Project structure
 
@@ -70,6 +70,6 @@ All user-facing content (rules, agents, skills, guardrails) lives in [bluetember
 
 ### Never
 
-- Edit generated files (`.cursor/rules/`, `.cursor/agents/`, `.cursor/skills/`, `.claude/`, `.github/instructions/`, `.github/agents/`, `.github/skills/`)
+- Edit generated files (`.cursor/rules/`, `.cursor/agents/`, `.agents/skills/`, `.claude/`, `.github/instructions/`, `.github/agents/`, `.github/skills/`)
 - Commit `.env` or secrets
 - Print user-facing output from library code (`src/utils`, `src/stacks`, `src/catalog`, `src/sync/*` emitters); it goes through the command module's `log` (init, sync, registry, sources, switch-profile) so `--silent` and tests can capture it

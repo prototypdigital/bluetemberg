@@ -76,6 +76,8 @@ async function syncedProject(root: string): Promise<void> {
   );
   write(root, 'llm/rules/r.md', '---\ndescription: d\nscope: "**"\n---\n# R\nbody\n');
   write(root, 'llm/agents/a.md', '---\nname: a\ndescription: An agent\n---\nDo agent things.\n');
+  // A command becomes a user-only skill, with a bannered Codex `agents/openai.yaml` beside it.
+  write(root, 'llm/commands/ship.md', '# Ship\n');
   write(root, 'llm/guardrails/branch.md', GUARDRAIL);
   write(root, 'llm/guardrails/no-force-push.md', NO_FORCE_PUSH);
   write(root, 'llm/mcp.json', JSON.stringify({ servers: ['context7'] }));

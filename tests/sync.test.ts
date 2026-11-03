@@ -179,9 +179,11 @@ describe('sync', () => {
     expect(readFileSync(join(root, '.cursor', 'agents', 'sub.md'), 'utf8')).toBe(
       withGeneratedBanner(agentContent, 'agents/sub.md'),
     );
-    expect(readFileSync(join(root, '.cursor', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(
+    // `.cursor/skills` is the dir `init` used to write; it now means the default, `.agents/skills`.
+    expect(readFileSync(join(root, '.agents', 'skills', 'my-skill', 'SKILL.md'), 'utf8')).toBe(
       withGeneratedBanner(skillContent, 'skills/my-skill/SKILL.md'),
     );
+    expect(existsSync(join(root, '.cursor', 'skills'))).toBe(false);
   });
 
   it('does not write cursor agent/skill files when cursor is not in platforms', async () => {
@@ -1032,7 +1034,7 @@ describe('loadConfig', () => {
     expect(config.platforms).toEqual(['cursor', 'claude', 'copilot']);
     expect(config.source).toBe('llm');
     expect(config.targets.agents?.cursor).toEqual({ dir: '.cursor/agents', ext: '.md' });
-    expect(config.targets.skills?.cursor).toEqual({ dir: '.cursor/skills' });
+    expect(config.targets.skills?.cursor).toEqual({ dir: '.agents/skills' });
   });
 
   it('hasSyncConfig: false without any config, true with one here or (recursing) in a package below', () => {
