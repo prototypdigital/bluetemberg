@@ -524,6 +524,10 @@ program
   .argument('[profile]', `Profile to preview (one of: ${[...TEAM_PROFILES].join(', ')})`)
   .option('--list', 'List all available profiles')
   .option('--force', 'Force re-fetch of the pack catalog')
+  .option(
+    '--platforms <csv>',
+    'Platforms to preview for (default: the project config, else every platform but claude-marketplace)',
+  )
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (profile, options) => {
     const { preview, previewList } = await import('../dist/preview/index.js');
@@ -538,10 +542,17 @@ program
       process.exit(1);
     }
 
+    const platforms = options.platforms === undefined ? undefined : csvList(options.platforms);
+    if (platforms !== undefined && (platforms.length === 0 || platforms.some((p) => !PLATFORMS.has(p)))) {
+      console.error(`--platforms must be comma-separated from: ${Array.from(PLATFORMS).join(', ')}`);
+      process.exit(1);
+    }
+
     try {
       await preview(process.cwd(), profile, {
         silent: options.silent,
         force: options.force,
+        platforms,
       });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import type { Stack, TeamProfile } from '../types.js';
 
 /** Raw catalog published by the packs repo — the single source of truth for pack ids and profiles. */
@@ -20,6 +20,14 @@ export interface CatalogPack {
    * catalog sees `[]`.
    */
   stacks?: Stack[];
+  /**
+   * Platforms this pack's content works on (`Platform` ids, `windsurf` = `devin`), e.g. `["claude"]`
+   * for a pack that needs Claude Code hooks. Empty/absent = every platform. Sync skips the pack's
+   * output for other platforms and `init` does not preselect it when none is targeted; see
+   * `catalog/platforms.ts`. Additive and optional, like `stacks`. Typed as plain strings so an id a
+   * newer packs repo adds loads here and simply matches nothing.
+   */
+  platforms?: string[];
   universal: boolean;
   kind: 'rules' | 'agents' | 'skills' | 'guardrails';
   rules?: string[];
@@ -32,10 +40,35 @@ export interface CatalogPack {
 export interface Catalog {
   generated: string;
   packs: CatalogPack[];
+  /**
+   * The packs repo's stack → package map (#290), merged over the engine's built-in table by
+   * `buildStackPackages` (`src/stacks/packages.ts`). Optional and additive: older engines ignore
+   * it, and a catalog without it detects with the built-in table. Left `unknown` here and parsed
+   * leniently there, so a malformed block degrades detection to the built-in map instead of
+   * rejecting the whole catalog.
+   */
+  stackPackages?: unknown;
 }
 
 function getCachePath(root: string): string {
   return join(root, '.bluetemberg', 'catalog.json');
+}
+
+/**
+ * The cache a command at `root` reads: its own, else the nearest one above it inside the same
+ * repo. `add`/`install`/`update` write the cache where they run — usually the repo root — so a
+ * monorepo package with no cache of its own reads the root's instead of the older snapshot, and
+ * `sync`, `why` and `detect` in that package use the catalog the team actually installed from.
+ * The climb stops at the directory holding `.git`; with no `.git` above, only `root` is read, so
+ * an unrelated parent directory's cache is never picked up.
+ */
+function findCachePath(root: string): string {
+  const start = resolve(root);
+  for (let dir = start; ; dir = dirname(dir)) {
+    const candidate = getCachePath(dir);
+    if (existsSync(candidate)) return candidate;
+    if (existsSync(join(dir, '.git')) || dirname(dir) === dir) return getCachePath(start);
+  }
 }
 
 const VALID_KINDS = new Set<string>(['rules', 'agents', 'skills', 'guardrails']);
@@ -61,14 +94,19 @@ function assertCatalog(data: unknown): asserts data is Catalog {
       !Array.isArray(p.profiles) ||
       !(p.profiles as unknown[]).every((x) => typeof x === 'string') ||
       // `stacks` is optional and additive; when present it must be a string array.
-      (p.stacks !== undefined &&
-        (!Array.isArray(p.stacks) || !(p.stacks as unknown[]).every((x) => typeof x === 'string')))
+      !isOptionalStringArray(p.stacks) ||
+      // `platforms` is optional and additive in the same way.
+      !isOptionalStringArray(p.platforms)
     ) {
       throw new Error(
-        'Invalid catalog format: pack missing required fields (name, version, kind, profiles) or has invalid kind/profile/stack values',
+        'Invalid catalog format: pack missing required fields (name, version, kind, profiles) or has invalid kind/profile/stack/platform values',
       );
     }
   }
+}
+
+function isOptionalStringArray(value: unknown): boolean {
+  return value === undefined || (Array.isArray(value) && value.every((x) => typeof x === 'string'));
 }
 
 const ITEM_KINDS = ['rules', 'agents', 'skills', 'guardrails'] as const;
@@ -110,9 +148,9 @@ function loadSnapshot(): Catalog {
   return data;
 }
 
-/** Read the project-local catalog cache. Returns null when absent, malformed, or (when bounded) stale. */
+/** Read the project catalog cache (see {@link findCachePath}). Returns null when absent, malformed, or (when bounded) stale. */
 function readCache(root: string, maxAgeMs?: number): Catalog | null {
-  const cachePath = getCachePath(root);
+  const cachePath = findCachePath(root);
   if (!existsSync(cachePath)) return null;
   try {
     const data = JSON.parse(readFileSync(cachePath, 'utf8')) as unknown;

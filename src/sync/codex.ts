@@ -19,6 +19,7 @@ import {
 import type { BlockMarkers } from './managed-block.js';
 import { withGeneratedBannerToml } from './banner.js';
 import { codexHooksDisabled, renderCodexHooksBlock, type CodexHooksSection } from './guardrails-codex.js';
+import { allowsAnyPlatform, allowsPlatform } from '../catalog/platforms.js';
 
 // Codex has no per-file rule API; see Architecture.md "Special sync" for the full design.
 export interface CodexSyncContext extends SyncSink {
@@ -29,6 +30,13 @@ export interface CodexSyncContext extends SyncSink {
   excludedRules?: ReadonlyMap<string, string>;
   /** Agents the version gate withheld (`file → reason`); no `.codex/agents/*.toml` is written for them. */
   excludedAgents?: ReadonlyMap<string, string>;
+  /**
+   * Rules limited to some platforms (`file → platforms`). The AGENTS.md block is read by every
+   * platform in {@link AGENTS_MD_RULE_PLATFORMS}, so a rule goes in when any enabled one is allowed.
+   */
+  rulePlatforms?: ReadonlyMap<string, readonly string[]>;
+  /** Agents limited to some platforms (`file → platforms`); only those allowing `codex` get a TOML. */
+  agentPlatforms?: ReadonlyMap<string, readonly string[]>;
 }
 
 /** Stable filename ordering so generated output is deterministic across runs. */
@@ -70,7 +78,10 @@ export const AGENTS_RULES_BLOCK_NOTICE =
 /** Builds the inner body of the AGENTS.md rules block (empty when there are no rules). */
 function buildRulesBlock(ctx: CodexSyncContext): string {
   const merged = mergeContentKind(ctx.sourceDirs, 'rules');
-  const applied = [...merged].filter(([file]) => !ctx.excludedRules?.has(file));
+  const readers = AGENTS_MD_RULE_PLATFORMS.filter((p) => ctx.platforms.includes(p));
+  const applied = [...merged].filter(
+    ([file]) => !ctx.excludedRules?.has(file) && allowsAnyPlatform(ctx.rulePlatforms?.get(file), readers),
+  );
   if (applied.length === 0) return '';
 
   const sections: string[] = [AGENTS_RULES_BLOCK_NOTICE];
@@ -195,6 +206,7 @@ export function syncCodexAgents(ctx: CodexSyncContext, recordError: (message: st
 
   const count = [...merged]
     .filter(([file]) => !ctx.excludedAgents?.has(file))
+    .filter(([file]) => allowsPlatform(ctx.agentPlatforms?.get(file), 'codex'))
     .sort(byFilename)
     .filter(([file, sourceDir]) => processAgentFile(file, sourceDir, outDir, ctx, recordError)).length;
 

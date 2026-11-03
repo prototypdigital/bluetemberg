@@ -1,19 +1,23 @@
-import type { PresetItem, RuleCollectionPreset, TeamProfile } from '../types.js';
+import type { Platform, PresetItem, RuleCollectionPreset, TeamProfile } from '../types.js';
+import { allowsAnyPlatform } from '../catalog/platforms.js';
 
-type Routable = Pick<PresetItem, 'universal' | 'universalExcludeProfiles' | 'tags' | 'stacks'>;
+type Routable = Pick<PresetItem, 'universal' | 'universalExcludeProfiles' | 'tags' | 'stacks' | 'platforms'>;
 
 /**
- * Whether a pack is pre-checked for `profile`: universal (unless excluded) or tagged for it, and,
- * when the pack targets stacks, one of them is in `projectStacks`. A Payload pack tagged for
- * backend is not preselected in a backend project without Payload.
+ * Whether a pack is pre-checked for `profile`: universal (unless excluded) or tagged for it; when
+ * the pack targets stacks, one of them is in `projectStacks`; and when it names platforms, one of
+ * them is in `projectPlatforms`. A Payload pack tagged for backend is not preselected in a backend
+ * project without Payload, and a Claude Code–only pack is not preselected for a Cursor-only team.
  */
 export function isPreselected(
   preset: Routable,
   profile: TeamProfile,
   projectStacks: ReadonlySet<string>,
+  projectPlatforms: readonly Platform[],
 ): boolean {
   if (profile === 'custom') return false;
   if (preset.stacks && !preset.stacks.some((s) => projectStacks.has(s))) return false;
+  if (!allowsAnyPlatform(preset.platforms, projectPlatforms)) return false;
   if (preset.universal && !preset.universalExcludeProfiles?.includes(profile)) return true;
   return preset.tags?.includes(profile) ?? false;
 }
@@ -23,13 +27,14 @@ export function resolvePresetDefaults(
   presets: PresetItem[],
   profile: TeamProfile,
   projectStacks: ReadonlySet<string>,
+  projectPlatforms: readonly Platform[],
 ): PresetItem[] {
   if (profile === 'custom') return presets;
 
   return presets.map((p) => {
     const universalHere = p.universal && !p.universalExcludeProfiles?.includes(profile);
     if (!universalHere && !p.tags) return p;
-    return { ...p, default: isPreselected(p, profile, projectStacks) };
+    return { ...p, default: isPreselected(p, profile, projectStacks, projectPlatforms) };
   });
 }
 
@@ -38,6 +43,9 @@ export function preselectedCollectionIds(
   collections: RuleCollectionPreset[],
   profile: TeamProfile,
   projectStacks: ReadonlySet<string>,
+  projectPlatforms: readonly Platform[],
 ): string[] {
-  return collections.filter((c) => isPreselected(c, profile, projectStacks)).map((c) => c.id);
+  return collections
+    .filter((c) => isPreselected(c, profile, projectStacks, projectPlatforms))
+    .map((c) => c.id);
 }

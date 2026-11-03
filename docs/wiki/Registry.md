@@ -395,6 +395,7 @@ To publish your own rule pack:
 1. Create a standard npm package with an `llm/` directory containing your rules, agents, and/or skills.
 2. Add `"bluetemberg-pack"` to the `keywords` array in `package.json` for discoverability.
 3. Publish to npm (or a private registry).
+4. If the pack only works in some tools (it relies on Claude Code hooks, say), add `platforms: [claude]` to the frontmatter of each rule, agent, skill or guardrail. Official packs in bluetemberg-packs will declare it once instead, as `bluetemberg.platforms` in `package.json`, once the catalog generator carries it ([bluetemberg-packs#120](https://github.com/prototypdigital/bluetemberg-packs/issues/120)). See [Profiles → Platforms](Profiles#platforms).
 
 ```json
 {

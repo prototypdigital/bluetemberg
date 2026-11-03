@@ -180,6 +180,8 @@ export interface RuleCollectionPreset extends RuleCollectionOverlay {
   tags?: TeamProfile[];
   /** Catalog stacks the pack targets; when set, it is preselected only if one of them is in the project. */
   stacks?: string[];
+  /** Catalog platforms the pack works on; when set, it is preselected only if one of them is targeted. */
+  platforms?: string[];
 }
 
 export interface InitAnswers {
@@ -335,6 +337,8 @@ export interface PresetItem {
   universalExcludeProfiles?: TeamProfile[];
   /** Catalog stacks the pack targets; when set, it is preselected only if one of them is in the project. */
   stacks?: string[];
+  /** Catalog platforms the pack works on; when set, it is preselected only if one of them is targeted. */
+  platforms?: string[];
   /** npm package name in the packs repo (e.g. `bluetemberg-agents-frontend-specialist`). */
   packageName?: string;
 }

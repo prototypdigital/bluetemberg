@@ -11,6 +11,7 @@ import { ereIssue } from './ere.js';
 import { describeLowConfidence, type DetectedStacks } from '../stacks/match.js';
 import { buildStackMap, type StackMap } from '../stacks/resolve.js';
 import { evaluateStackGate } from '../stacks/gate.js';
+import { buildPlatformMap } from '../catalog/platforms.js';
 
 export interface GuardrailsSyncContext extends SyncSink {
   /** All source dirs in priority order: local, then `extends`, then packs. */
@@ -305,6 +306,7 @@ export function syncGuardrails(
   if (merged.size === 0) return { claude: null, cursor: null, codex: null, applied: null };
 
   const stackMap = buildStackMap(ctx.catalog);
+  const platformMap = buildPlatformMap(ctx.catalog);
   const guardrails: GuardrailFrontmatter[] = [];
   const excluded = new Map<string, string>();
   for (const [file, sourceDir] of merged) {
@@ -323,7 +325,11 @@ export function syncGuardrails(
         excluded.set(file, reason);
         continue;
       }
-      guardrails.push(data);
+      // A guardrail without its own `platforms` takes its pack's catalog `platforms` (#281). The cast
+      // matches what frontmatter already holds at runtime: every host compares entries as strings,
+      // so an id it does not know simply matches nothing.
+      const packPlatforms = data.platforms ? undefined : platformMap.get(sourceDir, basename(file, '.md'));
+      guardrails.push(packPlatforms ? { ...data, platforms: packPlatforms as Platform[] } : data);
     } catch (err) {
       recordError(`guardrails/${file}: ${err instanceof Error ? err.message : String(err)}`);
     }

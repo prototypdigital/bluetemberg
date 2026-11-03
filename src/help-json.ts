@@ -67,9 +67,21 @@ export function getMachineReadableHelp(): Record<string, unknown> {
       description: c.description,
       packageName: c.packageName,
       tags: c.tags ?? [],
+      // Platforms the pack is limited to (empty = every platform); see `catalog/platforms.ts`.
+      platforms: c.platforms ?? [],
     })),
-    agents: resolveAgents(catalog).map((a) => ({ id: a.id, name: a.name, description: a.description })),
-    skills: resolveSkills(catalog).map((s) => ({ id: s.id, name: s.name, description: s.description })),
+    agents: resolveAgents(catalog).map((a) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      platforms: a.platforms ?? [],
+    })),
+    skills: resolveSkills(catalog).map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      platforms: s.platforms ?? [],
+    })),
     mcpServers: MCP_SERVER_PRESETS.map((m) => ({ id: m.id, name: m.name, description: m.description })),
     init: {
       options: [
@@ -93,7 +105,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         { long: '--package-manager <pnpm|npm|yarn>', requires: '--non-interactive without --config' },
         {
           long: '--platforms <csv>',
-          description: 'e.g. cursor,claude',
+          description:
+            "e.g. cursor,claude. Packs limited to other platforms (a pack's catalog `platforms`) are not preselected.",
           requires: '--non-interactive without --config',
         },
         {

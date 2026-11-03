@@ -55,4 +55,19 @@ describe('catalog stacks field validation', () => {
     const catalog = loadCatalogSync(cacheRootWith(pack({ stacks: [1, 2, 3] })));
     expect(catalog.packs.find((p) => p.name === FIXTURE_PACK)).toBeUndefined();
   });
+
+  // `platforms` (#281) follows the same additive contract.
+  it('preserves a valid platforms array, unknown ids included (they match nothing)', () => {
+    const catalog = loadCatalogSync(cacheRootWith(pack({ platforms: ['claude', 'some-future-host'] })));
+    expect(catalog.packs[0].platforms).toEqual(['claude', 'some-future-host']);
+  });
+
+  it('accepts a pack with no platforms field (backward compatible)', () => {
+    expect(loadCatalogSync(cacheRootWith(pack({}))).packs[0].platforms).toBeUndefined();
+  });
+
+  it('rejects a malformed platforms field (falls back to the committed snapshot)', () => {
+    const catalog = loadCatalogSync(cacheRootWith(pack({ platforms: 'claude' })));
+    expect(catalog.packs.find((p) => p.name === FIXTURE_PACK)).toBeUndefined();
+  });
 });
