@@ -1,6 +1,7 @@
 import type { TeamProfile } from '../types.js';
 import { type Catalog, type CatalogPack, loadCatalog } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
+import { buildStackPackages } from '../stacks/packages.js';
 
 export interface PreviewOptions {
   /** Suppress output (still returns data). */
@@ -50,7 +51,8 @@ export async function preview(
 
   const { catalog, fromCache } = await loadCatalog(root, force);
 
-  const projectStacks = new Set(detectStacks(root).keys());
+  // Detect with the catalog preview routes with: it may be freshly fetched and not yet cached.
+  const projectStacks = new Set(detectStacks(root, undefined, buildStackPackages(catalog).packages).keys());
   const profilePacks = packsForProfile(catalog, profile);
   const packs = profilePacks.filter((p) => matchesProjectStacks(p, projectStacks));
   const stackSkipped = profilePacks.filter((p) => !matchesProjectStacks(p, projectStacks));

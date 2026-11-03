@@ -155,9 +155,15 @@ function candidateStacks(
 ): Map<Stack, Stack | null> {
   const direct = new Set<Stack>(Object.keys(declared));
   for (const [stack, { npm }] of packages) {
-    if (deps[npm] !== undefined) direct.add(stack);
+    // Own keys only: `deps.constructor` is Object's, and a catalog may name a stack `constructor`.
+    if (Object.hasOwn(deps, npm)) direct.add(stack);
   }
   return withImpliedStacks(direct, packages);
+}
+
+/** The config-declared version of `stack`, never an inherited `Object.prototype` member. */
+function declaredVersion(declared: Record<string, string>, stack: Stack): string | undefined {
+  return Object.hasOwn(declared, stack) ? declared[stack] : undefined;
 }
 
 /** Label an implied detection with what brought it in: `node_modules, implied by nextjs`. */
@@ -221,7 +227,7 @@ export function detectStacks(
 
   const detected: DetectedStacks = new Map();
   for (const [stack, impliedBy] of candidateStacks(declared, deps, packages)) {
-    const resolved = resolveStack(root, stack, declared[stack], packages);
+    const resolved = resolveStack(root, stack, declaredVersion(declared, stack), packages);
     if (resolved) detected.set(stack, labelImplied(resolved, impliedBy));
   }
   return detected;
@@ -246,7 +252,7 @@ export function detectStacksFromManifests(
 
   const detected: DetectedStacks = new Map();
   for (const [stack, impliedBy] of candidateStacks(declared, deps, packages)) {
-    const resolved = resolveStackFromData(stack, declared[stack], deps, lock, packages);
+    const resolved = resolveStackFromData(stack, declaredVersion(declared, stack), deps, lock, packages);
     if (resolved) detected.set(stack, labelImplied(resolved, impliedBy));
   }
   return detected;

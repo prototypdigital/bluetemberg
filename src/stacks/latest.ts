@@ -2,10 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { valid } from 'semver';
-import { loadCatalogSync } from '../catalog/index.js';
+import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { fetchDistTags } from '../registry/client.js';
 import { DEFAULT_REGISTRY } from '../registry/constants.js';
 import type { Stack } from '../types.js';
+import { packsRepoSourceDirs } from './declared.js';
 import { buildStackPackages, packageForStack, type StackPackages } from './packages.js';
 
 /**
@@ -64,8 +65,23 @@ export interface LatestOptions {
   fetchLatest?: (pkg: string) => Promise<string>;
   /** Injected for tests: the current time in ms. */
   now?: () => number;
-  /** Stack → package map; defaults to the one detection uses for `root` (its catalog). */
+  /** Stack → package map; defaults to {@link lintStackPackages}. */
   packages?: StackPackages;
+}
+
+/**
+ * The stack map a lint at `root` should look packages up with. In a packs repo that is the repo's
+ * own `catalog.json` — the one about to be published, so a mapping added there is linted before it
+ * ships. Anywhere else it is the map detection uses: the project's catalog.
+ */
+function lintStackPackages(root: string): StackPackages {
+  if (packsRepoSourceDirs(root).size === 0) return buildStackPackages(loadCatalogSync(root)).packages;
+  try {
+    const own = JSON.parse(readFileSync(join(root, 'catalog.json'), 'utf8')) as Partial<Catalog>;
+    return buildStackPackages({ stackPackages: own?.stackPackages }).packages;
+  } catch {
+    return buildStackPackages(loadCatalogSync(root)).packages;
+  }
 }
 
 async function fetchLatestFromRegistry(pkg: string, root: string): Promise<string> {
@@ -137,7 +153,7 @@ export async function resolveLatestVersions(
   const cacheFile = opts.cacheFile ?? latestCachePath();
   const now = (opts.now ?? Date.now)();
   const fetchLatest = opts.fetchLatest ?? ((pkg: string) => fetchLatestFromRegistry(pkg, root));
-  const packages = opts.packages ?? buildStackPackages(loadCatalogSync(root)).packages;
+  const packages = opts.packages ?? lintStackPackages(root);
   const cache = readCache(cacheFile);
   let dirty = false;
 

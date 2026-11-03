@@ -139,6 +139,10 @@ export function buildStackPackages(catalog: Pick<Catalog, 'stackPackages'>): Sta
   const unusable = blockIssue(block);
   if (unusable) return { packages, issues: [unusable] };
 
+  // Two catalog entries on one package are one stack under two names: both would be detected, and
+  // scan-org would count every repo twice. The packs repo can fix that, so say so. (A catalog entry
+  // sharing a built-in's package is allowed — it is how a stack is renamed without deleting one.)
+  const claimedBy = new Map<string, Stack>();
   for (const [stack, raw] of Object.entries(block.stacks as Record<string, unknown>)) {
     if (!isStackName(stack)) {
       issues.push(`stackPackages.stacks: "${stack}" is not a valid stack name — ignored`);
@@ -148,6 +152,12 @@ export function buildStackPackages(catalog: Pick<Catalog, 'stackPackages'>): Sta
     if (typeof entry === 'string') {
       issues.push(`stackPackages.stacks.${stack}: ${entry} — ignored, using the built-in mapping`);
       continue;
+    }
+    if (entry.npm !== undefined) {
+      const other = claimedBy.get(entry.npm);
+      if (other)
+        issues.push(`stackPackages.stacks.${stack}: package "${entry.npm}" is also mapped by ${other}`);
+      else claimedBy.set(entry.npm, stack);
     }
     packages.set(stack, { npm: entry.npm ?? packageForStack(stack, packages), implies: entry.implies });
   }

@@ -12,6 +12,7 @@ import {
   packageForStack,
   withImpliedStacks,
 } from '../src/stacks/packages.js';
+import { resolveLatestVersions } from '../src/stacks/latest.js';
 import { buildDetectReport } from '../src/stacks/report.js';
 import { buildWhyReport } from '../src/stacks/why.js';
 import { sync } from '../src/sync/index.js';
@@ -335,5 +336,62 @@ describe('why/sync parity on the catalog stack map', () => {
     }
     expect(buildWhyReport(root, 'sdk-52').matches[0].included).toBe(true);
     expect(buildWhyReport(root, 'sdk-51').matches[0].included).toBe(false);
+  });
+});
+
+describe('adversarial stack-map data', () => {
+  it('never detects a stack from Object.prototype keys', () => {
+    const packages = buildStackPackages(
+      withBlock({
+        schema: 1,
+        stacks: {
+          constructor: { packages: { npm: 'constructor' } },
+          nextjs: { implies: ['tostring', 'constructor'] },
+        },
+      }),
+    ).packages;
+    const d = detectStacksFromManifests({ dependencies: { next: '^15' } }, null, undefined, packages);
+    expect([...d.keys()]).toEqual(['nextjs']);
+  });
+
+  it('warns when two catalog entries map the same package, but not for a built-in rename', () => {
+    const { issues } = buildStackPackages(
+      withBlock({
+        schema: 1,
+        stacks: {
+          expo: { packages: { npm: 'expo' } },
+          'expo-sdk': { packages: { npm: 'expo' } },
+          tailwindcss: { packages: { npm: 'tailwindcss' } }, // shares the built-in `tailwind` package
+        },
+      }),
+    );
+    expect(issues).toEqual(['stackPackages.stacks.expo-sdk: package "expo" is also mapped by expo']);
+  });
+
+  it('lints a packs repo against its own catalog.json stack map', async () => {
+    const root = createTmpDir();
+    try {
+      mkdirSync(join(root, 'packages', 'bluetemberg-rules-expo', 'llm'), { recursive: true });
+      writeFileSync(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          generated: '2026-11-03T00:00:00.000Z',
+          packs: [],
+          stackPackages: { schema: 1, stacks: { 'expo-sdk': { packages: { npm: 'expo' } } } },
+        }),
+      );
+      const asked: string[] = [];
+      const [lookup] = await resolveLatestVersions(root, ['expo-sdk'], {
+        cacheFile: join(root, 'cache.json'),
+        fetchLatest: async (pkg) => {
+          asked.push(pkg);
+          return '52.0.0';
+        },
+      });
+      expect(asked).toEqual(['expo']);
+      expect(lookup.package).toBe('expo');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
