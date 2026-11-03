@@ -20,12 +20,13 @@ import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { syncMarketplace } from './marketplace.js';
 import { syncClaudeSettings } from './settings.js';
-import { syncGuardrails } from './guardrails.js';
+import { syncGuardrails, type GuardrailHooks } from './guardrails.js';
 import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
 import { syncDevinGuardrailHooks } from './guardrails-devin.js';
 import { syncClaudeHooks } from './claude-hooks.js';
 import {
   configuredPlatforms,
+  DEVIN_PLATFORM,
   dirKey,
   normalizeTargets,
   resolveAgentTargets,
@@ -33,8 +34,19 @@ import {
   resolveSkillTargets,
   skillDirReaders,
 } from './targets.js';
-import { findShadowedEntries } from './extends-loader.js';
-import { mergeContentKind, resolveSyncSources } from './sources.js';
+import { findShadowedEntries, normalizeExtends, toExtendsEntries } from './extends-loader.js';
+import {
+  activeSources,
+  CONTENT_KINDS,
+  groupViewsByKind,
+  mergeContentKind,
+  resolveSourceViews,
+  resolveSyncSources,
+  type ContentKind,
+  type SourceView,
+  type SyncSource,
+} from './sources.js';
+import { findSplitSharedOutputs } from './extends-scope.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
@@ -45,13 +57,21 @@ import { evaluateStackGate } from '../stacks/gate.js';
 import {
   KNOWN_PLATFORMS,
   allowsAnyPlatform,
+  unknownPlatforms,
   allowsPlatform,
   buildPlatformMap,
   resolvePlatformGate,
   type PlatformMap,
 } from '../catalog/platforms.js';
 import { skippedPlatforms } from './platform-skips.js';
-import type { Platform, BlueprintConfig, SyncOptions, SyncResults, TeamProfile } from '../types.js';
+import type {
+  Platform,
+  BlueprintConfig,
+  ExtendsEntry,
+  SyncOptions,
+  SyncResults,
+  TeamProfile,
+} from '../types.js';
 
 const VALID_PLATFORMS: readonly Platform[] = KNOWN_PLATFORMS;
 
@@ -110,6 +130,42 @@ function validateTargets(targets: unknown, configPath: string, requireComplete =
   }
 }
 
+const EXTENDS_SHAPE = '"extends" must be a string or array of strings and { "path", "platforms" } objects';
+const SCOPED_EXTENDS_KEYS = new Set(['path', 'platforms']);
+
+/** `extends`: a string, or an array of strings and `{ "path": string, "platforms": string[] }` entries. */
+function validateExtends(ext: unknown, configPath: string): void {
+  if (typeof ext === 'string') return;
+  if (!Array.isArray(ext)) throw new Error(`Invalid config in ${configPath}: ${EXTENDS_SHAPE}`);
+  ext.forEach((entry: unknown, i) => {
+    if (typeof entry !== 'string') validateScopedExtends(entry, `extends[${i}]`, configPath);
+  });
+}
+
+function validateScopedExtends(entry: unknown, at: string, configPath: string): void {
+  const fail = (detail: string): never => {
+    throw new Error(`Invalid config in ${configPath}: ${at}${detail.startsWith('.') ? '' : ' '}${detail}`);
+  };
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    fail('must be a string or { "path": string, "platforms": string[] }');
+  }
+  const e = entry as Record<string, unknown>;
+  const unknownKeys = Object.keys(e).filter((k) => !SCOPED_EXTENDS_KEYS.has(k));
+  if (unknownKeys.length > 0)
+    fail(`has unknown key(s) ${unknownKeys.join(', ')} — expected "path" and "platforms"`);
+  if (typeof e.path !== 'string' || e.path.trim().length === 0) fail('.path must be a non-empty string');
+  const platforms = e.platforms;
+  if (!Array.isArray(platforms) || platforms.length === 0 || platforms.some((p) => typeof p !== 'string')) {
+    fail('.platforms must be a non-empty array of platform ids');
+  }
+  const invalid = unknownPlatforms(platforms as string[]);
+  if (invalid.length > 0) {
+    fail(
+      `.platforms has unknown platform(s): ${invalid.join(', ')} (expected ${VALID_PLATFORMS.join(', ')})`,
+    );
+  }
+}
+
 interface ValidateConfigOptions {
   /**
    * Require `platforms` to be present. True for a stand-alone or fully-merged config; false when
@@ -156,13 +212,7 @@ function validateConfig(
     }
   }
 
-  if (cfg.extends !== undefined) {
-    const ext = cfg.extends;
-    const isStringArray = Array.isArray(ext) && ext.every((e: unknown) => typeof e === 'string');
-    if (typeof ext !== 'string' && !isStringArray) {
-      throw new Error(`Invalid config in ${configPath}: "extends" must be a string or array of strings`);
-    }
-  }
+  if (cfg.extends !== undefined) validateExtends(cfg.extends, configPath);
 
   if (cfg.adapters !== undefined) {
     if (!Array.isArray(cfg.adapters) || cfg.adapters.some((a: unknown) => typeof a !== 'string')) {
@@ -361,6 +411,23 @@ function mergeStringList(
   return combined.length > 0 ? dedupe(combined) : undefined;
 }
 
+/**
+ * Merge two `extends` fields, `primary` entries first (higher priority). A path in both keeps the
+ * primary position with the union of its scopes (see {@link normalizeExtends}).
+ */
+function mergeExtends(
+  primary: BlueprintConfig['extends'],
+  secondary: BlueprintConfig['extends'],
+): BlueprintConfig['extends'] {
+  const specs = normalizeExtends([...toExtendsList(primary), ...toExtendsList(secondary)]);
+  return specs.length > 0 ? toExtendsEntries(specs) : undefined;
+}
+
+function toExtendsList(value: BlueprintConfig['extends']): ExtendsEntry[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
 /** Per-platform deep merge: child entries override parent entries, merging their fields. */
 function mergePlatformTargets<T extends object>(
   parent: Partial<Record<Platform, T>> | undefined,
@@ -404,7 +471,7 @@ function mergeConfigs(parent: BlueprintConfig, child: BlueprintConfig): Blueprin
     targets: mergeTargets(parent.targets, child.targets),
   };
 
-  const extendsMerged = mergeStringList(child.extends, parent.extends);
+  const extendsMerged = mergeExtends(child.extends, parent.extends);
   if (extendsMerged) merged.extends = extendsMerged;
   else delete merged.extends;
 
@@ -428,6 +495,11 @@ interface SyncContext extends SyncSink {
   sourceDirs: string[];
   /** Count of `extends` dirs (for accurate per-file origin labels). */
   extendedCount: number;
+  /**
+   * Each synced `extends` dir's position in the config's `extends` array, so a label (`extends[i]`)
+   * names the entry as written — the index validation errors use — in every source view.
+   */
+  extendsIndex: ReadonlyMap<string, number>;
   /** Count of registry-pack dirs. */
   packCount: number;
   config: BlueprintConfig;
@@ -455,14 +527,29 @@ interface SyncContext extends SyncSink {
    */
   rulePlatforms: Map<string, string[]>;
   agentPlatforms: Map<string, string[]>;
+  /**
+   * Set when scoped `extends` entries split the platforms into more than one source view: steps run
+   * once per view, and a message they repeat word for word is recorded once.
+   */
+  recorded?: Set<string>;
+}
+
+/** False when this exact message was already recorded by another source view's pass. */
+function firstRecord(ctx: SyncContext, message: string): boolean {
+  if (!ctx.recorded) return true;
+  if (ctx.recorded.has(message)) return false;
+  ctx.recorded.add(message);
+  return true;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
+  if (!firstRecord(ctx, `error:${message}`)) return;
   ctx.results.errors.push(message);
   ctx.log(`  ERROR: ${message}`);
 }
 
 function recordWarning(ctx: SyncContext, message: string): void {
+  if (!firstRecord(ctx, `warn:${message}`)) return;
   ctx.results.warnings.push(message);
   ctx.log(`  WARN: ${message}`);
 }
@@ -554,6 +641,36 @@ function gateByVersion(
   return { matched: gate.matched, reason: gate.reason };
 }
 
+const NO_GUARDRAIL_HOOKS: GuardrailHooks = { claude: null, cursor: null, codex: null, applied: null };
+
+/** A copy of `ctx` limited to one source view: its platforms and the sources they read. */
+function toViewContext(ctx: SyncContext, view: SourceView): SyncContext {
+  return {
+    ...ctx,
+    platforms: view.platforms,
+    sourceDirs: view.sources.map((s) => s.dir),
+    extendedCount: view.sources.filter((s) => s.origin === 'extends').length,
+    excludedRules: new Map(),
+    excludedAgents: new Map(),
+    rulePlatforms: new Map(),
+    agentPlatforms: new Map(),
+  };
+}
+
+/** `--verbose`: the source dirs this view reads, in priority order. */
+function logSourceDirs(ctx: SyncContext, sources: readonly SyncSource[]): void {
+  ctx.log(`Source dirs (priority order):`);
+  sources.forEach((source, i) => {
+    let tag: string = source.origin;
+    if (source.origin === 'extends') {
+      const scope = source.platforms === null ? '' : `, ${source.platforms.join(', ')} only`;
+      tag = `extends[${ctx.extendsIndex.get(source.dir) ?? '?'}]${scope}`;
+    }
+    ctx.log(`  [${i}] ${source.dir} (${tag})`);
+  });
+  ctx.log('');
+}
+
 /**
  * Sync vendor-neutral `llm/` sources into platform-specific outputs under the project root.
  *
@@ -583,9 +700,13 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // `windsurf` is an alias for `devin`; every emitter below sees only the canonical id.
   const platforms = configuredPlatforms(config);
   const resolvedSources = resolveSyncSources(root, config);
-  const { sourceBase, extendedDirs, packDirs, externalDirs } = resolvedSources;
+  const { sourceBase, packDirs } = resolvedSources;
   // Priority: local sourceBase first, then extends entries, then registry packs, then external sources.
-  const sourceDirs = resolvedSources.sources.map((s) => s.dir);
+  // A scoped `extends` entry for no configured platform is left out (sync warns about it).
+  const sources = activeSources(resolvedSources.sources, platforms);
+  const sourceDirs = sources.map((s) => s.dir);
+  const extendsSources = sources.filter((s) => s.origin === 'extends');
+  const extendsIndex = new Map(extendsSources.map((s) => [s.dir, s.extendsIndex ?? 0]));
 
   const results: SyncResults = { synced: 0, outOfSync: 0, stale: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
@@ -607,7 +728,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     root,
     sourceBase,
     sourceDirs,
-    extendedCount: extendedDirs.length,
+    extendedCount: extendsSources.length,
+    extendsIndex,
     packCount: packDirs.length,
     config,
     platforms,
@@ -632,36 +754,74 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   for (const w of configWarnings) recordWarning(ctx, w);
   for (const w of stackPackages.issues) recordWarning(ctx, `catalog ${w}`);
 
-  logDetectedStacks(ctx);
-  reportShadowedContent(ctx);
-
-  if (verbose) {
-    log(`Source dirs (priority order):`);
-    log(`  [0] ${sourceBase} (local)`);
-    for (let i = 0; i < extendedDirs.length; i++) {
-      log(`  [${i + 1}] ${extendedDirs[i]} (extends[${i}])`);
+  // Scoped `extends` entries split the platforms into views that read different sources. Content
+  // steps (anything reading `sourceDirs`) run once per view; steps that read only the local source
+  // run once with every platform. With no scoped entry there is one view: `ctx` itself.
+  const views = resolveSourceViews(sources, platforms);
+  const multiView = views.length > 1;
+  if (multiView) ctx.recorded = new Set();
+  const viewCtxs = multiView ? views.map((view) => toViewContext(ctx, view)) : [ctx];
+  // Each content kind runs once per group of platforms that merge it to the same files. With one
+  // view every kind has one group: `ctx` itself.
+  const kindGroups = new Map(
+    CONTENT_KINDS.map((kind) => [kind, multiView ? groupViewsByKind(views, kind) : views]),
+  );
+  const kindCtxs = new Map(
+    CONTENT_KINDS.map((kind) => [
+      kind,
+      multiView ? (kindGroups.get(kind) ?? []).map((group) => toViewContext(ctx, group)) : [ctx],
+    ]),
+  );
+  if (multiView) {
+    const split = findSplitSharedOutputs(config, kindGroups);
+    for (const message of split) recordError(ctx, message);
+    if (split.length > 0) {
+      if (!orchestrated) printSummary(log, results, checkMode);
+      return results;
     }
-    const packOffset = 1 + extendedDirs.length;
-    for (let i = 0; i < packDirs.length; i++) {
-      log(`  [${packOffset + i}] ${packDirs[i]} (pack)`);
-    }
-    const externalOffset = packOffset + packDirs.length;
-    for (let i = 0; i < externalDirs.length; i++) {
-      log(`  [${externalOffset + i}] ${externalDirs[i]} (external)`);
-    }
-    log('');
   }
+  const containing = (list: readonly SyncContext[], platform: Platform): SyncContext =>
+    list.find((c) => c.platforms.includes(platform)) ?? ctx;
+  /** The context of `platform`'s group for one kind (its own view for `view`). */
+  const ctxFor = (kind: ContentKind | 'view', platform: Platform): SyncContext =>
+    containing(kind === 'view' ? viewCtxs : (kindCtxs.get(kind) ?? []), platform);
+  /** Run `step` once per group of `kind`, under a header naming the group's platforms when there are several. */
+  const perGroup = (kind: ContentKind, step: (groupCtx: SyncContext) => void): void => {
+    const groups = kindCtxs.get(kind) ?? [];
+    for (const groupCtx of groups) {
+      if (groups.length > 1) log(`[${groupCtx.platforms.join(', ')}]`);
+      step(groupCtx);
+    }
+  };
 
-  syncRules(ctx);
-  syncAgents(ctx);
-  syncSkills(ctx);
+  logDetectedStacks(ctx);
+
+  for (const [i, viewCtx] of viewCtxs.entries()) {
+    if (multiView) log(`Sources for ${viewCtx.platforms.join(', ')}:`);
+    reportShadowedContent(viewCtx);
+    if (verbose) logSourceDirs(viewCtx, views[i].sources);
+  }
+  if (multiView) log('');
+
+  perGroup('rules', syncRules);
+  perGroup('agents', syncAgents);
+  perGroup('skills', syncSkills);
   syncCopilotInstructions(ctx);
   // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
   // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
-  const guardrailHooks = syncGuardrails(ctx, (msg) => recordError(ctx, msg));
+  // Each group compiles its own guardrails; each host's writer takes the result of its own group.
+  const guardrailsByGroup = new Map<SyncContext, GuardrailHooks>();
+  perGroup('guardrails', (groupCtx) =>
+    guardrailsByGroup.set(
+      groupCtx,
+      syncGuardrails(groupCtx, (msg) => recordError(groupCtx, msg)),
+    ),
+  );
+  const guardrailsFor = (platform: Platform): GuardrailHooks =>
+    guardrailsByGroup.get(ctxFor('guardrails', platform)) ?? NO_GUARDRAIL_HOOKS;
   syncClaudeHooks(
-    ctx,
-    guardrailHooks.claude,
+    ctxFor('view', 'claude'),
+    guardrailsFor('claude').claude,
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
   );
@@ -670,30 +830,35 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
   );
-  syncHooks(ctx, guardrailHooks.cursor, (msg) => recordError(ctx, msg));
-  syncCopilotGuardrailHooks(ctx, guardrailHooks.applied, (msg) => recordError(ctx, msg));
-  syncDevinGuardrailHooks(ctx, guardrailHooks.applied, (msg) => recordError(ctx, msg));
+  syncHooks(ctx, guardrailsFor('cursor').cursor, (msg) => recordError(ctx, msg));
+  syncCopilotGuardrailHooks(ctx, guardrailsFor('copilot').applied, (msg) => recordError(ctx, msg));
+  syncDevinGuardrailHooks(ctx, guardrailsFor(DEVIN_PLATFORM).applied, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
-  syncLegacySkills(
-    ctx,
-    (msg) => recordError(ctx, msg),
-    (msg) => recordWarning(ctx, msg),
+  // Migrated commands/prompts come from the local source, but a real skill of the same name wins,
+  // so they run with the skills groups: each group checks the skills its own platforms get.
+  perGroup('skills', (groupCtx) =>
+    syncLegacySkills(
+      groupCtx,
+      (msg) => recordError(ctx, msg),
+      (msg) => recordWarning(ctx, msg),
+    ),
   );
-  syncCodexRules(ctx, (msg) => recordError(ctx, msg));
-  syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
-  syncCodexConfig(ctx, guardrailHooks.codex, (msg) => recordError(ctx, msg));
+  perGroup('rules', (groupCtx) => syncCodexRules(groupCtx, (msg) => recordError(ctx, msg)));
+  syncCodexAgents(ctxFor('agents', 'codex'), (msg) => recordError(ctx, msg));
+  syncCodexConfig(ctx, guardrailsFor('codex').codex, (msg) => recordError(ctx, msg));
   syncGeminiSettings(ctx, (msg) => recordError(ctx, msg));
   checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {
+    const marketplaceCtx = ctxFor('view', 'claude-marketplace');
     const projectName = basename(root);
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
     ];
     const marketplace = syncMarketplace(
       {
-        ...ctx,
+        ...marketplaceCtx,
         plugins: pluginDefs,
         catalog,
         owner: ctx.config.marketplace?.owner,
@@ -840,7 +1005,7 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   if (idx === 0) return 'local';
 
   const extendsEnd = 1 + ctx.extendedCount;
-  if (idx < extendsEnd) return `extends[${idx - 1}]`;
+  if (idx < extendsEnd) return `extends[${ctx.extendsIndex.get(ctx.sourceDirs[idx]) ?? idx - 1}]`;
 
   const packEnd = extendsEnd + ctx.packCount;
   if (idx < packEnd) return `pack[${idx - extendsEnd}]`;

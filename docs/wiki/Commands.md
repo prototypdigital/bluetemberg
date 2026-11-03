@@ -226,6 +226,11 @@ For each match it reports:
 - **each `stack: range`** checked against the detected version, with its confidence and where it came from. A coerced (low-confidence) detection is flagged.
 - **platforms**: when the item is limited to some platforms, the list, where it came from (the file's `platforms:` frontmatter or the owning pack's catalog entry), and the configured platforms it is skipped for. A generated path for a skipped platform still resolves, so `why .cursor/agents/pr-reviewer.md` explains why the file isn't there.
 - **why it's out**: a version mismatch, an absent stack, platforms that name none this project syncs, or (for a guardrail) frontmatter or regex sync rejects. It also lists invalid ranges and, when the item is included, the generated outputs (only those for platforms it is written to).
+- **per platform**, under [platform-scoped `extends` entries](Configuration#platform-scoped-extends-entries), when platforms read different sources:
+  - A generated path is explained with the copy *that platform* syncs. A path for a platform that gets no copy still resolves and says so (`no source synced for cursor ships it`).
+  - A source path that some platforms sync is explained for those platforms, with a note naming the platforms that get another copy.
+  - An id with no platform gives a `differs by platform: …` verdict when platforms disagree.
+  - `outputs` lists only paths of platforms that get the item. A `for <platforms>:` line per group (`byPlatform` in `--json`) names the copy each group syncs and its verdict.
 
 ```bash
 npx bluetemberg why payload-v3
@@ -245,7 +250,7 @@ Exits 1 when nothing matches `<file>`. In a monorepo, a path inside a package (`
 
 ### Upgrade diff: `bluetemberg why --diff <stack@version> [directory]`
 
-List the items that would be **added** or **removed** if a stack were at the given version, without writing anything. It re-runs the gate with that version substituted for the detected one. Repeat `--diff` to move several stacks at once. A partial version is completed the way the gate compares it (`payload@4` → `4.0.0`), and a stack that isn't detected today is treated as newly present. A stack that is neither detected nor named by any constraint can't change the set, so it gets a warning (likely a typo, e.g. `Payload@4`) instead of a silent "no change". At a monorepo root, pass the package directory.
+List the items that would be **added** or **removed** if a stack were at the given version, without writing anything. It re-runs the gate with that version substituted for the detected one. Repeat `--diff` to move several stacks at once. A partial version is completed the way the gate compares it (`payload@4` → `4.0.0`), and a stack that isn't detected today is treated as newly present. A stack that is neither detected nor named by any constraint can't change the set, so it gets a warning (likely a typo, e.g. `Payload@4`) instead of a silent "no change". At a monorepo root, pass the package directory. Under [platform-scoped `extends` entries](Configuration#platform-scoped-extends-entries) that give platforms different copies, each group of platforms is diffed against its own copies, and an entry names its platforms (`+ rules/x [extends ./b] for claude-marketplace — …`).
 
 ```bash
 npx bluetemberg why --diff payload@4

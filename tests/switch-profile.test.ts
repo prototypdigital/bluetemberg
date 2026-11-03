@@ -52,6 +52,20 @@ describe('switchProfile', () => {
     expect(config.profile).toBe('backend');
   });
 
+  it('keeps platform-scoped extends entries when it rewrites the config', () => {
+    scaffold(root, baseAnswers);
+    const configPath = join(root, 'bluetemberg.config.json');
+    const ext = ['../shared', { path: './packages/create-pack', platforms: ['claude'] }];
+    writeFileSync(
+      configPath,
+      JSON.stringify({ ...JSON.parse(readFileSync(configPath, 'utf8')), extends: ext }),
+    );
+
+    switchProfile(root, 'backend', { silent: true });
+
+    expect(JSON.parse(readFileSync(configPath, 'utf8')).extends).toEqual(ext);
+  });
+
   it('throws when no config exists', () => {
     expect(() => switchProfile(root, 'backend', { silent: true })).toThrow(/No bluetemberg\.config\.json/);
   });

@@ -152,6 +152,19 @@ describe('scaffold', () => {
       const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
       expect(config.adapters).toEqual(['my-custom-adapter']);
     });
+
+    it('preserves existing extends, scoped entries included, when config already exists', () => {
+      const ext = ['../shared', { path: './packages/create-pack', platforms: ['claude'] }];
+      writeFileSync(
+        join(root, 'bluetemberg.config.json'),
+        JSON.stringify({ platforms: ['cursor'], source: 'llm', targets: {}, extends: ext }),
+      );
+
+      scaffold(root, baseAnswers);
+
+      const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
+      expect(config.extends).toEqual(ext);
+    });
   });
 
   describe('rule collections', () => {

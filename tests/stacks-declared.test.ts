@@ -113,6 +113,22 @@ describe('collectDeclaredRanges', () => {
     }
   });
 
+  it('reads a scoped extends dir only when one of its platforms is targeted', () => {
+    const shared = join(root, '..', `bt-shared-${Math.random().toString(36).slice(2)}`);
+    try {
+      writeRule(join(shared, 'llm'), 'shared-r19', 'react: ">=19"');
+      const scopedTo = (platforms: BlueprintConfig['platforms']): BlueprintConfig => ({
+        ...CONFIG,
+        extends: [{ path: shared, platforms }],
+      });
+
+      expect(collectDeclaredRanges(root, scopedTo(['claude']), emptyCatalog())).toHaveLength(1);
+      expect(collectDeclaredRanges(root, scopedTo(['cursor']), emptyCatalog())).toEqual([]);
+    } finally {
+      rmSync(shared, { recursive: true, force: true });
+    }
+  });
+
   it('falls back to the catalog pack-level tag (wildcard) for a pack file with no own range', () => {
     const packDir = installFakePack(root, 'bluetemberg-rules-react', '1.0.0');
     writeRule(packDir, 'naming'); // no stacks: frontmatter

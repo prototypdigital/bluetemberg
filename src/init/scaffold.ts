@@ -105,17 +105,30 @@ function writeUnlessExists(filePath: string, content: string, state: ScaffoldSta
   safeWrite(filePath, content, state);
 }
 
-function readExistingAdapters(configPath: string): string[] | undefined {
-  if (!existsSync(configPath)) return undefined;
+/** Fields of an existing config that `init` keeps when it rewrites the file: the wizard never asks for them. */
+interface PreservedConfigFields {
+  adapters?: string[];
+  extends?: BlueprintConfig['extends'];
+}
+
+function readPreservedFields(configPath: string): PreservedConfigFields {
+  if (!existsSync(configPath)) return {};
   try {
     const existing = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+    const preserved: PreservedConfigFields = {};
     if (Array.isArray(existing.adapters) && existing.adapters.every((a) => typeof a === 'string')) {
-      return existing.adapters as string[];
+      preserved.adapters = existing.adapters as string[];
     }
+    // Kept as written, scoped `{ path, platforms }` entries included; sync validates it.
+    if (typeof existing.extends === 'string' || Array.isArray(existing.extends)) {
+      // Safe: the shape is checked by sync's config validation on the next load.
+      preserved.extends = existing.extends as BlueprintConfig['extends'];
+    }
+    return preserved;
   } catch {
     // ignore — corrupt file will be overwritten
   }
-  return undefined;
+  return {};
 }
 
 function buildMarketplacePlugins(answers: InitAnswers): MarketplacePluginDefinition[] {
@@ -171,7 +184,7 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, state: Scaffold
   }
 
   const configPath = join(targetDir, 'bluetemberg.config.json');
-  const existingAdapters = readExistingAdapters(configPath);
+  const preserved = readPreservedFields(configPath);
 
   const config: BlueprintConfig = {
     platforms: answers.platforms,
@@ -182,7 +195,8 @@ function scaffoldConfig(targetDir: string, answers: InitAnswers, state: Scaffold
     ...(answers.platforms.includes(MARKETPLACE_PLATFORM)
       ? { marketplace: buildMarketplaceConfig(answers) }
       : {}),
-    ...(existingAdapters !== undefined ? { adapters: existingAdapters } : {}),
+    ...(preserved.extends !== undefined ? { extends: preserved.extends } : {}),
+    ...(preserved.adapters !== undefined ? { adapters: preserved.adapters } : {}),
   };
 
   safeWrite(configPath, JSON.stringify(config, null, 2) + '\n', state);
