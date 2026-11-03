@@ -9,6 +9,7 @@ import { discoverConfigDirs, loadConfig } from '../sync/index.js';
 import { dropLegacyGeminiRulesTarget } from '../sync/gemini.js';
 import { guardrailValidationIssue } from '../sync/guardrails.js';
 import { AGENTS_MD_RULE_PLATFORMS } from '../sync/codex.js';
+import { GUARDRAIL_PLATFORMS, skippedPlatforms } from '../sync/platform-skips.js';
 import {
   CONTENT_KINDS,
   mergeContentKind,
@@ -18,12 +19,22 @@ import {
   type SyncSource,
 } from '../sync/sources.js';
 import {
-  DEFAULT_SYNC_PLATFORMS,
-  normalizePlatforms,
+  configuredPlatforms,
+  dirKey,
   resolveAgentTargets,
   resolveRuleTargets,
   resolveSkillTargets,
+  skillDirReaders,
 } from '../sync/targets.js';
+import {
+  allowsAnyPlatform,
+  allowsPlatform,
+  buildPlatformMap,
+  resolvePlatformGate,
+  type PlatformGate,
+  type PlatformMap,
+  type PlatformSource,
+} from '../catalog/platforms.js';
 import { detectStacks } from './detect.js';
 import { buildStackPackages } from './packages.js';
 import { evaluateStackGate, type StackGate } from './gate.js';
@@ -84,6 +95,19 @@ export interface WhyItem {
   };
   /** Malformed or unsatisfiable `stacks:` entries sync warns about. */
   invalidRanges: string[];
+  /** Platform routing (#281): the platforms the item is limited to, and the synced ones it skips. */
+  platforms: {
+    /** `frontmatter` = the file's own `platforms:`; `catalog` = its pack's; `none` = every platform. */
+    source: PlatformSource;
+    /** The effective list as written; `null` = every platform. */
+    list: string[] | null;
+    /** This project's platforms that get no output for the item. */
+    skipped: Platform[];
+    /** Entries of `list` that name no platform (sync warns; they match nothing). */
+    unknown: string[];
+    /** Set when the `platforms:` frontmatter is malformed and ignored (sync warns). */
+    invalid: string | null;
+  };
   /** Why sync rejects this guardrail before gating (invalid frontmatter/regex), else `null`. */
   invalid: string | null;
   /** Generated paths (relative to the root) sync writes for it; empty when excluded. */
@@ -155,6 +179,7 @@ interface WhyContext {
   shipped: Array<Map<ContentKind, Set<string>>>;
   items: ResolvedItem[];
   stackMap: StackMap;
+  platformMap: PlatformMap;
   detected: DetectedStacks;
   warnings: string[];
 }
@@ -178,11 +203,12 @@ function loadWhyContext(root: string): WhyContext {
   return {
     root,
     config,
-    platforms: normalizePlatforms(config.platforms || DEFAULT_SYNC_PLATFORMS),
+    platforms: configuredPlatforms(config),
     sources: resolved.sources,
     shipped,
     items,
     stackMap: buildStackMap(catalog),
+    platformMap: buildPlatformMap(catalog),
     detected: detectStacks(root, config, stackPackages.packages),
     // The catalog stack-map lines are worded exactly as sync warns them.
     warnings: [...resolved.warnings, ...stackPackages.issues.map((w) => `catalog ${w}`)],
@@ -213,7 +239,10 @@ function toProjectPath(root: string, path: string): string {
   return relative(root, path).split(sep).join('/');
 }
 
-/** Generated paths sync writes for an item, by platform (whether or not the item is included). */
+/**
+ * Generated paths sync writes for an item, by platform (whether or not the item is included). A
+ * path several platforms read (a shared skills dir, `AGENTS.md`) is listed once per platform.
+ */
 function candidateOutputs(ctx: WhyContext, item: ResolvedItem): Array<{ platform: Platform; path: string }> {
   if (item.kind === 'guardrails') return [];
   const out: Array<{ platform: Platform; path: string }> = [];
@@ -221,8 +250,10 @@ function candidateOutputs(ctx: WhyContext, item: ResolvedItem): Array<{ platform
     out.push({ platform, path: toProjectPath(ctx.root, join(ctx.root, path)) });
   };
   if (item.kind === 'skills') {
+    const readers = skillDirReaders(ctx.config, ctx.platforms);
     for (const [platform, t] of resolveSkillTargets(ctx.config, ctx.platforms))
-      push(platform, `${t.dir}/${item.id}/SKILL.md`);
+      for (const reader of readers.get(dirKey(t.dir)) ?? [platform])
+        push(reader, `${t.dir}/${item.id}/SKILL.md`);
     return out;
   }
   const targets = item.kind === 'rules' ? resolveRuleTargets : resolveAgentTargets;
@@ -254,11 +285,53 @@ function stackChecks(gate: StackGate, detected: DetectedStacks): WhyStackCheck[]
   });
 }
 
-/** The gate verdict for an item under `detected`: `null` = included, else the exclusion reason. */
-function exclusionReason(item: ResolvedItem, gate: StackGate): string | null {
+/**
+ * The verdict for an item under `detected`: `null` = included, else the exclusion reason. An item
+ * that passes the version gate but is limited to platforms this project does not sync is excluded
+ * too: sync writes nothing for it.
+ */
+function exclusionReason(
+  ctx: WhyContext,
+  item: ResolvedItem,
+  gate: StackGate,
+  platformGate: PlatformGate,
+): string | null {
   const invalid = guardrailIssue(item);
   if (invalid !== null) return `rejected by sync: ${invalid}`;
-  return gate.matched ? null : gate.reason;
+  if (!gate.matched) return gate.reason;
+  if (item.kind === 'guardrails' && isEmptyList(item.frontmatter.platforms)) {
+    return '`platforms: []` — a guardrail with an empty list is compiled for no platform';
+  }
+  if (item.kind === 'guardrails') return guardrailPlatformReason(ctx, platformGate);
+  if (allowsAnyPlatform(platformGate.platforms, ctx.platforms)) return null;
+  return `limited to ${(platformGate.platforms ?? []).join(', ')} — this project syncs ${ctx.platforms.join(', ')}`;
+}
+
+/**
+ * Only some platforms compile guardrails, and `claude-marketplace` is not one of them: a guardrail
+ * compiled for no configured host writes nothing, so `why` must not call it included.
+ */
+function guardrailPlatformReason(ctx: WhyContext, platformGate: PlatformGate): string | null {
+  const hosts = GUARDRAIL_PLATFORMS.filter((p) => ctx.platforms.includes(p));
+  if (hosts.length === 0) {
+    return `no configured platform compiles guardrails (they compile for ${GUARDRAIL_PLATFORMS.join(', ')}; this project syncs ${ctx.platforms.join(', ')})`;
+  }
+  if (allowsAnyPlatform(platformGate.platforms, hosts)) return null;
+  return `limited to ${(platformGate.platforms ?? []).join(', ')} — of this project's platforms, guardrails compile for ${hosts.join(', ')}`;
+}
+
+function isEmptyList(value: unknown): boolean {
+  return Array.isArray(value) && value.length === 0;
+}
+
+function platformGateFor(ctx: WhyContext, item: ResolvedItem): PlatformGate {
+  return resolvePlatformGate(item.id, item.kindDir, item.frontmatter, ctx.platformMap);
+}
+
+/** Generated paths sync writes for an included item: a path any of whose platforms is allowed. */
+function writtenOutputs(ctx: WhyContext, item: ResolvedItem, list: string[] | null): string[] {
+  const outputs = candidateOutputs(ctx, item).filter((o) => allowsPlatform(list, o.platform));
+  return dedupe(outputs.map((o) => o.path));
 }
 
 function guardrailIssue(item: ResolvedItem): string | null {
@@ -296,7 +369,8 @@ function shadowedCopies(ctx: WhyContext, item: ResolvedItem): Array<{ label: str
 
 function explainItem(ctx: WhyContext, item: ResolvedItem): WhyItem {
   const gate = gateFor(ctx, item, ctx.detected);
-  const excluded = exclusionReason(item, gate);
+  const platformGate = platformGateFor(ctx, item);
+  const excluded = exclusionReason(ctx, item, gate, platformGate);
   const source = ctx.sources[item.sourceIndex];
   return {
     kind: item.kind,
@@ -315,8 +389,15 @@ function explainItem(ctx: WhyContext, item: ResolvedItem): WhyItem {
       stacks: stackChecks(gate, ctx.detected),
     },
     invalidRanges: gate.issues,
+    platforms: {
+      source: platformGate.source,
+      list: platformGate.platforms,
+      skipped: skippedPlatforms(ctx.config, ctx.platforms, item.kind, platformGate.platforms),
+      unknown: platformGate.unknown,
+      invalid: platformGate.invalid,
+    },
     invalid: guardrailIssue(item),
-    outputs: excluded === null ? dedupe(candidateOutputs(ctx, item).map((o) => o.path)) : [],
+    outputs: excluded === null ? writtenOutputs(ctx, item, platformGate.platforms) : [],
   };
 }
 
@@ -518,8 +599,9 @@ export function buildWhyDiff(root: string, overrides: StackOverride[]): WhyDiffR
   if (packages.length > 0) report.warnings.push(monorepoWarning(root, packages));
 
   for (const item of ctx.items) {
-    const before = exclusionReason(item, gateFor(ctx, item, ctx.detected));
-    const after = exclusionReason(item, gateFor(ctx, item, hypothetical));
+    const platformGate = platformGateFor(ctx, item);
+    const before = exclusionReason(ctx, item, gateFor(ctx, item, ctx.detected), platformGate);
+    const after = exclusionReason(ctx, item, gateFor(ctx, item, hypothetical), platformGate);
     if ((before === null) === (after === null)) {
       if (before === null) report.unchanged.included++;
       else report.unchanged.excluded++;
@@ -591,6 +673,7 @@ function formatItem(item: WhyItem): string[] {
   for (const check of item.constraint.stacks) lines.push(`    ${describeCheck(check)}`);
   for (const issue of item.invalidRanges)
     lines.push(`  WARN: invalid stack range ${issue} — the file is mis-gated`);
+  lines.push(...formatPlatforms(item));
   if (item.included) {
     const outputs =
       item.kind === 'guardrails'
@@ -598,6 +681,22 @@ function formatItem(item: WhyItem): string[] {
         : item.outputs.join(', ') || '(none for these platforms)';
     lines.push(`  outputs:    ${outputs}`);
   }
+  return lines;
+}
+
+function formatPlatforms(item: WhyItem): string[] {
+  const { source, list, skipped, unknown, invalid } = item.platforms;
+  const lines = invalid ? [`  WARN: ${invalid}`] : [];
+  if (list !== null) {
+    const from =
+      source === 'frontmatter'
+        ? 'frontmatter `platforms:`'
+        : `catalog platforms of ${item.constraint.pack ?? 'its pack'}`;
+    lines.push(`  platforms:  ${list.join(', ')} (${from})`);
+  }
+  if (list !== null && skipped.length > 0) lines.push(`    skipped for: ${skipped.join(', ')}`);
+  if (unknown.length > 0)
+    lines.push(`  WARN: unknown platform(s) ${unknown.join(', ')} — they match nothing`);
   return lines;
 }
 

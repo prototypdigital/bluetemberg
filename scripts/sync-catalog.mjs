@@ -11,6 +11,10 @@ const CATALOG_URL = 'https://raw.githubusercontent.com/prototypdigital/bluetembe
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'catalog', 'catalog.json');
 const VALID_KINDS = new Set(['rules', 'agents', 'skills', 'guardrails']);
 
+function isOptionalStringArray(value) {
+  return value === undefined || (Array.isArray(value) && value.every((x) => typeof x === 'string'));
+}
+
 const res = await fetch(CATALOG_URL, { signal: AbortSignal.timeout(30_000) });
 if (!res.ok) {
   console.error(`Failed to fetch catalog: ${res.status} ${res.statusText}`);
@@ -29,10 +33,14 @@ for (const pack of json.packs) {
     typeof pack.version !== 'string' ||
     !VALID_KINDS.has(pack.kind) ||
     !Array.isArray(pack.profiles) ||
-    !pack.profiles.every((p) => typeof p === 'string')
+    !pack.profiles.every((p) => typeof p === 'string') ||
+    // Optional and additive: when present, `stacks` and `platforms` are string arrays (the engine's
+    // `assertCatalog` rejects anything else, so a snapshot that fails here would fail at load).
+    !isOptionalStringArray(pack.stacks) ||
+    !isOptionalStringArray(pack.platforms)
   ) {
     console.error(
-      `Invalid catalog format: pack "${pack.name ?? '?'}" missing required fields or has invalid kind/profiles`,
+      `Invalid catalog format: pack "${pack.name ?? '?'}" missing required fields or has invalid kind/profiles/stacks/platforms`,
     );
     process.exit(1);
   }

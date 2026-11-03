@@ -43,7 +43,7 @@ Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"
 
 `"devin"` is Devin Desktop, formerly Windsurf. The old id `"windsurf"` is still accepted as an alias and behaves identically, so existing configs keep working; `init` now writes `"devin"`. A `targets.<kind>.windsurf` entry is read as the `devin` entry, and one that still points at the old default (`.windsurf/rules`, `.windsurf/skills`) picks up the new Devin default instead. See [Devin Desktop](#devin-desktop-devin) below.
 
-Only selected platforms get generated output during sync.
+Only selected platforms get generated output during sync. Packs can also be limited to some platforms (a Claude Code–only reviewer, say): such a pack gets no output for the other selected platforms, and `init` doesn't preselect it when none of its platforms is selected. See [Profiles](Profiles#platforms).
 
 `"claude-marketplace"` emits a plugin bundle under `plugins/` and `.claude-plugin/` that can be installed by teammates via `/plugin marketplace add owner/repo`. See [Marketplace](Marketplace).
 

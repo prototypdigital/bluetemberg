@@ -373,6 +373,149 @@ describe('bluetemberg why <file>', () => {
   });
 });
 
+describe('bluetemberg why <file> — platform routing (#281)', () => {
+  let root: string;
+  beforeEach(() => {
+    root = createTmpDir();
+    writeCatalog(root, []);
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  function writeAgent(sourceDir: string, name: string, frontmatter = ''): void {
+    mkdirSync(join(sourceDir, 'agents'), { recursive: true });
+    writeFileSync(
+      join(sourceDir, 'agents', `${name}.md`),
+      `---\ndescription: ${name}${frontmatter ? '\n' + frontmatter : ''}\n---\n\n# ${name}\n`,
+    );
+  }
+
+  it('reports the platforms a pack is limited to and the synced ones it skips', () => {
+    writeConfig(root, { platforms: ['claude', 'cursor'] });
+    writeCatalog(root, [
+      {
+        name: 'bluetemberg-agents-pr-reviewer',
+        version: '0.1.0',
+        description: '',
+        kind: 'agents',
+        universal: true,
+        profiles: [],
+        platforms: ['claude'],
+        agents: ['pr-reviewer'],
+        preview: '',
+      },
+    ]);
+    writeAgent(installFakePack(root, 'bluetemberg-agents-pr-reviewer'), 'pr-reviewer');
+
+    const report = buildWhyReport(root, 'pr-reviewer');
+    const item = only(report);
+    expect(item).toMatchObject({
+      included: true,
+      platforms: { source: 'catalog', list: ['claude'], skipped: ['cursor'], unknown: [] },
+      outputs: ['.claude/agents/pr-reviewer.md'],
+    });
+    const text = formatWhyReport(report).join('\n');
+    expect(text).toContain('platforms:  claude (catalog platforms of bluetemberg-agents-pr-reviewer)');
+    expect(text).toContain('skipped for: cursor');
+
+    // The skipped output path still resolves to the item, so `why` can explain its absence.
+    const byOutput = buildWhyReport(root, '.cursor/agents/pr-reviewer.md');
+    expect(byOutput.matchedAs).toBe('output');
+    expect(only(byOutput).platforms.skipped).toEqual(['cursor']);
+  });
+
+  it('excludes an item none of whose platforms is synced, with the reason', () => {
+    writeConfig(root, { platforms: ['cursor', 'copilot'] });
+    writeRule(root, 'claude-only', 'platforms: [claude]');
+
+    const item = only(buildWhyReport(root, 'claude-only'));
+    expect(item.included).toBe(false);
+    expect(item.reason).toBe('limited to claude — this project syncs cursor, copilot');
+    expect(item.outputs).toEqual([]);
+  });
+
+  it('agrees with sync on every output, shared dirs and AGENTS.md included', async () => {
+    writeConfig(root, { platforms: ['claude', 'cursor', 'codex', 'devin'] });
+    writeRule(root, 'claude-only', 'platforms: [claude]');
+    writeRule(root, 'codex-only', 'platforms: [codex]');
+    writeRule(root, 'everywhere');
+    writeSkill(root, 'devin-skill', 'platforms: [windsurf]');
+    writeSkill(root, 'cursor-skill', 'platforms: [cursor]');
+    writeAgent(join(root, 'llm'), 'cursor-agent', 'platforms: [cursor]');
+
+    await sync(root, { silent: true });
+
+    for (const id of [
+      'claude-only',
+      'codex-only',
+      'everywhere',
+      'devin-skill',
+      'cursor-skill',
+      'cursor-agent',
+    ]) {
+      const item = only(buildWhyReport(root, id));
+      expect(item.included, id).toBe(true);
+      for (const out of item.outputs) expect(existsSync(join(root, out)), `${id}: ${out}`).toBe(true);
+    }
+    expect(only(buildWhyReport(root, 'devin-skill')).outputs).toEqual([
+      '.agents/skills/devin-skill/SKILL.md',
+    ]);
+    expect(only(buildWhyReport(root, 'codex-only')).outputs).toEqual(['AGENTS.md']);
+    expect(existsSync(join(root, '.claude/rules/codex-only.md'))).toBe(false);
+    expect(existsSync(join(root, '.agents/skills/cursor-skill/SKILL.md'))).toBe(false);
+    expect(existsSync(join(root, '.codex/agents/cursor-agent.toml'))).toBe(false);
+  });
+
+  it('excludes a guardrail when no configured platform compiles guardrails', () => {
+    writeConfig(root, { platforms: ['antigravity', 'claude-marketplace'] });
+    const guard = (platforms: string): string =>
+      `---\ntrigger: Bash\ncheck:\n  field: command\n  matches: 'rm'\nmessage: 'no'\nplatforms: [${platforms}]\n---\n`;
+    writeGuardrail(root, 'g-claude', guard('claude'));
+    writeGuardrail(root, 'g-ag', guard('antigravity'));
+
+    for (const id of ['g-claude', 'g-ag']) {
+      const item = only(buildWhyReport(root, id));
+      expect(item.included, id).toBe(false);
+      expect(item.reason).toMatch(/no configured platform compiles guardrails/);
+    }
+  });
+
+  it('names only the platforms that get no output, shared outputs included', () => {
+    writeConfig(root, { platforms: ['devin', 'codex', 'claude'] });
+    writeSkill(root, 'devin-flow', 'platforms: [devin]');
+
+    expect(only(buildWhyReport(root, 'devin-flow')).platforms.skipped).toEqual(['claude']);
+  });
+
+  it('surfaces a malformed `platforms:` the way sync warns about it', () => {
+    writeConfig(root);
+    writeRule(root, 'scalar', 'platforms: claude');
+
+    const report = buildWhyReport(root, 'scalar');
+    expect(only(report).platforms.invalid).toMatch(/must be a list/);
+    expect(formatWhyReport(report).join('\n')).toMatch(/WARN: `platforms:` must be a list/);
+  });
+
+  it('treats a guardrail’s empty `platforms: []` as no host, as sync does', () => {
+    writeConfig(root);
+    writeGuardrail(
+      root,
+      'nowhere',
+      `---\ntrigger: Bash\ncheck:\n  field: command\n  matches: 'rm'\nmessage: 'no'\nplatforms: []\n---\n`,
+    );
+
+    expect(only(buildWhyReport(root, 'nowhere')).included).toBe(false);
+  });
+
+  it('leaves a stack diff unaffected by platform routing', () => {
+    writeConfig(root, { platforms: ['cursor'], stacks: { payload: '3.0.0' } });
+    writeRule(root, 'claude-payload', 'platforms: [claude]\nstacks:\n  payload: ">=4"');
+
+    const diff = buildWhyDiff(root, [parseStackOverride('payload@4')]);
+    expect(diff.added).toEqual([]);
+    expect(diff.unchanged.excluded).toBe(1);
+  });
+});
+
 describe('bluetemberg why --diff <stack@version>', () => {
   let root: string;
   beforeEach(() => {

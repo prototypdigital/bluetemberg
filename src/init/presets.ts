@@ -339,18 +339,24 @@ function indexByPackage(catalog: Catalog): Map<string, CatalogPack> {
   return new Map(catalog.packs.map((p) => [p.name, p]));
 }
 
-/** Catalog-derived routing fields for a pack (universal packs carry no tags; stack-agnostic packs no stacks). */
+/**
+ * Catalog-derived routing fields for a pack (universal packs carry no tags; stack-agnostic packs no
+ * stacks; packs that work on every platform no platforms).
+ */
 function profileFields(pack: CatalogPack | undefined): {
   universal?: boolean;
   tags?: TeamProfile[];
   stacks?: string[];
+  platforms?: string[];
 } {
   const universal = pack?.universal ?? false;
   const stacks = pack?.stacks ?? [];
+  const platforms = pack?.platforms ?? [];
   return {
     universal: universal || undefined,
     tags: universal ? undefined : (pack?.profiles ?? []),
     stacks: stacks.length > 0 ? stacks : undefined,
+    platforms: platforms.length > 0 ? platforms : undefined,
   };
 }
 
