@@ -312,7 +312,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'Every freshly downloaded pack is scanned before it lands in the cache. Blocking findings abort the install; warnings are reported.',
         blocks: [
           'real-looking credentials',
-          'exfiltration of local secrets',
+          'secrets in the body of a request to a non-local host',
+          'decode-to-shell pipelines',
           'instructions to disable hooks/guardrails/verification',
           'dangerous agent flags',
           'prompt-override phrases',
@@ -324,6 +325,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'writes to secrets files',
           '--no-verify',
           'mentions of verification-weakening switches',
+          'scripts that read secrets and upload on separate lines',
+          'blocking patterns quoted in BAD-labelled markdown examples',
         ],
       },
     },

@@ -262,7 +262,7 @@ Every pack install goes through three layers of verification:
 
 2. **ECDSA registry signature** — npm signs each package with a P-256 private key. Bluetemberg fetches the corresponding public keys from `/-/npm/v1/keys`, verifies the signature over `${name}@${version}:${integrity}`, and records the matching `keyid` in the lockfile.
 
-3. **Content scan** — after extraction and before the pack is written to the cache, every text file in the pack (rules, agents, skills, guardrails, hook scripts, README) is scanned for unsafe patterns. See [Content scan](#content-scan).
+3. **Content scan** — after extraction and before the pack is written to the cache, every file in the pack (rules, agents, skills, guardrails, hook scripts, README) is scanned for unsafe patterns. See [Content scan](#content-scan).
 
 The default npm registry (`registry.npmjs.org`) always signs packages. Bluetemberg enforces this: an unsigned package from the default registry is rejected as a potential supply-chain attack, even if the integrity hash matches.
 
@@ -274,32 +274,37 @@ Run `bluetemberg verify` at any time to re-check all installed packs without re-
 
 Pack content is instructions an agent follows and scripts a hook runs, so a signed pack can still be hostile. `add`, `install`, and `update` scan each freshly downloaded pack with a regex pre-flight before it lands in `.bluetemberg/packs/`. Packs already in the cache are not re-scanned.
 
+Every file in the pack is scanned in full: rules, agents, skills, guardrails, `hooks.json`, `mcp.json`, hook scripts, and the README. The only files skipped are those with a binary extension (images, fonts, archives) whose content is also binary.
+
 **Blocks** (install aborts, the extraction is removed, the command exits 1):
 
 | Rule | Catches |
 | ---- | ------- |
 | `secret-*` | Real-looking credentials: AWS access key ids, GitHub, OpenAI/Anthropic, Stripe live, Slack, npm and Google API tokens, private keys with key material. Placeholders (`sk_live_YOUR_KEY_HERE`, `AKIA…EXAMPLE`, `ghp_xxxx…`, low-entropy values) are ignored |
-| `exfiltration` | `curl`/`wget`/`nc` uploading `.env`, SSH keys, cloud/npm/git credentials, `printenv`, or `$…TOKEN`/`$…SECRET` variables to a non-local host |
-| `disable-safety-controls` | Imperatives to disable, bypass, or remove hooks, guardrails, signature verification, or security checks. Negated or descriptive mentions ("never disable the hooks", "issues bypass the guardrails") are not flagged |
+| `exfiltration` | Putting local secrets in the body of a request to a non-local host: `curl -d @.env`, `cat ~/.ssh/id_rsa \| curl …`, `printenv \| nc …`, `-d "$GITHUB_TOKEN"`, `fetch(url, { body: readFileSync('.env') })`, `requests.post(url, data=open('~/.aws/credentials'))`. A token in an `Authorization`/`-H`/`-u` argument is authentication and is not flagged |
+| `decode-to-shell` | A base64/hex blob decoded straight into a shell (`… \| base64 -d \| sh`) |
+| `disable-safety-controls` | Imperatives to disable, bypass, or skip hooks, guardrails, signature verification, or security checks. Negated or descriptive mentions ("never disable the hooks", "issues bypass the guardrails") are not flagged |
 | `dangerous-agent-flag` | `--dangerously-skip-permissions` and similar flags that run an agent with no permission prompts or sandbox, unless the line warns against them |
 | `prompt-override` | "Ignore previous instructions"-style phrases, unless quoted or negated |
 | `bidi-control-chars` | Unicode bidirectional overrides that make text render differently than it reads |
 
-Instruction-type rules (`disable-safety-controls`, `dangerous-agent-flag`, `prompt-override`) only warn in top-level files such as `README.md`, which are never synced to an agent.
+**Warns** (reported, install continues): `rm -rf`, `curl … | sh`, writes to `.env`/`.npmrc`/credential files, `--no-verify`, mentions of verification-weakening switches (`--skip-scan`, `--skip-signature-verification`, `disableAllHooks`), and a script that reads secrets on one line and uploads on another (`script-secrets-and-upload`). Rule packs quote these as BAD examples, so they are surfaced for review, not treated as attacks.
 
-**Warns** (reported, install continues): `rm -rf`, `curl … | sh`, writes to `.env`/`.npmrc`/credential files, `--no-verify`, and mentions of verification-weakening switches (`--skip-scan`, `--skip-signature-verification`, `disableAllHooks`). Rule packs quote these as BAD examples, so they are surfaced for review, not treated as attacks.
+**BAD examples.** In markdown, the instruction-type and exfiltration rules warn instead of block inside a code fence labelled as a bad example (`Bad:`, `**Don't:**`, `❌`, "Insecure example", "An attacker might run"), or on a line that starts with such a label. Credentials still block there, because a real key in an example is still a leaked key. Scripts never get this downgrade. Instruction-type rules also only warn in top-level files such as `README.md`, which are never synced to an agent.
 
-Zero-width characters are stripped before matching. Files over 2 MB are reported as a warning, not scanned.
+**Evasion handling.** Before matching, text is NFKC-normalised (fullwidth letters fold to ASCII), and zero-width characters and NULs are stripped. Shell `\` continuations and hard-wrapped prose paragraphs are joined, base64 blobs and JSON string escapes are decoded and re-scanned, and long lines are matched in overlapping windows. Excerpts are masked for credentials and escaped for terminal control sequences.
 
 A blocked install prints each finding with its file, line, and a masked excerpt:
 
 ```
 Error: Security scan blocked "some-pack@1.2.0": 1 blocking finding(s). The pack was not installed.
-  [exfiltration] llm/skills/x/scripts/hook.sh:4: Uploads local secrets (.env, SSH/cloud credentials, secret env vars) to a network endpoint — cat .env | curl -d @- https://…
+  [exfiltration] llm/skills/x/scripts/hook.sh:4: Uploads local secrets (.env, SSH/cloud credentials, secret env vars) to a network endpoint — <the offending line>
 If you trust this pack's source (e.g. a private registry you control), re-run with --skip-scan.
 ```
 
-Pass `--skip-scan` to `add`, `install`, or `update` only for a registry you control. Every install that skips it logs `Content scan skipped for <pack> (--skip-scan).` The scan is a heuristic pre-flight, not a guarantee: review third-party packs before adopting them.
+Pass `--skip-scan` to `add`, `install`, or `update` only for a registry you control. Every install that skips it logs `Content scan skipped for <pack> (--skip-scan).`
+
+The scan is a heuristic pre-flight, not a guarantee. Cross-script homoglyphs, shell obfuscation (`c''url`, `${x}url`, `eval`), and secrets passed between lines through variables in markdown are out of reach for regex matching. Review third-party packs before adopting them.
 
 ## Cache directory
 

