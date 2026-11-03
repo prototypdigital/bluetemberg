@@ -285,6 +285,8 @@ describe('extends: platform-scoped entries', () => {
     it('records a repeated message once, not once per source view', async () => {
       writeRule(join(root, 'a', 'llm'), 'dup');
       writeRule(join(root, 'b', 'llm'), 'dup');
+      // ./c must resolve, or there is only one source view and nothing to dedupe.
+      writeRule(join(root, 'c', 'llm'), 'claude-only');
 
       const results = await sync(root, {
         config: { ...CLAUDE_CURSOR, extends: ['./a', './b', { path: './c', platforms: ['claude'] }] },
@@ -293,6 +295,77 @@ describe('extends: platform-scoped entries', () => {
 
       const shadowed = results.warnings.filter((w) => w.startsWith('rules/dup.md is shipped by'));
       expect(shadowed).toHaveLength(1);
+    });
+
+    it('treats two spellings of one dir as one source, unioning their scopes', async () => {
+      writeRule(join(root, 'shared', 'llm'), 'r');
+
+      const results = await sync(root, {
+        config: {
+          ...CLAUDE_CURSOR,
+          extends: [
+            { path: './shared', platforms: ['claude'] },
+            { path: './shared/', platforms: ['cursor'] },
+          ],
+        },
+        silent: true,
+      });
+
+      expect(results.warnings).toEqual([]);
+      expect(existsSync(join(root, '.claude/rules/r.md'))).toBe(true);
+      expect(existsSync(join(root, '.cursor/rules/r.mdc'))).toBe(true);
+    });
+
+    it('labels an extends entry by its config index in every source view', async () => {
+      writeRule(join(root, 'b', 'llm'), 'dup');
+      writeRule(join(root, 'c', 'llm'), 'dup');
+
+      const results = await sync(root, {
+        config: {
+          ...CLAUDE_CURSOR,
+          extends: [{ path: './a', platforms: ['claude'] }, './b', './c'],
+        },
+        silent: true,
+      });
+      mkdirSync(join(root, 'a', 'llm'), { recursive: true });
+
+      // ./a does not exist, so it is dropped: ./b is extends[0] and ./c is extends[1] everywhere.
+      expect(results.warnings.filter((w) => w.startsWith('rules/dup.md'))).toEqual([
+        'rules/dup.md is shipped by extends[0] and extends[1] — extends[0] wins by source order; the other copy is ignored (override it locally to choose explicitly)',
+      ]);
+
+      const scoped = await sync(root, {
+        config: { ...CLAUDE_CURSOR, extends: [{ path: './a', platforms: ['claude'] }, './b', './c'] },
+        silent: true,
+      });
+      // ./a resolves now: in the cursor view (which lacks it) ./b must still read extends[1].
+      expect(scoped.warnings.filter((w) => w.startsWith('rules/dup.md'))).toEqual([
+        'rules/dup.md is shipped by extends[1] and extends[2] — extends[1] wins by source order; the other copy is ignored (override it locally to choose explicitly)',
+      ]);
+    });
+
+    it('intersects an entry scope with the file-level platforms: frontmatter', async () => {
+      const dir = join(root, 'scoped', 'llm', 'rules');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'cursor-only.md'), '---\ndescription: c\nplatforms: [cursor]\n---\n\n# c\n');
+      writeRule(join(root, 'scoped', 'llm'), 'open');
+      const config: BlueprintConfig = {
+        ...CLAUDE_CURSOR,
+        platforms: ['claude', 'cursor', 'copilot'],
+        extends: [{ path: './scoped', platforms: ['claude', 'cursor'] }],
+      };
+
+      const results = await sync(root, { config, silent: true });
+
+      expect(results.errors).toEqual([]);
+      expect(existsSync(join(root, '.cursor/rules/cursor-only.mdc'))).toBe(true);
+      expect(existsSync(join(root, '.claude/rules/cursor-only.md'))).toBe(false);
+      expect(existsSync(join(root, '.claude/rules/open.md'))).toBe(true);
+      expect(existsSync(join(root, '.github/instructions/open.instructions.md'))).toBe(false);
+
+      writeConfig(root, { ...config });
+      const [explained] = buildWhyReport(root, 'cursor-only').matches;
+      expect(explained.outputs).toEqual(['.cursor/rules/cursor-only.mdc']);
     });
 
     it('refuses to split platforms that share an output dir', async () => {

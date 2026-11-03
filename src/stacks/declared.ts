@@ -3,7 +3,13 @@ import { basename, dirname, join, resolve } from 'node:path';
 import matter from 'gray-matter';
 import type { Catalog } from '../catalog/index.js';
 import type { BlueprintConfig, Stack, StackConstraint } from '../types.js';
-import { mergeSourceDirs, mergeSourceFiles, resolveExtendedSourceDirs } from '../sync/extends-loader.js';
+import {
+  extendsAppliesTo,
+  mergeSourceDirs,
+  mergeSourceFiles,
+  resolveExtendedSourceDirs,
+} from '../sync/extends-loader.js';
+import { DEFAULT_SYNC_PLATFORMS, normalizePlatforms } from '../sync/targets.js';
 import { listDirs } from '../utils/fs.js';
 import { resolvePackSourceDirs } from '../registry/index.js';
 import { resolveExternalSourceDirs } from '../sources/registry.js';
@@ -80,7 +86,11 @@ function coverageSourceDirs(
 ): { local: string; dirs: string[] } {
   const source = config.source || 'llm';
   const local = join(root, source);
-  const { dirs: extended } = resolveExtendedSourceDirs(config.extends, root);
+  // Like sync, skip an `extends` entry scoped only to platforms the project does not target.
+  const platforms = normalizePlatforms(config.platforms || DEFAULT_SYNC_PLATFORMS);
+  const extended = resolveExtendedSourceDirs(config.extends, root)
+    .entries.filter((entry) => platforms.some((p) => extendsAppliesTo(entry, p)))
+    .map((entry) => entry.dir);
   const packs = resolveGroup(`${source}/packages.json`, () => resolvePackSourceDirs(root, source), onWarning);
   const external = resolveGroup(
     `${source}/sources.json`,

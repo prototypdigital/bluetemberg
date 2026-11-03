@@ -42,13 +42,16 @@ export function normalizeExtends(extendsField: BlueprintConfig['extends']): Exte
       byPath.set(path, { path, platforms });
       continue;
     }
-    seen.platforms =
-      seen.platforms === null || platforms === null
-        ? null
-        : normalizePlatforms([...seen.platforms, ...platforms]);
+    seen.platforms = unionScopes(seen.platforms, platforms);
   }
 
   return [...byPath.values()];
+}
+
+/** Union of two scopes; `null` (every platform) absorbs any list. */
+function unionScopes(a: Platform[] | null, b: Platform[] | null): Platform[] | null {
+  if (a === null || b === null) return null;
+  return normalizePlatforms([...a, ...b]);
 }
 
 /** Write normalized specs back in config form: a plain string for an unscoped entry. */
@@ -87,11 +90,17 @@ export function resolveExtendedSourceDirs(
 
   for (const spec of normalizeExtends(extendsField)) {
     const dir = resolveEntry(spec.path, root);
-    if (dir !== null) {
-      entries.push({ ...spec, dir });
-    } else {
+    if (dir === null) {
       warnings.push(`extends entry "${spec.path}" could not be resolved — path or package not found`);
+      continue;
     }
+    // Two spellings of one dir (`./a`, `./a/`) are one source: keep the first, union the scopes.
+    const seen = entries.find((e) => e.dir === dir);
+    if (!seen) {
+      entries.push({ ...spec, dir });
+      continue;
+    }
+    seen.platforms = unionScopes(seen.platforms, spec.platforms);
   }
 
   return { dirs: entries.map((e) => e.dir), entries, warnings };

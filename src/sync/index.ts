@@ -492,6 +492,11 @@ interface SyncContext extends SyncSink {
   sourceDirs: string[];
   /** Count of `extends` dirs (for accurate per-file origin labels). */
   extendedCount: number;
+  /**
+   * Every synced `extends` dir, in config order. A source view holds only some of them, so labels
+   * (`extends[i]`) index this list to name the same entry in every view.
+   */
+  extendsDirs: readonly string[];
   /** Count of registry-pack dirs. */
   packCount: number;
   config: BlueprintConfig;
@@ -652,12 +657,11 @@ function toViewContext(ctx: SyncContext, view: SourceView): SyncContext {
 /** `--verbose`: the source dirs this view reads, in priority order. */
 function logSourceDirs(ctx: SyncContext, sources: readonly SyncSource[]): void {
   ctx.log(`Source dirs (priority order):`);
-  let extendsIndex = 0;
   sources.forEach((source, i) => {
     let tag: string = source.origin;
     if (source.origin === 'extends') {
       const scope = source.platforms === null ? '' : `, ${source.platforms.join(', ')} only`;
-      tag = `extends[${extendsIndex++}]${scope}`;
+      tag = `extends[${ctx.extendsDirs.indexOf(source.dir)}]${scope}`;
     }
     ctx.log(`  [${i}] ${source.dir} (${tag})`);
   });
@@ -698,6 +702,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // A scoped `extends` entry for no configured platform is left out (sync warns about it).
   const sources = activeSources(resolvedSources.sources, platforms);
   const sourceDirs = sources.map((s) => s.dir);
+  const extendsDirs = sources.filter((s) => s.origin === 'extends').map((s) => s.dir);
 
   const results: SyncResults = { synced: 0, outOfSync: 0, stale: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
@@ -719,7 +724,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     root,
     sourceBase,
     sourceDirs,
-    extendedCount: sources.filter((s) => s.origin === 'extends').length,
+    extendedCount: extendsDirs.length,
+    extendsDirs,
     packCount: packDirs.length,
     config,
     platforms,
@@ -748,9 +754,9 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // steps (anything reading `sourceDirs`) run once per view; steps that read only the local source
   // run once with every platform. With no scoped entry there is one view: `ctx` itself.
   const views = resolveSourceViews(sources, platforms);
+  if (views.length > 1) ctx.recorded = new Set();
   const viewCtxs = views.length === 1 ? [ctx] : views.map((view) => toViewContext(ctx, view));
   if (viewCtxs.length > 1) {
-    ctx.recorded = new Set();
     const split = findSplitSharedOutputs(config, views);
     for (const message of split) recordError(ctx, message);
     if (split.length > 0) {
@@ -763,6 +769,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
 
   logDetectedStacks(ctx);
 
+  const guardrailsByView = new Map<SyncContext, GuardrailHooks>();
   for (const [i, viewCtx] of viewCtxs.entries()) {
     if (viewCtxs.length > 1) log(`Sources for ${viewCtx.platforms.join(', ')}:\n`);
     reportShadowedContent(viewCtx);
@@ -770,14 +777,15 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     syncRules(viewCtx);
     syncAgents(viewCtx);
     syncSkills(viewCtx);
+    // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
+    // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
+    // Each view compiles its own guardrails; each host's writer takes the result of its own view.
+    guardrailsByView.set(
+      viewCtx,
+      syncGuardrails(viewCtx, (msg) => recordError(viewCtx, msg)),
+    );
   }
   syncCopilotInstructions(ctx);
-  // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
-  // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
-  // Each view compiles its own guardrails; each host's writer takes the result of its own view.
-  const guardrailsByView = new Map(
-    viewCtxs.map((viewCtx) => [viewCtx, syncGuardrails(viewCtx, (msg) => recordError(viewCtx, msg))]),
-  );
   const guardrailsFor = (platform: Platform): GuardrailHooks =>
     guardrailsByView.get(ctxFor(platform)) ?? NO_GUARDRAIL_HOOKS;
   syncClaudeHooks(
@@ -964,7 +972,7 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   if (idx === 0) return 'local';
 
   const extendsEnd = 1 + ctx.extendedCount;
-  if (idx < extendsEnd) return `extends[${idx - 1}]`;
+  if (idx < extendsEnd) return `extends[${ctx.extendsDirs.indexOf(ctx.sourceDirs[idx])}]`;
 
   const packEnd = extendsEnd + ctx.packCount;
   if (idx < packEnd) return `pack[${idx - extendsEnd}]`;
