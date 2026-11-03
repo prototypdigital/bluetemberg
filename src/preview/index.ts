@@ -1,4 +1,6 @@
-import type { Platform, TeamProfile } from '../types.js';
+import { AGENT_PLUGINS_PLATFORM, MARKETPLACE_PLATFORM, PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
+import type { BlueprintConfig, Platform, TeamProfile } from '../types.js';
+import { planPluginFormats, pluginDefinitionsFor } from '../sync/marketplace.js';
 import { type Catalog, type CatalogPack, loadCatalog } from '../catalog/index.js';
 import { allowsAnyPlatform } from '../catalog/platforms.js';
 import { detectStacks } from '../stacks/detect.js';
@@ -66,6 +68,35 @@ function printSection(title: string, packs: CatalogPack[], log: (msg: string) =>
   }
 }
 
+/**
+ * In a project that publishes plugin bundles, the bundles a profile's content lands in: those with
+ * no `profiles` (everything) and those that list it.
+ */
+function printBundles(root: string, profile: TeamProfile, log: (msg: string) => void): void {
+  if (!hasSyncConfig(root, false)) return;
+  let config: BlueprintConfig;
+  try {
+    config = loadConfig(root);
+  } catch {
+    return;
+  }
+  const formats = PLUGIN_BUNDLE_PLATFORMS.filter((p) => config.platforms.includes(p));
+  if (formats.length === 0) return;
+  const enabled = {
+    claude: config.platforms.includes(MARKETPLACE_PLATFORM),
+    agentPlugins: config.platforms.includes(AGENT_PLUGINS_PLATFORM),
+  };
+  // Same per-plugin decision as sync, so a bundle sync rejects isn't listed.
+  const bundles = pluginDefinitionsFor(config, root).filter((p) => {
+    const planned = planPluginFormats(p, enabled).formats;
+    if (!planned.claude && !planned.agentPlugins) return false;
+    return !p.profiles || p.profiles.length === 0 || p.profiles.includes(profile);
+  });
+  if (bundles.length === 0) return;
+  log(`\nPlugin bundles (${formats.join(', ')}):`);
+  for (const bundle of bundles) log(`  plugins/${bundle.name}/`);
+}
+
 export async function preview(
   root: string,
   profile: TeamProfile,
@@ -114,6 +145,7 @@ export async function preview(
       );
       for (const pack of platformSkipped) log(`  ${pack.name}  [${(pack.platforms ?? []).join(', ')}]`);
     }
+    printBundles(root, profile, log);
     const platformsFlag = sameSet(platforms, DEFAULT_INIT_PLATFORMS)
       ? ''
       : ` --platforms ${platforms.join(',')}`;

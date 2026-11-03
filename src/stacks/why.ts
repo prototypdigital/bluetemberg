@@ -4,6 +4,7 @@ import matter from 'gray-matter';
 import { coerce, valid } from 'semver';
 import { loadCatalogSync } from '../catalog/index.js';
 import { readSourcePackName } from '../catalog/ownership.js';
+import { createBundleOutputResolver } from '../sync/marketplace.js';
 import type { BlueprintConfig, Platform } from '../types.js';
 import { discoverConfigDirs, loadConfig } from '../sync/index.js';
 import { dropLegacyGeminiRulesTarget } from '../sync/gemini.js';
@@ -207,6 +208,8 @@ interface WhyContext {
   platformMap: PlatformMap;
   detected: DetectedStacks;
   warnings: string[];
+  /** Paths under `plugins/` the bundle platforms write an item to. */
+  bundleOutputs: ReturnType<typeof createBundleOutputResolver>;
 }
 
 function loadWhyContext(root: string): WhyContext {
@@ -245,6 +248,7 @@ function loadWhyContext(root: string): WhyContext {
     items,
     stackMap: buildStackMap(catalog),
     platformMap: buildPlatformMap(catalog),
+    bundleOutputs: createBundleOutputResolver(config, platforms, root, catalog),
     detected: detectStacks(root, config, stackPackages.packages),
     // The catalog stack-map lines are worded exactly as sync warns them.
     warnings: [...resolved.warnings, ...stackPackages.issues.map((w) => `catalog ${w}`)],
@@ -299,6 +303,7 @@ function candidateOutputs(
     );
     for (const output of outputs)
       for (const reader of output.platforms) push(reader, `${output.target.dir}/${item.id}/SKILL.md`);
+    pushBundleOutputs(ctx, item, platforms, push);
     return out;
   }
   const targets = item.kind === 'rules' ? resolveRuleTargets : resolveAgentTargets;
@@ -307,7 +312,21 @@ function candidateOutputs(
     for (const p of AGENTS_MD_RULE_PLATFORMS) if (platforms.includes(p)) push(p, 'AGENTS.md');
   }
   if (item.kind === 'agents' && platforms.includes('codex')) push('codex', `.codex/agents/${item.id}.toml`);
+  pushBundleOutputs(ctx, item, platforms, push);
   return out;
+}
+
+/** The `plugins/<name>/` paths of the bundle platforms among `platforms` (already platform-gated). */
+function pushBundleOutputs(
+  ctx: WhyContext,
+  item: ResolvedItem,
+  platforms: readonly Platform[],
+  push: (platform: Platform, path: string) => void,
+): void {
+  if (item.kind === 'guardrails') return;
+  for (const bundle of ctx.bundleOutputs(item.kind, item.key, item.kindDir)) {
+    if (platforms.includes(bundle.platform)) push(bundle.platform, bundle.path);
+  }
 }
 
 function toDetection(det: DetectedStack | undefined): WhyDetection | null {
@@ -559,7 +578,8 @@ function scopedOutputs(
 ): Pick<WhyItem, 'outputs' | 'byPlatform'> {
   if (ctx.views.length === 1) {
     return {
-      outputs: excluded === null ? writtenOutputs(ctx, item, platformGate.platforms) : [],
+      outputs:
+        excluded === null ? writtenOutputs(ctx, item, platformGate.platforms) : bundledOutputs(ctx, item),
       byPlatform: null,
     };
   }
@@ -567,7 +587,10 @@ function scopedOutputs(
   if (scope !== null) {
     const agree = copies.every((c) => c.source === copies[0].source && c.included === copies[0].included);
     return {
-      outputs: excluded === null ? writtenOutputs(ctx, item, platformGate.platforms, scope) : [],
+      outputs:
+        excluded === null
+          ? writtenOutputs(ctx, item, platformGate.platforms, scope)
+          : bundledOutputs(ctx, item),
       byPlatform: agree ? null : copies.map(({ copy: _copy, list: _list, ...rest }) => rest),
     };
   }
@@ -579,6 +602,19 @@ function scopedOutputs(
     outputs: dedupe(outputs),
     byPlatform: agree ? null : copies.map(({ copy: _copy, list: _list, ...rest }) => rest),
   };
+}
+
+/**
+ * Bundles are gated by profile and stack name, not by the project's detected versions, so an item
+ * the project gate excludes is still written into the bundles it matches.
+ */
+function bundledOutputs(ctx: WhyContext, item: ResolvedItem): string[] {
+  if (item.kind === 'guardrails') return [];
+  return dedupe(
+    ctx
+      .bundleOutputs(item.kind, item.key, item.kindDir)
+      .map((b) => toProjectPath(ctx.root, join(ctx.root, b.path))),
+  );
 }
 
 function dedupe<T>(values: T[]): T[] {

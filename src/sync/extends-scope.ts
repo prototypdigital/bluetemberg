@@ -1,3 +1,4 @@
+import { PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
 import type { BlueprintConfig, Platform } from '../types.js';
 import { AGENTS_MD_RULE_PLATFORMS } from './codex.js';
 import type { ContentKind, SourceView } from './sources.js';
@@ -11,6 +12,9 @@ import { dirKey, resolveAgentTargets, resolveRuleTargets, resolveSkillOutputs } 
  * entries give them different content, sync would write the output once per group and the last
  * would win (and `--check` would never settle), so it is an error instead.
  */
+
+/** Content kinds a plugin bundle holds (guardrails are compiled into hooks, never bundled). */
+const BUNDLE_KINDS: readonly ContentKind[] = ['rules', 'skills', 'agents'];
 
 /** The outputs `platform` writes content into, with the content kind each holds. */
 function contentOutputs(config: BlueprintConfig, platform: Platform): Array<[string, ContentKind]> {
@@ -44,6 +48,14 @@ export function findSplitSharedOutputs(
   };
   for (const [kind, kindGroups] of groups) {
     kindGroups.forEach((group, groupIndex) => {
+      // `claude-marketplace` and `agent-plugins` write rules, skills and agents into the same
+      // `plugins/<name>/` bundles, so they must read the same sources for each of those kinds.
+      if (BUNDLE_KINDS.includes(kind)) {
+        for (const platform of group.platforms) {
+          // Keyed per kind: group numbers are only comparable within one kind.
+          if (PLUGIN_BUNDLE_PLATFORMS.includes(platform)) add(`plugins/ (${kind})`, platform, groupIndex);
+        }
+      }
       if (kind === 'skills') {
         // A covered reader (Cursor, left to Claude's dir) writes nothing of its own.
         for (const output of resolveSkillOutputs(config, group.platforms)) {

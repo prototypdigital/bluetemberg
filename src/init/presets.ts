@@ -484,6 +484,7 @@ export const PLATFORM_CHOICES: PlatformChoice[] = [
   { id: 'devin', name: 'Devin Desktop (formerly Windsurf)' },
   { id: 'codex', name: 'OpenAI Codex' },
   { id: 'claude-marketplace', name: 'Claude Code Marketplace (plugin distribution)' },
+  { id: 'agent-plugins', name: 'Agent Plugins 1.0 bundles (plugin distribution)' },
 ];
 
 export interface MarketplacePluginPackChoice {

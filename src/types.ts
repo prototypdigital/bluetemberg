@@ -11,8 +11,13 @@ export type Platform =
   | 'devin'
   | 'windsurf'
   | 'codex'
-  | 'claude-marketplace';
+  | 'claude-marketplace'
+  | 'agent-plugins';
 export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
+/** Agent Plugins 1.0 bundles (https://agent-plugins.org), written into the same `plugins/<name>/` dirs. */
+export const AGENT_PLUGINS_PLATFORM = 'agent-plugins' satisfies Platform;
+/** Platforms that publish installable plugin bundles under `plugins/` instead of configuring a tool. */
+export const PLUGIN_BUNDLE_PLATFORMS: readonly Platform[] = [MARKETPLACE_PLATFORM, AGENT_PLUGINS_PLATFORM];
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 

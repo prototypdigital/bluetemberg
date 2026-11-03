@@ -26,6 +26,7 @@ export const INIT_PLATFORMS: readonly Platform[] = [
   'devin',
   'codex',
   'claude-marketplace',
+  'agent-plugins',
   // Pre-rename alias for `devin`; accepted on input, normalized to `devin` before anything is written.
   'windsurf',
 ];

@@ -20,7 +20,8 @@ import { dropLegacyGeminiRulesTarget, syncGeminiSettings } from './gemini.js';
 import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
 import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
-import { syncMarketplace } from './marketplace.js';
+import { pluginDefinitionsFor, syncPluginBundles } from './marketplace.js';
+import { readLockfile } from '../registry/manifest.js';
 import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails, type GuardrailHooks } from './guardrails.js';
 import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
@@ -68,10 +69,12 @@ import {
   type PlatformMap,
 } from '../catalog/platforms.js';
 import { skippedPlatforms } from './platform-skips.js';
+import { AGENT_PLUGINS_PLATFORM, MARKETPLACE_PLATFORM } from '../types.js';
 import type {
   Platform,
   BlueprintConfig,
   ExtendsEntry,
+  PackageLock,
   SyncOptions,
   SkillTargetConfig,
   SyncResults,
@@ -860,38 +863,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncGeminiSettings(ctx, (msg) => recordError(ctx, msg));
   checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
-  if (ctx.platforms.includes('claude-marketplace')) {
-    const marketplaceCtx = ctxFor('view', 'claude-marketplace');
-    const projectName = basename(root);
-    const pluginDefs = ctx.config.marketplace?.plugins ?? [
-      { name: projectName, displayName: projectName, description: '' },
-    ];
-    const marketplace = syncMarketplace(
-      {
-        ...marketplaceCtx,
-        plugins: pluginDefs,
-        catalog,
-        owner: ctx.config.marketplace?.owner,
-        remote: ctx.config.marketplace?.remote,
-      },
-      (msg) => recordError(ctx, msg),
-    );
-
-    const remote = ctx.config.marketplace?.remote;
-    // A plugin skipped via recordError is missing from the manifest; syncing settings now
-    // would prune its enabledPlugins entry, so wait for an error-free run.
-    if (remote && marketplace && ctx.results.errors.length === 0) {
-      syncClaudeSettings(
-        {
-          ...ctx,
-          remote,
-          marketplaceName: marketplace.name,
-          plugins: marketplace.plugins.map((p) => p.name),
-        },
-        (msg) => recordWarning(ctx, msg),
-      );
-    }
-  }
+  syncBundles(ctx, ctxFor);
 
   await runOptionalAdapters(
     {
@@ -926,6 +898,64 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   if (!orchestrated) printSummary(log, results, checkMode);
 
   return results;
+}
+
+/**
+ * `claude-marketplace` and `agent-plugins` share the `plugins/<name>/` bundles and the marketplace
+ * index; each platform adds its own manifest and component dirs to them.
+ */
+function syncBundles(
+  ctx: SyncContext,
+  ctxFor: (kind: ContentKind | 'view', platform: Platform) => SyncContext,
+): void {
+  const formats = {
+    claude: ctx.platforms.includes(MARKETPLACE_PLATFORM),
+    agentPlugins: ctx.platforms.includes(AGENT_PLUGINS_PLATFORM),
+  };
+  if (!formats.claude && !formats.agentPlugins) return;
+  // Under scoped `extends`, both bundle platforms read the same sources (`findSplitSharedOutputs`
+  // stops the sync otherwise, as they share `plugins/`), so either one's view will do.
+  const viewCtx = ctxFor('view', formats.claude ? MARKETPLACE_PLATFORM : AGENT_PLUGINS_PLATFORM);
+
+  const marketplace = syncPluginBundles(
+    {
+      ...viewCtx,
+      plugins: pluginDefinitionsFor(ctx.config, ctx.root),
+      owner: ctx.config.marketplace?.owner,
+      remote: ctx.config.marketplace?.remote,
+      formats,
+      packLock: formats.agentPlugins ? readPackLock(ctx) : undefined,
+    },
+    (msg) => recordError(ctx, msg),
+    (msg) => recordWarning(ctx, msg),
+  );
+
+  const remote = ctx.config.marketplace?.remote;
+  // A plugin skipped via recordError is missing from the manifest; syncing settings now
+  // would prune its enabledPlugins entry, so wait for an error-free run.
+  if (!formats.claude || !remote || !marketplace || ctx.results.errors.length > 0) return;
+  syncClaudeSettings(
+    {
+      ...ctx,
+      remote,
+      marketplaceName: marketplace.name,
+      plugins: marketplace.plugins.map((p) => p.name),
+    },
+    (msg) => recordWarning(ctx, msg),
+  );
+}
+
+/** The project's pack lockfile; a bundle lock without pack entries beats a failed sync. */
+function readPackLock(ctx: SyncContext): PackageLock | undefined {
+  try {
+    return readLockfile(ctx.root, ctx.config.source || 'llm');
+  } catch (err) {
+    recordWarning(
+      ctx,
+      `agent-plugins: bundle locks omit pack entries — ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return undefined;
+  }
 }
 
 /**

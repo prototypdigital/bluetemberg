@@ -37,7 +37,7 @@ The `stacks`, `extends`, `adapters`, and `root` fields are optional.
 
 ### `platforms`
 
-Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"antigravity"`, `"devin"`, `"codex"`, `"claude-marketplace"`.
+Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"antigravity"`, `"devin"`, `"codex"`, `"claude-marketplace"`, `"agent-plugins"`.
 
 `"gemini"` is **Gemini CLI for Enterprise**: Google stopped serving Gemini CLI to free and individual paid users on 2026-06-18, and `"antigravity"` (Antigravity CLI) is its successor. See [Gemini CLI](#gemini-cli-gemini) and [Antigravity CLI](#antigravity-cli-antigravity) below.
 
@@ -46,6 +46,8 @@ Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"
 Only selected platforms get generated output during sync. Packs can also be limited to some platforms (a Claude Code–only reviewer, say): such a pack gets no output for the other selected platforms, and `init` doesn't preselect it when none of its platforms is selected. See [Profiles](Profiles#platforms).
 
 `"claude-marketplace"` emits a plugin bundle under `plugins/` and `.claude-plugin/` that can be installed by teammates via `/plugin marketplace add owner/repo`. See [Marketplace](Marketplace).
+
+`"agent-plugins"` makes the same `plugins/<name>/` directories [Agent Plugins 1.0](https://agent-plugins.org) bundles (root `plugin.json`, `skills/`, Copilot agents, and a bundle lock), installable in VS Code, Copilot CLI, Codex and Cursor. It is opt-in and works with or without `"claude-marketplace"`. See [Marketplace — Agent Plugins bundles](Marketplace#agent-plugins-bundles).
 
 ### `source`
 
@@ -145,14 +147,14 @@ Here `.claude/` gets only `create-pack`, while the generated marketplace plugins
 - **Shared outputs:** some outputs are written for several platforms. Codex, Devin and Antigravity all load `.agents/skills/`, Codex and Gemini both read the rules block in `AGENTS.md`, and a custom `targets` entry can point two platforms at one dir. Such an output holds one set of content, so its platforms must get the same content *of the kind it holds*. A Codex-only entry that ships only rules is fine next to Devin, since `.agents/skills/` stays the same for both. If scopes do give those platforms different content for a shared output, sync fails with an error naming the output and the platforms, and writes nothing. Scope those entries to all of the platforms or none of them.
 - **Labels:** sync warnings and `--verbose` name an entry `extends[i]` by its position in the array, the same index validation errors use.
 - **Pruning:** narrowing a scope makes the files it used to produce for the dropped platform stale. `sync --check` reports them, and `sync --prune` removes them, like any other output whose source is gone.
-- **Marketplace:** `claude-marketplace` reads every unscoped entry plus every entry scoped to it, and nothing else.
+- **Marketplace:** `claude-marketplace` reads every unscoped entry plus every entry scoped to it, and nothing else. So does `agent-plugins`. The two write into the same `plugins/<name>/` bundles, so an entry with rules, skills or agents must be scoped to both or to neither; otherwise sync fails with a message naming `plugins/`.
 - **[`bluetemberg why`](Commands#bluetemberg-why-file-directory)** answers for the platform you ask about. A generated path is explained with the copy that platform syncs, and `--diff` diffs each group of platforms against its own copies.
 - **Lockfile:** scopes never touch `llm/packages-lock.json`. `extends` entries are local paths or `node_modules` packages that bluetemberg does not lock (npm's own lockfile pins those), and installed packs are not affected by `extends` scopes.
 - **`init` and `switch-profile`** keep `extends` as written, scoped entries included, when they rewrite the config.
 
 ### `marketplace`
 
-Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how `llm/` content maps to installable plugins:
+Optional. Used when `"claude-marketplace"` or `"agent-plugins"` is in `platforms`. Controls how `llm/` content maps to installable plugins:
 
 ```json
 {
@@ -171,7 +173,7 @@ Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how 
 ```
 
 - `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` merges `extraKnownMarketplaces` (keyed by marketplace name) and `enabledPlugins` into `.claude/settings.json`, so Claude Code prompts teammates to install the plugins.
-- `plugins` — when omitted, a single plugin named after the project directory is emitted. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks matches; stack-agnostic files are always included).
+- `plugins` — when omitted, a single plugin named after the project directory is emitted. With `"agent-plugins"`, each `name` must be a valid Agent Plugins name (1-64 lowercase letters, digits, `-` or `.`, alphanumeric at both ends, no `--` or `..`). For one that isn't, sync skips that plugin's Agent Plugins files and suggests a name; the Claude bundle is still written. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks matches; stack-agnostic files are always included).
 - `owner` — `{ "name", "email"?, "url"? }`, written into `marketplace.json`, where Claude Code requires it. When omitted, the owner segment of `remote` is used, else the project directory name.
 
 See [Marketplace](Marketplace) for the full schema, profile filtering behavior, and publishing setup.

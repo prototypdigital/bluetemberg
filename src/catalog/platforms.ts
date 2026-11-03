@@ -1,4 +1,4 @@
-import { MARKETPLACE_PLATFORM, type Platform } from '../types.js';
+import { AGENT_PLUGINS_PLATFORM, MARKETPLACE_PLATFORM, type Platform } from '../types.js';
 import type { Catalog } from './index.js';
 import { buildPackItemMap, type PackItemMap } from './ownership.js';
 
@@ -19,7 +19,9 @@ import { buildPackItemMap, type PackItemMap } from './ownership.js';
  * meaning — compiled for no host — since that field predates this one.)
  *
  * `claude-marketplace` publishes Claude Code plugins, so content listing `claude` is published there
- * too; content can also name `claude-marketplace` alone to ship only in the plugins.
+ * too; content can also name `claude-marketplace` alone to ship only in the plugins. `agent-plugins`
+ * bundles are installed by several hosts at once, so they take only content that names
+ * `agent-plugins` itself (or names no platforms).
  */
 
 /** Every platform id, the `windsurf` alias included. Ids outside this list never match. */
@@ -33,6 +35,7 @@ export const KNOWN_PLATFORMS: readonly Platform[] = [
   'windsurf',
   'codex',
   MARKETPLACE_PLATFORM,
+  AGENT_PLUGINS_PLATFORM,
 ];
 
 export type PlatformMap = PackItemMap<string[]>;

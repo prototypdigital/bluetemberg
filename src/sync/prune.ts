@@ -1,6 +1,12 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
-import { MARKETPLACE_PLATFORM } from '../types.js';
+import { PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
+import {
+  AGENT_PLUGINS_MANIFEST,
+  BUNDLE_LOCK_FILE,
+  COPILOT_EXTENSION_DIR,
+  isBluetembergBundleLock,
+} from './agent-plugins.js';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
 import {
   DEVIN_PLATFORM,
@@ -272,9 +278,29 @@ function collectRetiredSkillDirs(
 }
 
 /**
+ * A root `plugin.json` may be one a person wrote to make a Claude-only bundle loadable elsewhere, so
+ * it counts as generated only next to a bundle lock bluetemberg wrote, in bluetemberg's namespace.
+ */
+function collectAgentPluginManifests(
+  out: StaleOutput[],
+  pluginDir: string,
+  expected: Set<string>,
+  manifestKind: StaleOutput['kind'],
+): void {
+  const bundleLock = join(pluginDir, BUNDLE_LOCK_FILE);
+  const hasOurLock = existsSync(bundleLock) && isBluetembergBundleLock(bundleLock);
+  const kind: StaleOutput['kind'] = hasOurLock ? manifestKind : 'unverifiable';
+  const rootManifest = join(pluginDir, AGENT_PLUGINS_MANIFEST);
+  if (existsSync(rootManifest)) consider(out, expected, rootManifest, [pluginDir], kind);
+  if (existsSync(bundleLock)) consider(out, expected, bundleLock, [dirname(bundleLock), pluginDir], kind);
+}
+
+/**
  * A plugin directory is bluetemberg's as a whole when every Markdown file in it carries the banner
- * (and there is at least one). Its `plugin.json` / `hooks.json` cannot carry a banner, but with that
- * evidence they are generated too and go with the directory; otherwise they stay (unverifiable).
+ * (and there is at least one). Its JSON (`.claude-plugin/plugin.json`, `hooks/hooks.json`, the
+ * Agent Plugins `plugin.json` and bundle lock) cannot carry a banner, but with that evidence it is
+ * generated too and goes with the directory; otherwise it stays (unverifiable). Both bundle formats
+ * are collected whichever bundle platform is on, so dropping one prunes its files from the other.
  */
 function collectMarketplace(out: StaleOutput[], root: string, expected: Set<string>): void {
   const pluginsBase = join(root, 'plugins');
@@ -288,10 +314,16 @@ function collectMarketplace(out: StaleOutput[], root: string, expected: Set<stri
       collectSkillDir(out, join(skillsDir, skillName), expected, [skillsDir, pluginDir]);
     }
     const skillKinds = out.slice(before).map((file) => file.kind);
-    for (const sub of ['rules', 'agents']) {
-      const dir = join(pluginDir, sub);
+    const copilotDir = join(pluginDir, COPILOT_EXTENSION_DIR);
+    const markdownDirs = [
+      { dir: join(pluginDir, 'rules'), cleanupDirs: [pluginDir] },
+      { dir: join(pluginDir, 'agents'), cleanupDirs: [pluginDir] },
+      { dir: join(copilotDir, 'agents'), cleanupDirs: [copilotDir, pluginDir] },
+    ];
+    for (const { dir, cleanupDirs } of markdownDirs) {
       for (const name of listDir(dir)) {
-        if (name.endsWith('.md')) markdown.push({ path: join(dir, name), cleanupDirs: [dir, pluginDir] });
+        if (name.endsWith('.md'))
+          markdown.push({ path: join(dir, name), cleanupDirs: [dir, ...cleanupDirs] });
       }
     }
 
@@ -308,6 +340,7 @@ function collectMarketplace(out: StaleOutput[], root: string, expected: Set<stri
     const hooksDir = join(pluginDir, 'hooks');
     const hooksJson = join(hooksDir, 'hooks.json');
     if (existsSync(hooksJson)) consider(out, expected, hooksJson, [hooksDir, pluginDir], manifestKind);
+    collectAgentPluginManifests(out, pluginDir, expected, manifestKind);
   }
 
   const marketplaceJson = join(root, '.claude-plugin', 'marketplace.json');
@@ -388,7 +421,7 @@ export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
     collectSingleton(out, join(root, '.cursor', 'mcp.json'), expected);
     collectSingleton(out, join(root, '.cursor', 'hooks.json'), expected);
   }
-  if (platforms.includes(MARKETPLACE_PLATFORM)) {
+  if (platforms.some((p) => PLUGIN_BUNDLE_PLATFORMS.includes(p))) {
     collectMarketplace(out, root, expected);
   }
 
@@ -429,7 +462,7 @@ export function pruneStaleOutputs(
     removed.push(file);
     removeEmptyDirs(file.cleanupDirs);
   }
-  if (platforms.includes(MARKETPLACE_PLATFORM)) removeEmptyDirs([join(root, 'plugins')]);
+  if (platforms.some((p) => PLUGIN_BUNDLE_PLATFORMS.includes(p))) removeEmptyDirs([join(root, 'plugins')]);
 
   if (removed.length > 0) {
     log(`\nPrune: removed ${removed.length} stale generated file(s).`);

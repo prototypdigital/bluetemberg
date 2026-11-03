@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { MARKETPLACE_PLATFORM } from '../types.js';
+import { PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
 import type { InitAnswers, Platform, TeamProfile } from '../types.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
@@ -26,7 +26,7 @@ export function projectStacksFor(targetDir: string, stacks?: Record<string, stri
 
 /** Platforms the wizard checks by default: every one but the marketplace. */
 export const DEFAULT_INIT_PLATFORMS: readonly Platform[] = PLATFORM_CHOICES.filter(
-  (p) => p.id !== MARKETPLACE_PLATFORM,
+  (p) => !PLUGIN_BUNDLE_PLATFORMS.includes(p.id),
 ).map((p) => p.id);
 
 export function defaultRuleCollections(

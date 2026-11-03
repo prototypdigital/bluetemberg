@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { existsSync, readdirSync, realpathSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, extname, join } from 'node:path';
 import { stripLeadingGeneratedBanner } from '../sync/banner.js';
+import { BUNDLE_LOCK_FILE, isBluetembergBundleLock } from '../sync/agent-plugins.js';
 import { AGENTS_RULES_BLOCK_NOTICE } from '../sync/codex.js';
 import { loadConfig } from '../sync/index.js';
 import {
@@ -69,7 +70,29 @@ function ejectInPlace(projectRoot: string): void {
   // Every rewrite is computed before the first write, so malformed markers abort with nothing changed.
   const rewrites = planRewrites(root, sourceDir);
   for (const [path, content] of rewrites) writeFileSync(path, content);
+  removeBundleLocks(root);
   removeBluetembergState(root, sourceDir);
+}
+
+/**
+ * An Agent Plugins bundle lock records the digests of the files as bluetemberg wrote them, banners
+ * included, so once the banners come off it no longer describes the bundle. The `plugin.json`
+ * beside it is plain config and stays.
+ */
+function removeBundleLocks(root: string): void {
+  const pluginsDir = join(root, 'plugins');
+  if (!existsSync(pluginsDir)) return;
+  for (const ent of readdirSync(pluginsDir, { withFileTypes: true })) {
+    if (!ent.isDirectory()) continue;
+    const lockPath = join(pluginsDir, ent.name, BUNDLE_LOCK_FILE);
+    if (!existsSync(lockPath) || !isBluetembergBundleLock(lockPath)) continue;
+    rmSync(lockPath);
+    try {
+      rmdirSync(dirname(lockPath));
+    } catch {
+      // Not empty: something else lives in the namespace dir.
+    }
+  }
 }
 
 /**
