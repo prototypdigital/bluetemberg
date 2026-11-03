@@ -5,13 +5,9 @@
 
 ### Features
 
-* **cli:** add bluetemberg eject to keep generated files and drop bluetemberg ([e814fda](https://github.com/prototypdigital/bluetemberg/commit/e814fda0c13d76f6f1ec4e0e54cfa155c9675c03))
 * **cli:** add bluetemberg eject to keep generated files and drop bluetemberg ([8c3a948](https://github.com/prototypdigital/bluetemberg/commit/8c3a9481730516ee8c4df950e698e985a7996c8f)), closes [#288](https://github.com/prototypdigital/bluetemberg/issues/288)
-* **stacks:** add `why` to explain inclusion and diff stack upgrades ([b5429dd](https://github.com/prototypdigital/bluetemberg/commit/b5429dd9b7444483c552f7a5c81da6dc6697ffa0))
 * **stacks:** add `why` to explain inclusion and diff stack upgrades ([fb0daa1](https://github.com/prototypdigital/bluetemberg/commit/fb0daa1b8bbc56111f14c57f265d2660d2f5e2e0)), closes [#293](https://github.com/prototypdigital/bluetemberg/issues/293)
-* **stacks:** add range lifecycle lint and list-by-range query ([e31d9d5](https://github.com/prototypdigital/bluetemberg/commit/e31d9d5b846c1a7b0ea4dafb0d0ec1da4070be87))
 * **stacks:** add range lifecycle lint and list-by-range query ([53ad3dc](https://github.com/prototypdigital/bluetemberg/commit/53ad3dc690ab54448ecd91c25e8ecc8f23134031)), closes [#294](https://github.com/prototypdigital/bluetemberg/issues/294)
-* **sync:** migrate commands and prompt files to skills ([73337e1](https://github.com/prototypdigital/bluetemberg/commit/73337e19cdab89cbf819a9a3039c054ceb4cc0df))
 * **sync:** migrate commands and prompt files to skills ([756479c](https://github.com/prototypdigital/bluetemberg/commit/756479cca29fd7f382994c8d3df56807af201e73))
 
 
@@ -27,15 +23,10 @@
 
 ### Features
 
-* **cli:** add bluetemberg uninstall ([c6e8d2e](https://github.com/prototypdigital/bluetemberg/commit/c6e8d2e764d5774db33ec9c63a6ec5eb98f666c7))
 * **cli:** add bluetemberg uninstall ([f473388](https://github.com/prototypdigital/bluetemberg/commit/f473388dfa46dbae0407207ccfec81fbe33428a0))
-* **guardrails:** compile Bash guardrails to Codex hooks ([67a88a4](https://github.com/prototypdigital/bluetemberg/commit/67a88a4dbf111636ac8413cdb1f4582eaf2c9586))
 * **guardrails:** compile Bash guardrails to Codex hooks ([2fc9bd9](https://github.com/prototypdigital/bluetemberg/commit/2fc9bd97265637e0868564a57a9051e81f0a5170))
-* **guardrails:** compile Bash guardrails to Cursor hooks ([109a014](https://github.com/prototypdigital/bluetemberg/commit/109a014f59fa67810a1f834b919df908659d9ddf))
 * **guardrails:** compile Bash guardrails to Cursor hooks ([cb1b1a9](https://github.com/prototypdigital/bluetemberg/commit/cb1b1a969c51daab1139804a691883891e1386c6))
-* **guardrails:** compile Bash guardrails to Devin Desktop hooks ([077c23b](https://github.com/prototypdigital/bluetemberg/commit/077c23b18354b4fa97eec9da03e7b2df8ca355a4))
 * **guardrails:** compile Bash guardrails to Devin Desktop hooks ([bb2ec84](https://github.com/prototypdigital/bluetemberg/commit/bb2ec84b01490f7fbeb2e1740734f132b890ac53))
-* **guardrails:** compile Bash guardrails to GitHub Copilot hooks ([bba759d](https://github.com/prototypdigital/bluetemberg/commit/bba759d1992e5836238e19d6c9eb8f5df9191f2b))
 * **guardrails:** compile Bash guardrails to GitHub Copilot hooks ([00e5d51](https://github.com/prototypdigital/bluetemberg/commit/00e5d510c86e2dc98c038df765b10cebadd0fa48))
 
 
@@ -44,7 +35,6 @@
 * **guardrails:** block Copilot payloads with no tool_name instead of skipping them ([64530f4](https://github.com/prototypdigital/bluetemberg/commit/64530f452c1a992c4f8963684ce874cea08a35e7))
 * **guardrails:** close Codex Windows, field and worktree gaps ([50f4bdb](https://github.com/prototypdigital/bluetemberg/commit/50f4bdb50e4e9c7bf028823951365358e503b611))
 * **guardrails:** read the field as jq data, only under tool_input, and fail closed ([25a2b10](https://github.com/prototypdigital/bluetemberg/commit/25a2b10fbbc82ab1a8080511d29d9694ed14dac2))
-* **guardrails:** read the field from tool_input and send the block message to stderr ([c5366fe](https://github.com/prototypdigital/bluetemberg/commit/c5366fe088c5b700ab9c1c993790e37aa47b82c9))
 * **guardrails:** read the field from tool_input and send the block message to stderr ([ee69585](https://github.com/prototypdigital/bluetemberg/commit/ee695854af33df1613e87a5d0a17c2a69a836af5))
 * **guardrails:** reject a non-list platforms field instead of aborting sync ([c94c5be](https://github.com/prototypdigital/bluetemberg/commit/c94c5be72111db65c491bccf7b0f9e6bada0465d))
 * **guardrails:** stop Cursor guardrail hooks blocking passing calls ([e1d01de](https://github.com/prototypdigital/bluetemberg/commit/e1d01decde05609600b9c7d552f1f7db7c1a7250))
@@ -54,11 +44,8 @@
 
 ### Features
 
-* **init:** offer every catalog pack and gate stack-specific defaults on detected stacks ([607efaa](https://github.com/prototypdigital/bluetemberg/commit/607efaa1f0a7464cfc4e1720cd239a1498498557))
 * **init:** offer every catalog pack and gate stack-specific defaults on detected stacks ([c18af03](https://github.com/prototypdigital/bluetemberg/commit/c18af03d0ed3e850383a1e2d84673fb5c6a73d79)), closes [#273](https://github.com/prototypdigital/bluetemberg/issues/273)
-* **sync:** point Gemini CLI at AGENTS.md and add the antigravity platform ([ab8e1cd](https://github.com/prototypdigital/bluetemberg/commit/ab8e1cd047da58f1683997f8b7e6086dfb0bc8e0))
 * **sync:** point Gemini CLI at AGENTS.md and add the antigravity platform ([03c6669](https://github.com/prototypdigital/bluetemberg/commit/03c66698aaf29d440ec1ad67a87b0a4e58b1fda4)), closes [#276](https://github.com/prototypdigital/bluetemberg/issues/276)
-* **sync:** retarget Windsurf to Devin Desktop, keep windsurf as an alias ([de4c663](https://github.com/prototypdigital/bluetemberg/commit/de4c6636cef0966f9781bcef4e665fcda4e00019))
 * **sync:** retarget Windsurf to Devin Desktop, keep windsurf as an alias ([a37f6c5](https://github.com/prototypdigital/bluetemberg/commit/a37f6c55a352e9ccd2b8904e724253305693a49f)), closes [#277](https://github.com/prototypdigital/bluetemberg/issues/277)
 * **sync:** track Antigravity MCP servers in llm/mcp-managed.json ([22cc675](https://github.com/prototypdigital/bluetemberg/commit/22cc675ca7cbb5149e95717d19218ea1057a82f5))
 
@@ -69,7 +56,6 @@
 * **sync:** address CodeQL and CodeRabbit findings on the Devin target ([a954b00](https://github.com/prototypdigital/bluetemberg/commit/a954b00cd33211fb776c6cb370fd61a837579d90))
 * **sync:** address self-review findings on the .mcp.json merge ([2e24981](https://github.com/prototypdigital/bluetemberg/commit/2e24981b1d9de9f8ea416a9cf497c7fd8cb19765))
 * **sync:** harden Devin target resolution and prune from review ([6a0680e](https://github.com/prototypdigital/bluetemberg/commit/6a0680e370d78b7e4e65b53a61d58481d0349302))
-* **sync:** merge MCP servers into the root .mcp.json ([aa81785](https://github.com/prototypdigital/bluetemberg/commit/aa817856482d70c8b7037b7f185745ce5fc96195))
 * **sync:** merge MCP servers into the root .mcp.json ([912997c](https://github.com/prototypdigital/bluetemberg/commit/912997c13efc45e157d5ea437a95625370407fe8)), closes [#271](https://github.com/prototypdigital/bluetemberg/issues/271)
 * **sync:** prune stale GEMINI.md for antigravity and report mcp.json errors once ([b5d0e0e](https://github.com/prototypdigital/bluetemberg/commit/b5d0e0e07041c52455033a939c84903484fba42e))
 
@@ -78,9 +64,7 @@
 
 ### Bug Fixes
 
-* **deps:** refresh the lockfile, raise the MCP SDK and smol-toml floors, audit in CI ([8b6fbab](https://github.com/prototypdigital/bluetemberg/commit/8b6fbab3b251486e87aa502561db84803600b4b2))
 * **deps:** refresh the lockfile, raise the MCP SDK and smol-toml floors, audit in CI ([314fd33](https://github.com/prototypdigital/bluetemberg/commit/314fd33b5a9bb831e39cf4f07d6452680a722a45))
-* **docs:** show the init command that works headlessly ([e718cff](https://github.com/prototypdigital/bluetemberg/commit/e718cff65481f047fde5b801742a4f6fe517defe))
 * **docs:** show the init command that works headlessly ([19e024f](https://github.com/prototypdigital/bluetemberg/commit/19e024fa6b7707378afd7d4dbca8d9c4bc97ce1d)), closes [#272](https://github.com/prototypdigital/bluetemberg/issues/272)
 * **sync:** write extraKnownMarketplaces in Claude Code's object form ([8d4f68a](https://github.com/prototypdigital/bluetemberg/commit/8d4f68a1ce4573e54cd040b77178d68805c044a3))
 
@@ -90,15 +74,12 @@
 ### Features
 
 * **sync:** copy a skill's supporting files, not just SKILL.md ([60d0b7a](https://github.com/prototypdigital/bluetemberg/commit/60d0b7a97a9cbf9e185c100fda714fc5bb0b589c))
-* **sync:** put the generated-file banner on every output that can carry one ([aa400bb](https://github.com/prototypdigital/bluetemberg/commit/aa400bb1a5a26f9d28a525589c455444b484d51f))
 * **sync:** put the generated-file banner on every output that can carry one ([b68edb8](https://github.com/prototypdigital/bluetemberg/commit/b68edb85b2afdc9bf144017efcafad3df8a1657b)), closes [#274](https://github.com/prototypdigital/bluetemberg/issues/274)
 
 
 ### Bug Fixes
 
-* **cli:** rough edges from the end-to-end test ([df95593](https://github.com/prototypdigital/bluetemberg/commit/df95593079f318e10b4161867c6d569fefe35702))
 * **cli:** rough edges from the end-to-end test ([4eb6a6b](https://github.com/prototypdigital/bluetemberg/commit/4eb6a6b21f78608d6b5596ffab63506329828d24)), closes [#289](https://github.com/prototypdigital/bluetemberg/issues/289)
-* **init:** never overwrite files bluetemberg does not own ([cbf4e2c](https://github.com/prototypdigital/bluetemberg/commit/cbf4e2c096900cedcbb5773f2143b0607c822d30))
 * **init:** never overwrite files bluetemberg does not own ([fde8c7c](https://github.com/prototypdigital/bluetemberg/commit/fde8c7cf93747074756afffc902a53220dd71b0c)), closes [#209](https://github.com/prototypdigital/bluetemberg/issues/209)
 * **sync:** flag stale outputs in --check, prune only generated files, drop orphaned guardrail hooks ([9bcb092](https://github.com/prototypdigital/bluetemberg/commit/9bcb09212a4fa08be9a7b217ddb464f47adbb2ce))
 * **sync:** report stale outputs in --check, prune only generated files, drop orphaned guardrail hooks ([60d60e3](https://github.com/prototypdigital/bluetemberg/commit/60d60e30a2afffd690a5702b9b1a25590d22ff4d)), closes [#274](https://github.com/prototypdigital/bluetemberg/issues/274)
@@ -109,11 +90,8 @@
 ### Bug Fixes
 
 * **init:** don't fold legacy manifests into packages.json when pinning ranges ([19be7d7](https://github.com/prototypdigital/bluetemberg/commit/19be7d724746d1d55eb7d7b2fd9e4607bb0fd97c))
-* **init:** write resolvable pack ranges instead of a fixed ^0.1.0 ([f65c538](https://github.com/prototypdigital/bluetemberg/commit/f65c538094b830c94a47bbd8887bf8a882a14517))
 * **init:** write resolvable pack ranges instead of a fixed ^0.1.0 ([5ec56e8](https://github.com/prototypdigital/bluetemberg/commit/5ec56e862ae45fcdd008a0ecb385713bace46d3b)), closes [#268](https://github.com/prototypdigital/bluetemberg/issues/268)
-* **sync:** apply stack gating to the Codex rules block and agents ([a9aba5b](https://github.com/prototypdigital/bluetemberg/commit/a9aba5b36d1e3ba28e9c9d5692ea0e05a0e4d818))
 * **sync:** apply stack gating to the Codex rules block and agents ([41578ee](https://github.com/prototypdigital/bluetemberg/commit/41578eee27646118c02145329e58215a717dddbc)), closes [#270](https://github.com/prototypdigital/bluetemberg/issues/270)
-* **sync:** map abstract agent tools to Claude Code tool names ([923564d](https://github.com/prototypdigital/bluetemberg/commit/923564db0ca2f3cffe0e7e99ee34e14531f0930e))
 * **sync:** map abstract agent tools to Claude Code tool names ([6aa25d7](https://github.com/prototypdigital/bluetemberg/commit/6aa25d7a67e75a872b484d2e1dddd571d899d87f))
 
 ## [0.13.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.1...bluetemberg-v0.13.0) (2026-09-30)
@@ -127,24 +105,18 @@
 ### Features
 
 * **init:** stop scaffolding CI/CD workflows ([8504d1e](https://github.com/prototypdigital/bluetemberg/commit/8504d1e0efedc691b69acb00d41256cf5a5fc43f))
-* **sync:** mark generated rules/agents/skills/commands as generated ([1456107](https://github.com/prototypdigital/bluetemberg/commit/145610783243f9ab918be45810da156f890c2486))
 * **sync:** mark generated rules/agents/skills/commands as generated ([282c247](https://github.com/prototypdigital/bluetemberg/commit/282c2478cb2c58f0d82dacada767d90572b1afd9))
-* **sync:** warn when CLAUDE.md hides AGENTS.md from Claude Code ([999d208](https://github.com/prototypdigital/bluetemberg/commit/999d2080855fe94942ab1d5dead867bd8e17b02a))
 * **sync:** warn when CLAUDE.md hides AGENTS.md from Claude Code ([8b4c4de](https://github.com/prototypdigital/bluetemberg/commit/8b4c4dee92fc9c220e77bef9fc45664beead2cc5)), closes [#260](https://github.com/prototypdigital/bluetemberg/issues/260)
 
 
 ### Bug Fixes
 
-* **hooks:** scope PR reviewer's read access to the PR being reviewed ([d884725](https://github.com/prototypdigital/bluetemberg/commit/d884725530d03969791c6a97936ba94afb7c0f43))
 * **hooks:** scope PR reviewer's read access to the PR being reviewed ([f817fb0](https://github.com/prototypdigital/bluetemberg/commit/f817fb08f9c56b1192090057c22524ead25b549a))
-* **stacks:** close the remaining silent mis-gates from the [#212](https://github.com/prototypdigital/bluetemberg/issues/212) register ([868c822](https://github.com/prototypdigital/bluetemberg/commit/868c8227f93205f3111a6e4b6ba5d0b43f725567))
 * **stacks:** close the remaining silent mis-gates from the [#212](https://github.com/prototypdigital/bluetemberg/issues/212) register ([394ba0f](https://github.com/prototypdigital/bluetemberg/commit/394ba0f2a0a1539bbede1d0337e32b88d0602a2b))
 * **stacks:** let a range that names a prerelease match its own version ([a49bf11](https://github.com/prototypdigital/bluetemberg/commit/a49bf115021ffe8d7896b0baba7e427826478a1c))
 * **stacks:** make coverage version-aware instead of a name-level boolean ([bdf5a10](https://github.com/prototypdigital/bluetemberg/commit/bdf5a10035d2380984d5bfe53f61a2a8c020cddb))
-* **stacks:** scope catalog profiles/stacks to the owning pack's files ([7a198ac](https://github.com/prototypdigital/bluetemberg/commit/7a198ac6f05b50eb9ca6cfacf7c8700e42fcd05d))
 * **stacks:** scope catalog profiles/stacks to the owning pack's files ([ee46672](https://github.com/prototypdigital/bluetemberg/commit/ee46672e8d13b064ccae7a47193904391d75a11c)), closes [#249](https://github.com/prototypdigital/bluetemberg/issues/249)
 * **sync:** don't crash the AGENTS.md import check on directory [@tokens](https://github.com/tokens) ([39ba721](https://github.com/prototypdigital/bluetemberg/commit/39ba7211a9e6848dde823e2e3801cf263e2fd9ca))
-* **sync:** make sync --check truly read-only ([b87fdc4](https://github.com/prototypdigital/bluetemberg/commit/b87fdc4c16a2edc9ede5fc03e0b985249a018228))
 * **sync:** make sync --check truly read-only ([90943d6](https://github.com/prototypdigital/bluetemberg/commit/90943d66c05fa83d0e85ecb017c7bb2969248937)), closes [#242](https://github.com/prototypdigital/bluetemberg/issues/242)
 
 ## [0.12.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.12.0...bluetemberg-v0.12.1) (2026-08-27)
@@ -152,9 +124,7 @@
 
 ### Bug Fixes
 
-* **guardrails:** fail closed when a condition regex is not valid ERE ([46fc15a](https://github.com/prototypdigital/bluetemberg/commit/46fc15acddef3290316a966d4e1d11ced5423bef))
 * **guardrails:** fail closed when a condition regex is not valid ERE ([1506301](https://github.com/prototypdigital/bluetemberg/commit/15063014741cf84731d683b711cd61630c42d2e4))
-* **sync:** pair managed-block markers instead of taking the first of each ([f47d834](https://github.com/prototypdigital/bluetemberg/commit/f47d83417f0e1e1634643b4601614a849521fe26))
 * **sync:** pair managed-block markers instead of taking the first of each ([effdc47](https://github.com/prototypdigital/bluetemberg/commit/effdc47fbbbe1b8e4c9528dfc4452ac553fdd574)), closes [#241](https://github.com/prototypdigital/bluetemberg/issues/241)
 * **sync:** reject managed-block markers in generated content ([66f09ec](https://github.com/prototypdigital/bluetemberg/commit/66f09ec010daf4447b4d3cba165eb4975e8dd86b))
 
@@ -206,10 +176,8 @@
 
 ### Features
 
-* **hooks:** spawn background PR reviewer when an agent opens a PR ([895d431](https://github.com/prototypdigital/bluetemberg/commit/895d431a80f5c51d30ef4c08e6fe0b01168a0254))
 * **hooks:** spawn background PR reviewer when an agent opens a PR ([1e67699](https://github.com/prototypdigital/bluetemberg/commit/1e676991d137f26ac2c3477f6d7470d7e42e658c))
 * **hooks:** wire spawn-pr-review into PostToolUse Bash hook ([144ed74](https://github.com/prototypdigital/bluetemberg/commit/144ed7481a6a3574953c23964f53633fb44623a2))
-* **sync:** sync Claude Code hooks from llm/hooks.claude.json ([8ce8c08](https://github.com/prototypdigital/bluetemberg/commit/8ce8c08b534ee552595a7d26351e2449a9c7eea1))
 * **sync:** sync Claude Code hooks from llm/hooks.claude.json ([38ae582](https://github.com/prototypdigital/bluetemberg/commit/38ae582cf59213c6bb5665c40fc43c4490ce4753)), closes [#225](https://github.com/prototypdigital/bluetemberg/issues/225)
 
 
@@ -223,7 +191,6 @@
 
 ### Bug Fixes
 
-* **marketplace:** emit required owner field in marketplace.json ([57269c7](https://github.com/prototypdigital/bluetemberg/commit/57269c753944bbb9112adae315b23d260c016b23))
 * **marketplace:** emit required owner field in marketplace.json ([aa43f89](https://github.com/prototypdigital/bluetemberg/commit/aa43f893a2802c6d6350aa14cc002a2f511b8969))
 
 ## [0.8.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.7.0...bluetemberg-v0.8.0) (2026-07-30)
@@ -236,13 +203,11 @@
 * **stacks:** m6 — org-repo (stack,version) scanner and coverage histogram ([c250551](https://github.com/prototypdigital/bluetemberg/commit/c250551095aa9ee3b74ea588d453f6d7507ac9cc))
 * **stacks:** M6 — org-repo (stack,version) scanner and coverage histogram ([d371d9f](https://github.com/prototypdigital/bluetemberg/commit/d371d9f492996f634b5b48c6b5fd77646be74b38))
 * **stacks:** scan-org remote scanning via the GitHub API ([ea9f7ee](https://github.com/prototypdigital/bluetemberg/commit/ea9f7ee8070f4ace1ca7d01e14009f5e37b069ad))
-* **sync:** make stack version filtering audible ([7a97b2e](https://github.com/prototypdigital/bluetemberg/commit/7a97b2eca6d7ad8c3353169eb48a24c7e635d5f3))
 * **sync:** make stack version filtering audible ([38a195a](https://github.com/prototypdigital/bluetemberg/commit/38a195adbae5d57f05ee96c81245d8f0dc4c201b))
 
 
 ### Bug Fixes
 
-* **marketplace:** conform generated output to Claude Code's plugin schema ([987c6ca](https://github.com/prototypdigital/bluetemberg/commit/987c6ca811c8387dd6df1b2c620dd14741aba838))
 * **marketplace:** conform generated output to Claude Code's plugin schema ([6075a03](https://github.com/prototypdigital/bluetemberg/commit/6075a030ecb5bcac915e440808ac499c539e5170))
 * **stacks:** address review findings in M6 scan-org ([74d11de](https://github.com/prototypdigital/bluetemberg/commit/74d11de056c0e842007412b53d34aac70e4f40a8))
 * **sync:** align guardrail output format and checkMode behaviour with rules ([89f3638](https://github.com/prototypdigital/bluetemberg/commit/89f3638df914ca038a9999646feb68abadc343de))
@@ -252,12 +217,10 @@
 
 ### Features
 
-* **add:** accept multiple package arguments in a single call ([4dce283](https://github.com/prototypdigital/bluetemberg/commit/4dce283b42809d7a4b25a43153e3518e765d15ff))
 * **add:** accept multiple package arguments in a single call ([01d0e97](https://github.com/prototypdigital/bluetemberg/commit/01d0e97d625140cee24eb449abe11b8ee4fef2d5)), closes [#137](https://github.com/prototypdigital/bluetemberg/issues/137)
 * **site:** add evidence-backed "standards with receipts" section ([e3ab92a](https://github.com/prototypdigital/bluetemberg/commit/e3ab92a1515bc9df0faba62e358e35cca31df0c6))
 * **site:** refresh landing copy — six tools, version-aware routing, signatures, evidence-backed ([b69d88c](https://github.com/prototypdigital/bluetemberg/commit/b69d88c04f2320197975be24dc9ef4ad7327c963))
 * **site:** refresh landing copy for stacks, MCP, signatures, Codex ([fc613b0](https://github.com/prototypdigital/bluetemberg/commit/fc613b0baa171d3d2e521db0b88f4319e9e939ec))
-* **sync:** monorepo config inheritance with per-package overrides ([17e7062](https://github.com/prototypdigital/bluetemberg/commit/17e7062a3b67b93958fb539828b434ee52fb3894))
 * **sync:** monorepo config inheritance with per-package overrides ([00eac4b](https://github.com/prototypdigital/bluetemberg/commit/00eac4b8da0d3b42162d5094003216c5b109e059))
 * **sync:** surface per-file diff under `sync --check --diff` ([14d2eec](https://github.com/prototypdigital/bluetemberg/commit/14d2eec4d327abdc27d7c68e6f1f0f7e4856837d))
 * **sync:** surface per-file diff under sync --check --diff ([fe6b6e4](https://github.com/prototypdigital/bluetemberg/commit/fe6b6e4b2cc5702517e9d9596a91daafc71f6dbb))
@@ -268,7 +231,6 @@
 * **add:** drop dead --version flag, dedupe packs, summarize failures ([e18d970](https://github.com/prototypdigital/bluetemberg/commit/e18d97029aed9f758b4805e38e5c6399850f655f))
 * **ci:** skip prepublishOnly in publish job ([c0b2689](https://github.com/prototypdigital/bluetemberg/commit/c0b2689407282e699de5a18f37be5d3b7ee382e2))
 * **ci:** skip prepublishOnly in publish job — dist already built by artifact ([29c4930](https://github.com/prototypdigital/bluetemberg/commit/29c4930035d8309d6a1a3dca3cc2e1134a240789))
-* **cli:** guard against subcommand options shadowed by global flags ([d664fe2](https://github.com/prototypdigital/bluetemberg/commit/d664fe21b66fd9babab5ad80555aecb70d220969))
 * **cli:** guard against subcommand options shadowed by global flags ([6c6fa85](https://github.com/prototypdigital/bluetemberg/commit/6c6fa8586671ce6e29697562759c88f9caf912c1))
 * **site:** match the install profile picker to the real init wizard ([916e44b](https://github.com/prototypdigital/bluetemberg/commit/916e44bfbcdb6f3e9bbb9b13d38086a90c265116))
 * **sync:** address code review findings on --diff renderer ([7faf9ee](https://github.com/prototypdigital/bluetemberg/commit/7faf9ee11be11b3795029fde25e1586ac10d185c))
@@ -280,32 +242,24 @@
 
 * register Design Engineer profile ([bf76173](https://github.com/prototypdigital/bluetemberg/commit/bf7617368d1b041b0cf079b1d4db95dbe4bf3132))
 * register Design Engineer profile (engine half of packs[#40](https://github.com/prototypdigital/bluetemberg/issues/40)) ([f7d80c2](https://github.com/prototypdigital/bluetemberg/commit/f7d80c271e470e2313b6f74d628900650858daac))
-* **registry:** verify npm ECDSA registry signatures + add verify command ([266e00b](https://github.com/prototypdigital/bluetemberg/commit/266e00b56cc66b66a092edc1c7fa061d95772cc1))
 * **registry:** verify npm ECDSA registry signatures + add verify command ([4a8a41f](https://github.com/prototypdigital/bluetemberg/commit/4a8a41ffbbf8aab25eacc93bd0cb5e79fe167ced))
-* **site:** add Bluetemberg logo and wire it into the site ([09e99a2](https://github.com/prototypdigital/bluetemberg/commit/09e99a2d431bcf92497d4d84d547ffd03d8d5d99))
 * **site:** add Bluetemberg logo and wire it into the site ([e2d1451](https://github.com/prototypdigital/bluetemberg/commit/e2d14519642dc65cf284fb214d27b1bab0c13ad9))
-* **stacks:** activate version-aware gating at sync + detect/coverage CLI ([2e5ce77](https://github.com/prototypdigital/bluetemberg/commit/2e5ce7778d8a79293e4f853f94ea9d3e333b459a))
 * **stacks:** activate version-aware gating at sync + detect/coverage CLI ([0ae1645](https://github.com/prototypdigital/bluetemberg/commit/0ae1645f46003e69dab10d8ba0e2d088bc9d189d))
-* **stacks:** first-party MCP server (bluetemberg mcp serve) ([a571eee](https://github.com/prototypdigital/bluetemberg/commit/a571eee61e202b84c11f91af39e5e63db2529574))
 * **stacks:** first-party MCP server (bluetemberg mcp serve) ([cba3f92](https://github.com/prototypdigital/bluetemberg/commit/cba3f928810f8cdcd1981a4677b4018f3c72af5c))
-* **stacks:** init wizard detect-then-confirm stack step ([908a9af](https://github.com/prototypdigital/bluetemberg/commit/908a9af7b08293e2403b60bdef79040f81b4ac83))
 * **stacks:** init wizard detect-then-confirm stack step ([228f63a](https://github.com/prototypdigital/bluetemberg/commit/228f63a80e347e00dcfca96ab342f45a741ab059))
 * **stacks:** version-aware technology axis — M0–M5 engine foundation ([3e89ef6](https://github.com/prototypdigital/bluetemberg/commit/3e89ef6b106ab6d812daaa1a81ddda1bc42c9232))
 * **stacks:** version-aware technology axis (M0–M5 foundation) ([58ea378](https://github.com/prototypdigital/bluetemberg/commit/58ea37804a9912a55824877e01b77c07619a57db))
-* **sync:** add OpenAI Codex as a sync target ([09c4dba](https://github.com/prototypdigital/bluetemberg/commit/09c4dba9df29202f70438ab73019f30cf71adcb7))
 * **sync:** add OpenAI Codex as a sync target ([ca19a6a](https://github.com/prototypdigital/bluetemberg/commit/ca19a6a6976ab2b159e39ec6c77a35f2a9b02114)), closes [#175](https://github.com/prototypdigital/bluetemberg/issues/175)
 
 
 ### Bug Fixes
 
-* **catalog:** normalize catalog item arrays to string ids ([eaf04d3](https://github.com/prototypdigital/bluetemberg/commit/eaf04d38e4387a98bcdcf11a53b57740fe0254dc))
 * **catalog:** normalize catalog item arrays to string ids ([ae41526](https://github.com/prototypdigital/bluetemberg/commit/ae415264fb818a145e62035c37ccc51e74622c76))
 * **catalog:** reject malformed items instead of coercing to empty-string ids ([3cdec18](https://github.com/prototypdigital/bluetemberg/commit/3cdec184e1c1182cb4004222ec94b7813bac1fd5))
 * **codex:** guard ensureDir in check mode, surface MCP parse errors, extract helpers ([09f27fd](https://github.com/prototypdigital/bluetemberg/commit/09f27fd8bd27ff51a675f34f763bbe82c954112a))
 * **registry:** address CodeRabbit review findings ([8a5365b](https://github.com/prototypdigital/bluetemberg/commit/8a5365b75a17930253b0eb4a2cb30468e11ac335))
 * **registry:** harden checkPackIntegrity for signed entries ([3489a3a](https://github.com/prototypdigital/bluetemberg/commit/3489a3a8653e733240b8165ac395bfa812ee45cc))
 * **registry:** remove unused VerifyStatus import ([0363bdd](https://github.com/prototypdigital/bluetemberg/commit/0363bdd7552f9765f11cd3d7454e6bb7a7a38b79))
-* **site:** align supply chain label column and clarify comparison heading ([a3ba212](https://github.com/prototypdigital/bluetemberg/commit/a3ba212d19e36bb365b7432b6fb723efe61b0953))
 * **site:** align supply chain label column and clarify comparison heading ([2043348](https://github.com/prototypdigital/bluetemberg/commit/2043348f945e60eae17b37aabe0e9dea642d52c6))
 * **stacks:** address CodeRabbit — clear stale guardrail hooks, inject report logger ([75f73f4](https://github.com/prototypdigital/bluetemberg/commit/75f73f414dd8009f9a5fcc4b251f5542e8df61d7))
 * **stacks:** address review — auto sentinel, gap semantics, malformed frontmatter ([8a3a112](https://github.com/prototypdigital/bluetemberg/commit/8a3a112271c05bf8a6ea69815c321ebca69573c8))
@@ -316,13 +270,11 @@
 
 ### Features
 
-* **presets:** derive pack ids and profiles from the catalog (single source) ([a98c056](https://github.com/prototypdigital/bluetemberg/commit/a98c05604d7b1d54f21ffc924fac251bc839a4fc))
 * **presets:** derive pack ids and profiles from the catalog (single source) ([b821b86](https://github.com/prototypdigital/bluetemberg/commit/b821b86092a9752467f227e749f3425ad7872494))
 * **site:** add humans + agents section — the dual-audience story ([becf9d5](https://github.com/prototypdigital/bluetemberg/commit/becf9d5f26f62dd1d407ba076fe8b44bf8320822))
 * **site:** holistic mobile layout — replace tables with native mobile components ([ed6eb5e](https://github.com/prototypdigital/bluetemberg/commit/ed6eb5ee6e75bae12439225dbc9730643646dffe))
 * **site:** rewrite landing pitch around verified differentiators ([953d5e9](https://github.com/prototypdigital/bluetemberg/commit/953d5e9736b0d6d8002bf2cf1e11da784d7e6f1a))
 * **site:** show profile picker as faux terminal below install command ([2284eac](https://github.com/prototypdigital/bluetemberg/commit/2284eacec82242038483395ccbf946b6c11b5d5b))
-* **site:** static GitHub Pages landing page ([fccf010](https://github.com/prototypdigital/bluetemberg/commit/fccf01020c9cd8095a7baf681b6b720aedabd8f1))
 * **site:** static GitHub Pages landing page ([48fc821](https://github.com/prototypdigital/bluetemberg/commit/48fc821b177b45ca0ffa0d895a1bde51dda9d1d4))
 * **site:** transpose platform matrix and drop verbose footnote ([2ed3a52](https://github.com/prototypdigital/bluetemberg/commit/2ed3a52bf3d3b5ede0ce58f36fb8486477d0d2d9))
 
@@ -335,7 +287,6 @@
 * **catalog:** eliminate redundant catalog load and fix dev snapshot gap ([25ae3f6](https://github.com/prototypdigital/bluetemberg/commit/25ae3f6b540f62296ca0f7d83325895a13821d26))
 * **ci:** add catalog schema guard and build-missing error for check-overlays ([19cfc2c](https://github.com/prototypdigital/bluetemberg/commit/19cfc2cde131bfd24ae645b4f5bfb6e76175d24d))
 * **init:** add agentic to INIT_TEAM_PROFILES ([7c56c60](https://github.com/prototypdigital/bluetemberg/commit/7c56c608329062659edf8b3f63def0bac049173c))
-* **init:** align rule-collection rule ids with actual pack files ([7af85f5](https://github.com/prototypdigital/bluetemberg/commit/7af85f5097a948e581d5a163b7612c5670fa581d))
 * **init:** align rule-collection rule ids with actual pack files ([806509c](https://github.com/prototypdigital/bluetemberg/commit/806509c092057dd58f4750f699d5cecdeb40a773))
 * **init:** replace 5-tag arrays with universal:true ([#152](https://github.com/prototypdigital/bluetemberg/issues/152)) ([423cec5](https://github.com/prototypdigital/bluetemberg/commit/423cec50b8562aa4c2142a7bf75cc9360a12c0f2))
 * **init:** replace 5-tag arrays with universal:true for docs-maintainer, docs-upkeep, workspace-hygiene ([7fc8d43](https://github.com/prototypdigital/bluetemberg/commit/7fc8d43ece87162e4fe5dac8f0d7cbba0ac54d9b)), closes [#152](https://github.com/prototypdigital/bluetemberg/issues/152)
@@ -352,12 +303,9 @@
 
 * agentic profile, shared/universal presets, dry-run install, e2e CI ([fa62f27](https://github.com/prototypdigital/bluetemberg/commit/fa62f27124ea0be6f93b63dda25589bcd5f44f0a))
 * **cli:** add `bluetemberg preview <profile>` command ([57e4048](https://github.com/prototypdigital/bluetemberg/commit/57e4048f66005e342c2986efec760de454c2e1c9)), closes [#146](https://github.com/prototypdigital/bluetemberg/issues/146)
-* **github:** scaffold community health files and PR quality workflows ([1b0aaa4](https://github.com/prototypdigital/bluetemberg/commit/1b0aaa49c4afda7a578aa2d8796e30537756f9bb))
 * **github:** scaffold community health files and PR quality workflows ([c75bef9](https://github.com/prototypdigital/bluetemberg/commit/c75bef95995fbc1102aa61ef371318b2c8dbb8c1))
 * **init:** add CodeRabbit AI PR review to GitHub scaffolding ([e4703f4](https://github.com/prototypdigital/bluetemberg/commit/e4703f462d8e8d4f839ee54f6a631d9afa0c8dac))
-* **init:** scaffold GitHub open-source best-practice files ([9538467](https://github.com/prototypdigital/bluetemberg/commit/9538467cae2c6b03abddd40b774b68823dc99113))
 * **init:** scaffold GitHub open-source best-practice files ([1a741b7](https://github.com/prototypdigital/bluetemberg/commit/1a741b78f26cc20f7aaf059b8de99681d413d84e))
-* **init:** wire agentic profile to its pack family in presets ([83f8ca5](https://github.com/prototypdigital/bluetemberg/commit/83f8ca52100dd24ae4892d6830dfb57537e2f812))
 * **init:** wire agentic profile to its pack family in presets ([1ee20de](https://github.com/prototypdigital/bluetemberg/commit/1ee20de09bc0492567a5115356ba4a73e1d8202e))
 * security hardening, agentic profile, shared presets, dry-run, preview command, e2e CI ([9c49a08](https://github.com/prototypdigital/bluetemberg/commit/9c49a08be854d2ea8c6f6dd26281a6aa26189323))
 
@@ -366,7 +314,6 @@
 
 * address all CodeRabbit review issues from PR [#156](https://github.com/prototypdigital/bluetemberg/issues/156) ([f387fd7](https://github.com/prototypdigital/bluetemberg/commit/f387fd78c90d1cb2c0c56e1d7511bbdca736584b))
 * address CodeRabbit review findings on PR [#150](https://github.com/prototypdigital/bluetemberg/issues/150) ([f0a5126](https://github.com/prototypdigital/bluetemberg/commit/f0a512614ae280d9b179a9f264890b2cdf212044))
-* **ci:** add NODE_AUTH_TOKEN to publish step ([d9a33ea](https://github.com/prototypdigital/bluetemberg/commit/d9a33ea9611e6ff9d3bf2636086451b130d86b24))
 * **ci:** add NODE_AUTH_TOKEN to publish step ([543640f](https://github.com/prototypdigital/bluetemberg/commit/543640fcc916a1af1f53184b05fa76138f6ac011))
 * **github:** add customization placeholders for LICENSE and CODE_OF_CONDUCT ([9e11cc6](https://github.com/prototypdigital/bluetemberg/commit/9e11cc687efe6b5856c2ad761a506b15425a5f89))
 * **init:** bump scaffolded GitHub Actions to current major versions ([4a3e0c0](https://github.com/prototypdigital/bluetemberg/commit/4a3e0c0dfa625f199b38224bc310e7e66d00801e))
@@ -383,19 +330,14 @@
 
 ### Features
 
-* **guardrails:** install guardrails as packs, sync from all sources ([6051c1a](https://github.com/prototypdigital/bluetemberg/commit/6051c1aae897382bc579ad709dc687cc18796209))
 * **guardrails:** install guardrails as packs, sync from all sources ([6e93f25](https://github.com/prototypdigital/bluetemberg/commit/6e93f25e13c0922bfb04a6823f7ec59cafca3cdb))
 * **init,sources:** add source commands to --help --json and external sources to init wizard ([af17f5a](https://github.com/prototypdigital/bluetemberg/commit/af17f5a4c58715ee2bf00907f63fde2c07e450a0))
 * **init:** add empty-scaffold rule source for bring-your-own rules ([c5538e4](https://github.com/prototypdigital/bluetemberg/commit/c5538e496bd399442cfe1ef2622835499c03a61e))
 * **init:** empty-scaffold rule source (bring your own rules) ([f72e12b](https://github.com/prototypdigital/bluetemberg/commit/f72e12be352dd6b9ba558126da3f92cd5490ab8d))
-* **init:** retire bundled rule templates in favour of registry packs ([eb677ba](https://github.com/prototypdigital/bluetemberg/commit/eb677ba734cacac14e5feb0557d26e2d5987d0a9))
 * **init:** retire bundled rule templates in favour of registry packs ([f339c5a](https://github.com/prototypdigital/bluetemberg/commit/f339c5ad723415a8b872839c9cb76cb614a0bbc9))
 * publish to public npm as unscoped "bluetemberg" (MIT) ([cf514d1](https://github.com/prototypdigital/bluetemberg/commit/cf514d1d57ce3db5caa4cfeda775a6b8429540e3))
-* **sources:** add cursor.directory adapter (metadata + GitHub delegation) ([b9c93e6](https://github.com/prototypdigital/bluetemberg/commit/b9c93e6594ff90ad0fb61b2324f7d56f2371290a))
 * **sources:** add cursor.directory adapter (metadata + GitHub delegation) ([4eb477c](https://github.com/prototypdigital/bluetemberg/commit/4eb477ce06683c922ad6cb3504076bc1aa50a364)), closes [#45](https://github.com/prototypdigital/bluetemberg/issues/45)
-* **sources:** add PRPM adapter ([1cf7976](https://github.com/prototypdigital/bluetemberg/commit/1cf7976022743142a947b61701652e61e69a22bd))
 * **sources:** add PRPM adapter ([8ce96e0](https://github.com/prototypdigital/bluetemberg/commit/8ce96e0fea9984df99a36c1955ee9b0af2ef87d9)), closes [#45](https://github.com/prototypdigital/bluetemberg/issues/45)
-* **sources:** pluggable external rule source framework + GitHub adapter ([f58537a](https://github.com/prototypdigital/bluetemberg/commit/f58537a7e00d2e8f0d7048e3fad5a61b180f27db))
 * **sources:** pluggable external rule source framework + GitHub adapter ([562943b](https://github.com/prototypdigital/bluetemberg/commit/562943b008bc9426bf3ede79f5def26cddc8aeb2)), closes [#45](https://github.com/prototypdigital/bluetemberg/issues/45)
 * **sources:** warn on cursor-directory use + resilient search ([bf1e031](https://github.com/prototypdigital/bluetemberg/commit/bf1e031ba6b6873265b8f293e9f5047eabf8eceb))
 
@@ -405,11 +347,9 @@
 * address review findings from PR [#118](https://github.com/prototypdigital/bluetemberg/issues/118) ([5cfa209](https://github.com/prototypdigital/bluetemberg/commit/5cfa209267348a3978df2400c6bd9ab6a5b66187))
 * **cli:** declare --check and --dry-run as distinct sync options ([5df7613](https://github.com/prototypdigital/bluetemberg/commit/5df761344629fb4d15b9d70a41498fb3fb6058af))
 * **deps:** require Node &gt;=20 to match commander 14 ([4664f35](https://github.com/prototypdigital/bluetemberg/commit/4664f356be478b7c641d4acbe4024428b2f82e14))
-* **deps:** resolve npm audit security vulnerabilities ([2fbfe13](https://github.com/prototypdigital/bluetemberg/commit/2fbfe13ff31a830b43167161998a658cea94cab7))
 * **deps:** resolve npm audit security vulnerabilities ([22456ec](https://github.com/prototypdigital/bluetemberg/commit/22456ec8ce877e1ce77574bbe1f205362b73d756)), closes [#103](https://github.com/prototypdigital/bluetemberg/issues/103)
 * **init:** add pure-infra tags to git/security/docs collections; update docs ([d3163c9](https://github.com/prototypdigital/bluetemberg/commit/d3163c947e0475c4e8dfa5bb523be8e238c78874))
 * **init:** persist empty llm/rules/ via .gitkeep for none rule source ([0c4d4ef](https://github.com/prototypdigital/bluetemberg/commit/0c4d4ef8cd330f0478ca14ed860e11565e5db307))
-* **marketplace:** error on unknown profiles and empty plugin bundles ([bcd2a51](https://github.com/prototypdigital/bluetemberg/commit/bcd2a51a6855a8f99abedca93a16e460df339f9e))
 * **marketplace:** error on unknown profiles and empty plugin bundles ([dc95c34](https://github.com/prototypdigital/bluetemberg/commit/dc95c342ecebc277fb78c34c9d50ba20f8d99dbc)), closes [#88](https://github.com/prototypdigital/bluetemberg/issues/88)
 * **marketplace:** skip empty plugin manifests and sort valid-profiles list ([22f5eae](https://github.com/prototypdigital/bluetemberg/commit/22f5eae307d8c66e8f50e3d0b2f4cd956e659a5a))
 * **sources:** bake cursor.directory public credentials into constants ([a5d2171](https://github.com/prototypdigital/bluetemberg/commit/a5d2171433ffa3cb37bf461d79d5f7e5b10a5085))
@@ -423,9 +363,7 @@
 
 ### Features
 
-* **guardrails:** add guardrails as a first-class vendor-neutral primitive ([0bea351](https://github.com/prototypdigital/bluetemberg/commit/0bea35143f38ee1ddcf74067442b1bd902e754db))
 * **guardrails:** add guardrails as a first-class vendor-neutral primitive ([59ce090](https://github.com/prototypdigital/bluetemberg/commit/59ce090ca6021e252a78aecac6ee5849c433c984))
-* **init:** add profile field to config and switch-profile command ([cc4c1a4](https://github.com/prototypdigital/bluetemberg/commit/cc4c1a487c3d68bd7ed6846eb0b13fe4a3577907))
 * **init:** add profile field to config and switch-profile command ([579cc1b](https://github.com/prototypdigital/bluetemberg/commit/579cc1b42b1eb7ce295994adf58e1d0d95883214))
 * **next:** add @prototypdigital/next rules pack ([4d30ae9](https://github.com/prototypdigital/bluetemberg/commit/4d30ae9d1688ed524ddbd88f168fbeda902c2f30))
 * **next:** add @prototypdigital/next rules pack with NEXT_PUBLIC_* rule ([2aad3a0](https://github.com/prototypdigital/bluetemberg/commit/2aad3a0be616f0adc60580ffca27c48518a4f77a))
@@ -440,7 +378,6 @@
 
 ### Bug Fixes
 
-* **init:** scaffold .claude/settings.json with EnterWorktree naming gate ([aaf8a14](https://github.com/prototypdigital/bluetemberg/commit/aaf8a14fd40c345c9ea291359a2549e203098769))
 * **init:** scaffold .claude/settings.json with EnterWorktree naming gate ([651aa93](https://github.com/prototypdigital/bluetemberg/commit/651aa93145f7aba34e9e96cfababc33b2fa026ff))
 
 ## [0.2.8](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.7...bluetemberg-v0.2.8) (2026-05-15)
@@ -462,9 +399,7 @@
 
 ### Features
 
-* **marketplace:** bundle rules into plugin packs with profile filtering ([469e1c4](https://github.com/prototypdigital/bluetemberg/commit/469e1c491b03ea87fa578e18aab224508d3bf516))
 * **marketplace:** bundle rules into plugin packs with profile filtering ([730bd9d](https://github.com/prototypdigital/bluetemberg/commit/730bd9d2268e3de41f483bafa611fb88aa0fa90c))
-* **windsurf:** add Windsurf as a sync target platform ([f9c7f68](https://github.com/prototypdigital/bluetemberg/commit/f9c7f68d2a61b5568bbad54ef71b530f3c023a90))
 * **windsurf:** add Windsurf as a sync target platform ([f468789](https://github.com/prototypdigital/bluetemberg/commit/f468789dc5f3bee46baa1c4bba5e4a7c3cfc5f3a))
 
 ## [0.2.6](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.5...bluetemberg-v0.2.6) (2026-05-08)
@@ -472,16 +407,13 @@
 
 ### Features
 
-* add claude-marketplace platform emitter ([8c6cefb](https://github.com/prototypdigital/bluetemberg/commit/8c6cefb0cbd87cb586997b00e954cebdc1d8eb7e))
 * add claude-marketplace platform emitter ([96fdc18](https://github.com/prototypdigital/bluetemberg/commit/96fdc187814e113da60633e50797dc4399ea7dda))
 * implement profile filtering for marketplace plugins ([4a97f75](https://github.com/prototypdigital/bluetemberg/commit/4a97f75a71f66ee20d9f59a88ee71ee9749e12e7))
 * **marketplace:** add hooks bundling and skill frontmatter pass-through ([d4dcab4](https://github.com/prototypdigital/bluetemberg/commit/d4dcab4f8742e7e4c1121c77aec744d0e2136de7))
 * **marketplace:** add react-patterns to skill templates and SKILL_PRESETS ([0d8151d](https://github.com/prototypdigital/bluetemberg/commit/0d8151d9316847db95fdb6ac9fe841cb1918c1c5))
 * **marketplace:** add remote repo sync, extraKnownMarketplaces, and CI workflow ([005aa89](https://github.com/prototypdigital/bluetemberg/commit/005aa8920a0513f6e7e0f04b4868b7372cb7912b))
 * **marketplace:** dedicated repo sync, extraKnownMarketplaces, CI workflow ([6228e5d](https://github.com/prototypdigital/bluetemberg/commit/6228e5de90f522dd0107d87dd246f9ee85152ff5))
-* **marketplace:** dogfood marketplace, profile skills/agents, extend init wizard ([b2a3355](https://github.com/prototypdigital/bluetemberg/commit/b2a33559fcadf31cf20f0491b7b874f112f52726))
 * **marketplace:** dogfood marketplace, profile skills/agents, extend init wizard ([76b648a](https://github.com/prototypdigital/bluetemberg/commit/76b648a7541c6d71c76048f1b3f65faecf03d306))
-* **marketplace:** wire claude-marketplace into init, scaffold, prune, and docs ([101cf79](https://github.com/prototypdigital/bluetemberg/commit/101cf798416cedb06b089df8f0d30cc0a6f09831))
 * **marketplace:** wire claude-marketplace into init, scaffold, prune, and docs ([5f5fa84](https://github.com/prototypdigital/bluetemberg/commit/5f5fa84f21767f5866ff4b334c92dec953b91731))
 * resolve marketplace profile filtering from presets ([fc5d0db](https://github.com/prototypdigital/bluetemberg/commit/fc5d0dbf7717340de23daa18d33b2b433c4c840b))
 * resolve profile filtering from presets for standard files ([7a7dfd2](https://github.com/prototypdigital/bluetemberg/commit/7a7dfd2de0e1331211af6c73419e95eb7fcb3fc9))
@@ -499,7 +431,6 @@
 
 ### Features
 
-* **init:** add --silent, shared catalog, and clearer config errors ([e277f35](https://github.com/prototypdigital/bluetemberg/commit/e277f35c0b4c020266df6d9b6a90efd501845a25))
 * **init:** add --silent, shared catalog, and clearer config errors ([9a68e55](https://github.com/prototypdigital/bluetemberg/commit/9a68e555a0bbe6fedc37caab30d2756cc7bbe450))
 
 ## [0.2.4](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.2.3...bluetemberg-v0.2.4) (2026-05-02)
@@ -519,9 +450,7 @@
 * **devops:** add K8s, Helm, idempotency rules, SRE/K8s agents, infra skills, pure-infra profile ([4a39f75](https://github.com/prototypdigital/bluetemberg/commit/4a39f754c01c17448281fe18ff7c83dee172a84a))
 * **devops:** ansible/k8s/infra rules, agents, skills, and pure-infra profile ([1f037d5](https://github.com/prototypdigital/bluetemberg/commit/1f037d5807802636ab3340e9c863cb1f7b40e4e0))
 * **registry:** add bluetemberg update command ([907c460](https://github.com/prototypdigital/bluetemberg/commit/907c46036ec144509d898fef91030db153b29dd8))
-* **registry:** add official rule collection packages ([56eeb2e](https://github.com/prototypdigital/bluetemberg/commit/56eeb2e7c430e575265c8be0fab70aa465e0a018))
 * **registry:** add official rule collection packages ([b92e1f7](https://github.com/prototypdigital/bluetemberg/commit/b92e1f729184eb577ee6d6dcd08cfff29b57009b))
-* **rules:** add mermaid-diagrams rule template ([363e1da](https://github.com/prototypdigital/bluetemberg/commit/363e1da9ad9e9282d2aa57c970f59aa748a6f040))
 * **rules:** add mermaid-diagrams rule template ([8fa6ab6](https://github.com/prototypdigital/bluetemberg/commit/8fa6ab6bb175dad877f9c1a6ebb6b3fbe9439ec7))
 
 
@@ -530,7 +459,6 @@
 * **registry:** address all PR review issues ([1103d4c](https://github.com/prototypdigital/bluetemberg/commit/1103d4c0f3e67d8f0ef1c8d6a9586229dcc28bfc))
 * **registry:** prune stale lockfile entries in update command ([928f85c](https://github.com/prototypdigital/bluetemberg/commit/928f85c7fcedc60b140a4c75945336cba0147d69))
 * **release:** remove unnecessary permissions block and pin app token action to v3 ([4429379](https://github.com/prototypdigital/bluetemberg/commit/44293794c8ded7c3bff48f360f9d919bb03b8c29))
-* **release:** trigger CI and commitlint on bot-created PRs ([4364a60](https://github.com/prototypdigital/bluetemberg/commit/4364a60b01a028b25df6b5594932b119b2ed197e))
 * **release:** trigger CI and commitlint on bot-created PRs ([d21aa81](https://github.com/prototypdigital/bluetemberg/commit/d21aa817978844a9115e14e91855c24c8aede5f4))
 * **release:** use GitHub App token in release-please to trigger CI ([19a03d5](https://github.com/prototypdigital/bluetemberg/commit/19a03d5af6d75f8ce3165e83410ae6419fe3e23f))
 
@@ -539,7 +467,6 @@
 
 ### Features
 
-* **registry:** add community rule registry with pack management ([c38e9f2](https://github.com/prototypdigital/bluetemberg/commit/c38e9f28715215f7836ecc58fcfeabf34c52a58a))
 * **registry:** add community rule registry with pack management ([fe213bb](https://github.com/prototypdigital/bluetemberg/commit/fe213bbcee27d7e706c9cb663969b4b808659ed5))
 
 
@@ -554,7 +481,6 @@
 
 ### Features
 
-* **platform:** add Gemini CLI as a supported target platform ([887dc35](https://github.com/prototypdigital/bluetemberg/commit/887dc35a6ee2a5f97df54cf45cd08af2a8d6dea7))
 * **platform:** add Gemini CLI as a supported target platform ([d8bb39f](https://github.com/prototypdigital/bluetemberg/commit/d8bb39f565669b15a58a057b5cde1fcd53d4501c))
 * **sync:** add --verbose flag and SyncResults.warnings ([79fdeb0](https://github.com/prototypdigital/bluetemberg/commit/79fdeb0e961d4d94792179448b604ef3def9f6bd))
 * **sync:** add --verbose flag and warnings to SyncResults ([4b93f07](https://github.com/prototypdigital/bluetemberg/commit/4b93f070b6f5c284ac83a9ed7fb1682416b5f5fa))
@@ -565,7 +491,6 @@
 ### Bug Fixes
 
 * **pr-27:** graceful config errors, preserve adapters, fix skills dir, add tests ([6c94c89](https://github.com/prototypdigital/bluetemberg/commit/6c94c89ee6dc734c79e58665e854a0a1bf5c50bd))
-* **rules:** add branch naming convention to git-workflow rule ([b3ed0fe](https://github.com/prototypdigital/bluetemberg/commit/b3ed0fe28bf3b8f8440b1afec4284b3b243b70e8))
 * **rules:** add branch naming convention to git-workflow rule ([5fd0ec9](https://github.com/prototypdigital/bluetemberg/commit/5fd0ec9fc6ff51f8b642e98684828138b364c0f8))
 * **scaffold:** add tier-2 tests and fix init bugs ([01ee4f9](https://github.com/prototypdigital/bluetemberg/commit/01ee4f92061843995c8ee250e48624e3ae583b3a))
 
@@ -580,14 +505,12 @@
 ### Features
 
 * async sync, adapter pipeline, and multi-platform extensions ([44409b4](https://github.com/prototypdigital/bluetemberg/commit/44409b4198007cda422467c2e33e84ec6d7d1a94))
-* **sync:** add cursor default targets for agents and skills ([838699b](https://github.com/prototypdigital/bluetemberg/commit/838699bd75b512298cba23d984053595a1134c98))
 * **sync:** add cursor default targets for agents and skills ([fe8112e](https://github.com/prototypdigital/bluetemberg/commit/fe8112e23c85513c07a66827a3c143e902fa6dd7))
 * **sync:** harden exit codes, targets validation, prune, check newlines ([63695d1](https://github.com/prototypdigital/bluetemberg/commit/63695d14b271586ddbecd5e35d7937a117fa9d02))
 
 
 ### Bug Fixes
 
-* relax CODEOWNERS to org dev team ([e02c468](https://github.com/prototypdigital/bluetemberg/commit/e02c468c46942a35f5d2c5f6ce0c9078b745b3e7))
 * relax CODEOWNERS to org dev team ([979d4f8](https://github.com/prototypdigital/bluetemberg/commit/979d4f8d9fa52054d91960d945bf4243686b259a)), closes [#10](https://github.com/prototypdigital/bluetemberg/issues/10)
 * **review:** address PR [#22](https://github.com/prototypdigital/bluetemberg/issues/22) review feedback ([9d5fd99](https://github.com/prototypdigital/bluetemberg/commit/9d5fd99383d6a57bf93279c9cff83beb81d49d16))
 * **target-filtering:** narrow undefined entries explicitly instead of asserting ([9494c8e](https://github.com/prototypdigital/bluetemberg/commit/9494c8e96a4b3942fa394c529ef29594c144fbc9))
