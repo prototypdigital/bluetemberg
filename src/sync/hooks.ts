@@ -200,7 +200,19 @@ function renderHooksFile(
   base: Record<string, unknown>,
   hooks: Record<string, readonly unknown[]> | null,
 ): string {
-  return `${JSON.stringify({ ...base, version: base.version ?? 1, hooks: hooks ?? {} }, null, 2)}\n`;
+  const json = JSON.stringify({ ...base, version: base.version ?? 1, hooks: hooks ?? {} }, null, 2);
+  return `${escapeCommentOpeners(json)}\n`;
+}
+
+/**
+ * Cursor strips `//` and `/* *\/` comments from hooks.json with a regex that does not skip string
+ * contents, so a command holding `//` (jq's `// empty` in every guardrail, a URL in a message) loses
+ * the rest of its line, the file stops parsing, and Cursor drops every project hook without a word.
+ * Writing a `/` that opens either token as `/` leaves no comment opener in the text and parses
+ * to the same value. JSON has no `/` outside strings, so only string contents are touched.
+ */
+function escapeCommentOpeners(json: string): string {
+  return json.replace(/\/(?=[/*])/g, '\\u002f');
 }
 
 /**

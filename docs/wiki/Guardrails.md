@@ -96,6 +96,10 @@ Only tools whose Cursor arguments are documented to match are mapped; Cursor doc
 
 Each Cursor entry sets `failClosed: true`. By default Cursor lets a call through when a hook crashes, times out or exits with a code other than 2, which would silently switch a guardrail off. Because of `failClosed`, a passing check prints `{}`: a `failClosed` hook that prints nothing counts as failed, so a silent pass would block every shell command. `{}` makes no permission decision, so it never auto-approves a command.
 
+When a check fails, Cursor shows the agent the guardrail's `message` (written to stderr) as the reason the call was rejected, so the agent can act on it rather than retry blindly.
+
+In `.cursor/hooks.json`, a `/` that would start `//` or `/*` is written as `/`. Cursor removes comments from this file without skipping string contents, so a raw `//` inside a command (jq's `// empty` operator, which every guardrail uses, or a URL in a message) would break the file, and Cursor would silently ignore every hook in it. The escaped form parses to the same command.
+
 How `.cursor/hooks.json` is written depends on `llm/hooks.json`:
 
 - **With `llm/hooks.json`:** sync owns the file and writes it whole, guardrail entries first, then the `llm/hooks.json` entries.
