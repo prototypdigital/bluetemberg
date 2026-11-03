@@ -135,6 +135,7 @@ export function allowsAnyPlatform(
   return targets.some((target) => allowsPlatform(list, target));
 }
 
-function canonicalPlatform(id: string): string {
+/** A platform id with the `windsurf` alias resolved to `devin`; any other id, known or not, as is. */
+export function canonicalPlatform(id: string): string {
   return id === 'windsurf' ? 'devin' : id;
 }
