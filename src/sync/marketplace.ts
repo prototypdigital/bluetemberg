@@ -1,23 +1,33 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join, basename, dirname } from 'node:path';
 import matter from 'gray-matter';
 import { toClaudeAgentContent } from './claude-agent-tools.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { withGeneratedBanner } from './banner.js';
-import { copySkillSupportingFiles } from './skill-files.js';
+import {
+  BundleFiles,
+  COPILOT_EXTENSION_DIR,
+  agentSkillIssue,
+  isValidAgentPluginName,
+  writeAgentPluginBundle,
+} from './agent-plugins.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
+import { skillDirsFor, type SkillOutput } from './targets.js';
 import { TEAM_PROFILES } from '../init/presets.js';
 import type { Catalog } from '../catalog/index.js';
+import { AGENT_PLUGINS_PLATFORM, MARKETPLACE_PLATFORM } from '../types.js';
 import type {
+  BlueprintConfig,
   MarketplaceOwner,
   MarketplacePluginDefinition,
+  PackageLock,
+  Platform,
   Stack,
   StackConstraint,
   TeamProfile,
 } from '../types.js';
-import { MARKETPLACE_PLATFORM } from '../types.js';
 import { buildStackMap, readFrontmatterStacks, resolveStacks, type StackMap } from '../stacks/resolve.js';
-import { buildPackItemMap, type PackItemMap } from '../catalog/ownership.js';
+import { buildPackItemMap, readSourcePackName, type PackItemMap } from '../catalog/ownership.js';
 import {
   allowsPlatform,
   buildPlatformMap,
@@ -49,6 +59,9 @@ export interface MarketplaceSyncContext extends SyncSink {
   owner?: MarketplaceOwner;
   /** `marketplace.remote` from config (`owner/repo`); its owner segment is the fallback owner. */
   remote?: string;
+  formats: PluginBundleFormats;
+  /** `packages-lock.json`, for the pack entries each Agent Plugins bundle lock records. */
+  packLock?: PackageLock;
 }
 
 interface ManifestEntry {
@@ -120,6 +133,14 @@ interface MetaMaps {
   profiles: ProfileMap;
   stacks: StackMap;
   platforms: PlatformMap;
+}
+
+function buildMetaMaps(catalog: Catalog): MetaMaps {
+  return {
+    profiles: buildProfileMap(catalog),
+    stacks: buildStackMap(catalog),
+    platforms: buildPlatformMap(catalog),
+  };
 }
 
 function readRuleMeta(ruleFile: string, sourceDir: string, maps: MetaMaps): FileMeta {
@@ -213,14 +234,24 @@ function stackMatches(fileMeta: FileMeta, pluginStacks: Stack[] | undefined): bo
   return fileStacks.some((s) => opted.includes(s));
 }
 
-/** A file is included in a plugin only when BOTH its profile and its stack qualify. */
-function matchesPlugin(fileMeta: FileMeta, plugin: MarketplacePluginDefinition): boolean {
-  // Plugins run in Claude Code: content limited to other platforms stays out (`claude` counts).
-  return (
-    allowsPlatform(fileMeta.platforms, MARKETPLACE_PLATFORM) &&
-    profileMatches(fileMeta, plugin.profiles) &&
-    stackMatches(fileMeta, plugin.stacks)
-  );
+/**
+ * The formats of `plugin` a file is written in. Profile and stack must match; then each format has
+ * its own platform gate (#281): Claude bundles take content allowed for `claude-marketplace` (which
+ * includes `claude`), Agent Plugins bundles content allowed for `agent-plugins` — a list naming only
+ * hosts such as `copilot` does not qualify, since one bundle reaches every host that installs it.
+ */
+function formatsForFile(
+  fileMeta: FileMeta,
+  plugin: MarketplacePluginDefinition,
+  formats: PluginBundleFormats,
+): PluginBundleFormats {
+  if (!profileMatches(fileMeta, plugin.profiles) || !stackMatches(fileMeta, plugin.stacks)) {
+    return { claude: false, agentPlugins: false };
+  }
+  return {
+    claude: formats.claude && allowsPlatform(fileMeta.platforms, MARKETPLACE_PLATFORM),
+    agentPlugins: formats.agentPlugins && allowsPlatform(fileMeta.platforms, AGENT_PLUGINS_PLATFORM),
+  };
 }
 
 /**
@@ -250,48 +281,92 @@ function ruleToSkillId(ruleFile: string): string {
 }
 
 /**
- * Rewrites a rule file into a valid SKILL.md: strips the rule's own frontmatter (which may carry
- * fields — `profiles`, `scope` — that mean nothing to Claude Code's skill loader) and replaces it
- * with a minimal `name`/`description` block, keeping the rule body verbatim.
+ * A YAML scalar for `value`: plain when it reads back unchanged, else double-quoted (JSON strings
+ * are valid YAML). A plain `Guidance: x` or `- x` would not parse, and a host skips that skill.
  */
-function ruleToSkillContent(meta: FileMeta, raw: string): string {
+function yamlScalar(value: string): string {
+  if (!value.includes('\n')) {
+    try {
+      if (matter(`---\nv: ${value}\n---\n`).data.v === value) return value;
+    } catch {
+      // Not a valid plain scalar: quote it.
+    }
+  }
+  return JSON.stringify(value);
+}
+
+/**
+ * Rewrites a rule file into a SKILL.md: strips the rule's own frontmatter (which may carry fields —
+ * `profiles`, `scope` — that mean nothing to a skill loader) and replaces it with a minimal
+ * `name`/`description` block, keeping the rule body verbatim.
+ */
+function ruleToSkillContent(name: string, meta: FileMeta, raw: string): string {
   const { content: body } = matter(raw);
   const description = meta.description || `Guidance: ${meta.name}`;
-  return `---\nname: ${meta.name}\ndescription: ${description}\n---\n${body}`;
+  return `---\nname: ${yamlScalar(name)}\ndescription: ${yamlScalar(description)}\n---\n${body}`;
 }
+
+/** Which bundle formats this pass writes into each `plugins/<name>/` directory. */
+export interface PluginBundleFormats {
+  /** `.claude-plugin/plugin.json`, `agents/`, `hooks/` (the `claude-marketplace` platform). */
+  claude: boolean;
+  /** Root `plugin.json`, `com.github.copilot/agents/`, bundle lock (the `agent-plugins` platform). */
+  agentPlugins: boolean;
+}
+
+interface EmittedPlugin {
+  manifest: PluginManifest;
+  files: BundleFiles;
+  /** npm names of the packs that contributed content (for the Agent Plugins bundle lock). */
+  packNames: Set<string>;
+  /** Agents written in each format: Claude's are in `manifest.agents`, Copilot's only counted. */
+  agentCount: number;
+}
+
+interface PluginSources {
+  rules: Map<string, string>;
+  skills: Map<string, string>;
+  agents: Map<string, string>;
+  hooksContent: string | null;
+  maps: MetaMaps;
+}
+
+function addOwner(packNames: Set<string>, kindDir: string): void {
+  const owner = readSourcePackName(dirname(kindDir));
+  if (owner !== undefined) packNames.add(owner);
+}
+
+/** Reports a bundle skill a conformant Agent Plugins host would skip, once per skill per sync. */
+type SkillCheck = (skillDir: string, content: string) => void;
 
 function emitPlugin(
   ctx: MarketplaceSyncContext,
   plugin: MarketplacePluginDefinition,
-  allRules: Map<string, string>,
-  allSkills: Map<string, string>,
-  allAgents: Map<string, string>,
-  hooksContent: string | null,
+  formats: PluginBundleFormats,
+  sources: PluginSources,
   recordError: (msg: string) => void,
-  maps: MetaMaps,
-): PluginManifest {
-  const pluginDir = join(ctx.root, 'plugins', plugin.name);
-  const skillsDir = join(pluginDir, 'skills');
-  const agentsDir = join(pluginDir, 'agents');
-
+  checkSkill: SkillCheck,
+): EmittedPlugin {
+  const { maps } = sources;
+  const files = new BundleFiles(ctx, join(ctx.root, 'plugins', plugin.name));
+  const packNames = new Set<string>();
   const skillEntries: ManifestEntry[] = [];
   const agentEntries: ManifestEntry[] = [];
+  let agentCount = 0;
 
-  for (const [file, sourceDir] of allRules) {
+  for (const [file, sourceDir] of sources.rules) {
     const meta = readRuleMeta(file, sourceDir, maps);
-    if (!matchesPlugin(meta, plugin)) continue;
+    if (!bundleTakesSkill(meta, plugin, formats)) continue;
 
-    const srcPath = join(sourceDir, file);
     const skillId = ruleToSkillId(file);
-    const outSkillDir = join(skillsDir, skillId);
-
     try {
-      const raw = readFileSync(srcPath, 'utf8');
-      commitPlannedWrite(
-        ctx,
-        join(outSkillDir, 'SKILL.md'),
-        withGeneratedBanner(ruleToSkillContent(meta, raw), `rules/${file}`),
-      );
+      const raw = readFileSync(join(sourceDir, file), 'utf8');
+      // The Agent Skills spec requires `name` to match the directory; Claude-only output keeps the
+      // rule's own name, as it always has.
+      const content = ruleToSkillContent(formats.agentPlugins ? skillId : meta.name, meta, raw);
+      if (formats.agentPlugins) checkSkill(skillId, content);
+      files.write(`skills/${skillId}/SKILL.md`, withGeneratedBanner(content, `rules/${file}`));
+      addOwner(packNames, sourceDir);
       skillEntries.push({
         name: meta.name,
         description: meta.description,
@@ -302,17 +377,16 @@ function emitPlugin(
     }
   }
 
-  for (const [dirName, sourceParent] of allSkills) {
+  for (const [dirName, sourceParent] of sources.skills) {
     const meta = readSkillMeta(dirName, sourceParent, maps);
-    if (!matchesPlugin(meta, plugin)) continue;
-
-    const srcPath = join(sourceParent, dirName, 'SKILL.md');
-    const outSkillDir = join(skillsDir, dirName);
+    if (!bundleTakesSkill(meta, plugin, formats)) continue;
 
     try {
-      const content = withGeneratedBanner(readFileSync(srcPath, 'utf8'), `skills/${dirName}/SKILL.md`);
-      commitPlannedWrite(ctx, join(outSkillDir, 'SKILL.md'), content);
-      copySkillSupportingFiles(ctx, join(sourceParent, dirName), outSkillDir);
+      const source = readFileSync(join(sourceParent, dirName, 'SKILL.md'), 'utf8');
+      if (formats.agentPlugins) checkSkill(dirName, source);
+      files.write(`skills/${dirName}/SKILL.md`, withGeneratedBanner(source, `skills/${dirName}/SKILL.md`));
+      files.copySkillFiles(join(sourceParent, dirName), `skills/${dirName}`);
+      addOwner(packNames, sourceParent);
       skillEntries.push({
         name: meta.name,
         description: meta.description,
@@ -323,45 +397,73 @@ function emitPlugin(
     }
   }
 
-  for (const [file, sourceDir] of allAgents) {
+  for (const [file, sourceDir] of sources.agents) {
     const meta = readAgentMeta(file, sourceDir, maps);
-    if (!matchesPlugin(meta, plugin)) continue;
-
-    const srcPath = join(sourceDir, file);
-    const outPath = join(agentsDir, file);
+    // Agents have a dir per format, so each format's platform gate applies on its own.
+    const on = formatsForFile(meta, plugin, formats);
+    if (!hasAnyFormat(on)) continue;
 
     try {
-      const content = withGeneratedBanner(
-        toClaudeAgentContent(readFileSync(srcPath, 'utf8')),
-        `agents/${file}`,
-      );
-      commitPlannedWrite(ctx, outPath, content);
-      agentEntries.push({
-        name: meta.name,
-        description: meta.description,
-        path: `plugins/${plugin.name}/agents/${file}`,
-      });
+      const source = readFileSync(join(sourceDir, file), 'utf8');
+      if (on.claude) {
+        files.write(`agents/${file}`, withGeneratedBanner(toClaudeAgentContent(source), `agents/${file}`));
+        agentEntries.push({
+          name: meta.name,
+          description: meta.description,
+          path: `plugins/${plugin.name}/agents/${file}`,
+        });
+      }
+      if (on.agentPlugins) {
+        // Copilot's agent profile format is the source as-is, under the `.agent.md` extension.
+        const outName = file.replace(/\.md$/, '.agent.md');
+        files.write(
+          `${COPILOT_EXTENSION_DIR}/agents/${outName}`,
+          withGeneratedBanner(source, `agents/${file}`),
+        );
+      }
+      addOwner(packNames, sourceDir);
+      agentCount++;
     } catch {
       recordError(`marketplace: could not read agent ${file}`);
     }
   }
 
+  // Claude Code hooks have no Agent Plugins equivalent (spec v1 has no hooks component).
   let hooks: string | undefined;
-  if (hooksContent !== null) {
-    const hooksDir = join(pluginDir, 'hooks');
-    const hooksOutPath = join(hooksDir, 'hooks.json');
-    commitPlannedWrite(ctx, hooksOutPath, hooksContent);
+  if (formats.claude && sources.hooksContent !== null) {
+    files.write('hooks/hooks.json', sources.hooksContent);
     hooks = `plugins/${plugin.name}/hooks/hooks.json`;
   }
 
   return {
-    name: plugin.name,
-    displayName: plugin.displayName ?? plugin.name,
-    description: plugin.description ?? '',
-    skills: skillEntries,
-    agents: agentEntries,
-    ...(hooks !== undefined ? { hooks } : {}),
+    manifest: {
+      name: plugin.name,
+      displayName: plugin.displayName ?? plugin.name,
+      description: plugin.description ?? '',
+      skills: skillEntries,
+      agents: agentEntries,
+      ...(hooks !== undefined ? { hooks } : {}),
+    },
+    files,
+    packNames,
+    agentCount,
   };
+}
+
+function writeClaudePluginManifest(ctx: MarketplaceSyncContext, manifest: PluginManifest): void {
+  const pluginJsonObj: Record<string, unknown> = {
+    name: manifest.name,
+    displayName: manifest.displayName,
+    description: manifest.description,
+    skills: manifest.skills,
+    agents: manifest.agents,
+    ...(manifest.hooks !== undefined ? { hooks: manifest.hooks } : {}),
+  };
+  commitPlannedWrite(
+    ctx,
+    join(ctx.root, 'plugins', manifest.name, '.claude-plugin', 'plugin.json'),
+    JSON.stringify(pluginJsonObj, null, 2),
+  );
 }
 
 /**
@@ -376,58 +478,126 @@ function resolveOwner(ctx: MarketplaceSyncContext, projectName: string): Marketp
   return { name: projectName };
 }
 
+export interface PluginFormatPlan {
+  /** The formats this plugin is written in; none when the definition itself is invalid. */
+  formats: PluginBundleFormats;
+  /** Why a format was dropped, or why the plugin is skipped. */
+  issue?: string;
+}
+
 /**
- * Emits the plugins and `.claude-plugin/marketplace.json`. Returns the marketplace manifest, or
- * `null` when there is no source content to publish.
+ * The formats one plugin definition is written in. An unknown profile skips the plugin. A name that
+ * isn't a valid Agent Plugins name drops only the Agent Plugins files, so turning `agent-plugins` on
+ * never takes a plugin out of an existing Claude marketplace. Sync, `why` and `preview` share this.
  */
-export function syncMarketplace(
+export function planPluginFormats(
+  pluginDef: MarketplacePluginDefinition,
+  formats: PluginBundleFormats,
+): PluginFormatPlan {
+  const unknownProfiles = (pluginDef.profiles ?? []).filter((p) => !VALID_PROFILE_IDS.has(p));
+  if (unknownProfiles.length > 0) {
+    return {
+      formats: { claude: false, agentPlugins: false },
+      issue: `Plugin "${pluginDef.name}" references unknown profile(s): ${unknownProfiles.join(', ')} — valid profiles are: ${[...VALID_PROFILE_IDS].sort().join(', ')}`,
+    };
+  }
+  if (formats.agentPlugins && !isValidAgentPluginName(pluginDef.name)) {
+    const skipped = formats.claude ? 'its Agent Plugins files are skipped' : 'it is skipped';
+    return {
+      formats: { claude: formats.claude, agentPlugins: false },
+      issue: `Plugin "${pluginDef.name}" is not a valid Agent Plugins name, so ${skipped} — set marketplace.plugins[].name to 1-64 lowercase letters, digits, "-" or "." with a letter or digit at each end and no "--" or ".." (e.g. "${toPluginName(pluginDef.name)}")`,
+    };
+  }
+  return { formats };
+}
+
+/**
+ * Whether a skill (or rule skill) goes into the bundle's `skills/`. That dir is one output every host
+ * of the bundle reads, so this is #351's shared-output rule (`skillDirsFor`): it takes the skill when
+ * one of its readers — the bundle platforms this plugin is written for — is allowed.
+ */
+function bundleTakesSkill(
+  fileMeta: FileMeta,
+  plugin: MarketplacePluginDefinition,
+  formats: PluginBundleFormats,
+): boolean {
+  if (!profileMatches(fileMeta, plugin.profiles) || !stackMatches(fileMeta, plugin.stacks)) return false;
+  const readers: Platform[] = [];
+  if (formats.claude) readers.push(MARKETPLACE_PLATFORM);
+  if (formats.agentPlugins) readers.push(AGENT_PLUGINS_PLATFORM);
+  const bundleSkills: SkillOutput = { target: { dir: 'skills' }, platforms: readers, covered: [] };
+  return skillDirsFor([bundleSkills], fileMeta.platforms).length > 0;
+}
+
+function hasAnyFormat(formats: PluginBundleFormats): boolean {
+  return formats.claude || formats.agentPlugins;
+}
+
+function bundleNote(emitted: EmittedPlugin): string {
+  const { manifest } = emitted;
+  const hooksNote = manifest.hooks !== undefined ? ', hooks' : '';
+  return `${manifest.skills.length} skills, ${emitted.agentCount} agents${hooksNote}`;
+}
+
+/**
+ * Emits one bundle per plugin definition under `plugins/<name>/`, in each format `ctx.formats`
+ * turns on, and the `.claude-plugin/marketplace.json` index that lists them. That index is the one
+ * marketplace file Claude Code, Copilot CLI, VS Code and Codex all read; the Agent Plugins spec
+ * leaves distribution out of scope. Returns the index, or `null` when there is no source content.
+ */
+export function syncPluginBundles(
   ctx: MarketplaceSyncContext,
   recordError: (msg: string) => void,
+  recordWarning: (msg: string) => void,
 ): MarketplaceManifest | null {
-  const allRules = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md') && f !== 'README.md');
-  const allSkills = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
+  const rules = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md') && f !== 'README.md');
+  const skills = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
     existsSync(join(dirPath, 'SKILL.md')),
   );
-  const allAgents = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
+  const agents = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
 
-  if (allRules.size === 0 && allSkills.size === 0 && allAgents.size === 0) return null;
+  if (rules.size === 0 && skills.size === 0 && agents.size === 0) return null;
 
-  const maps: MetaMaps = {
-    profiles: buildProfileMap(ctx.catalog),
-    stacks: buildStackMap(ctx.catalog),
-    platforms: buildPlatformMap(ctx.catalog),
+  const sources: PluginSources = {
+    rules,
+    skills,
+    agents,
+    hooksContent: readHooksContent(ctx.sourceDirs),
+    maps: buildMetaMaps(ctx.catalog),
   };
-  const hooksContent = readHooksContent(ctx.sourceDirs);
   const projectName = basename(ctx.root);
 
+  const formatNames = [ctx.formats.claude ? 'Claude' : '', ctx.formats.agentPlugins ? 'Agent Plugins' : '']
+    .filter(Boolean)
+    .join(' + ');
   ctx.log(
-    `Marketplace: ${ctx.plugins.length} plugin(s), ${allRules.size} rule(s), ${allSkills.size} skill(s), ${allAgents.size} agent(s)${hooksContent !== null ? ', hooks' : ''}`,
+    `Plugin bundles (${formatNames}): ${ctx.plugins.length} plugin(s), ${rules.size} rule(s), ${skills.size} skill(s), ${agents.size} agent(s)${sources.hooksContent !== null && ctx.formats.claude ? ', hooks' : ''}`,
   );
 
   const pluginManifests: PluginManifest[] = [];
 
-  for (const pluginDef of ctx.plugins) {
-    const unknownProfiles = (pluginDef.profiles ?? []).filter((p) => !VALID_PROFILE_IDS.has(p));
-    if (unknownProfiles.length > 0) {
-      recordError(
-        `Plugin "${pluginDef.name}" references unknown profile(s): ${unknownProfiles.join(', ')} — valid profiles are: ${[...VALID_PROFILE_IDS].sort().join(', ')}`,
+  const checkedSkills = new Set<string>();
+  const checkSkill: SkillCheck = (skillDir, content) => {
+    if (checkedSkills.has(skillDir)) return;
+    checkedSkills.add(skillDir);
+    const issue = agentSkillIssue(skillDir, content);
+    if (issue !== null) {
+      recordWarning(
+        `agent-plugins: skill "${skillDir}" does not conform to the Agent Skills spec (${issue}); hosts will skip it`,
       );
-      continue;
     }
+  };
 
-    const manifest = emitPlugin(
-      ctx,
-      pluginDef,
-      allRules,
-      allSkills,
-      allAgents,
-      hooksContent,
-      recordError,
-      maps,
-    );
+  for (const pluginDef of ctx.plugins) {
+    const plan = planPluginFormats(pluginDef, ctx.formats);
+    if (plan.issue !== undefined) (hasAnyFormat(plan.formats) ? recordWarning : recordError)(plan.issue);
+    if (!hasAnyFormat(plan.formats)) continue;
+    const { formats } = plan;
 
-    const totalFiles = manifest.skills.length + manifest.agents.length;
-    if (totalFiles === 0) {
+    const emitted = emitPlugin(ctx, pluginDef, formats, sources, recordError, checkSkill);
+    const { manifest } = emitted;
+
+    if (manifest.skills.length + emitted.agentCount === 0) {
       const profileNames = (pluginDef.profiles ?? []).join(', ');
       const note = profileNames ? ` — no source files match profile(s): ${profileNames}` : '';
       recordError(`Plugin "${pluginDef.name}" resolved to 0 files${note}`);
@@ -435,28 +605,25 @@ export function syncMarketplace(
     }
 
     pluginManifests.push(manifest);
-
-    const pluginJsonObj: Record<string, unknown> = {
-      name: manifest.name,
-      displayName: manifest.displayName,
-      description: manifest.description,
-      skills: manifest.skills,
-      agents: manifest.agents,
-      ...(manifest.hooks !== undefined ? { hooks: manifest.hooks } : {}),
-    };
-
-    commitPlannedWrite(
-      ctx,
-      join(ctx.root, 'plugins', pluginDef.name, '.claude-plugin', 'plugin.json'),
-      JSON.stringify(pluginJsonObj, null, 2),
-    );
-
-    if (!ctx.checkMode) {
-      const hooksNote = manifest.hooks !== undefined ? ', hooks' : '';
-      ctx.log(
-        `  -> plugins/${pluginDef.name}/ (${manifest.skills.length} skills, ${manifest.agents.length} agents${hooksNote})`,
+    if (formats.claude) writeClaudePluginManifest(ctx, manifest);
+    if (formats.agentPlugins) {
+      writeAgentPluginBundle(
+        emitted.files,
+        {
+          name: pluginDef.name,
+          description: pluginDef.description,
+          owner: resolveOwner(ctx, projectName),
+          remote: ctx.remote,
+          profiles: pluginDef.profiles,
+          stacks: pluginDef.stacks,
+          packNames: emitted.packNames,
+        },
+        ctx.packLock,
+        recordWarning,
       );
     }
+
+    if (!ctx.checkMode) ctx.log(`  -> plugins/${pluginDef.name}/ (${bundleNote(emitted)})`);
   }
 
   const marketplace: MarketplaceManifest = {
@@ -479,4 +646,87 @@ export function syncMarketplace(
     ctx.log(`  -> .claude-plugin/marketplace.json`);
   }
   return marketplace;
+}
+
+/** One generated bundle path for a source item (`why`), relative to the project root. */
+export interface BundleOutput {
+  platform: typeof MARKETPLACE_PLATFORM | typeof AGENT_PLUGINS_PLATFORM;
+  path: string;
+}
+
+/**
+ * The plugin definitions sync bundles for a config: `marketplace.plugins`, or one plugin named after
+ * the project holding everything.
+ */
+export function pluginDefinitionsFor(config: BlueprintConfig, root: string): MarketplacePluginDefinition[] {
+  const projectName = basename(root);
+  return config.marketplace?.plugins ?? [{ name: projectName, displayName: projectName, description: '' }];
+}
+
+/**
+ * A valid Agent Plugins name close to `dirName`, suggested when a plugin's name isn't one. Never
+ * applied on its own: renaming a plugin moves its directory and its `enabledPlugins` key.
+ */
+export function toPluginName(dirName: string): string {
+  const name = dirName
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/\.{2,}/g, '.')
+    .slice(0, 64)
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
+  return name || 'plugin';
+}
+
+/**
+ * Bundle paths a rule, skill or agent is written to, by the same profile and stack matching sync
+ * uses. Bundles are gated by name only (the consuming project's versions are unknown when they are
+ * built), so this holds whether or not the project's own stack gate includes the item.
+ */
+export function createBundleOutputResolver(
+  config: BlueprintConfig,
+  platforms: readonly Platform[],
+  root: string,
+  catalog: Catalog,
+): (kind: 'rules' | 'skills' | 'agents', key: string, kindDir: string) => BundleOutput[] {
+  const claude = platforms.includes(MARKETPLACE_PLATFORM);
+  const agentPlugins = platforms.includes(AGENT_PLUGINS_PLATFORM);
+  if (!claude && !agentPlugins) return () => [];
+
+  const plugins = pluginDefinitionsFor(config, root);
+  const maps = buildMetaMaps(catalog);
+
+  return (kind, key, kindDir) => {
+    const meta =
+      kind === 'rules'
+        ? readRuleMeta(key, kindDir, maps)
+        : kind === 'skills'
+          ? readSkillMeta(key, kindDir, maps)
+          : readAgentMeta(key, kindDir, maps);
+    const out: BundleOutput[] = [];
+    for (const plugin of plugins) {
+      const planned = planPluginFormats(plugin, { claude, agentPlugins }).formats;
+      const on = formatsForFile(meta, plugin, planned);
+      const base = `plugins/${plugin.name}`;
+      if (kind !== 'agents') {
+        if (!bundleTakesSkill(meta, plugin, planned)) continue;
+        const skillDir = kind === 'rules' ? ruleToSkillId(key) : key;
+        if (on.claude)
+          out.push({ platform: MARKETPLACE_PLATFORM, path: `${base}/skills/${skillDir}/SKILL.md` });
+        if (on.agentPlugins)
+          out.push({ platform: AGENT_PLUGINS_PLATFORM, path: `${base}/skills/${skillDir}/SKILL.md` });
+        continue;
+      }
+      if (!hasAnyFormat(on)) continue;
+      if (on.claude) out.push({ platform: MARKETPLACE_PLATFORM, path: `${base}/agents/${key}` });
+      if (on.agentPlugins) {
+        const copilotName = key.replace(/\.md$/, '.agent.md');
+        out.push({
+          platform: AGENT_PLUGINS_PLATFORM,
+          path: `${base}/${COPILOT_EXTENSION_DIR}/agents/${copilotName}`,
+        });
+      }
+    }
+    return out;
+  };
 }

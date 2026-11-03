@@ -35,6 +35,7 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 | `llm/prompts/*.md` | `.github/prompts/*.prompt.md` (deprecated, removed in 0.18.0) | When files exist and **copilot** is in `platforms` |
 | `llm/commands/*.md`, `llm/prompts/*.md` | A generated `<name>/SKILL.md` in every skills dir (`targets.skills`) — see [Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts) | When files exist, for every platform with a skills target; a real skill of the same name wins |
 | `llm/skills/`, `llm/agents/`, `llm/rules/` | `plugins/{name}/`, `.claude-plugin/marketplace.json`; `extraKnownMarketplaces` in `.claude/settings.json` when `marketplace.remote` is set | When **claude-marketplace** is in `platforms` — see [Marketplace](Marketplace) |
+| `llm/skills/`, `llm/agents/`, `llm/rules/` | In each `plugins/{name}/`: root `plugin.json` (Agent Plugins 1.0), `skills/`, `com.github.copilot/agents/*.agent.md`, `digital.prototyp.bluetemberg/bundle-lock.json`; plus `.claude-plugin/marketplace.json` | When **agent-plugins** is in `platforms` — see [Marketplace](Marketplace#agent-plugins-bundles) |
 | `adapters` in config | User-defined ESM modules (last sync step) | When `adapters` is a non-empty array of specifiers |
 
 Nothing runs your hooks or MCP at sync time: the CLI only writes files. `sync --check` diffs the same outputs.

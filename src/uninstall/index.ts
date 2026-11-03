@@ -5,6 +5,7 @@ import { hasGeneratedBanner } from '../sync/banner.js';
 import { CLAUDE_HOOKS_MANIFEST } from '../sync/claude-hooks.js';
 import { MCP_OWNERSHIP_FILE } from '../sync/mcp.js';
 import { readIfExists } from '../utils/fs.js';
+import { PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
 import {
   isInside,
   measureChanges,
@@ -76,7 +77,7 @@ async function uninstallInPlace(root: string): Promise<void> {
     rmSync(join(root, STAGING_DIR), { recursive: true, force: true });
   }
 
-  if (config.platforms?.includes('claude-marketplace')) removeMarketplace(root);
+  if (config.platforms?.some((p) => PLUGIN_BUNDLE_PLATFORMS.includes(p))) removeMarketplace(root);
   removeGeneratedFile(root, join('.github', 'copilot-instructions.md'));
   removeAgentsMdFromGemini(root);
   removeIfBlank(root, join('.codex', 'config.toml'));

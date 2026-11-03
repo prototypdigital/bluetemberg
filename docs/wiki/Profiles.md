@@ -46,7 +46,7 @@ Some packs only work in one tool: the PR-review loop runs headless `claude -p` f
 
 Sync applies the same list per platform: a Claude Code–only pack in a project that targets Claude Code and Cursor is written to `.claude/` and skipped for `.cursor/`. Packs that name no platforms (or an empty list) work everywhere, exactly as before.
 
-Platform ids are the `platforms` config ids (`cursor`, `claude`, `copilot`, `gemini`, `antigravity`, `devin`, `codex`, `claude-marketplace`); `windsurf` is read as `devin`. Precedence, as for `stacks`:
+Platform ids are the `platforms` config ids (`cursor`, `claude`, `copilot`, `gemini`, `antigravity`, `devin`, `codex`, `claude-marketplace`, `agent-plugins`); `windsurf` is read as `devin`. Precedence, as for `stacks`:
 
 1. A file's own `platforms:` frontmatter (a rule, agent, skill or guardrail). `platforms: []` opens a rule, agent or skill to every platform; on a guardrail it keeps its existing meaning, compiled for no host.
 2. The owning pack's catalog `platforms`, from `bluetemberg.platforms` in the pack's `package.json`.

@@ -1,6 +1,6 @@
 import { input, select, checkbox, confirm } from '@inquirer/prompts';
 import { basename } from 'node:path';
-import { MARKETPLACE_PLATFORM } from '../types.js';
+import { MARKETPLACE_PLATFORM, PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
 import {
   resolveRuleCollections,
   resolveAgents,
@@ -129,7 +129,7 @@ export async function runPrompts(targetDir: string): Promise<InitAnswers> {
     choices: PLATFORM_CHOICES.map((p) => ({
       value: p.id,
       name: p.name,
-      checked: p.id !== MARKETPLACE_PLATFORM,
+      checked: !PLUGIN_BUNDLE_PLATFORMS.includes(p.id),
     })),
     required: true,
   });

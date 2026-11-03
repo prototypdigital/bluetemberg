@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path';
 import { ensureDir } from '../utils/fs.js';
 import { DEFAULT_TARGETS } from '../sync/transform.js';
 import { normalizePlatforms } from '../sync/targets.js';
-import { MARKETPLACE_PLATFORM } from '../types.js';
+import { MARKETPLACE_PLATFORM, PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
 import type {
   InitAnswers,
   BlueprintConfig,
@@ -299,7 +299,7 @@ function scaffoldRootDocs(targetDir: string, answers: InitAnswers, state: Scaffo
   if (answers.platforms.includes('antigravity')) targetDirs.push('`.agents/`');
   if (answers.platforms.includes('devin')) targetDirs.push('`.devin/rules/`');
   if (answers.platforms.includes('codex')) targetDirs.push('`AGENTS.md` + `.codex/`');
-  if (answers.platforms.includes(MARKETPLACE_PLATFORM)) targetDirs.push('`plugins/`');
+  if (answers.platforms.some((p) => PLUGIN_BUNDLE_PLATFORMS.includes(p))) targetDirs.push('`plugins/`');
 
   agentsLines.push(
     '',
@@ -672,7 +672,9 @@ function patchPrettierIgnore(targetDir: string, answers: InitAnswers, state: Sca
 
   const entries = [
     ...BASE_PRETTIERIGNORE_ENTRIES,
-    ...(answers.platforms.includes(MARKETPLACE_PLATFORM) ? MARKETPLACE_PRETTIERIGNORE_ENTRIES : []),
+    ...(answers.platforms.some((p) => PLUGIN_BUNDLE_PLATFORMS.includes(p))
+      ? MARKETPLACE_PRETTIERIGNORE_ENTRIES
+      : []),
   ];
 
   const lines = content.split('\n');

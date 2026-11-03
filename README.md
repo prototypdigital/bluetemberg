@@ -28,7 +28,7 @@ tampered with in transit.
 | Integrity verification  | none                   | SHA-512 + ECDSA registry signature per pack            |
 | Per-role filtering      | manual copy-paste      | profiles (role-matched defaults)                       |
 | Teammate onboarding     | clone + copy files     | `init --non-interactive --profile X` + `install`       |
-| Zero-install onboarding | no                     | Claude Marketplace plugin                              |
+| Zero-install onboarding | no                     | Claude Marketplace / Agent Plugins bundle              |
 | Scoping                 | one file per directory | each rule scoped by path in every tool's native format |
 | Stack routing           | none                   | rules gated on the installed framework version         |
 
@@ -133,7 +133,7 @@ Every generated Markdown and TOML file carries that warning **in the file itself
 
 A `.gitignore` entry and a comment in this tree only help someone reading the repo root. The banner travels with the file, so an editor who opens `.claude/rules/x.md` directly — or an agent that greps into it — sees that edits there are disposable and where the real source is. This matters most in projects that **commit** their generated output so `sync --check` can verify parity in CI: generated and hand-authored markdown then sit side by side, otherwise indistinguishable.
 
-When `claude-marketplace` is in `platforms`, sync also generates:
+When `claude-marketplace` or `agent-plugins` is in `platforms`, sync also generates:
 
 ```
 .claude-plugin/
@@ -314,6 +314,8 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 | Devin Desktop ³ | ✓     | —      | ✓      |
 | OpenAI Codex    | ✓ ²   | ✓ ²    | ✓      |
 
+Two more platform ids publish installable plugin bundles instead of configuring a tool: `claude-marketplace` (Claude Code plugins) and `agent-plugins` ([Agent Plugins 1.0](https://agent-plugins.org) bundles that VS Code, Copilot CLI, Codex and Cursor install). Both write into the same `plugins/<name>/` directories; see [Marketplace](#marketplace).
+
 ¹ `gemini` targets **Gemini CLI for Enterprise** (Gemini Code Assist Standard / Enterprise). Google stopped serving Gemini CLI to free and individual paid users on 2026-06-18 and replaced it with Antigravity CLI, so pick `antigravity` for those. Gemini CLI loads only the context files named by `context.fileName` and has no per-path rules, so sync adds `AGENTS.md` to `context.fileName` in `.gemini/settings.json` (leaving every other setting alone) and folds rules into the managed block in `AGENTS.md`, as for Codex. Agents and skills are not emitted for Gemini CLI.
 
 ² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Only Codex and Gemini CLI get that block. Every other platform receives scoped rules through its own directory, and most of them also read `AGENTS.md`, so folding rules in for them would load each rule twice. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
@@ -322,16 +324,17 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 
 ## How sync works
 
-| Source                | Cursor                                                | Claude                                                     | Copilot                                                          | Gemini CLI                                            | Antigravity               | Devin Desktop                                 |
-| --------------------- | ----------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------- | ------------------------- | --------------------------------------------- |
-| `llm/rules/*.md`      | `.cursor/rules/*.mdc`                                 | `.claude/rules/*.md`                                       | `.github/instructions/*.instructions.md`                         | managed block in `AGENTS.md`                          | `.agents/rules/*.md`      | `.devin/rules/*.md` + `.windsurf/rules/*.md`² |
-| `llm/agents/*.md`     | `.cursor/agents/*.md`                                 | `.claude/agents/*.md`                                      | `.github/agents/*.agent.md`                                      | —                                                     | —                         | —                                             |
-| `llm/skills/*/` ⁵     | `.agents/skills/*/`, or none when Claude is enabled ⁵ | `.claude/skills/*/`                                        | `.github/skills/*/`                                              | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
-| `llm/mcp.json`        | `.cursor/mcp.json`                                    | `.mcp.json` (merged)                                       | `.mcp.json` (merged)                                             | —                                                     | `.agents/mcp_config.json` | —                                             |
-| `llm/commands/*.md` ⁴ | as skills                                             | `.claude/skills/*/` + `.claude/commands/*.md` (deprecated) | `.github/skills/*/`                                              | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
-| `llm/prompts/*.md` ⁴  | as skills                                             | `.claude/skills/*/`                                        | `.github/skills/*/` + `.github/prompts/*.prompt.md` (deprecated) | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
-| `AGENTS.md`           | —                                                     | —                                                          | `.github/copilot-instructions.md`                                | read via `.gemini/settings.json` (`context.fileName`) | read natively             | —                                             |
-| `llm/` (marketplace)  | —                                                     | `plugins/*/skills \| agents/`¹                             | —                                                                | —                                                     | —                         | —                                             |
+| Source                 | Cursor                                                | Claude                                                     | Copilot                                                          | Gemini CLI                                            | Antigravity               | Devin Desktop                                 |
+| ---------------------- | ----------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------- | ------------------------- | --------------------------------------------- |
+| `llm/rules/*.md`       | `.cursor/rules/*.mdc`                                 | `.claude/rules/*.md`                                       | `.github/instructions/*.instructions.md`                         | managed block in `AGENTS.md`                          | `.agents/rules/*.md`      | `.devin/rules/*.md` + `.windsurf/rules/*.md`² |
+| `llm/agents/*.md`      | `.cursor/agents/*.md`                                 | `.claude/agents/*.md`                                      | `.github/agents/*.agent.md`                                      | —                                                     | —                         | —                                             |
+| `llm/skills/*/` ⁵      | `.agents/skills/*/`, or none when Claude is enabled ⁵ | `.claude/skills/*/`                                        | `.github/skills/*/`                                              | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
+| `llm/mcp.json`         | `.cursor/mcp.json`                                    | `.mcp.json` (merged)                                       | `.mcp.json` (merged)                                             | —                                                     | `.agents/mcp_config.json` | —                                             |
+| `llm/commands/*.md` ⁴  | as skills                                             | `.claude/skills/*/` + `.claude/commands/*.md` (deprecated) | `.github/skills/*/`                                              | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
+| `llm/prompts/*.md` ⁴   | as skills                                             | `.claude/skills/*/`                                        | `.github/skills/*/` + `.github/prompts/*.prompt.md` (deprecated) | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
+| `AGENTS.md`            | —                                                     | —                                                          | `.github/copilot-instructions.md`                                | read via `.gemini/settings.json` (`context.fileName`) | read natively             | —                                             |
+| `llm/` (marketplace)   | —                                                     | `plugins/*/skills \| agents/`¹                             | —                                                                | —                                                     | —                         | —                                             |
+| `llm/` (agent-plugins) | `plugins/*/skills/`¹                                  | —                                                          | `plugins/*/skills/` + `com.github.copilot/agents/`¹              | —                                                     | —                         | —                                             |
 
 ¹ Claude Code plugins have no native "rules" component, so the marketplace emitter converts each
 rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace).
@@ -397,6 +400,12 @@ Add `"claude-marketplace"` to `platforms` and define plugins in `bluetemberg.con
 Each plugin bundles only the skills and agents whose `profiles` frontmatter (or preset tags) overlap with the plugin's `profiles` list. Skills and agents with no profile are included everywhere.
 
 When `remote` is set, `bluetemberg sync` writes `extraKnownMarketplaces` and `enabledPlugins` to `.claude/settings.json` — Claude Code then auto-prompts teammates to install the relevant plugin when they open the project. **Teammates need no local bluetemberg install.**
+
+### Agent Plugins bundles
+
+Add `"agent-plugins"` to `platforms` (alone or next to `"claude-marketplace"`) to make each `plugins/<name>/` directory an [Agent Plugins 1.0](https://agent-plugins.org) bundle as well: a root `plugin.json` that passes the spec's schema, the shared `skills/` (rules included as `rule-{id}` skills), agents under `com.github.copilot/agents/`, and `digital.prototyp.bluetemberg/bundle-lock.json` with the lockfile entries of the packs it was built from and a SHA-256 digest of every file. The spec leaves integrity to a future version, so the lock sits in bluetemberg's own extension directory, where it can't affect spec validation. It uses the same `marketplace` config (plugins, profiles, stacks, owner, remote).
+
+Hosts install these through a marketplace, not by finding them in the project: Copilot CLI and Codex read the generated `.claude-plugin/marketplace.json` (`copilot plugin marketplace add <repo>`, `codex plugin marketplace add <repo>`), and VS Code uses Copilot's plugin settings. Hosts cache installed plugins, so reinstall after a sync. See [Marketplace — Agent Plugins bundles](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace#agent-plugins-bundles).
 
 See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guide.
 
