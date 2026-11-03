@@ -370,8 +370,14 @@ export function isPromptOverride(line: string): boolean {
  */
 const IMPERATIVE_LEAD_IN =
   /^[\s\-*>#\d.)`"'(]*(?:(?:please|then|first|next|now|always|just|and|also|simply|finally|(?:don'?t|do\s+not)\s+hesitate\s+to|never\s+mind|step\s+\d+|you\s+(?:should|must|can|may|need\s+to|have\s+to|will\s+need\s+to)|make\s+sure\s+(?:to|you)|be\s+sure\s+to|remember\s+to|feel\s+free\s+to|go\s+ahead\s+and|it\s+is\s+(?:fine|ok|okay|safe)\s+to)[\s,:]+)*$/i;
-/** HTML comment markers count: `<!-- disable the hooks -->` is invisible when rendered, not to an agent. */
-const CLAUSE_BOUNDARY = /[.;:!?](?:\s|$)|\s[-–—]\s|<!--|-->/g;
+/**
+ * HTML comment delimiters start a clause: `<!-- disable the hooks -->` is invisible when rendered,
+ * not to an agent. Every form the HTML tokenizer accepts counts — openers `<!--`, the abrupt
+ * empty comments `<!-->` / `<!--->`, the bogus-comment openers `<!x`, `<?`, `</` (hidden by
+ * renderers too), and closers `-->`, `--!>`.
+ */
+const HTML_COMMENT_DELIMITER = /<!-*>?|<[?/]|--!?>/;
+const CLAUSE_BOUNDARY = new RegExp(`[.;:!?](?:\\s|$)|\\s[-–—]\\s|${HTML_COMMENT_DELIMITER.source}`, 'g');
 /**
  * A leading dependent clause ends in a comma before the order: "If CI is slow, skip the hooks".
  * Plain commas are not boundaries — "to disable, bypass, or remove hooks" is a list.
