@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.18.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.17.0...bluetemberg-v0.18.0) (2026-11-03)
+
+
+### Features
+
+* **registry:** scan pack content for unsafe patterns before install ([7bb2237](https://github.com/prototypdigital/bluetemberg/commit/7bb2237a52c8a55c514e8a8db85f70fe5cdf446b))
+* **registry:** scan pack content for unsafe patterns before install ([51d4c1f](https://github.com/prototypdigital/bluetemberg/commit/51d4c1fc6377f12f104d93d1a9275976e7b238c6)), closes [#41](https://github.com/prototypdigital/bluetemberg/issues/41)
+
+
+### Bug Fixes
+
+* **guardrails:** keep Cursor from silently dropping .cursor/hooks.json ([64bd8bf](https://github.com/prototypdigital/bluetemberg/commit/64bd8bf4204575f404a4611fde4d5124a19bda6e))
+* **guardrails:** keep Cursor from silently dropping .cursor/hooks.json ([3b92c6b](https://github.com/prototypdigital/bluetemberg/commit/3b92c6bd550ae1abd0518270ed2ffecbad762999))
+* **registry:** close bypasses from second scanner review ([9f8dba5](https://github.com/prototypdigital/bluetemberg/commit/9f8dba5a949328579ac459f56afa5c93f19a21c5))
+* **registry:** close scanner bypasses found in self-review ([6b16f7f](https://github.com/prototypdigital/bluetemberg/commit/6b16f7ffd831a57aa0540c0512c3693390f03e5f))
+* **registry:** remove ambiguous separator from imperative lead-in regex ([400ba9c](https://github.com/prototypdigital/bluetemberg/commit/400ba9c5a02155d553ad7cd6b9fcbef76d6a8f35))
+* **registry:** treat every HTML comment delimiter as a clause boundary ([a8a7dd7](https://github.com/prototypdigital/bluetemberg/commit/a8a7dd7606e63f52067bb14cb90777aaf18e2716))
+
 ## [0.17.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.16.0...bluetemberg-v0.17.0) (2026-10-30)
 
 
