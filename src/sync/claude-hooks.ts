@@ -40,8 +40,8 @@ export interface ClaudeHooksSyncContext extends SyncSink {
   sourceBase: string;
   /** All source dirs in priority order: local first, then `extends`, packs, external sources. */
   sourceDirs: string[];
-  /** Every synced `extends` dir in config order, so a label names the same entry in every source view. */
-  extendsDirs?: readonly string[];
+  /** Each synced `extends` dir's position in the config's `extends` array, for `extends[i]` labels. */
+  extendsIndex?: ReadonlyMap<string, number>;
   /** Count of `extends` dirs (for origin labels in warnings). */
   extendedCount: number;
   /** Count of registry-pack dirs. */
@@ -146,7 +146,7 @@ export function parseClaudeHooksManifest(raw: unknown): ClaudeHooksSection | str
 /** Origin label for a non-local source dir index (mirrors the sync engine's verbose labels). */
 function nonLocalSourceLabel(ctx: ClaudeHooksSyncContext, index: number): string {
   const extendsEnd = 1 + ctx.extendedCount;
-  if (index < extendsEnd) return `extends[${ctx.extendsDirs?.indexOf(ctx.sourceDirs[index]) ?? index - 1}]`;
+  if (index < extendsEnd) return `extends[${ctx.extendsIndex?.get(ctx.sourceDirs[index]) ?? index - 1}]`;
   const packEnd = extendsEnd + ctx.packCount;
   if (index < packEnd) return `pack[${index - extendsEnd}]`;
   return `external[${index - packEnd}]`;

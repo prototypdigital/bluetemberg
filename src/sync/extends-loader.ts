@@ -13,6 +13,8 @@ export interface ExtendsSpec {
 /** A resolved `extends` entry: the source dir it points at, and the platforms it applies to. */
 export interface ResolvedExtendsEntry extends ExtendsSpec {
   dir: string;
+  /** Position of the entry's first occurrence in the `extends` array: the `i` in `extends[i]`. */
+  index: number;
 }
 
 export interface ResolvedExtends {
@@ -88,6 +90,10 @@ export function resolveExtendedSourceDirs(
   const entries: ResolvedExtendsEntry[] = [];
   const warnings: string[] = [];
 
+  const raw = extendsField === undefined ? [] : Array.isArray(extendsField) ? extendsField : [extendsField];
+  const indexOf = (path: string): number =>
+    raw.findIndex((entry) => (typeof entry === 'string' ? entry : entry.path) === path);
+
   for (const spec of normalizeExtends(extendsField)) {
     const dir = resolveEntry(spec.path, root);
     if (dir === null) {
@@ -97,7 +103,7 @@ export function resolveExtendedSourceDirs(
     // Two spellings of one dir (`./a`, `./a/`) are one source: keep the first, union the scopes.
     const seen = entries.find((e) => e.dir === dir);
     if (!seen) {
-      entries.push({ ...spec, dir });
+      entries.push({ ...spec, dir, index: indexOf(spec.path) });
       continue;
     }
     seen.platforms = unionScopes(seen.platforms, spec.platforms);

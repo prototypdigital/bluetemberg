@@ -319,29 +319,22 @@ describe('extends: platform-scoped entries', () => {
     it('labels an extends entry by its config index in every source view', async () => {
       writeRule(join(root, 'b', 'llm'), 'dup');
       writeRule(join(root, 'c', 'llm'), 'dup');
-
-      const results = await sync(root, {
-        config: {
-          ...CLAUDE_CURSOR,
-          extends: [{ path: './a', platforms: ['claude'] }, './b', './c'],
-        },
-        silent: true,
-      });
-      mkdirSync(join(root, 'a', 'llm'), { recursive: true });
-
-      // ./a does not exist, so it is dropped: ./b is extends[0] and ./c is extends[1] everywhere.
-      expect(results.warnings.filter((w) => w.startsWith('rules/dup.md'))).toEqual([
-        'rules/dup.md is shipped by extends[0] and extends[1] — extends[0] wins by source order; the other copy is ignored (override it locally to choose explicitly)',
-      ]);
-
-      const scoped = await sync(root, {
-        config: { ...CLAUDE_CURSOR, extends: [{ path: './a', platforms: ['claude'] }, './b', './c'] },
-        silent: true,
-      });
-      // ./a resolves now: in the cursor view (which lacks it) ./b must still read extends[1].
-      expect(scoped.warnings.filter((w) => w.startsWith('rules/dup.md'))).toEqual([
+      const config: BlueprintConfig = {
+        ...CLAUDE_CURSOR,
+        extends: [{ path: './a', platforms: ['claude'] }, './b', './c'],
+      };
+      const expected = [
         'rules/dup.md is shipped by extends[1] and extends[2] — extends[1] wins by source order; the other copy is ignored (override it locally to choose explicitly)',
-      ]);
+      ];
+
+      // ./a does not resolve yet: ./b and ./c keep their config indexes, like validation errors do.
+      const unresolved = await sync(root, { config, silent: true });
+      expect(unresolved.warnings.filter((w) => w.startsWith('rules/dup.md'))).toEqual(expected);
+
+      // ./a resolves for claude only: the cursor view lacks it, and must still say extends[1].
+      mkdirSync(join(root, 'a', 'llm'), { recursive: true });
+      const scoped = await sync(root, { config, silent: true });
+      expect(scoped.warnings.filter((w) => w.startsWith('rules/dup.md'))).toEqual(expected);
     });
 
     it('intersects an entry scope with the file-level platforms: frontmatter', async () => {

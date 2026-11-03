@@ -496,10 +496,10 @@ interface SyncContext extends SyncSink {
   /** Count of `extends` dirs (for accurate per-file origin labels). */
   extendedCount: number;
   /**
-   * Every synced `extends` dir, in config order. A source view holds only some of them, so labels
-   * (`extends[i]`) index this list to name the same entry in every view.
+   * Each synced `extends` dir's position in the config's `extends` array, so a label (`extends[i]`)
+   * names the entry as written — the index validation errors use — in every source view.
    */
-  extendsDirs: readonly string[];
+  extendsIndex: ReadonlyMap<string, number>;
   /** Count of registry-pack dirs. */
   packCount: number;
   config: BlueprintConfig;
@@ -664,7 +664,7 @@ function logSourceDirs(ctx: SyncContext, sources: readonly SyncSource[]): void {
     let tag: string = source.origin;
     if (source.origin === 'extends') {
       const scope = source.platforms === null ? '' : `, ${source.platforms.join(', ')} only`;
-      tag = `extends[${ctx.extendsDirs.indexOf(source.dir)}]${scope}`;
+      tag = `extends[${ctx.extendsIndex.get(source.dir) ?? '?'}]${scope}`;
     }
     ctx.log(`  [${i}] ${source.dir} (${tag})`);
   });
@@ -705,7 +705,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // A scoped `extends` entry for no configured platform is left out (sync warns about it).
   const sources = activeSources(resolvedSources.sources, platforms);
   const sourceDirs = sources.map((s) => s.dir);
-  const extendsDirs = sources.filter((s) => s.origin === 'extends').map((s) => s.dir);
+  const extendsSources = sources.filter((s) => s.origin === 'extends');
+  const extendsIndex = new Map(extendsSources.map((s) => [s.dir, s.extendsIndex ?? 0]));
 
   const results: SyncResults = { synced: 0, outOfSync: 0, stale: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
@@ -727,8 +728,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     root,
     sourceBase,
     sourceDirs,
-    extendedCount: extendsDirs.length,
-    extendsDirs,
+    extendedCount: extendsSources.length,
+    extendsIndex,
     packCount: packDirs.length,
     config,
     platforms,
@@ -1004,7 +1005,7 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   if (idx === 0) return 'local';
 
   const extendsEnd = 1 + ctx.extendedCount;
-  if (idx < extendsEnd) return `extends[${ctx.extendsDirs.indexOf(ctx.sourceDirs[idx])}]`;
+  if (idx < extendsEnd) return `extends[${ctx.extendsIndex.get(ctx.sourceDirs[idx]) ?? idx - 1}]`;
 
   const packEnd = extendsEnd + ctx.packCount;
   if (idx < packEnd) return `pack[${idx - extendsEnd}]`;

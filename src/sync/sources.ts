@@ -27,6 +27,8 @@ export interface SyncSource {
   label: string;
   /** Platforms a scoped `extends` entry applies to; `null` (every other source) = every platform. */
   platforms: Platform[] | null;
+  /** For an `extends` source, its position in the config's `extends` array. */
+  extendsIndex?: number;
 }
 
 /** A set of platforms that read the same sources: everything but scoped `extends` entries is shared. */
@@ -62,6 +64,7 @@ export function resolveSyncSources(root: string, config: BlueprintConfig): Resol
       origin: 'extends' as const,
       label: extendsLabel(entry),
       platforms: entry.platforms,
+      extendsIndex: entry.index,
     })),
     ...packs.dirs.map((dir, i) => ({
       dir,
