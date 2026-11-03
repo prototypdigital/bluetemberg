@@ -150,6 +150,8 @@ Rules, agents, skills and guardrails ship as versioned npm packs from [bluetembe
 
 Git, Security and Docs rules and the docs-maintainer agent are pre-selected for every profile except Custom.
 
+Packs that only work in one tool name their platforms in the catalog: the PR-review and session-audit packs need Claude Code hooks, so they are `["claude"]`. `init` preselects such a pack only when one of its platforms is selected, and `sync` writes it only for those platforms (Claude Code and Cursor configured → `.claude/` only). Packs that name no platforms go everywhere. See [Profiles → Platforms](https://github.com/prototypdigital/bluetemberg/wiki/Profiles#platforms).
+
 After `init`, run `bluetemberg install` to download the packs listed in `llm/packages.json` into the local cache (`.bluetemberg/packs/`); `sync` merges them with your local `llm/` content. Use `bluetemberg install --dry-run` to preview what would be installed without writing anything to disk.
 
 ## Switching profile

@@ -40,6 +40,10 @@ One-line description of the agent's purpose.
 
 Array of tool capabilities the agent should have access to. Common values: `read`, `search`, `edit`, `execute`, `agent`.
 
+### `platforms` (optional)
+
+The platforms the agent works on, e.g. `[claude]` for one that drives Claude Code hooks. Sync skips its output for the project's other platforms (Codex's `.codex/agents/` included). Absent or `[]` means every platform; the field overrides the pack's catalog `platforms`. See [Profiles → Platforms](Profiles#platforms).
+
 ## How agents are synced
 
 Unlike rules, agents keep their body and frontmatter. Sync adds the generated-file banner after the frontmatter, changes the file extension, and for Claude Code maps abstract `tools` names to Claude's tool names:

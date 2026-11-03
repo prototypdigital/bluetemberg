@@ -17,7 +17,7 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--profile <id>` | With `--non-interactive` only (`frontend`, `backend`, `fullstack`, `devops`, `pure-infra`, `agentic`, `design-engineer`, `custom`). |
 | `--project-name`, `--project-description` | With `--non-interactive` without `--config`. |
 | `--package-manager` | Values: `pnpm`, `npm`, or `yarn`. `--non-interactive` only. |
-| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). Ids: `cursor`, `claude`, `copilot`, `gemini`, `antigravity`, `devin`, `codex`, `claude-marketplace`; `windsurf` is accepted as an alias for `devin` (Devin Desktop, formerly Windsurf) and written to config as `devin`. `--non-interactive` only. |
+| `--platforms <csv>` | e.g. `cursor,claude` (non-empty when set). Ids: `cursor`, `claude`, `copilot`, `gemini`, `antigravity`, `devin`, `codex`, `claude-marketplace`; `windsurf` is accepted as an alias for `devin` (Devin Desktop, formerly Windsurf) and written to config as `devin`. Packs limited to other platforms (see [Profiles](Profiles#platforms)) are not preselected. `--non-interactive` only. |
 | `--rule-source` | Values: `collections` (default) or `none` (empty scaffold — bring your own rules). `--non-interactive` only. |
 | `--rule-collections <csv>` | Registry collection ids to include (e.g. `typescript,git`). Applies when `--rule-source collections`. |
 | `--agents <csv>`, `--skills <csv>`, `--mcp-servers <csv>` | Scoped lists when scaffolding is enabled. |
@@ -74,7 +74,7 @@ Programmatic callers can keep using `init(root, opts)`/`scaffold(...)`/`sync(...
 
 Changes the team profile recorded in `bluetemberg.config.json` without re-running the wizard. Non-destructive:
 
-- Adds the new profile's default agent and skill packs to `llm/packages.json` when missing, with a `^<latest>` range looked up from the registry (`latest` if it can't be reached).
+- Adds the new profile's default agent and skill packs to `llm/packages.json` when missing, with a `^<latest>` range looked up from the registry (`latest` if it can't be reached). Packs limited to platforms the config doesn't list are not added.
 - Never removes a pack and never touches `llm/` content.
 - Lists official agent/skill packs that are not among the new profile's defaults, so you can remove them by hand. Rule collections and third-party packs are never flagged.
 - Updates `profile` in the config.
@@ -121,12 +121,13 @@ Without `--yes`, the command prints the dry-run plan and asks before changing an
 
 ## `bluetemberg preview [profile]`
 
-Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`. Stack-specific packs are filtered by the stacks detected in the current directory, as `init` would; the ones it skips are listed at the end.
+Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`. Stack-specific packs are filtered by the stacks detected in the current directory, as `init` would, and platform-specific packs by the platforms it previews for (see [Profiles](Profiles#platforms)); the ones it skips are listed at the end. When the platforms differ from `init`'s defaults, the suggested `init` command carries the matching `--platforms`.
 
 | Option | Notes |
 | ------ | ----- |
 | `--list` | List the available profile ids with their descriptions |
 | `--force` | Re-fetch the pack catalog instead of using the 24-hour cache |
+| `--platforms <csv>` | Platforms to preview for (same ids as `init`). Defaults to the `platforms` of the `bluetemberg.config.json` in the current directory, or with no config to `init`'s defaults (every platform but `claude-marketplace`) |
 | `--silent` | Suppress output |
 
 The listing comes from the live catalog (cached in `.bluetemberg/catalog.json`, the only file this command writes; the committed snapshot is the offline fallback). The wizard reads the committed snapshot, so until that snapshot is refreshed the two can differ slightly.
@@ -158,6 +159,8 @@ Before first use of `--prune`, read the short pre-flight list and platform notes
 **Stale files are drift.** `--check` also looks for generated files (banner present) under the managed output dirs that no source produces any more — a rule you deleted or renamed, or one a stack change filtered out — and reports each as `STALE:`. They count as out of sync and exit 1, and the summary points at `sync --prune`. With `devin` enabled this includes generated files left in `.windsurf/workflows/` and `.windsurf/skills/` from before the Devin Desktop rename; prune them once after upgrading (see [Configuration](Configuration#devin-desktop-devin)). Hand-written files and JSON outputs are never reported, because without a banner bluetemberg can't tell them from its own.
 
 **Monorepos (recursive by default):** sync discovers every `bluetemberg.config.json` at or below the directory you run it in — the config tree is the workspace map — and syncs each configured package against **its own** detected stacks. So one `bluetemberg sync` (or `sync --check` in CI) keeps a whole monorepo in sync: `packages/web` gated on its React, `packages/legacy` on its own, with no flag to forget and no false-green check. A repo with no sub-package configs is unaffected (single-package path). Pass `--no-recursive` to sync only the current directory. Discovery skips `node_modules`, dot-folders, and build dirs. See [Stacks & Versioning](Stacks) and [Monorepo config inheritance](Configuration#monorepo-config-inheritance).
+
+**Platform routing:** a pack whose catalog entry lists `platforms` (for example `["claude"]` for a reviewer that runs headless `claude -p`), or a file whose frontmatter does, is written only for those platforms. Sync skips its output for every other configured platform and lists it under a `limited by platform` line (`pr-reviewer: claude only — skipped for cursor`); nothing else changes. Outputs several platforms read are written when any of them is allowed: `.agents/skills/` (Codex, Devin, Antigravity) and the `AGENTS.md` rules block (Codex, Gemini). An unknown id or a malformed list warns. A generated file left over from before a pack declared its platforms is reported by `--check` and removed by `--prune`. See [Profiles](Profiles#platforms).
 
 **Version-aware stack filtering:** sync detects the project's technology stacks and versions, then **hard-excludes** any rule, guardrail, agent, or skill whose `stacks:` constraint is not satisfied — a `payload: ">=3 <4"` rule never reaches a Payload-2 project. Excluded files are listed under a `filtered out by version` line so you can audit them. Low-confidence detection (a version coerced from a `package.json` range) warns but still applies — never silently dropped. Content with no `stacks:` is stack-agnostic and always applies, so a project that declares no stacks syncs exactly as before. See [Configuration](Configuration) (the `stacks` field) and [Writing Rules](Writing-Rules).
 
@@ -221,7 +224,8 @@ For each match it reports:
 - **source**: the winning copy (`local`, `extends <entry>`, `<pack>@<version>`, or `<source>@<ref>` for an external source) plus any shadowed lower-priority copies.
 - **constraint**: whether it came from the file's own `stacks:` frontmatter (version-precise), the owning pack's catalog tag (name-only, `*`), or nothing (stack-agnostic).
 - **each `stack: range`** checked against the detected version, with its confidence and where it came from. A coerced (low-confidence) detection is flagged.
-- **why it's out**: a version mismatch, an absent stack, or (for a guardrail) frontmatter or regex sync rejects. It also lists invalid ranges and, when the item is included, the generated outputs.
+- **platforms**: when the item is limited to some platforms, the list, where it came from (the file's `platforms:` frontmatter or the owning pack's catalog entry), and the configured platforms it is skipped for. A generated path for a skipped platform still resolves, so `why .cursor/agents/pr-reviewer.md` explains why the file isn't there.
+- **why it's out**: a version mismatch, an absent stack, platforms that name none this project syncs, or (for a guardrail) frontmatter or regex sync rejects. It also lists invalid ranges and, when the item is included, the generated outputs (only those for platforms it is written to).
 
 ```bash
 npx bluetemberg why payload-v3

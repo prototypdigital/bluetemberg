@@ -25,12 +25,13 @@ import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
 import { syncDevinGuardrailHooks } from './guardrails-devin.js';
 import { syncClaudeHooks } from './claude-hooks.js';
 import {
-  DEFAULT_SYNC_PLATFORMS,
-  normalizePlatforms,
+  configuredPlatforms,
+  dirKey,
   normalizeTargets,
   resolveAgentTargets,
   resolveRuleTargets,
   resolveSkillTargets,
+  skillDirReaders,
 } from './targets.js';
 import { findShadowedEntries } from './extends-loader.js';
 import { mergeContentKind, resolveSyncSources } from './sources.js';
@@ -41,19 +42,17 @@ import { buildStackPackages } from '../stacks/packages.js';
 import { describeLowConfidence, isValidStackRange, type DetectedStacks } from '../stacks/match.js';
 import { buildStackMap, type StackMap } from '../stacks/resolve.js';
 import { evaluateStackGate } from '../stacks/gate.js';
+import {
+  KNOWN_PLATFORMS,
+  allowsAnyPlatform,
+  allowsPlatform,
+  buildPlatformMap,
+  resolvePlatformGate,
+  type PlatformMap,
+} from '../catalog/platforms.js';
 import type { Platform, BlueprintConfig, SyncOptions, SyncResults, TeamProfile } from '../types.js';
 
-const VALID_PLATFORMS: readonly Platform[] = [
-  'cursor',
-  'claude',
-  'copilot',
-  'gemini',
-  'antigravity',
-  'devin',
-  'windsurf',
-  'codex',
-  'claude-marketplace',
-];
+const VALID_PLATFORMS: readonly Platform[] = KNOWN_PLATFORMS;
 
 function validateTargets(targets: unknown, configPath: string, requireComplete = true): void {
   if (targets === undefined) {
@@ -446,6 +445,15 @@ interface SyncContext extends SyncSink {
    */
   excludedRules: Map<string, string>;
   excludedAgents: Map<string, string>;
+  /** Catalog pack-level `platforms`, pack-scoped (see `catalog/platforms.ts`). */
+  platformMap: PlatformMap;
+  /**
+   * Rules/agents limited to some platforms (`file → platforms`), recorded by `syncRules`/`syncAgents`
+   * for the emitters that do not walk the per-file loop (Codex, the AGENTS.md block). Files open to
+   * every platform are absent.
+   */
+  rulePlatforms: Map<string, string[]>;
+  agentPlatforms: Map<string, string[]>;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
@@ -572,7 +580,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     configWarnings.push(w),
   );
   // `windsurf` is an alias for `devin`; every emitter below sees only the canonical id.
-  const platforms = normalizePlatforms(config.platforms || DEFAULT_SYNC_PLATFORMS);
+  const platforms = configuredPlatforms(config);
   const resolvedSources = resolveSyncSources(root, config);
   const { sourceBase, extendedDirs, packDirs, externalDirs } = resolvedSources;
   // Priority: local sourceBase first, then extends entries, then registry packs, then external sources.
@@ -613,6 +621,9 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     warnedLowConfidence: new Set(),
     excludedRules: new Map(),
     excludedAgents: new Map(),
+    platformMap: buildPlatformMap(catalog),
+    rulePlatforms: new Map(),
+    agentPlatforms: new Map(),
   };
 
   // Surface extends, pack, and external-source resolution warnings before sync output.
@@ -836,52 +847,67 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   return `external[${idx - packEnd}]`;
 }
 
-/**
- * Resolve which `.md` files (rules or agents) are version-filtered out of this project. A file is
- * excluded when its stack constraint (frontmatter `stacks:` > catalog pack-level) names a stack that
- * is absent or whose detected version is outside the declared range — the version-aware gate.
- * Returns `file → reason` for the excluded files; the decision is platform-independent so it is
- * computed once. Used for both rules and agents so version-specific guidance is withheld uniformly.
- */
-function resolveExcludedFiles(
-  ctx: SyncContext,
-  merged: Map<string, string>,
-  kind: 'rules' | 'agents',
-): Map<string, string> {
-  const stackMap = buildStackMap(ctx.catalog);
-  const excluded = new Map<string, string>();
-  for (const [file, sourceDir] of merged) {
-    let data: Record<string, unknown> = {};
-    try {
-      data = matter.read(join(sourceDir, file)).data as Record<string, unknown>;
-    } catch {
-      // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
-    }
-    const gate = gateByVersion(ctx, basename(file, '.md'), sourceDir, data, stackMap, `${kind}/${file}`);
-    if (!gate.matched) excluded.set(file, gate.reason);
-  }
-  return excluded;
+/** Per-file gate decisions for one content kind, keyed like `mergeContentKind` (`x.md` or a skill dir). */
+interface KindGates {
+  /** Version-filtered out (`key → reason`); the decision is platform-independent. */
+  excluded: Map<string, string>;
+  /** Limited to some platforms (`key → platforms`); keys open to every platform are absent. */
+  platforms: Map<string, string[]>;
 }
 
 /**
- * Resolve which skill directories are version-filtered out. A skill is gated on the `stacks:`
- * frontmatter of its `SKILL.md` (id = directory name), mirroring rules/agents so a version-specific
- * skill is withheld on projects it does not target. Returns `dirName → reason` for excluded skills.
+ * Resolve the version gate and the platform gate for every entry of one content kind. A file is
+ * version-excluded when its stack constraint (frontmatter `stacks:` > catalog pack-level) names a
+ * stack that is absent or whose detected version is outside the declared range; it is limited to
+ * some platforms when its `platforms` (frontmatter > catalog pack-level) names any. `fileOf` maps an
+ * entry to the file whose frontmatter decides (the `.md` itself, or a skill's `SKILL.md`).
  */
-function resolveExcludedSkills(ctx: SyncContext, merged: Map<string, string>): Map<string, string> {
+function resolveKindGates(
+  ctx: SyncContext,
+  merged: Map<string, string>,
+  kind: 'rules' | 'agents' | 'skills',
+): KindGates {
   const stackMap = buildStackMap(ctx.catalog);
-  const excluded = new Map<string, string>();
-  for (const [dirName, sourceParent] of merged) {
+  const gates: KindGates = { excluded: new Map(), platforms: new Map() };
+  for (const [key, kindDir] of merged) {
+    const id = kind === 'skills' ? key : basename(key, '.md');
+    const file = kind === 'skills' ? join(kindDir, key, 'SKILL.md') : join(kindDir, key);
+    const label = `${kind}/${key}`;
     let data: Record<string, unknown> = {};
     try {
-      data = matter.read(join(sourceParent, dirName, 'SKILL.md')).data as Record<string, unknown>;
+      data = matter.read(file).data as Record<string, unknown>;
     } catch {
-      // Unreadable SKILL.md → treat as stack-agnostic; the write loop reports the read error.
+      // Unreadable frontmatter → treat as agnostic here; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, dirName, sourceParent, data, stackMap, `skills/${dirName}`);
-    if (!gate.matched) excluded.set(dirName, gate.reason);
+    const gate = gateByVersion(ctx, id, kindDir, data, stackMap, label);
+    if (!gate.matched) gates.excluded.set(key, gate.reason);
+    const platforms = gateByPlatform(ctx, id, kindDir, data, label);
+    if (platforms !== null) gates.platforms.set(key, platforms);
   }
-  return excluded;
+  return gates;
+}
+
+/**
+ * The platforms a file is limited to (frontmatter `platforms:` > catalog pack-level), or `null` when
+ * it is open to every platform. Warns when the frontmatter is malformed or names an unknown id —
+ * either would otherwise skip the file silently.
+ */
+function gateByPlatform(
+  ctx: SyncContext,
+  id: string,
+  kindDir: string,
+  frontmatter: Record<string, unknown>,
+  label: string,
+): string[] | null {
+  const gate = resolvePlatformGate(id, kindDir, frontmatter, ctx.platformMap);
+  if (gate.invalid) recordWarning(ctx, `${label}: ${gate.invalid}`);
+  if (gate.unknown.length > 0) {
+    recordWarning(
+      ctx,
+      `${label}: unknown platform(s) ${gate.unknown.join(', ')} in \`platforms\` — they match nothing; valid ids are ${KNOWN_PLATFORMS.join(', ')}`,
+    );
+  }
+  return gate.platforms;
 }
 
 /** Log the shared "applied · filtered out by version" summary for a synced kind (id → reason). */
@@ -895,16 +921,38 @@ function logVersionFiltered(ctx: SyncContext, appliedCount: number, excluded: Ma
   }
 }
 
+/**
+ * Log the entries skipped for some of this project's platforms, and which. Entries the version
+ * gate already withheld, and entries whose platforms cover every synced platform, are not listed.
+ */
+function logPlatformLimited(ctx: SyncContext, gates: KindGates): void {
+  const lines: string[] = [];
+  for (const [key, platforms] of gates.platforms) {
+    if (gates.excluded.has(key)) continue;
+    const skipped = ctx.platforms.filter((p) => !allowsPlatform(platforms, p));
+    if (skipped.length === 0) continue;
+    lines.push(
+      `    - ${key.replace(/\.md$/, '')}: ${platforms.join(', ')} only — skipped for ${skipped.join(', ')}`,
+    );
+  }
+  if (lines.length === 0) return;
+  ctx.log(`  ${lines.length} limited by platform`);
+  for (const line of lines) ctx.log(line);
+}
+
 function syncRules(ctx: SyncContext): void {
   const merged = mergeContentKind(ctx.sourceDirs, 'rules');
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedFiles(ctx, merged, 'rules');
+  const gates = resolveKindGates(ctx, merged, 'rules');
+  const { excluded } = gates;
   ctx.excludedRules = excluded;
+  ctx.rulePlatforms = gates.platforms;
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Rules: ${merged.size} source files`);
   logVersionFiltered(ctx, appliedCount, excluded);
+  logPlatformLimited(ctx, gates);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -917,9 +965,12 @@ function syncRules(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of ruleTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
+    let written = 0;
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
+      if (!allowsPlatform(gates.platforms.get(file), platform)) continue;
+      written++;
       try {
         const source = matter.read(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
@@ -934,7 +985,7 @@ function syncRules(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${written} files)`);
   }
 }
 
@@ -942,12 +993,15 @@ function syncAgents(ctx: SyncContext): void {
   const merged = mergeContentKind(ctx.sourceDirs, 'agents');
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedFiles(ctx, merged, 'agents');
+  const gates = resolveKindGates(ctx, merged, 'agents');
+  const { excluded } = gates;
   ctx.excludedAgents = excluded;
+  ctx.agentPlatforms = gates.platforms;
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Agents: ${merged.size} source files`);
   logVersionFiltered(ctx, appliedCount, excluded);
+  logPlatformLimited(ctx, gates);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -960,9 +1014,12 @@ function syncAgents(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
+    let written = 0;
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
+      if (!allowsPlatform(gates.platforms.get(file), platform)) continue;
+      written++;
       try {
         const source = readFileSync(join(sourceDir, file), 'utf8');
         const platformContent = platform === 'claude' ? toClaudeAgentContent(source) : source;
@@ -977,7 +1034,7 @@ function syncAgents(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${written} files)`);
   }
 }
 
@@ -985,13 +1042,17 @@ function syncSkills(ctx: SyncContext): void {
   const merged = mergeContentKind(ctx.sourceDirs, 'skills');
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedSkills(ctx, merged);
+  const gates = resolveKindGates(ctx, merged, 'skills');
+  const { excluded } = gates;
   const appliedCount = merged.size - excluded.size;
 
   const skillTargets = resolveSkillTargets(ctx.config, ctx.platforms);
+  // A dir several platforms read (`.agents/skills/`) gets a skill when any of them is allowed.
+  const readers = skillDirReaders(ctx.config, ctx.platforms);
 
   ctx.log(`Skills: ${merged.size} source directories`);
   logVersionFiltered(ctx, appliedCount, excluded);
+  logPlatformLimited(ctx, gates);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -1000,9 +1061,13 @@ function syncSkills(ctx: SyncContext): void {
     }
   }
 
-  for (const [, targetConfig] of skillTargets) {
+  for (const [platform, targetConfig] of skillTargets) {
+    const dirReaders = readers.get(dirKey(targetConfig.dir)) ?? [platform];
+    let written = 0;
     for (const [dirName, sourceParent] of merged) {
       if (excluded.has(dirName)) continue;
+      if (!allowsAnyPlatform(gates.platforms.get(dirName), dirReaders)) continue;
+      written++;
       try {
         const srcSkill = join(sourceParent, dirName, 'SKILL.md');
         const outDir = join(ctx.root, targetConfig.dir, dirName);
@@ -1018,7 +1083,7 @@ function syncSkills(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} skills)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${written} skills)`);
   }
 }
 

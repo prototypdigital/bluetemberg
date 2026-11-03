@@ -50,6 +50,14 @@ export function normalizePlatforms(platforms: readonly Platform[]): Platform[] {
 }
 
 /**
+ * The platforms sync targets for a loaded config, normalized. `init` preselection (`switch-profile`),
+ * `preview` and `why` all read it here so they route by the same list sync emits for.
+ */
+export function configuredPlatforms(config: Pick<BlueprintConfig, 'platforms'>): Platform[] {
+  return normalizePlatforms(config.platforms || DEFAULT_SYNC_PLATFORMS);
+}
+
+/**
  * Re-key a `targets.<kind>.windsurf` entry as `devin`. An entry that still points at the old default
  * dir (what `init` wrote before the rename) takes the new Devin default; a custom dir is kept as is.
  * An explicit `devin` entry always wins.
@@ -129,4 +137,22 @@ export function resolveSkillTargets(
     seen.add(dir);
     return true;
   });
+}
+
+/**
+ * Every enabled platform that reads each skills dir, keyed by {@link dirKey}. `resolveSkillTargets`
+ * keeps one entry per dir, so a dir shared by Codex, Devin and Antigravity names only one of them;
+ * platform routing needs all of them, since a Devin-only skill still belongs in the shared dir.
+ */
+export function skillDirReaders(
+  config: BlueprintConfig,
+  platforms: readonly Platform[],
+): Map<string, Platform[]> {
+  const section = normalizeSection(config.targets?.skills || DEFAULT_TARGETS.skills, 'skills');
+  const readers = new Map<string, Platform[]>();
+  for (const [platform, target] of filterTargets<SkillTargetConfig>(section, normalizePlatforms(platforms))) {
+    const dir = dirKey(target.dir);
+    readers.set(dir, [...(readers.get(dir) ?? []), platform]);
+  }
+  return readers;
 }

@@ -12,6 +12,8 @@ import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.
 import { resolveAgents, resolveSkills } from './presets.js';
 import { loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
+import { loadConfig } from '../sync/index.js';
+import { configuredPlatforms } from '../sync/targets.js';
 import type { PackageManifest, PresetItem, TeamProfile } from '../types.js';
 
 export interface SwitchProfileOptions {
@@ -74,10 +76,12 @@ export function switchProfile(
   const stale: string[] = [];
 
   const projectStacks = new Set(detectStacks(root, { stacks: declaredStacks(raw.stacks) }).keys());
+  // The platforms sync emits for: a Claude Code–only pack is not added to a Cursor-only project.
+  const projectPlatforms = configuredPlatforms(loadConfig(root));
 
   const agentResult = applyPresets(
     manifest,
-    agentsForProfile(toProfile, catalog, projectStacks),
+    agentsForProfile(toProfile, catalog, projectStacks, projectPlatforms),
     resolveAgents(catalog),
   );
   added.push(...agentResult.added);
@@ -85,7 +89,7 @@ export function switchProfile(
 
   const skillResult = applyPresets(
     manifest,
-    skillsForProfile(toProfile, catalog, projectStacks),
+    skillsForProfile(toProfile, catalog, projectStacks, projectPlatforms),
     resolveSkills(catalog),
   );
   added.push(...skillResult.added);

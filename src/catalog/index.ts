@@ -20,6 +20,14 @@ export interface CatalogPack {
    * catalog sees `[]`.
    */
   stacks?: Stack[];
+  /**
+   * Platforms this pack's content works on (`Platform` ids, `windsurf` = `devin`), e.g. `["claude"]`
+   * for a pack that needs Claude Code hooks. Empty/absent = every platform. Sync skips the pack's
+   * output for other platforms and `init` does not preselect it when none is targeted; see
+   * `catalog/platforms.ts`. Additive and optional, like `stacks`. Typed as plain strings so an id a
+   * newer packs repo adds loads here and simply matches nothing.
+   */
+  platforms?: string[];
   universal: boolean;
   kind: 'rules' | 'agents' | 'skills' | 'guardrails';
   rules?: string[];
@@ -86,14 +94,19 @@ function assertCatalog(data: unknown): asserts data is Catalog {
       !Array.isArray(p.profiles) ||
       !(p.profiles as unknown[]).every((x) => typeof x === 'string') ||
       // `stacks` is optional and additive; when present it must be a string array.
-      (p.stacks !== undefined &&
-        (!Array.isArray(p.stacks) || !(p.stacks as unknown[]).every((x) => typeof x === 'string')))
+      !isOptionalStringArray(p.stacks) ||
+      // `platforms` is optional and additive in the same way.
+      !isOptionalStringArray(p.platforms)
     ) {
       throw new Error(
-        'Invalid catalog format: pack missing required fields (name, version, kind, profiles) or has invalid kind/profile/stack values',
+        'Invalid catalog format: pack missing required fields (name, version, kind, profiles) or has invalid kind/profile/stack/platform values',
       );
     }
   }
+}
+
+function isOptionalStringArray(value: unknown): boolean {
+  return value === undefined || (Array.isArray(value) && value.every((x) => typeof x === 'string'));
 }
 
 const ITEM_KINDS = ['rules', 'agents', 'skills', 'guardrails'] as const;

@@ -14,6 +14,7 @@ That is a distribution problem, and the fix is the one every other kind of share
 - **Integrity.** Every pack is checked against its SHA-512 hash on download, and the registry's ECDSA signature is verified against the registry's published keys. Tarballs are size-capped and path-traversal-filtered. The lockfile records the signing key id.
 - **Routing by role.** A profile (frontend, backend, devops, …) preselects the packs that fit the role. Those are defaults, not bundles: add or remove anything.
 - **Routing by stack version.** A rule tagged `stacks: { payload: '>=3 <4' }` is delivered only where the detected version satisfies it. This one is a hard exclusion, and sync lists every file it withheld so you can audit it.
+- **Routing by tool.** A pack that only works in one tool (a reviewer driven by Claude Code hooks) says so, and is neither preselected nor synced for the platforms it can't run on.
 - **Guardrails.** Declarative checks compiled into hooks the tool enforces, for the rules an assistant must not be able to skip.
 - **Native output for every tool.** The same source lands as `.cursor/rules`, `.claude/rules`, `.github/instructions`, `AGENTS.md` and the rest, each in the format that tool reads. This is a capability, not the point: as tools converge on `AGENTS.md`, the format matters less and the guarantees above matter more.
 

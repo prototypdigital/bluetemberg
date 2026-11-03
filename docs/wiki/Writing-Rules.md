@@ -60,6 +60,19 @@ Notes:
 - Invalid ranges are dropped with a warning (never an accidental match), and a valid range no version can satisfy (`>=4 <3`) warns too, since it would otherwise exclude the file forever. A version resolved from a low-confidence source (a coerced `package.json` range) still applies but emits one warning per stack — guidance is never silently dropped.
 - The same field works on guardrails (`llm/guardrails/`), agents (`llm/agents/`), and skills (`llm/skills/<name>/SKILL.md`) — version-specific content of every kind is gated and withheld uniformly. Pack-level `stacks` in the catalog supply coarse name-only routing; a file's own range is the precision gate.
 
+### `platforms` (optional)
+
+The platforms the rule works on, for content that depends on one tool. Same ids as the config's `platforms` (`windsurf` is read as `devin`). Sync writes the rule only for those of the project's platforms; the others are skipped and listed under `limited by platform`. Absent or `[]` means every platform. A file's list overrides its pack's catalog `platforms`; an unknown id matches nothing and warns.
+
+```markdown
+---
+description: Run the review loop after each push.
+platforms: [claude]
+---
+```
+
+The same field works on agents and skills. See [Profiles → Platforms](Profiles#platforms).
+
 Run [`bluetemberg detect`](Commands#bluetemberg-detect-directory) to see the detected versions your ranges are matched against, and declare versions in the [`stacks` config field](Configuration#stacks). For the full version-aware model — detection, the gate, and the versioning strategy — see [Stacks & Versioning](Stacks).
 
 ## How scope is transformed

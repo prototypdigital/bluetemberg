@@ -191,6 +191,10 @@ With the config above, `api-design` would appear in the `frontend` plugin only i
 
 A plugin with **no `profiles` field** always includes everything (no filtering).
 
+## Platform filtering
+
+Plugins run in Claude Code, so a rule, skill or agent limited to other platforms (its `platforms:` frontmatter, or its pack's catalog `platforms`, see [Profiles → Platforms](Profiles#platforms)) is left out of every plugin. Content that lists `claude` is included; content that lists only `claude-marketplace` ships in the plugins and not in `.claude/`.
+
 ## Output files
 
 ### `plugins/{name}/.claude-plugin/plugin.json`

@@ -15,8 +15,15 @@ import type {
   StackConstraint,
   TeamProfile,
 } from '../types.js';
+import { MARKETPLACE_PLATFORM } from '../types.js';
 import { buildStackMap, readFrontmatterStacks, resolveStacks, type StackMap } from '../stacks/resolve.js';
 import { buildPackItemMap, type PackItemMap } from '../catalog/ownership.js';
+import {
+  allowsPlatform,
+  buildPlatformMap,
+  resolvePlatformGate,
+  type PlatformMap,
+} from '../catalog/platforms.js';
 
 const VALID_PROFILE_IDS: ReadonlySet<string> = new Set(TEAM_PROFILES.map((p) => p.id));
 
@@ -77,6 +84,8 @@ export interface MarketplaceManifest {
 interface FileMeta {
   name: string;
   description: string;
+  /** Platforms the file is limited to (frontmatter > catalog); `null` = every platform. */
+  platforms: string[] | null;
   /** Profiles this file belongs to. Empty = universal (included in all plugins). */
   profiles: TeamProfile[];
   /** Stack constraint (name → range). Empty = stack-agnostic (included in all plugins). */
@@ -106,12 +115,14 @@ function resolveProfiles(
   return profileMap.get(kindDir, id) ?? [];
 }
 
-function readRuleMeta(
-  ruleFile: string,
-  sourceDir: string,
-  profileMap: ProfileMap,
-  stackMap: StackMap,
-): FileMeta {
+/** Catalog maps a file's routing metadata falls back to when its frontmatter is silent. */
+interface MetaMaps {
+  profiles: ProfileMap;
+  stacks: StackMap;
+  platforms: PlatformMap;
+}
+
+function readRuleMeta(ruleFile: string, sourceDir: string, maps: MetaMaps): FileMeta {
   const rulePath = join(sourceDir, ruleFile);
   const id = basename(ruleFile, '.md');
   try {
@@ -120,25 +131,22 @@ function readRuleMeta(
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), profileMap),
-      stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), stackMap),
+      profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), maps.profiles),
+      stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), maps.stacks),
+      platforms: resolvePlatformGate(id, sourceDir, record, maps.platforms).platforms,
     };
   } catch {
     return {
       name: id,
       description: '',
-      profiles: resolveProfiles(id, sourceDir, undefined, profileMap),
-      stacks: resolveStacks(id, sourceDir, undefined, stackMap),
+      profiles: resolveProfiles(id, sourceDir, undefined, maps.profiles),
+      stacks: resolveStacks(id, sourceDir, undefined, maps.stacks),
+      platforms: resolvePlatformGate(id, sourceDir, {}, maps.platforms).platforms,
     };
   }
 }
 
-function readSkillMeta(
-  skillDir: string,
-  sourceParent: string,
-  profileMap: ProfileMap,
-  stackMap: StackMap,
-): FileMeta {
+function readSkillMeta(skillDir: string, sourceParent: string, maps: MetaMaps): FileMeta {
   const skillPath = join(sourceParent, skillDir, 'SKILL.md');
   try {
     const { data } = matter.read(skillPath);
@@ -146,25 +154,22 @@ function readSkillMeta(
     return {
       name: (data.name as string) || skillDir,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(skillDir, sourceParent, readFrontmatterProfiles(record), profileMap),
-      stacks: resolveStacks(skillDir, sourceParent, readFrontmatterStacks(record), stackMap),
+      profiles: resolveProfiles(skillDir, sourceParent, readFrontmatterProfiles(record), maps.profiles),
+      stacks: resolveStacks(skillDir, sourceParent, readFrontmatterStacks(record), maps.stacks),
+      platforms: resolvePlatformGate(skillDir, sourceParent, record, maps.platforms).platforms,
     };
   } catch {
     return {
       name: skillDir,
       description: '',
-      profiles: resolveProfiles(skillDir, sourceParent, undefined, profileMap),
-      stacks: resolveStacks(skillDir, sourceParent, undefined, stackMap),
+      profiles: resolveProfiles(skillDir, sourceParent, undefined, maps.profiles),
+      stacks: resolveStacks(skillDir, sourceParent, undefined, maps.stacks),
+      platforms: resolvePlatformGate(skillDir, sourceParent, {}, maps.platforms).platforms,
     };
   }
 }
 
-function readAgentMeta(
-  agentFile: string,
-  sourceDir: string,
-  profileMap: ProfileMap,
-  stackMap: StackMap,
-): FileMeta {
+function readAgentMeta(agentFile: string, sourceDir: string, maps: MetaMaps): FileMeta {
   const agentPath = join(sourceDir, agentFile);
   const id = basename(agentFile, '.md');
   try {
@@ -173,15 +178,17 @@ function readAgentMeta(
     return {
       name: (data.name as string) || id,
       description: (data.description as string) || '',
-      profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), profileMap),
-      stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), stackMap),
+      profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), maps.profiles),
+      stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), maps.stacks),
+      platforms: resolvePlatformGate(id, sourceDir, record, maps.platforms).platforms,
     };
   } catch {
     return {
       name: id,
       description: '',
-      profiles: resolveProfiles(id, sourceDir, undefined, profileMap),
-      stacks: resolveStacks(id, sourceDir, undefined, stackMap),
+      profiles: resolveProfiles(id, sourceDir, undefined, maps.profiles),
+      stacks: resolveStacks(id, sourceDir, undefined, maps.stacks),
+      platforms: resolvePlatformGate(id, sourceDir, {}, maps.platforms).platforms,
     };
   }
 }
@@ -208,7 +215,12 @@ function stackMatches(fileMeta: FileMeta, pluginStacks: Stack[] | undefined): bo
 
 /** A file is included in a plugin only when BOTH its profile and its stack qualify. */
 function matchesPlugin(fileMeta: FileMeta, plugin: MarketplacePluginDefinition): boolean {
-  return profileMatches(fileMeta, plugin.profiles) && stackMatches(fileMeta, plugin.stacks);
+  // Plugins run in Claude Code: content limited to other platforms stays out (`claude` counts).
+  return (
+    allowsPlatform(fileMeta.platforms, MARKETPLACE_PLATFORM) &&
+    profileMatches(fileMeta, plugin.profiles) &&
+    stackMatches(fileMeta, plugin.stacks)
+  );
 }
 
 /**
@@ -256,8 +268,7 @@ function emitPlugin(
   allAgents: Map<string, string>,
   hooksContent: string | null,
   recordError: (msg: string) => void,
-  profileMap: ProfileMap,
-  stackMap: StackMap,
+  maps: MetaMaps,
 ): PluginManifest {
   const pluginDir = join(ctx.root, 'plugins', plugin.name);
   const skillsDir = join(pluginDir, 'skills');
@@ -267,7 +278,7 @@ function emitPlugin(
   const agentEntries: ManifestEntry[] = [];
 
   for (const [file, sourceDir] of allRules) {
-    const meta = readRuleMeta(file, sourceDir, profileMap, stackMap);
+    const meta = readRuleMeta(file, sourceDir, maps);
     if (!matchesPlugin(meta, plugin)) continue;
 
     const srcPath = join(sourceDir, file);
@@ -292,7 +303,7 @@ function emitPlugin(
   }
 
   for (const [dirName, sourceParent] of allSkills) {
-    const meta = readSkillMeta(dirName, sourceParent, profileMap, stackMap);
+    const meta = readSkillMeta(dirName, sourceParent, maps);
     if (!matchesPlugin(meta, plugin)) continue;
 
     const srcPath = join(sourceParent, dirName, 'SKILL.md');
@@ -313,7 +324,7 @@ function emitPlugin(
   }
 
   for (const [file, sourceDir] of allAgents) {
-    const meta = readAgentMeta(file, sourceDir, profileMap, stackMap);
+    const meta = readAgentMeta(file, sourceDir, maps);
     if (!matchesPlugin(meta, plugin)) continue;
 
     const srcPath = join(sourceDir, file);
@@ -381,8 +392,11 @@ export function syncMarketplace(
 
   if (allRules.size === 0 && allSkills.size === 0 && allAgents.size === 0) return null;
 
-  const profileMap = buildProfileMap(ctx.catalog);
-  const stackMap = buildStackMap(ctx.catalog);
+  const maps: MetaMaps = {
+    profiles: buildProfileMap(ctx.catalog),
+    stacks: buildStackMap(ctx.catalog),
+    platforms: buildPlatformMap(ctx.catalog),
+  };
   const hooksContent = readHooksContent(ctx.sourceDirs);
   const projectName = basename(ctx.root);
 
@@ -409,8 +423,7 @@ export function syncMarketplace(
       allAgents,
       hooksContent,
       recordError,
-      profileMap,
-      stackMap,
+      maps,
     );
 
     const totalFiles = manifest.skills.length + manifest.agents.length;
