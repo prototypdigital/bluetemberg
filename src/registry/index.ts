@@ -26,6 +26,8 @@ import {
   lockSatisfiesRange,
   packVersionDir,
 } from './installer.js';
+import { formatFindings } from './scanner.js';
+import type { ScanResult } from './scanner.js';
 import type {
   InstalledPackage,
   NpmSearchResult,
@@ -39,6 +41,45 @@ import type {
   RegistryVerifyOptions,
 } from '../types.js';
 import { loadConfig } from '../sync/index.js';
+
+// ---------------------------------------------------------------------------
+// content scan reporting
+// ---------------------------------------------------------------------------
+
+/**
+ * Installer options for the content scan. Blocking findings throw from the installer; this
+ * routes the non-blocking ones — and the fact that the scan was skipped — through the
+ * command's `log`, so `--silent` and tests capture them like any other progress output.
+ */
+function scanOptions(
+  label: string,
+  skipScan: boolean | undefined,
+  log: (msg: string) => void,
+): { skipScan?: boolean; onScanFindings: (result: ScanResult) => void; onScanSkipped: () => void } {
+  return {
+    skipScan,
+    onScanSkipped: () => log(`  Content scan skipped for ${label} (--skip-scan).`),
+    onScanFindings: (result) => {
+      log(`  Warning: content scan flagged ${result.findings.length} pattern(s) in ${label} (not blocking):`);
+      for (const line of formatFindings(result.findings, '    ')) log(line);
+    },
+  };
+}
+
+/**
+ * The error a multi-pack command throws. Per-pack reasons normally reach the user through
+ * `log`; under `--silent` that is a no-op, so the reasons ride on the error instead — a pack
+ * the content scan refused must still say why on stderr.
+ */
+function failureError(
+  verb: string,
+  failed: ReadonlyArray<{ name: string; error: Error }>,
+  silent?: boolean,
+): Error {
+  const summary = `${failed.length} pack(s) failed to ${verb}.`;
+  if (!silent) return new Error(summary);
+  return new Error([summary, ...failed.map(({ name, error }) => `  ✗ ${name}: ${error.message}`)].join('\n'));
+}
 
 // ---------------------------------------------------------------------------
 // add
@@ -80,6 +121,7 @@ export async function add(
     registryUrl: manifest.registry,
     skipSignatureVerification: options.skipSignatureVerification,
     allowExternalTarballHost: options.allowExternalTarballHost,
+    ...scanOptions(`${name}@${version}`, options.skipScan, log),
   });
 
   // Update manifest and lockfile.
@@ -312,6 +354,7 @@ export async function install(
         registryUrl: manifest.registry,
         skipSignatureVerification: options.skipSignatureVerification,
         allowExternalTarballHost: options.allowExternalTarballHost,
+        ...scanOptions(`${name}@${version}`, options.skipScan, log),
       });
 
       lock.packages[name] = lockEntry;
@@ -354,7 +397,7 @@ export async function install(
       log(`  ✗ ${name}: ${error.message}`);
     }
     log('\nRun "bluetemberg install" again after resolving the errors above.');
-    throw new Error(`${failed.length} pack(s) failed to install.`);
+    throw failureError('install', failed, options.silent);
   }
 
   return installed;
@@ -439,6 +482,7 @@ export async function update(
         registryUrl: manifest.registry,
         skipSignatureVerification: options.skipSignatureVerification,
         allowExternalTarballHost: options.allowExternalTarballHost,
+        ...scanOptions(`${name}@${version}`, options.skipScan, log),
       });
 
       lock.packages[name] = lockEntry;
@@ -507,7 +551,7 @@ export async function update(
       log(`  ✗ ${name}: ${error.message}`);
     }
     log('\nRun "bluetemberg update" again after resolving the errors above.');
-    throw new Error(`${failed.length} pack(s) failed to update.`);
+    throw failureError('update', failed, options.silent);
   }
 
   return results;

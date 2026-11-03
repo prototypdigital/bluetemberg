@@ -18,6 +18,21 @@ import { SOURCE_TYPES } from './sources/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/** Options shared by the pack-downloading commands (`add`, `install`, `update`). */
+const PACK_INSTALL_OPTIONS = [
+  {
+    long: '--skip-signature-verification',
+    description: 'Allow unsigned packs from a non-default registry (ignored for npmjs.org).',
+  },
+  { long: '--skip-scan', description: 'Skip the content security scan (trusted private registries only).' },
+  {
+    long: '--allow-external-tarball-host',
+    description:
+      'Allow tarballs served from a host other than the configured registry (no credentials sent).',
+  },
+  { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
+];
+
 function readCliVersion(): string {
   try {
     const pkgPath = join(__dirname, '..', 'package.json');
@@ -260,6 +275,61 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'bluetemberg_org_histogram',
         ],
         note: 'Read-only. The gated scaffold_from_gap tool (M7 create-loop) is intentionally absent.',
+      },
+    },
+    packs: {
+      commands: [
+        {
+          name: 'add',
+          args: '<packages...>',
+          description: 'Resolve, verify, scan, and install packs; writes llm/packages.json + lockfile.',
+          options: PACK_INSTALL_OPTIONS,
+        },
+        {
+          name: 'install',
+          description: 'Install all packs from llm/packages.json (like npm ci).',
+          options: [
+            { long: '--force', description: 'Force re-download even if cached.' },
+            {
+              long: '--dry-run',
+              description: 'Resolve packs and print the install plan without writing files.',
+            },
+            ...PACK_INSTALL_OPTIONS,
+          ],
+        },
+        {
+          name: 'update',
+          args: '[package]',
+          description: 'Update packs to the newest version satisfying their manifest range.',
+          options: [
+            { long: '--latest', description: 'Widen ranges to "latest" in the manifest.' },
+            ...PACK_INSTALL_OPTIONS,
+          ],
+        },
+      ],
+      contentScan: {
+        description:
+          'Every freshly downloaded pack is scanned before it lands in the cache. Blocking findings abort the install; warnings are reported.',
+        blocks: [
+          'real-looking credentials',
+          'secrets in the body of a request to a non-local host',
+          'decode-to-shell pipelines',
+          'instructions to disable hooks/guardrails/verification',
+          'dangerous agent flags',
+          'prompt-override phrases',
+          'bidi control characters',
+          'curl | sh in hooks.json/mcp.json',
+          'packs shipping reserved engine marker files',
+        ],
+        warns: [
+          'rm -rf',
+          'curl | sh',
+          'writes to secrets files',
+          '--no-verify',
+          'mentions of verification-weakening switches',
+          'scripts that read secrets and upload on separate lines',
+          'blocking patterns quoted in BAD-labelled markdown examples',
+        ],
       },
     },
     source: {

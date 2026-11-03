@@ -99,6 +99,25 @@ describe('guardrails for Cursor', () => {
     expect(entries[0]).toMatchObject({ matcher: '^Shell$', failClosed: true });
   });
 
+  /** Cursor's own hooks.json reader: strips comments with regexes that do not skip strings. */
+  function parseLikeCursor(text: string): unknown {
+    return JSON.parse(text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, ''));
+  }
+
+  it('writes a file Cursor can parse though commands hold // and /*', async () => {
+    writeGuardrail('no-force-push', NO_FORCE_PUSH.replace('or ask', 'see https://x.test/a/*/b, or ask'));
+    mkdirSync(join(root, '.cursor'), { recursive: true });
+    writeFileSync(hooksPath(), JSON.stringify({ hooks: { stop: [{ command: 'rm -f /tmp/x/*' }] } }));
+
+    await sync(root, { config: CONFIG, silent: true });
+
+    const text = readFileSync(hooksPath(), 'utf8');
+    expect(text).not.toMatch(/\/[/*]/);
+    expect(parseLikeCursor(text)).toEqual(readHooks());
+    expect(readHooks().hooks.preToolUse?.[0]?.command).toContain('getpath($p) // empty');
+    expect(readHooks().hooks.stop).toEqual([{ command: 'rm -f /tmp/x/*' }]);
+  });
+
   it('the generated command blocks a violating Shell call and allows a clean one', async () => {
     writeGuardrail('no-force-push', NO_FORCE_PUSH);
     await sync(root, { config: CONFIG, silent: true });

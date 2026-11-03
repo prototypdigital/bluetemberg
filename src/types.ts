@@ -476,6 +476,12 @@ export interface RegistryAddOptions {
    */
   skipSignatureVerification?: boolean;
   /**
+   * Skip the content security scan that runs on every freshly downloaded pack. For trusted
+   * private registries only — blocking findings (credentials, exfiltration, instructions to
+   * disable hooks/guardrails) are no longer checked.
+   */
+  skipScan?: boolean;
+  /**
    * Allow a pack's tarball to be served from a host other than the configured registry
    * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
    * sent to that host.
@@ -499,6 +505,12 @@ export interface RegistryInstallOptions {
    * always signs — verification there is mandatory and cannot be turned off.
    */
   skipSignatureVerification?: boolean;
+  /**
+   * Skip the content security scan that runs on every freshly downloaded pack. For trusted
+   * private registries only — blocking findings (credentials, exfiltration, instructions to
+   * disable hooks/guardrails) are no longer checked.
+   */
+  skipScan?: boolean;
   /**
    * Allow a pack's tarball to be served from a host other than the configured registry
    * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
@@ -543,6 +555,12 @@ export interface RegistryUpdateOptions {
    * always signs — verification there is mandatory and cannot be turned off.
    */
   skipSignatureVerification?: boolean;
+  /**
+   * Skip the content security scan that runs on every freshly downloaded pack. For trusted
+   * private registries only — blocking findings (credentials, exfiltration, instructions to
+   * disable hooks/guardrails) are no longer checked.
+   */
+  skipScan?: boolean;
   /**
    * Allow a pack's tarball to be served from a host other than the configured registry
    * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
