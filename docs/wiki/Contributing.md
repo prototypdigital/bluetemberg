@@ -47,6 +47,8 @@ Both call scripts under `.claude/skills/<skill>/scripts/` and stay silent until 
 | `npm run sync:catalog` | Refresh the committed catalog snapshot (`src/catalog/catalog.json`) from the packs repo |
 | `npm run check:catalog` | Fail when the committed snapshot differs from packs `main` (writes nothing) |
 
+**TypeScript versions:** `tsc` (build, typecheck) is TypeScript 7, installed under the alias `@typescript/native`. The `typescript` package name is aliased to `@typescript/typescript6`, the TypeScript 6 API, because typescript-eslint does not support TypeScript 7 yet ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)). Your editor's workspace TypeScript also resolves to 6.0. The TypeScript 6 compiler is available as `npx tsc6`. Drop the alias once typescript-eslint supports TypeScript 7.
+
 **Catalog snapshot:** pack ids and profile tags are resolved from `catalog.json` (published by the packs repo), not hand-maintained in the engine. A snapshot is committed at `src/catalog/catalog.json` as the offline floor and copied into `dist/` at build. When packs change in a way the engine should ship by default, run `npm run sync:catalog` and commit the updated snapshot. CI runs `npm run check:catalog` on release PRs, so a release cannot ship a snapshot that lags packs `main`; refresh it on `main` and the release PR picks it up.
 
 ## Sync CLI and CI (downstream consumers)
