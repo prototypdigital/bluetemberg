@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -378,6 +378,19 @@ describe('agent-plugins platform', () => {
       expect(JSON.stringify(claudeManifest.agents)).not.toContain('ap-agent');
     });
 
+    it('counts a bundle that has only Copilot agents as non-empty', async () => {
+      writeAgent(src, 'ap-agent', 'platforms: [agent-plugins]');
+
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        const results = await sync(root, { config: config(['agent-plugins']) });
+        expect(results.errors).toEqual([]);
+        expect(logSpy.mock.calls.flat().join('\n')).toContain(`plugins/${name}/ (0 skills, 1 agents)`);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
     it('does not take content limited to a host such as copilot', async () => {
       writeSkill(src, 'copilot-only', 'platforms: [copilot]');
       writeSkill(src, 'portable');
@@ -485,8 +498,16 @@ describe('agent-plugins platform', () => {
     writeAgent(src, 'reviewer');
     await sync(root, { config: config(['agent-plugins']), silent: true });
 
-    const check = await sync(root, { config: config(['agent-plugins']), silent: true, checkMode: true });
+    const check = await sync(root, { config: config(['agent-plugins']), silent: true, check: true });
     expect(check.outOfSync).toBe(0);
+
+    // A source edit changes the skill and its digest in the lock: both are reported.
+    writeFileSync(
+      join(src, 'skills', 'api-design', 'SKILL.md'),
+      '---\nname: api-design\ndescription: v2\n---\n',
+    );
+    const drift = await sync(root, { config: config(['agent-plugins']), silent: true, check: true });
+    expect(drift.outOfSync).toBe(2);
   });
 
   it('prune drops the Agent Plugins files when only claude-marketplace is left', async () => {

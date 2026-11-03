@@ -318,6 +318,8 @@ interface EmittedPlugin {
   files: BundleFiles;
   /** npm names of the packs that contributed content (for the Agent Plugins bundle lock). */
   packNames: Set<string>;
+  /** Agents written in each format: Claude's are in `manifest.agents`, Copilot's only counted. */
+  agentCount: number;
 }
 
 interface PluginSources {
@@ -349,6 +351,7 @@ function emitPlugin(
   const packNames = new Set<string>();
   const skillEntries: ManifestEntry[] = [];
   const agentEntries: ManifestEntry[] = [];
+  let agentCount = 0;
 
   for (const [file, sourceDir] of sources.rules) {
     const meta = readRuleMeta(file, sourceDir, maps);
@@ -420,6 +423,7 @@ function emitPlugin(
         );
       }
       addOwner(packNames, sourceDir);
+      agentCount++;
     } catch {
       recordError(`marketplace: could not read agent ${file}`);
     }
@@ -443,6 +447,7 @@ function emitPlugin(
     },
     files,
     packNames,
+    agentCount,
   };
 }
 
@@ -514,7 +519,7 @@ function hasAnyFormat(formats: PluginBundleFormats): boolean {
 function bundleNote(emitted: EmittedPlugin): string {
   const { manifest } = emitted;
   const hooksNote = manifest.hooks !== undefined ? ', hooks' : '';
-  return `${manifest.skills.length} skills, ${manifest.agents.length} agents${hooksNote}`;
+  return `${manifest.skills.length} skills, ${emitted.agentCount} agents${hooksNote}`;
 }
 
 /**
@@ -575,7 +580,7 @@ export function syncPluginBundles(
     const emitted = emitPlugin(ctx, pluginDef, formats, sources, recordError, checkSkill);
     const { manifest } = emitted;
 
-    if (manifest.skills.length + manifest.agents.length === 0) {
+    if (manifest.skills.length + emitted.agentCount === 0) {
       const profileNames = (pluginDef.profiles ?? []).join(', ');
       const note = profileNames ? ` — no source files match profile(s): ${profileNames}` : '';
       recordError(`Plugin "${pluginDef.name}" resolved to 0 files${note}`);
