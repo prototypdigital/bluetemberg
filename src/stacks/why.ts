@@ -162,6 +162,8 @@ export interface WhyDiffEntry {
   before: string;
   /** Gate verdict at the hypothetical version. */
   after: string;
+  /** Under scoped `extends` entries, the platforms this copy is synced for. */
+  platforms?: Platform[];
 }
 
 export interface WhyDiffReport {
@@ -343,7 +345,10 @@ function exclusionReason(
   }
   if (item.kind === 'guardrails') return guardrailPlatformReason(ctx, platformGate, platforms);
   if (allowsAnyPlatform(platformGate.platforms, platforms)) return null;
-  return `limited to ${(platformGate.platforms ?? []).join(', ')} — this project syncs ${platforms.join(', ')}`;
+  const limited = `limited to ${(platformGate.platforms ?? []).join(', ')}`;
+  // A subset is one source view's platforms (scoped `extends`), not everything the project syncs.
+  if (platforms.length < ctx.platforms.length) return `${limited} — not written for ${platforms.join(', ')}`;
+  return `${limited} — this project syncs ${platforms.join(', ')}`;
 }
 
 /**
@@ -418,16 +423,36 @@ function shadowedCopies(ctx: WhyContext, item: ResolvedItem): Array<{ label: str
   );
 }
 
-function explainItem(ctx: WhyContext, item: ResolvedItem): WhyItem {
+/**
+ * A matched item and, under scoped `extends` entries, the platforms it is explained for: the copy
+ * those platforms sync (`missing` when none of their sources ships the id). `scope: null` explains
+ * the highest-priority copy for every platform.
+ */
+interface MatchedItem {
+  item: ResolvedItem;
+  scope: Platform[] | null;
+  missing?: boolean;
+}
+
+function explainItem(ctx: WhyContext, { item, scope, missing = false }: MatchedItem): WhyItem {
+  const platforms = scope ?? ctx.platforms;
   const gate = gateFor(ctx, item, ctx.detected);
   const platformGate = platformGateFor(ctx, item);
-  const excluded = exclusionReason(ctx, item, gate, platformGate);
+  const excluded = missing
+    ? `no source synced for ${platforms.join(', ')} ships it`
+    : exclusionReason(ctx, item, gate, platformGate, platforms);
   const source = ctx.sources[item.sourceIndex];
+  const scoped = scopedOutputs(ctx, item, excluded, platformGate, scope);
+  const verdict = headlineVerdict(
+    excluded ?? includedReason(gate),
+    excluded === null,
+    scope,
+    scoped.byPlatform,
+  );
   return {
     kind: item.kind,
     id: item.id,
-    included: excluded === null,
-    reason: excluded ?? includedReason(gate),
+    ...verdict,
     source: {
       origin: source?.origin ?? 'local',
       label: source?.label ?? 'unknown',
@@ -443,18 +468,48 @@ function explainItem(ctx: WhyContext, item: ResolvedItem): WhyItem {
     platforms: {
       source: platformGate.source,
       list: platformGate.platforms,
-      skipped: skippedPlatforms(ctx.config, ctx.platforms, item.kind, platformGate.platforms),
+      skipped: skippedPlatforms(ctx.config, platforms, item.kind, platformGate.platforms),
       unknown: platformGate.unknown,
       invalid: platformGate.invalid,
     },
     invalid: guardrailIssue(item),
-    ...scopedOutputs(ctx, item, excluded, platformGate),
+    ...scoped,
   };
+}
+
+/**
+ * The headline verdict. For an id asked about without a platform, when platforms get different
+ * copies (or verdicts), it says so instead of speaking for the highest-priority copy alone.
+ */
+function headlineVerdict(
+  reason: string,
+  included: boolean,
+  scope: Platform[] | null,
+  byPlatform: WhyPlatformCopy[] | null,
+): Pick<WhyItem, 'included' | 'reason'> {
+  if (scope !== null || byPlatform === null) return { included, reason };
+  const parts = byPlatform.map(
+    (c) => `${c.included ? 'included' : 'excluded'} for ${c.platforms.join(', ')}`,
+  );
+  return { included: byPlatform.some((c) => c.included), reason: `differs by platform: ${parts.join('; ')}` };
 }
 
 /** The platforms some of whose sources ship the item (every platform without scoped `extends`). */
 function platformsShipping(ctx: WhyContext, item: ResolvedItem): Platform[] {
   return ctx.views.filter((view) => view.merged.get(item.kind)?.has(item.key)).flatMap((v) => v.platforms);
+}
+
+/** The copy of `item`'s id that `view` syncs: the item itself, another copy, or `null` for none. */
+function copyIn(ctx: WhyContext, item: ResolvedItem, view: WhyView): ResolvedItem | null {
+  const kindDir = view.merged.get(item.kind)?.get(item.key);
+  if (kindDir === undefined) return null;
+  if (kindDir === item.kindDir) return item;
+  return {
+    ...item,
+    kindDir,
+    sourceIndex: ctx.sources.findIndex((s) => join(s.dir, item.kind) === kindDir),
+    ...readItem(item.kind, kindDir, item.key),
+  };
 }
 
 /** Each view's own copy of the item and its verdict; `null` source when the view has no copy. */
@@ -463,8 +518,8 @@ function viewCopies(
   item: ResolvedItem,
 ): Array<WhyPlatformCopy & { copy: ResolvedItem | null; list: string[] | null }> {
   return ctx.views.map((view) => {
-    const kindDir = view.merged.get(item.kind)?.get(item.key);
-    if (kindDir === undefined) {
+    const copy = copyIn(ctx, item, view);
+    if (copy === null) {
       return {
         platforms: view.platforms,
         source: null,
@@ -474,15 +529,6 @@ function viewCopies(
         list: null,
       };
     }
-    const copy =
-      kindDir === item.kindDir
-        ? item
-        : {
-            ...item,
-            kindDir,
-            sourceIndex: ctx.sources.findIndex((s) => join(s.dir, item.kind) === kindDir),
-            ...readItem(item.kind, kindDir, item.key),
-          };
     const gate = gateFor(ctx, copy, ctx.detected);
     const platformGate = platformGateFor(ctx, copy);
     const excluded = exclusionReason(ctx, copy, gate, platformGate, view.platforms);
@@ -506,6 +552,7 @@ function scopedOutputs(
   item: ResolvedItem,
   excluded: string | null,
   platformGate: PlatformGate,
+  scope: Platform[] | null,
 ): Pick<WhyItem, 'outputs' | 'byPlatform'> {
   if (ctx.views.length === 1) {
     return {
@@ -514,6 +561,13 @@ function scopedOutputs(
     };
   }
   const copies = viewCopies(ctx, item);
+  if (scope !== null) {
+    const agree = copies.every((c) => c.source === copies[0].source && c.included === copies[0].included);
+    return {
+      outputs: excluded === null ? writtenOutputs(ctx, item, platformGate.platforms, scope) : [],
+      byPlatform: agree ? null : copies.map(({ copy: _copy, list: _list, ...rest }) => rest),
+    };
+  }
   const outputs = copies.flatMap(({ copy, included, platforms, list }) =>
     copy && included ? writtenOutputs(ctx, copy, list, platforms) : [],
   );
@@ -549,7 +603,7 @@ function relativeTo(base: string, abs: string): string {
 
 interface QueryMatch {
   form: WhyMatchForm;
-  items: ResolvedItem[];
+  items: MatchedItem[];
   platforms: Platform[];
   note: string | null;
 }
@@ -563,27 +617,80 @@ function matchSourcePath(ctx: WhyContext, query: string): QueryMatch | null {
       const paths = [toProjectPath(ctx.root, file)];
       if (item.kind === 'skills') paths.push(toProjectPath(ctx.root, dirname(file)));
       if (!paths.includes(query)) continue;
+      const scoped = ctx.views.length > 1 ? matchScopedSource(ctx, item, i, query) : null;
+      if (scoped) return scoped;
       const note =
         i === item.sourceIndex
           ? null
           : `${query} is shadowed: sync uses the ${ctx.sources[item.sourceIndex]?.label ?? 'higher-priority'} copy instead, explained below`;
-      return { form: 'source', items: [item], platforms: [], note };
+      return { form: 'source', items: [{ item, scope: null }], platforms: [], note };
     }
   }
   return null;
 }
 
+/**
+ * Under scoped `extends` entries, a source copy that some views sync is explained for exactly those
+ * platforms, even when a scoped higher-priority copy wins elsewhere. `null` when no view syncs it.
+ */
+function matchScopedSource(ctx: WhyContext, item: ResolvedItem, i: number, query: string): QueryMatch | null {
+  const kindDir = join(ctx.sources[i].dir, item.kind);
+  const using = ctx.views.filter((view) => view.merged.get(item.kind)?.get(item.key) === kindDir);
+  if (using.length === 0) return null;
+  const scope = using.flatMap((view) => view.platforms);
+  const copy =
+    kindDir === item.kindDir
+      ? item
+      : { ...item, kindDir, sourceIndex: i, ...readItem(item.kind, kindDir, item.key) };
+  const others = ctx.platforms.filter((p) => !scope.includes(p));
+  const note =
+    others.length > 0
+      ? `${query} is the copy sync uses for ${scope.join(', ')}; ${others.join(', ')} get another copy or none`
+      : null;
+  return {
+    form: 'source',
+    items: [{ item: copy, scope: using.length === ctx.views.length ? null : scope }],
+    platforms: scope,
+    note,
+  };
+}
+
+/**
+ * The item for each platform group an output path hit: under scoped `extends` entries, the copy that
+ * group syncs (or `missing`), so the verdict is the one for the platform whose file was named.
+ */
+function outputMatches(
+  ctx: WhyContext,
+  item: ResolvedItem,
+  hitPlatforms: readonly Platform[],
+): MatchedItem[] {
+  if (ctx.views.length === 1) return [{ item, scope: null }];
+  return ctx.views.flatMap((view) => {
+    const scope = view.platforms.filter((p) => hitPlatforms.includes(p));
+    if (scope.length === 0) return [];
+    const copy = copyIn(ctx, item, view);
+    return [{ item: copy ?? item, scope, missing: copy === null }];
+  });
+}
+
 function matchOutputPath(ctx: WhyContext, query: string): QueryMatch | null {
-  const items: ResolvedItem[] = [];
+  const items: MatchedItem[] = [];
   const platforms: Platform[] = [];
   for (const item of ctx.items) {
-    const hits = candidateOutputs(ctx, item).filter(
+    // Every configured platform: a path for a platform that does not get the item still resolves.
+    const hits = candidateOutputs(ctx, item, ctx.platforms).filter(
       (o) => o.path === query || o.path === `${query}/SKILL.md`,
     );
     if (hits.length === 0) continue;
     // AGENTS.md carries every rule's block — it names no single rule, so it is not an item path.
     if (hits.every((h) => h.path === 'AGENTS.md')) continue;
-    items.push(item);
+    items.push(
+      ...outputMatches(
+        ctx,
+        item,
+        hits.map((h) => h.platform),
+      ),
+    );
     platforms.push(...hits.map((h) => h.platform));
   }
   if (items.length === 0) return null;
@@ -599,7 +706,7 @@ function matchId(ctx: WhyContext, query: string): QueryMatch | null {
   const id = (prefixed ? prefixed[2] : query).replace(/\/SKILL\.md$/, '').replace(/\.md$/, '');
   const items = ctx.items.filter((item) => item.id === id && (kind === null || item.kind === kind));
   if (items.length === 0) return null;
-  return { form: 'id', items, platforms: [], note: null };
+  return { form: 'id', items: items.map((item) => ({ item, scope: null })), platforms: [], note: null };
 }
 
 export interface WhyOptions {
@@ -677,7 +784,7 @@ function toReport(ctx: WhyContext, query: string, match: QueryMatch | null, pkg:
     matchedAs: match?.form ?? null,
     platforms: match?.platforms ?? [],
     note: match?.note ?? null,
-    matches: (match?.items ?? []).map((item) => explainItem(ctx, item)),
+    matches: (match?.items ?? []).map((matched) => explainItem(ctx, matched)),
     warnings: [...ctx.warnings],
   };
 }
@@ -721,10 +828,10 @@ export function buildWhyDiff(root: string, overrides: StackOverride[]): WhyDiffR
   const packages = nestedPackages(root);
   if (packages.length > 0) report.warnings.push(monorepoWarning(root, packages));
 
-  for (const item of ctx.items) {
+  for (const { item, platforms } of diffCopies(ctx)) {
     const platformGate = platformGateFor(ctx, item);
-    const before = exclusionReason(ctx, item, gateFor(ctx, item, ctx.detected), platformGate);
-    const after = exclusionReason(ctx, item, gateFor(ctx, item, hypothetical), platformGate);
+    const before = exclusionReason(ctx, item, gateFor(ctx, item, ctx.detected), platformGate, platforms);
+    const after = exclusionReason(ctx, item, gateFor(ctx, item, hypothetical), platformGate, platforms);
     if ((before === null) === (after === null)) {
       if (before === null) report.unchanged.included++;
       else report.unchanged.excluded++;
@@ -736,10 +843,25 @@ export function buildWhyDiff(root: string, overrides: StackOverride[]): WhyDiffR
       source: ctx.sources[item.sourceIndex]?.label ?? 'unknown',
       before: before ?? 'included',
       after: after ?? 'included',
+      ...(ctx.views.length > 1 ? { platforms } : {}),
     };
     (after === null ? report.added : report.removed).push(entry);
   }
   return report;
+}
+
+/**
+ * The copies `--diff` gates: every item for every platform, or under scoped `extends` entries each
+ * source view's own copies for that view's platforms (so an item may appear once per view).
+ */
+function diffCopies(ctx: WhyContext): Array<{ item: ResolvedItem; platforms: Platform[] }> {
+  if (ctx.views.length === 1) return ctx.items.map((item) => ({ item, platforms: ctx.platforms }));
+  return ctx.views.flatMap((view) =>
+    ctx.items.flatMap((item) => {
+      const copy = copyIn(ctx, item, view);
+      return copy ? [{ item: copy, platforms: view.platforms }] : [];
+    }),
+  );
 }
 
 /**
@@ -853,8 +975,11 @@ export function formatWhyDiff(report: WhyDiffReport): string[] {
   if (report.added.length === 0 && report.removed.length === 0) {
     lines.push('  no change to the resolved set');
   }
-  for (const e of report.added) lines.push(`  + ${e.kind}/${e.id} [${e.source}] — was: ${e.before}`);
-  for (const e of report.removed) lines.push(`  - ${e.kind}/${e.id} [${e.source}] — ${e.after}`);
+  const forPlatforms = (e: WhyDiffEntry): string => (e.platforms ? ` for ${e.platforms.join(', ')}` : '');
+  for (const e of report.added)
+    lines.push(`  + ${e.kind}/${e.id} [${e.source}]${forPlatforms(e)} — was: ${e.before}`);
+  for (const e of report.removed)
+    lines.push(`  - ${e.kind}/${e.id} [${e.source}]${forPlatforms(e)} — ${e.after}`);
   lines.push(`  unchanged: ${report.unchanged.included} included, ${report.unchanged.excluded} excluded`);
   return lines;
 }

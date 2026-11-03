@@ -4,7 +4,7 @@ import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { sync, loadConfig } from '../src/sync/index.js';
 import { normalizeExtends } from '../src/sync/extends-loader.js';
-import { buildWhyReport } from '../src/stacks/why.js';
+import { buildWhyDiff, buildWhyReport } from '../src/stacks/why.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 /**
@@ -565,12 +565,88 @@ describe('extends: platform-scoped entries', () => {
       ]);
     });
 
-    it('does not match a generated path of a platform the entry skips', () => {
+    it('still resolves a generated path of a platform the entry skips, and says why', () => {
       writeRule(join(root, 'claude-only', 'llm'), 'claude-rule');
       writeConfig(root, { ...CLAUDE_CURSOR, extends: [{ path: './claude-only', platforms: ['claude'] }] });
 
-      expect(buildWhyReport(root, '.cursor/rules/claude-rule.mdc').matchedAs).not.toBe('output');
-      expect(buildWhyReport(root, '.claude/rules/claude-rule.md').matchedAs).toBe('output');
+      const report = buildWhyReport(root, '.cursor/rules/claude-rule.mdc');
+
+      expect(report.matchedAs).toBe('output');
+      expect(report.platforms).toEqual(['cursor']);
+      expect(report.matches[0]).toMatchObject({
+        included: false,
+        reason: 'no source synced for cursor ships it',
+        outputs: [],
+      });
+    });
+
+    describe('when a scoped copy shadows another for some platforms', () => {
+      // ./b (marketplace only) needs nextjs >=15 on a nextjs 14 project; ./a is stack-agnostic.
+      beforeEach(() => {
+        const b = join(root, 'b', 'llm', 'rules');
+        mkdirSync(b, { recursive: true });
+        writeFileSync(join(b, 'x.md'), '---\ndescription: x\nstacks:\n  nextjs: ">=15"\n---\n\n# b copy\n');
+        writeRule(join(root, 'a', 'llm'), 'x', 'a copy');
+        writeConfig(root, {
+          platforms: ['claude', 'claude-marketplace'],
+          source: 'llm',
+          stacks: { nextjs: '14.0.0' },
+          targets: { rules: { claude: { dir: '.claude/rules', ext: '.md' } } },
+          extends: [{ path: './b', platforms: ['claude-marketplace'] }, './a'],
+        });
+      });
+
+      it('explains a generated path with the copy that platform syncs', () => {
+        const [item] = buildWhyReport(root, '.claude/rules/x.md').matches;
+
+        expect(item.included).toBe(true);
+        expect(item.source.label).toBe('extends ./a');
+        expect(item.outputs).toEqual(['.claude/rules/x.md']);
+      });
+
+      it('explains the lower copy for the platforms that use it, without calling it shadowed', () => {
+        const report = buildWhyReport(root, 'a/llm/rules/x.md');
+
+        expect(report.matches[0].source.label).toBe('extends ./a');
+        expect(report.matches[0].included).toBe(true);
+        expect(report.note).toBe(
+          'a/llm/rules/x.md is the copy sync uses for claude; claude-marketplace get another copy or none',
+        );
+      });
+
+      it('summarizes an id query by platform instead of speaking for the top copy', () => {
+        const [item] = buildWhyReport(root, 'x').matches;
+
+        expect(item.included).toBe(true);
+        expect(item.reason).toBe('differs by platform: included for claude; excluded for claude-marketplace');
+      });
+
+      it('diffs a stack upgrade per platform group', () => {
+        const report = buildWhyDiff(root, [{ stack: 'nextjs', version: '15.0.0' }]);
+
+        expect(report.added).toEqual([
+          expect.objectContaining({
+            id: 'x',
+            source: 'extends ./b (claude-marketplace only)',
+            platforms: ['claude-marketplace'],
+          }),
+        ]);
+        expect(report.removed).toEqual([]);
+      });
+    });
+
+    it('words a platform-limited verdict for the platforms of one group', () => {
+      const dir = join(root, 'scoped', 'llm', 'rules');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'c.md'), '---\ndescription: c\nplatforms: [cursor]\n---\n\n# c\n');
+      writeConfig(root, { ...CLAUDE_CURSOR, extends: [{ path: './scoped', platforms: ['claude'] }] });
+
+      const [item] = buildWhyReport(root, 'c').matches;
+
+      expect(item.byPlatform?.[0]).toMatchObject({
+        platforms: ['claude'],
+        reason: 'limited to cursor — not written for claude',
+      });
     });
 
     it('reports byPlatform as null without scoped entries', () => {
