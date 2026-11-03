@@ -1,10 +1,67 @@
 import { existsSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { listFiles, listDirs } from '../utils/fs.js';
+import type { BlueprintConfig, Platform } from '../types.js';
+import { normalizePlatforms } from './targets.js';
+
+/** An `extends` entry, normalized. `platforms` is `null` when the entry applies to every platform. */
+export interface ExtendsSpec {
+  path: string;
+  platforms: Platform[] | null;
+}
+
+/** A resolved `extends` entry: the source dir it points at, and the platforms it applies to. */
+export interface ResolvedExtendsEntry extends ExtendsSpec {
+  dir: string;
+}
 
 export interface ResolvedExtends {
+  /** Every resolved dir, in priority order, whatever its scope. */
   dirs: string[];
+  /** The same entries with their scope; `entries[i].dir === dirs[i]`. */
+  entries: ResolvedExtendsEntry[];
   warnings: string[];
+}
+
+/**
+ * Normalize an `extends` field into one spec per path, in priority order. A path listed more than
+ * once keeps its first (highest-priority) position, and its scopes are unioned: a plain string, or
+ * any unscoped occurrence, makes it apply to every platform. So a duplicate can only widen a scope;
+ * to narrow one, remove the broader entry. `windsurf` in a scope is read as `devin`.
+ */
+export function normalizeExtends(extendsField: BlueprintConfig['extends']): ExtendsSpec[] {
+  if (!extendsField) return [];
+  const entries = Array.isArray(extendsField) ? extendsField : [extendsField];
+  const byPath = new Map<string, ExtendsSpec>();
+
+  for (const entry of entries) {
+    const path = typeof entry === 'string' ? entry : entry.path;
+    const platforms = typeof entry === 'string' ? null : normalizePlatforms(entry.platforms);
+    const seen = byPath.get(path);
+    if (!seen) {
+      byPath.set(path, { path, platforms });
+      continue;
+    }
+    seen.platforms =
+      seen.platforms === null || platforms === null
+        ? null
+        : normalizePlatforms([...seen.platforms, ...platforms]);
+  }
+
+  return [...byPath.values()];
+}
+
+/** Write normalized specs back in config form: a plain string for an unscoped entry. */
+export function toExtendsEntries(specs: readonly ExtendsSpec[]): NonNullable<BlueprintConfig['extends']> {
+  return specs.map((spec) =>
+    spec.platforms === null ? spec.path : { path: spec.path, platforms: spec.platforms },
+  );
+}
+
+/** Whether a normalized entry is merged when syncing `platform`. */
+export function extendsAppliesTo(spec: ExtendsSpec, platform: Platform): boolean {
+  if (spec.platforms === null) return true;
+  return spec.platforms.includes(normalizePlatforms([platform])[0]);
 }
 
 /**
@@ -16,31 +73,28 @@ export interface ResolvedExtends {
  *   3. Subsequent entries in `extends`
  *
  * Each returned path points to a directory with the same layout as the local `source` dir
- * (i.e. may contain `rules/`, `agents/`, `skills/` subdirectories).
+ * (i.e. may contain `rules/`, `agents/`, `skills/` subdirectories). Every entry is resolved
+ * whatever its platform scope; callers that sync per platform filter `entries` by scope.
  *
  * Unresolvable entries produce a warning instead of silently being skipped.
  */
 export function resolveExtendedSourceDirs(
-  extendsField: string | string[] | undefined,
+  extendsField: BlueprintConfig['extends'],
   root: string,
 ): ResolvedExtends {
-  if (!extendsField) return { dirs: [], warnings: [] };
-
-  const entries = Array.isArray(extendsField) ? extendsField : [extendsField];
-
-  const dirs: string[] = [];
+  const entries: ResolvedExtendsEntry[] = [];
   const warnings: string[] = [];
 
-  for (const entry of entries) {
-    const dir = resolveEntry(entry, root);
+  for (const spec of normalizeExtends(extendsField)) {
+    const dir = resolveEntry(spec.path, root);
     if (dir !== null) {
-      dirs.push(dir);
+      entries.push({ ...spec, dir });
     } else {
-      warnings.push(`extends entry "${entry}" could not be resolved — path or package not found`);
+      warnings.push(`extends entry "${spec.path}" could not be resolved — path or package not found`);
     }
   }
 
-  return { dirs, warnings };
+  return { dirs: entries.map((e) => e.dir), entries, warnings };
 }
 
 function resolveEntry(entry: string, root: string): string | null {

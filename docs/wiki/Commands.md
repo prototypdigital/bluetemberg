@@ -226,6 +226,7 @@ For each match it reports:
 - **each `stack: range`** checked against the detected version, with its confidence and where it came from. A coerced (low-confidence) detection is flagged.
 - **platforms**: when the item is limited to some platforms, the list, where it came from (the file's `platforms:` frontmatter or the owning pack's catalog entry), and the configured platforms it is skipped for. A generated path for a skipped platform still resolves, so `why .cursor/agents/pr-reviewer.md` explains why the file isn't there.
 - **why it's out**: a version mismatch, an absent stack, platforms that name none this project syncs, or (for a guardrail) frontmatter or regex sync rejects. It also lists invalid ranges and, when the item is included, the generated outputs (only those for platforms it is written to).
+- **per platform**, under [platform-scoped `extends` entries](Configuration#platform-scoped-extends-entries): outputs list only the paths of platforms that get the item. When platforms get different copies, or some get none, a `for <platforms>:` line per group (`byPlatform` in `--json`) names the copy each group syncs and its verdict.
 
 ```bash
 npx bluetemberg why payload-v3

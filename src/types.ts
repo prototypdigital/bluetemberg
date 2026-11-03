@@ -128,8 +128,11 @@ export interface BlueprintConfig {
    *
    * For relative paths, Bluetemberg looks for a `llm/` subdirectory at that path, then falls
    * back to the path itself. For npm packages, it looks inside `node_modules/{name}/llm/`.
+   *
+   * An array entry may be a {@link ScopedExtendsEntry} instead of a string; it then applies only
+   * when syncing the platforms it names. A plain string applies to every platform.
    */
-  extends?: string | string[];
+  extends?: string | ExtendsEntry[];
   /**
    * Optional ESM module specifiers (npm package names or `file:` URLs) loaded after built-in sync steps.
    * Each module must `export default` as a function or `{ run(ctx, recordError) }` — see wiki *Adapters*.
@@ -142,6 +145,18 @@ export interface BlueprintConfig {
    */
   root?: boolean;
 }
+
+/**
+ * An `extends` entry limited to some platforms: its source dir is merged only when syncing one of
+ * `platforms` (`windsurf` counts as `devin`). Every other platform syncs as if it were absent.
+ */
+export interface ScopedExtendsEntry {
+  path: string;
+  platforms: Platform[];
+}
+
+/** One `extends` entry: a path or package name for every platform, or a platform-scoped entry. */
+export type ExtendsEntry = string | ScopedExtendsEntry;
 
 export type RuleSource = 'collections' | 'none';
 

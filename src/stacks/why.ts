@@ -11,8 +11,10 @@ import { guardrailValidationIssue } from '../sync/guardrails.js';
 import { AGENTS_MD_RULE_PLATFORMS } from '../sync/codex.js';
 import { GUARDRAIL_PLATFORMS, skippedPlatforms } from '../sync/platform-skips.js';
 import {
+  activeSources,
   CONTENT_KINDS,
   mergeContentKind,
+  resolveSourceViews,
   resolveSyncSources,
   type ContentKind,
   type SourceOrigin,
@@ -112,6 +114,20 @@ export interface WhyItem {
   invalid: string | null;
   /** Generated paths (relative to the root) sync writes for it; empty when excluded. */
   outputs: string[];
+  /**
+   * Set when scoped `extends` entries give platforms different copies of this id (or none): which
+   * copy each group of platforms gets, and its verdict. `null` when every platform sees the same.
+   */
+  byPlatform: WhyPlatformCopy[] | null;
+}
+
+/** The copy a group of platforms syncs for an id, under scoped `extends` entries. */
+export interface WhyPlatformCopy {
+  platforms: Platform[];
+  /** Label of the source whose copy they get; `null` when none of their sources ships the id. */
+  source: string | null;
+  included: boolean;
+  reason: string;
 }
 
 export interface WhyReport {
@@ -170,11 +186,19 @@ interface ResolvedItem {
   readError: string | null;
 }
 
+/** Platforms that read the same sources, with each content kind merged over those sources. */
+interface WhyView {
+  platforms: Platform[];
+  merged: Map<ContentKind, Map<string, string>>;
+}
+
 interface WhyContext {
   root: string;
   config: BlueprintConfig;
   platforms: Platform[];
   sources: SyncSource[];
+  /** One per group of platforms reading the same sources (one in total without scoped `extends`). */
+  views: WhyView[];
   /** Per source (by index), per kind: the keys that source ships, by sync's own predicates. */
   shipped: Array<Map<ContentKind, Set<string>>>;
   items: ResolvedItem[];
@@ -187,7 +211,10 @@ interface WhyContext {
 function loadWhyContext(root: string): WhyContext {
   const config = dropLegacyGeminiRulesTarget(loadConfig(root), () => {});
   const resolved = resolveSyncSources(root, config);
-  const dirs = resolved.sources.map((s) => s.dir);
+  const platforms = configuredPlatforms(config);
+  // The sources sync reads for some platform: a scoped `extends` entry for none of them is unused.
+  const sources = activeSources(resolved.sources, platforms);
+  const dirs = sources.map((s) => s.dir);
   const items: ResolvedItem[] = [];
   for (const kind of CONTENT_KINDS) {
     for (const [key, kindDir] of mergeContentKind(dirs, kind)) {
@@ -200,11 +227,19 @@ function loadWhyContext(root: string): WhyContext {
   const shipped = dirs.map(
     (dir) => new Map(CONTENT_KINDS.map((kind) => [kind, new Set(mergeContentKind([dir], kind).keys())])),
   );
+  const views = resolveSourceViews(sources, platforms).map((view) => {
+    const viewDirs = view.sources.map((s) => s.dir);
+    return {
+      platforms: view.platforms,
+      merged: new Map(CONTENT_KINDS.map((kind) => [kind, mergeContentKind(viewDirs, kind)])),
+    };
+  });
   return {
     root,
     config,
-    platforms: configuredPlatforms(config),
-    sources: resolved.sources,
+    platforms,
+    sources,
+    views,
     shipped,
     items,
     stackMap: buildStackMap(catalog),
@@ -242,28 +277,31 @@ function toProjectPath(root: string, path: string): string {
 /**
  * Generated paths sync writes for an item, by platform (whether or not the item is included). A
  * path several platforms read (a shared skills dir, `AGENTS.md`) is listed once per platform.
+ * `platforms` defaults to those some of whose sources ship the item.
  */
-function candidateOutputs(ctx: WhyContext, item: ResolvedItem): Array<{ platform: Platform; path: string }> {
+function candidateOutputs(
+  ctx: WhyContext,
+  item: ResolvedItem,
+  platforms: readonly Platform[] = platformsShipping(ctx, item),
+): Array<{ platform: Platform; path: string }> {
   if (item.kind === 'guardrails') return [];
   const out: Array<{ platform: Platform; path: string }> = [];
   const push = (platform: Platform, path: string): void => {
     out.push({ platform, path: toProjectPath(ctx.root, join(ctx.root, path)) });
   };
   if (item.kind === 'skills') {
-    const readers = skillDirReaders(ctx.config, ctx.platforms);
-    for (const [platform, t] of resolveSkillTargets(ctx.config, ctx.platforms))
+    const readers = skillDirReaders(ctx.config, platforms);
+    for (const [platform, t] of resolveSkillTargets(ctx.config, platforms))
       for (const reader of readers.get(dirKey(t.dir)) ?? [platform])
         push(reader, `${t.dir}/${item.id}/SKILL.md`);
     return out;
   }
   const targets = item.kind === 'rules' ? resolveRuleTargets : resolveAgentTargets;
-  for (const [platform, t] of targets(ctx.config, ctx.platforms))
-    push(platform, `${t.dir}/${item.id}${t.ext}`);
+  for (const [platform, t] of targets(ctx.config, platforms)) push(platform, `${t.dir}/${item.id}${t.ext}`);
   if (item.kind === 'rules') {
-    for (const p of AGENTS_MD_RULE_PLATFORMS) if (ctx.platforms.includes(p)) push(p, 'AGENTS.md');
+    for (const p of AGENTS_MD_RULE_PLATFORMS) if (platforms.includes(p)) push(p, 'AGENTS.md');
   }
-  if (item.kind === 'agents' && ctx.platforms.includes('codex'))
-    push('codex', `.codex/agents/${item.id}.toml`);
+  if (item.kind === 'agents' && platforms.includes('codex')) push('codex', `.codex/agents/${item.id}.toml`);
   return out;
 }
 
@@ -295,6 +333,7 @@ function exclusionReason(
   item: ResolvedItem,
   gate: StackGate,
   platformGate: PlatformGate,
+  platforms: readonly Platform[] = ctx.platforms,
 ): string | null {
   const invalid = guardrailIssue(item);
   if (invalid !== null) return `rejected by sync: ${invalid}`;
@@ -302,19 +341,23 @@ function exclusionReason(
   if (item.kind === 'guardrails' && isEmptyList(item.frontmatter.platforms)) {
     return '`platforms: []` — a guardrail with an empty list is compiled for no platform';
   }
-  if (item.kind === 'guardrails') return guardrailPlatformReason(ctx, platformGate);
-  if (allowsAnyPlatform(platformGate.platforms, ctx.platforms)) return null;
-  return `limited to ${(platformGate.platforms ?? []).join(', ')} — this project syncs ${ctx.platforms.join(', ')}`;
+  if (item.kind === 'guardrails') return guardrailPlatformReason(ctx, platformGate, platforms);
+  if (allowsAnyPlatform(platformGate.platforms, platforms)) return null;
+  return `limited to ${(platformGate.platforms ?? []).join(', ')} — this project syncs ${platforms.join(', ')}`;
 }
 
 /**
  * Only some platforms compile guardrails, and `claude-marketplace` is not one of them: a guardrail
  * compiled for no configured host writes nothing, so `why` must not call it included.
  */
-function guardrailPlatformReason(ctx: WhyContext, platformGate: PlatformGate): string | null {
-  const hosts = GUARDRAIL_PLATFORMS.filter((p) => ctx.platforms.includes(p));
+function guardrailPlatformReason(
+  ctx: WhyContext,
+  platformGate: PlatformGate,
+  platforms: readonly Platform[] = ctx.platforms,
+): string | null {
+  const hosts = GUARDRAIL_PLATFORMS.filter((p) => platforms.includes(p));
   if (hosts.length === 0) {
-    return `no configured platform compiles guardrails (they compile for ${GUARDRAIL_PLATFORMS.join(', ')}; this project syncs ${ctx.platforms.join(', ')})`;
+    return `no configured platform compiles guardrails (they compile for ${GUARDRAIL_PLATFORMS.join(', ')}; this project syncs ${platforms.join(', ')})`;
   }
   if (allowsAnyPlatform(platformGate.platforms, hosts)) return null;
   return `limited to ${(platformGate.platforms ?? []).join(', ')} — of this project's platforms, guardrails compile for ${hosts.join(', ')}`;
@@ -328,9 +371,17 @@ function platformGateFor(ctx: WhyContext, item: ResolvedItem): PlatformGate {
   return resolvePlatformGate(item.id, item.kindDir, item.frontmatter, ctx.platformMap);
 }
 
-/** Generated paths sync writes for an included item: a path any of whose platforms is allowed. */
-function writtenOutputs(ctx: WhyContext, item: ResolvedItem, list: string[] | null): string[] {
-  const outputs = candidateOutputs(ctx, item).filter((o) => allowsPlatform(list, o.platform));
+/**
+ * Generated paths sync writes for an included item: a path any of whose platforms is allowed.
+ * `platforms` narrows it to one source view's platforms under scoped `extends` entries.
+ */
+function writtenOutputs(
+  ctx: WhyContext,
+  item: ResolvedItem,
+  list: string[] | null,
+  platforms?: readonly Platform[],
+): string[] {
+  const outputs = candidateOutputs(ctx, item, platforms).filter((o) => allowsPlatform(list, o.platform));
   return dedupe(outputs.map((o) => o.path));
 }
 
@@ -397,7 +448,79 @@ function explainItem(ctx: WhyContext, item: ResolvedItem): WhyItem {
       invalid: platformGate.invalid,
     },
     invalid: guardrailIssue(item),
-    outputs: excluded === null ? writtenOutputs(ctx, item, platformGate.platforms) : [],
+    ...scopedOutputs(ctx, item, excluded, platformGate),
+  };
+}
+
+/** The platforms some of whose sources ship the item (every platform without scoped `extends`). */
+function platformsShipping(ctx: WhyContext, item: ResolvedItem): Platform[] {
+  return ctx.views.filter((view) => view.merged.get(item.kind)?.has(item.key)).flatMap((v) => v.platforms);
+}
+
+/** Each view's own copy of the item and its verdict; `null` source when the view has no copy. */
+function viewCopies(
+  ctx: WhyContext,
+  item: ResolvedItem,
+): Array<WhyPlatformCopy & { copy: ResolvedItem | null; list: string[] | null }> {
+  return ctx.views.map((view) => {
+    const kindDir = view.merged.get(item.kind)?.get(item.key);
+    if (kindDir === undefined) {
+      return {
+        platforms: view.platforms,
+        source: null,
+        included: false,
+        reason: 'no source for these platforms ships it',
+        copy: null,
+        list: null,
+      };
+    }
+    const copy =
+      kindDir === item.kindDir
+        ? item
+        : {
+            ...item,
+            kindDir,
+            sourceIndex: ctx.sources.findIndex((s) => join(s.dir, item.kind) === kindDir),
+            ...readItem(item.kind, kindDir, item.key),
+          };
+    const gate = gateFor(ctx, copy, ctx.detected);
+    const platformGate = platformGateFor(ctx, copy);
+    const excluded = exclusionReason(ctx, copy, gate, platformGate, view.platforms);
+    return {
+      platforms: view.platforms,
+      source: ctx.sources[copy.sourceIndex]?.label ?? 'unknown',
+      included: excluded === null,
+      reason: excluded ?? includedReason(gate),
+      copy,
+      list: platformGate.platforms,
+    };
+  });
+}
+
+/**
+ * Outputs come from each view's own copy: under scoped `extends` entries a platform may get a
+ * lower-priority copy, or none. `byPlatform` is reported only when the views disagree.
+ */
+function scopedOutputs(
+  ctx: WhyContext,
+  item: ResolvedItem,
+  excluded: string | null,
+  platformGate: PlatformGate,
+): Pick<WhyItem, 'outputs' | 'byPlatform'> {
+  if (ctx.views.length === 1) {
+    return {
+      outputs: excluded === null ? writtenOutputs(ctx, item, platformGate.platforms) : [],
+      byPlatform: null,
+    };
+  }
+  const copies = viewCopies(ctx, item);
+  const outputs = copies.flatMap(({ copy, included, platforms, list }) =>
+    copy && included ? writtenOutputs(ctx, copy, list, platforms) : [],
+  );
+  const agree = copies.every((c) => c.source === copies[0].source && c.included === copies[0].included);
+  return {
+    outputs: dedupe(outputs),
+    byPlatform: agree ? null : copies.map(({ copy: _copy, list: _list, ...rest }) => rest),
   };
 }
 
@@ -674,7 +797,11 @@ function formatItem(item: WhyItem): string[] {
   for (const issue of item.invalidRanges)
     lines.push(`  WARN: invalid stack range ${issue} — the file is mis-gated`);
   lines.push(...formatPlatforms(item));
-  if (item.included) {
+  for (const c of item.byPlatform ?? []) {
+    const verdict = c.included ? 'INCLUDED' : 'EXCLUDED';
+    lines.push(`  for ${c.platforms.join(', ')}: ${verdict} — ${c.source ?? 'no copy'}: ${c.reason}`);
+  }
+  if (item.included || item.outputs.length > 0) {
     const outputs =
       item.kind === 'guardrails'
         ? 'compiled into hook settings'

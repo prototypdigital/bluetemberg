@@ -84,7 +84,7 @@ See [Stacks & Versioning](Stacks) for the full model: detection precedence and c
 
 ### `extends`
 
-Optional string or array of strings that point to **additional source directories** to merge with the local `source` directory. Extended sources supply rules, agents, and skills that your local `source` dir does not define; when the same filename exists in both, the **local file wins**.
+Optional string or array that points to **additional source directories** to merge with the local `source` directory. An array entry is either a string (applies to every platform) or a [platform-scoped entry](#platform-scoped-extends-entries). Extended sources supply rules, agents, and skills that your local `source` dir does not define; when the same filename exists in both, the **local file wins**.
 
 Supported formats:
 
@@ -120,6 +120,34 @@ my-monorepo/
 ```
 
 **Shared npm rule pack use case:** Publish an npm package containing a `llm/` directory, install it, then reference it in `extends`.
+
+#### Platform-scoped `extends` entries
+
+An entry can be limited to some platforms with `{ "path": string, "platforms": string[] }`. It is merged only when syncing one of those platforms; every other platform syncs as if the entry were not there. Plain strings keep applying to every platform, and the two forms mix freely:
+
+```json
+{
+  "platforms": ["claude", "claude-marketplace"],
+  "extends": [
+    "./packages/bluetemberg-skills-create-pack",
+    { "path": "./packages/bluetemberg-rules-kubernetes", "platforms": ["claude-marketplace"] }
+  ]
+}
+```
+
+Here `.claude/` gets only `create-pack`, while the generated marketplace plugins get both. That is the shape for a repo that publishes many packs but uses few itself.
+
+- **Platform ids** are the `platforms` ids above. `windsurf` is read as `devin`. A scope names exactly the platforms that consume the entry: `["claude"]` does **not** include `claude-marketplace`, so list both if both should get it.
+- **Validation:** an entry must be a string or an object with exactly `path` (a non-empty string) and `platforms` (a non-empty array of known ids). Anything else, such as a misspelled key, an unknown platform or an empty list, fails config loading with the entry's index (`extends[2].platforms has unknown platform(s): vscode`). `extends` itself must still be an array to hold scoped entries; a single top-level object is rejected.
+- **Priority** is unchanged: array order, local `source` first. A scoped entry that ships the same file as a lower-priority entry only overrides it for its own platforms. The other platforms get the lower copy.
+- **Unconfigured platforms:** an entry none of whose platforms is in `platforms` is never synced, and sync warns. An entry that names some unconfigured platforms besides configured ones is fine and does not warn.
+- **Duplicate paths:** a path listed more than once (in one file, or across a [monorepo chain](#monorepo-config-inheritance)) keeps its first, highest-priority position, and its scopes are **unioned**. Any plain-string occurrence makes it apply everywhere. A duplicate can only widen a scope; to narrow one, remove the broader entry.
+- **Shared outputs:** some outputs are written for several platforms. Codex, Devin and Antigravity all load `.agents/skills/`, Codex and Gemini both read the rules block in `AGENTS.md`, and a custom `targets` entry can point two platforms at one dir. Such an output can hold only one set of content, so if scopes give those platforms different sources, sync fails with an error naming the output and the platforms, and writes nothing. Scope the entries to all of those platforms or none of them.
+- **Pruning:** narrowing a scope makes the files it used to produce for the dropped platform stale. `sync --check` reports them, and `sync --prune` removes them, like any other output whose source is gone.
+- **Marketplace:** `claude-marketplace` reads every unscoped entry plus every entry scoped to it, and nothing else.
+- **[`bluetemberg why`](Commands#bluetemberg-why-file-directory)** answers per platform. `outputs` lists only paths of platforms that get the item, and when platforms get different copies (or none), the report adds a `byPlatform` breakdown.
+- **Lockfile:** scopes never touch `llm/packages-lock.json`. `extends` entries are local paths or `node_modules` packages that bluetemberg does not lock (npm's own lockfile pins those), and installed packs are not affected by `extends` scopes.
+- **`init` and `switch-profile`** keep `extends` as written, scoped entries included, when they rewrite the config.
 
 ### `marketplace`
 
@@ -277,7 +305,7 @@ my-monorepo/
 |-------|----------|
 | `platforms` | **Unioned** across the chain (ancestor entries first), deduped. |
 | `targets` | **Deep-merged per platform.** A local entry overriding only `dir` keeps the inherited `ext`. |
-| `extends` | **Unioned**, with local entries taking priority (placed first), deduped. |
+| `extends` | **Unioned**, with local entries taking priority (placed first), deduped by path. A path in more than one file keeps the local position, with the union of its [platform scopes](#platform-scoped-extends-entries). |
 | `stacks` | **Merged** as an object; local versions override inherited ones. |
 | `adapters` | **Unioned** (local first), deduped. |
 | `source` | **Never inherited** — always the local package's value (or the default `llm`). |
