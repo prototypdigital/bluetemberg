@@ -32,6 +32,14 @@ export interface CatalogPack {
 export interface Catalog {
   generated: string;
   packs: CatalogPack[];
+  /**
+   * The packs repo's stack → package map (#290), merged over the engine's built-in table by
+   * `buildStackPackages` (`src/stacks/packages.ts`). Optional and additive: older engines ignore
+   * it, and a catalog without it detects with the built-in table. Left `unknown` here and parsed
+   * leniently there, so a malformed block degrades detection to the built-in map instead of
+   * rejecting the whole catalog.
+   */
+  stackPackages?: unknown;
 }
 
 function getCachePath(root: string): string {

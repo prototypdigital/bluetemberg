@@ -2,10 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { valid } from 'semver';
+import { loadCatalogSync } from '../catalog/index.js';
 import { fetchDistTags } from '../registry/client.js';
 import { DEFAULT_REGISTRY } from '../registry/constants.js';
 import type { Stack } from '../types.js';
-import { packageForStack } from './detect.js';
+import { buildStackPackages, packageForStack, type StackPackages } from './packages.js';
 
 /**
  * The latest released version of each stack, from the npm registry (#294).
@@ -63,6 +64,8 @@ export interface LatestOptions {
   fetchLatest?: (pkg: string) => Promise<string>;
   /** Injected for tests: the current time in ms. */
   now?: () => number;
+  /** Stack → package map; defaults to the one detection uses for `root` (its catalog). */
+  packages?: StackPackages;
 }
 
 async function fetchLatestFromRegistry(pkg: string, root: string): Promise<string> {
@@ -134,11 +137,12 @@ export async function resolveLatestVersions(
   const cacheFile = opts.cacheFile ?? latestCachePath();
   const now = (opts.now ?? Date.now)();
   const fetchLatest = opts.fetchLatest ?? ((pkg: string) => fetchLatestFromRegistry(pkg, root));
+  const packages = opts.packages ?? buildStackPackages(loadCatalogSync(root)).packages;
   const cache = readCache(cacheFile);
   let dirty = false;
 
   const lookup = async (stack: Stack): Promise<LatestLookup> => {
-    const pkg = packageForStack(stack);
+    const pkg = packageForStack(stack, packages);
     const cached = cache[pkg];
     if (cached && isFresh(cached, now)) return fromCache(stack, pkg, cached, 'cache', null);
 

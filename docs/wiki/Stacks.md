@@ -50,6 +50,47 @@ Steps 2 and 3 follow Node's own module resolution. In a workspace, a package who
 
 **Prereleases** are matched as the release they preview: `19.0.0-rc.1` is treated as `19.0.0`. Plain semver sorts an RC *below* `19.0.0`, which would give a team trying the next major the previous major's rules (`>=18 <19.0.0` matches) and not the new ones (`>=19.0.0` does not).
 
+### The stack map: which package is a stack?
+
+Detection needs to know which package carries a stack's version: `nextjs` is the `next` package, `angular` is `@angular/core`. That map has two layers, merged per stack:
+
+1. **The built-in table** in the engine: `nextjs` → `next`, `react`, `payload`, `angular` → `@angular/core`, `vue`, `svelte`, `astro`, `solid` → `solid-js`, `tailwind` → `tailwindcss`, `drizzle` → `drizzle-orm`, `trpc` → `@trpc/server`. It is the fallback, and the whole map for any catalog that does not carry one.
+2. **The catalog's `stackPackages` block**, owned by [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). A pack that targets a new stack can make it detectable without an engine release.
+
+```json
+"stackPackages": {
+  "schema": 1,
+  "stacks": {
+    "expo": { "packages": { "npm": "expo" }, "implies": ["react-native"] },
+    "react-native": { "packages": { "npm": "react-native" }, "implies": ["react"] },
+    "nextjs": { "implies": ["react"] }
+  }
+}
+```
+
+- **The catalog wins over the built-in table, field by field.** An entry's `packages.npm` replaces the built-in package for that stack; leave it out (as `nextjs` does above) to keep the built-in one. The catalog can add or remap a stack, never delete a built-in one.
+- **`implies` lists stacks that come along.** When `nextjs` is detected, `react` becomes a candidate too, and is resolved from its own package like any other stack. An implied stack is only reported when `node_modules` or the lockfile actually has it (source shown as `node_modules, implied by nextjs`); it is never coerced from a range the project does not declare. Implication is transitive, and a cycle simply stops.
+- **`packages` is keyed by ecosystem.** Only `npm` is read today, because detection only reads `package.json`, `node_modules` and `package-lock.json`. Other keys (`pypi`, …) are kept for future readers and ignored now, so a stack mapped only to another ecosystem behaves like an unmapped one.
+- **No field for calendar or channel versions.** npm requires every published version to be semver, so a calendar-versioned package (`2024.10.1`) already compares correctly, and a release channel (`15.4.0-canary.12`) is handled by the prerelease rule above. A future ecosystem that needs version normalization gets it through a new `schema`.
+- **Which catalog.** Detection reads the same catalog every other command does: the project cache (`.bluetemberg/catalog.json`, refreshed by `add`, `install`, `update` and `preview`), else the snapshot committed in the engine, never the network, so it works offline. `sync` and `why` load the catalog once and hand the same map to detection, so they cannot disagree. `scan-org` detects every repo with the scanner's own catalog, so one scan uses one vocabulary.
+
+**Compatibility.** Engines before this block ignore it and use their built-in table. A catalog without the block (every snapshot before it) gives today's behaviour exactly. A `schema` newer than the engine reads is ignored as a whole, with a warning to upgrade. Inside a known schema, unknown fields are ignored. A malformed block or entry never breaks detection. The bad entry is dropped, the built-in mapping stays, and `sync`, `why` and `detect` warn:
+
+```
+WARN: catalog stackPackages.stacks.expo: "packages.npm" is not a valid npm package name — ignored, using the built-in mapping
+```
+
+#### Adding a mapping (packs repo)
+
+Mappings live in the packs repo's `catalog.json`, next to the packs that target the stack:
+
+1. Add the stack under `stackPackages.stacks`, named exactly as packs tag it in `bluetemberg.stacks` and as rules spell it in `stacks:` frontmatter.
+2. Set `packages.npm` to the package whose installed version *is* the stack's version (for example, the framework's core package, not a CLI or a plugin).
+3. Add `implies` only for stacks the project is guaranteed to install alongside it, and that guidance gates on.
+4. Check it from a project that uses the stack: `bluetemberg detect --json` should list the stack with an `exact` source and no `stack-map` warning.
+
+The engine picks the mapping up through the catalog cache; the committed snapshot follows on the engine's next `npm run sync:catalog`.
+
 Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory).
 
 ```mermaid
@@ -143,7 +184,7 @@ Version-aware routing is maturing. Tracked in [issue #212](https://github.com/pr
 
 - **Monorepos: solved per-package, not per-version-within-a-package.** A monorepo with `react@14` in one package and `react@15` in another is handled — `bluetemberg sync` [fans out](Commands#bluetemberg-sync-directory) and gates each package against its own detected stacks. What's still not expressible is *two versions of one stack inside a single package* (the detection model resolves one version per stack name per directory).
 - **Cross-stack matching is AND-only.** "applies to A≥3 *or* B≥2" across two different stacks is not expressible (OR *within* one stack via `||` is).
-- **The detection table is built in.** Stacks outside the [default table](Configuration#stacks) (`nextjs`, `react`, `payload`, `angular`, `vue`, `svelte`, `astro`, `solid`, `tailwind`, `drizzle`, `trpc`) are detected only when their stack name equals the npm package name, or when pinned in config.
+- **Only npm packages are detected.** The [stack map](#the-stack-map-which-package-is-a-stack) is data, but the readers are not: a stack is auto-detected only when the map (built-in or catalog) names its npm package. Any other stack is detected only when declared in config.
 - **Uninstalled pnpm/yarn projects fall back to a coerced range.** Once installed, `node_modules` gives an exact version for every package manager; without an install, only `package-lock.json` is read.
 
 ## See also
