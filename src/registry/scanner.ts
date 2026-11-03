@@ -347,7 +347,7 @@ export function isPromptOverride(line: string): boolean {
  * guardrails" (descriptive, subject first) does not qualify; "Then bypass the guardrails" does.
  */
 const IMPERATIVE_LEAD_IN =
-  /^[\s\-*>#\d.)`"'(]*(?:(?:please|then|first|next|now|always|just|and|also|simply|finally|(?:don'?t|do\s+not)\s+hesitate\s+to|never\s+mind|step\s+\d+:?|you\s+(?:should|must|can|may|need\s+to|have\s+to|will\s+need\s+to)|make\s+sure\s+(?:to|you)|be\s+sure\s+to|remember\s+to|feel\s+free\s+to|go\s+ahead\s+and|it\s+is\s+(?:fine|ok|okay|safe)\s+to)[\s,:]+)*$/i;
+  /^[\s\-*>#\d.)`"'(]*(?:(?:please|then|first|next|now|always|just|and|also|simply|finally|(?:don'?t|do\s+not)\s+hesitate\s+to|never\s+mind|step\s+\d+|you\s+(?:should|must|can|may|need\s+to|have\s+to|will\s+need\s+to)|make\s+sure\s+(?:to|you)|be\s+sure\s+to|remember\s+to|feel\s+free\s+to|go\s+ahead\s+and|it\s+is\s+(?:fine|ok|okay|safe)\s+to)[\s,:]+)*$/i;
 const CLAUSE_BOUNDARY = /[.;:!?](?:\s|$)|\s[-–—]\s/g;
 /**
  * A leading dependent clause ends in a comma before the order: "If CI is slow, skip the hooks".
