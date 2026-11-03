@@ -40,8 +40,12 @@ export const STACK_PACKAGES_SCHEMA = 1;
 
 /** One stack's resolved mapping. */
 export interface StackPackageEntry {
-  /** The npm package whose version is the stack's version. */
-  npm: string;
+  /**
+   * The npm package whose version is the stack's version. Unset for a catalog stack mapped only
+   * to another ecosystem (or only to `implies`): it is then never auto-detected from npm, exactly
+   * like an unmapped stack, though a declared or implied one still resolves via its own name.
+   */
+  npm: string | undefined;
   /** Stacks this one brings along (Next.js → React), detected only when actually resolvable. */
   implies: Stack[];
 }
@@ -139,27 +143,35 @@ export function buildStackPackages(catalog: Pick<Catalog, 'stackPackages'>): Sta
   const unusable = blockIssue(block);
   if (unusable) return { packages, issues: [unusable] };
 
-  // Two catalog entries on one package are one stack under two names: both would be detected, and
-  // scan-org would count every repo twice. The packs repo can fix that, so say so. (A catalog entry
-  // sharing a built-in's package is allowed — it is how a stack is renamed without deleting one.)
-  const claimedBy = new Map<string, Stack>();
+  // Two stacks on one package are one stack under two names: both are detected, and scan-org counts
+  // every repo twice. A built-in cannot be deleted, so this includes a catalog entry that reuses a
+  // built-in's package under a new name — it adds an alias, it does not rename. Warn; the packs repo
+  // fixes it by using the existing name.
+  const claimedBy = new Map<string, string>(
+    Object.entries(BUILTIN_STACK_PACKAGES).map(([stack, npm]) => [npm, `${stack} (built-in)`]),
+  );
   for (const [stack, raw] of Object.entries(block.stacks as Record<string, unknown>)) {
     if (!isStackName(stack)) {
       issues.push(`stackPackages.stacks: "${stack}" is not a valid stack name — ignored`);
       continue;
     }
     const entry = parseEntry(stack, raw, issues);
+    const builtin = packages.get(stack);
     if (typeof entry === 'string') {
-      issues.push(`stackPackages.stacks.${stack}: ${entry} — ignored, using the built-in mapping`);
+      const fallback = builtin ? 'using the built-in mapping' : 'the stack stays unmapped';
+      issues.push(`stackPackages.stacks.${stack}: ${entry} — ignored, ${fallback}`);
       continue;
     }
-    if (entry.npm !== undefined) {
-      const other = claimedBy.get(entry.npm);
-      if (other)
-        issues.push(`stackPackages.stacks.${stack}: package "${entry.npm}" is also mapped by ${other}`);
-      else claimedBy.set(entry.npm, stack);
+    const npm = entry.npm ?? builtin?.npm;
+    const other = npm === undefined ? undefined : claimedBy.get(npm);
+    if (npm !== undefined && other !== undefined && other !== `${stack} (built-in)`) {
+      issues.push(
+        `stackPackages.stacks.${stack}: package "${npm}" is also mapped by ${other} — both names are detected`,
+      );
+    } else if (npm !== undefined && other === undefined) {
+      claimedBy.set(npm, stack);
     }
-    packages.set(stack, { npm: entry.npm ?? packageForStack(stack, packages), implies: entry.implies });
+    packages.set(stack, { npm, implies: entry.implies });
   }
   return { packages, issues };
 }

@@ -7,7 +7,12 @@ import { fetchDistTags } from '../registry/client.js';
 import { DEFAULT_REGISTRY } from '../registry/constants.js';
 import type { Stack } from '../types.js';
 import { packsRepoSourceDirs } from './declared.js';
-import { buildStackPackages, packageForStack, type StackPackages } from './packages.js';
+import {
+  buildStackPackages,
+  packageForStack,
+  type StackPackages,
+  type StackPackagesResult,
+} from './packages.js';
 
 /**
  * The latest released version of each stack, from the npm registry (#294).
@@ -74,13 +79,19 @@ export interface LatestOptions {
  * own `catalog.json` — the one about to be published, so a mapping added there is linted before it
  * ships. Anywhere else it is the map detection uses: the project's catalog.
  */
-function lintStackPackages(root: string): StackPackages {
-  if (packsRepoSourceDirs(root).size === 0) return buildStackPackages(loadCatalogSync(root)).packages;
+export function lintStackPackages(root: string): StackPackagesResult {
+  if (packsRepoSourceDirs(root).size === 0) return buildStackPackages(loadCatalogSync(root));
   try {
-    const own = JSON.parse(readFileSync(join(root, 'catalog.json'), 'utf8')) as Partial<Catalog>;
-    return buildStackPackages({ stackPackages: own?.stackPackages }).packages;
-  } catch {
-    return buildStackPackages(loadCatalogSync(root)).packages;
+    // Only `stackPackages` is read, and buildStackPackages validates it from `unknown` itself.
+    const own = JSON.parse(readFileSync(join(root, 'catalog.json'), 'utf8')) as Partial<Catalog> | null;
+    return buildStackPackages({ stackPackages: own?.stackPackages });
+  } catch (err) {
+    const fallback = buildStackPackages(loadCatalogSync(root));
+    const reason = errorMessage(err);
+    return {
+      ...fallback,
+      issues: [`stackPackages ignored: catalog.json could not be read (${reason})`, ...fallback.issues],
+    };
   }
 }
 
@@ -153,7 +164,7 @@ export async function resolveLatestVersions(
   const cacheFile = opts.cacheFile ?? latestCachePath();
   const now = (opts.now ?? Date.now)();
   const fetchLatest = opts.fetchLatest ?? ((pkg: string) => fetchLatestFromRegistry(pkg, root));
-  const packages = opts.packages ?? lintStackPackages(root);
+  const packages = opts.packages ?? lintStackPackages(root).packages;
   const cache = readCache(cacheFile);
   let dirty = false;
 

@@ -13,6 +13,8 @@ import {
   withImpliedStacks,
 } from '../src/stacks/packages.js';
 import { resolveLatestVersions } from '../src/stacks/latest.js';
+import { buildRangeLintReport } from '../src/stacks/ranges.js';
+import { buildScanReport } from '../src/stacks/scan.js';
 import { buildDetectReport } from '../src/stacks/report.js';
 import { buildWhyReport } from '../src/stacks/why.js';
 import { sync } from '../src/sync/index.js';
@@ -79,18 +81,52 @@ describe('built-in mappings resolve identically through the data path', () => {
   it('detects every built-in stack the same way on disk, whichever map is used', () => {
     const root = createTmpDir();
     try {
-      const deps: Record<string, string> = {};
-      Object.values(BUILTIN_STACK_PACKAGES).forEach((pkg, i) => {
+      // Every resolution path at once, rotating through the built-ins: node_modules, the lockfile,
+      // and a coerced manifest range — plus a config pin and an `auto` entry on top.
+      const pkgs = Object.values(BUILTIN_STACK_PACKAGES);
+      const deps: Record<string, string> = { lodash: '^4.0.0' };
+      const lockPackages: Record<string, { version: string }> = {};
+      pkgs.forEach((pkg, i) => {
         deps[pkg] = `^${i + 1}.0.0`;
-        if (i % 2 === 0) writeInstalled(root, pkg, `${i + 1}.2.3`); // half exact, half coerced
+        if (i % 3 === 0) writeInstalled(root, pkg, `${i + 1}.2.3`);
+        if (i % 3 === 1) lockPackages[`node_modules/${pkg}`] = { version: `${i + 1}.4.5` };
       });
       writeManifest(root, deps);
+      writeFileSync(
+        join(root, 'package-lock.json'),
+        JSON.stringify({ lockfileVersion: 3, packages: lockPackages }),
+      );
+      const config = { stacks: { payload: '3.4.1', vue: 'auto', custom: '1.0.0' } };
 
-      const viaBuiltin = detectStacks(root, undefined, builtinStackPackages());
-      expect([...viaBuiltin.keys()].sort()).toEqual([...builtinStacks].sort());
-      expect(detectStacks(root)).toEqual(viaBuiltin); // default: project catalog → snapshot
-      expect(detectStacks(root, undefined, buildStackPackages(snapshot()).packages)).toEqual(viaBuiltin);
-      expect(detectStacks(root, undefined, buildStackPackages(builtinAsData()).packages)).toEqual(viaBuiltin);
+      // The expectation is written out from the detection rules, not computed by the code under test.
+      const expected = Object.entries(BUILTIN_STACK_PACKAGES).map(([stack], i) => {
+        if (stack === 'payload')
+          return [stack, { version: '3.4.1', confidence: 'declared', source: 'config' }];
+        if (i % 3 === 0)
+          return [stack, { version: `${i + 1}.2.3`, confidence: 'exact', source: 'node_modules' }];
+        if (i % 3 === 1)
+          return [stack, { version: `${i + 1}.4.5`, confidence: 'exact', source: 'package-lock.json' }];
+        return [stack, { version: `${i + 1}.0.0`, confidence: 'coerced', source: 'package.json' }];
+      });
+      const byKey = new Map(expected.map(([k, v]) => [k, v]));
+      // Insertion order: declared names first (config key order), then the remaining mapped stacks.
+      const order = [...Object.keys(config.stacks), ...Object.keys(BUILTIN_STACK_PACKAGES)].filter(
+        (s, i, all) => all.indexOf(s) === i && (byKey.has(s) || s === 'custom'),
+      );
+      const golden = order.map((s) =>
+        s === 'custom'
+          ? [s, { version: '1.0.0', confidence: 'declared', source: 'config' }]
+          : [s, byKey.get(s)],
+      );
+
+      for (const packages of [
+        builtinStackPackages(),
+        buildStackPackages(snapshot()).packages,
+        buildStackPackages(builtinAsData()).packages,
+      ]) {
+        expect([...detectStacks(root, config, packages).entries()]).toEqual(golden);
+      }
+      expect([...detectStacks(root, config).entries()]).toEqual(golden); // default: project catalog → snapshot
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -354,18 +390,42 @@ describe('adversarial stack-map data', () => {
     expect([...d.keys()]).toEqual(['nextjs']);
   });
 
-  it('warns when two catalog entries map the same package, but not for a built-in rename', () => {
+  it('warns when two stacks map one package, built-in aliases included', () => {
     const { issues } = buildStackPackages(
       withBlock({
         schema: 1,
         stacks: {
           expo: { packages: { npm: 'expo' } },
           'expo-sdk': { packages: { npm: 'expo' } },
-          tailwindcss: { packages: { npm: 'tailwindcss' } }, // shares the built-in `tailwind` package
+          tailwindcss: { packages: { npm: 'tailwindcss' } }, // aliases the built-in `tailwind`
+          tailwind: { packages: { npm: 'tailwindcss' } }, // restating a built-in is not a conflict
+          nextjs: { implies: ['react'] }, // keeps the built-in package: not a conflict either
         },
       }),
     );
-    expect(issues).toEqual(['stackPackages.stacks.expo-sdk: package "expo" is also mapped by expo']);
+    expect(issues).toEqual([
+      'stackPackages.stacks.expo-sdk: package "expo" is also mapped by expo — both names are detected',
+      'stackPackages.stacks.tailwindcss: package "tailwindcss" is also mapped by tailwind (built-in) — both names are detected',
+    ]);
+  });
+
+  it('does not auto-detect a stack mapped only to another ecosystem', () => {
+    const packages = buildStackPackages(
+      withBlock({ schema: 1, stacks: { rails: { packages: { rubygems: 'rails' } } } }),
+    ).packages;
+    expect(
+      detectStacksFromManifests({ dependencies: { rails: '^0.5.0' } }, null, undefined, packages).size,
+    ).toBe(0);
+    // Declared, it still resolves by its own name — like any unmapped stack.
+    const declared = detectStacksFromManifests({}, null, { stacks: { rails: '7.1.0' } }, packages);
+    expect(declared.get('rails')?.version).toBe('7.1.0');
+  });
+
+  it('reports an unusable entry for a stack with no built-in as unmapped', () => {
+    const { issues } = buildStackPackages(withBlock({ schema: 1, stacks: { expo: 'expo' } }));
+    expect(issues).toEqual([
+      'stackPackages.stacks.expo: entry must be an object — ignored, the stack stays unmapped',
+    ]);
   });
 
   it('lints a packs repo against its own catalog.json stack map', async () => {
@@ -393,5 +453,98 @@ describe('adversarial stack-map data', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('surfaces ignored stack-map data in the range lint report', async () => {
+    const root = createTmpDir();
+    try {
+      mkdirSync(join(root, 'packages', 'bluetemberg-rules-expo', 'llm'), { recursive: true });
+      writeFileSync(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          generated: '2026-11-03T00:00:00.000Z',
+          packs: [],
+          stackPackages: { schema: 2, stacks: {} },
+        }),
+      );
+      const report = await buildRangeLintReport(root, { offline: true, cacheFile: join(root, 'cache.json') });
+      expect(report.warnings).toEqual([expect.stringContaining('catalog stackPackages ignored: schema 2')]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('monorepos and scan-org read the same stack map', () => {
+  let root: string;
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  function monorepo(): string {
+    mkdirSync(join(root, '.git'));
+    writeCatalogCache(root, { schema: 1, stacks: { 'expo-sdk': { packages: { npm: 'expo' } } } });
+    const app = join(root, 'packages', 'app');
+    mkdirSync(app, { recursive: true });
+    writeManifest(app, { expo: '~52.0.0' });
+    writeInstalled(app, 'expo', '52.0.11');
+    return app;
+  }
+
+  it('a package without its own cache detects with the repo root cache', () => {
+    const app = monorepo();
+    expect(detectStacks(app).get('expo-sdk')?.version).toBe('52.0.11');
+  });
+
+  it('a package cache wins over the root one', () => {
+    const app = monorepo();
+    writeCatalogCache(app, { schema: 1, stacks: { expo: { packages: { npm: 'expo' } } } });
+    expect([...detectStacks(app).keys()]).toEqual(['expo']);
+  });
+
+  it('never climbs past the repo boundary', () => {
+    const app = monorepo();
+    rmSync(join(root, '.git'), { recursive: true });
+    mkdirSync(join(app, '.git'));
+    expect(detectStacks(app).size).toBe(0);
+  });
+
+  it('why in a package agrees with sync fanned out from the root', async () => {
+    const app = monorepo();
+    for (const dir of [root, app]) {
+      writeFileSync(
+        join(dir, 'bluetemberg.config.json'),
+        JSON.stringify({ platforms: ['claude'], source: 'llm' }),
+      );
+    }
+    mkdirSync(join(app, 'llm', 'rules'), { recursive: true });
+    writeFileSync(
+      join(app, 'llm', 'rules', 'sdk-52.md'),
+      '---\ndescription: sdk-52\nstacks:\n  expo-sdk: ">=52 <53"\n---\n\n# sdk-52\n',
+    );
+    await sync(root, { silent: true });
+    const item = buildWhyReport(app, 'sdk-52').matches[0];
+    expect(item.included).toBe(true);
+    expect(existsSync(join(app, '.claude', 'rules', 'sdk-52.md'))).toBe(true);
+  });
+
+  it('scan-org detects local repos with the scanner catalog, like the remote path', () => {
+    const repo = join(root, 'repo');
+    mkdirSync(repo);
+    writeManifest(repo, { expo: '~52.0.0' });
+    writeInstalled(repo, 'expo', '52.0.11');
+    writeCatalogCache(root, { schema: 1, stacks: { 'expo-sdk': { packages: { npm: 'expo' } } } });
+    const report = buildScanReport([repo], root);
+    expect(report.histogram.map((h) => h.stack)).toEqual(['expo-sdk']);
+    const remote = detectStacksFromManifests(
+      { dependencies: { expo: '~52.0.0' } },
+      { packages: { 'node_modules/expo': { version: '52.0.11' } } },
+      undefined,
+      buildStackPackages({
+        stackPackages: { schema: 1, stacks: { 'expo-sdk': { packages: { npm: 'expo' } } } },
+      }).packages,
+    );
+    expect([...remote.keys()]).toEqual(['expo-sdk']);
   });
 });

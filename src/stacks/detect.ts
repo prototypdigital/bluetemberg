@@ -156,7 +156,7 @@ function candidateStacks(
   const direct = new Set<Stack>(Object.keys(declared));
   for (const [stack, { npm }] of packages) {
     // Own keys only: `deps.constructor` is Object's, and a catalog may name a stack `constructor`.
-    if (Object.hasOwn(deps, npm)) direct.add(stack);
+    if (npm !== undefined && Object.hasOwn(deps, npm)) direct.add(stack);
   }
   return withImpliedStacks(direct, packages);
 }
