@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.19.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.18.0...bluetemberg-v0.19.0) (2026-11-03)
+
+
+### Features
+
+* **catalog:** route pack content by platform ([6d717c1](https://github.com/prototypdigital/bluetemberg/commit/6d717c195c16d3ab3963da6f732553aa13ac5be6))
+* **catalog:** route pack content by platform ([01dbdb5](https://github.com/prototypdigital/bluetemberg/commit/01dbdb5f1711d97874b09425b2ec4cd124e73b90)), closes [#281](https://github.com/prototypdigital/bluetemberg/issues/281)
+* **stacks:** read the stack-to-package map from the catalog ([fce3b75](https://github.com/prototypdigital/bluetemberg/commit/fce3b7505c771856454a6d615773dd285622d74f))
+* **stacks:** read the stack-to-package map from the catalog ([aa4cba4](https://github.com/prototypdigital/bluetemberg/commit/aa4cba44b8f92f3cfe0917aed8dc85f4f15c1adc)), closes [#290](https://github.com/prototypdigital/bluetemberg/issues/290)
+* **sync:** consolidate skills output and stamp pack metadata ([03646aa](https://github.com/prototypdigital/bluetemberg/commit/03646aa8a8ec9849229864fff6d10387d4044564))
+* **sync:** consolidate skills output and stamp pack metadata ([d7f749a](https://github.com/prototypdigital/bluetemberg/commit/d7f749ac723ffbee96eb852a3a3b65cd52539e31)), closes [#285](https://github.com/prototypdigital/bluetemberg/issues/285)
+* **sync:** emit Agent Plugins 1.0 bundles as an opt-in agent-plugins platform ([efb7877](https://github.com/prototypdigital/bluetemberg/commit/efb7877f84e1211e55ff6fd67f1fbe20dc8b2a6b))
+* **sync:** emit Agent Plugins 1.0 bundles as an opt-in agent-plugins platform ([d95c055](https://github.com/prototypdigital/bluetemberg/commit/d95c0551cc6e95c2253a3faaeb5db98a3e43f491)), closes [#283](https://github.com/prototypdigital/bluetemberg/issues/283)
+* **sync:** scope extends entries to platforms ([3cd7e79](https://github.com/prototypdigital/bluetemberg/commit/3cd7e7933a1f5a7e31ca61fbfabaea07c840a812))
+* **sync:** scope extends entries to platforms ([d6ce3ff](https://github.com/prototypdigital/bluetemberg/commit/d6ce3ff930186506e515139798b945112b43720d)), closes [#207](https://github.com/prototypdigital/bluetemberg/issues/207)
+
+
+### Bug Fixes
+
+* **catalog:** keep unknown catalog platform ids quiet and switch-profile config-tolerant ([94f78d9](https://github.com/prototypdigital/bluetemberg/commit/94f78d915fe6357558c21db6450901a29e06d1f7))
+* **stacks:** harden the catalog stack map against review findings ([821a50d](https://github.com/prototypdigital/bluetemberg/commit/821a50df8ca1179e1df0b01bc4476cc767883145))
+* **stacks:** share the stack map across monorepo packages and tighten detection ([f81aa81](https://github.com/prototypdigital/bluetemberg/commit/f81aa814d6f35aa6aaac0317245512584d334f2a))
+* **sync:** align skipped-platform reports and guardrail hosts across sync and why ([a4d5fec](https://github.com/prototypdigital/bluetemberg/commit/a4d5fec10529eea50023aa9ba9442dd74f7a61aa))
+* **sync:** count Copilot agents in agent-plugins bundles ([83dadbe](https://github.com/prototypdigital/bluetemberg/commit/83dadbef2997239436d64a07bb97115ca98b6160))
+* **sync:** dedupe per-view messages, keep extends labels and coverage scope-aware ([1374a95](https://github.com/prototypdigital/bluetemberg/commit/1374a95c15d839a21f4f6cd5aae7a4b2d5d61fa7))
+* **sync:** group platforms per content kind so unrelated scopes do not split shared outputs ([ff097f2](https://github.com/prototypdigital/bluetemberg/commit/ff097f2b3db9fd3ec9a858dab7138bcb5821b27d))
+* **sync:** label extends entries by their config index ([3bbc5e9](https://github.com/prototypdigital/bluetemberg/commit/3bbc5e96893dd19100cd21a53c7c6c020efd2829))
+* **why:** explain the copy each platform syncs under scoped extends ([8820988](https://github.com/prototypdigital/bluetemberg/commit/88209882691015efac489266a4d707182aa0e89a))
+
 ## [0.18.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.17.0...bluetemberg-v0.18.0) (2026-11-03)
 
 
