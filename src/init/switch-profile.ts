@@ -8,13 +8,13 @@ import {
   writeManifest,
 } from '../registry/manifest.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
-import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
+import { DEFAULT_INIT_PLATFORMS, agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
 import { resolveAgents, resolveSkills } from './presets.js';
 import { loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
 import { loadConfig } from '../sync/index.js';
 import { configuredPlatforms } from '../sync/targets.js';
-import type { PackageManifest, PresetItem, TeamProfile } from '../types.js';
+import type { PackageManifest, Platform, PresetItem, TeamProfile } from '../types.js';
 
 export interface SwitchProfileOptions {
   silent?: boolean;
@@ -76,8 +76,7 @@ export function switchProfile(
   const stale: string[] = [];
 
   const projectStacks = new Set(detectStacks(root, { stacks: declaredStacks(raw.stacks) }).keys());
-  // The platforms sync emits for: a Claude Code–only pack is not added to a Cursor-only project.
-  const projectPlatforms = configuredPlatforms(loadConfig(root));
+  const projectPlatforms = projectPlatformsFor(root);
 
   const agentResult = applyPresets(
     manifest,
@@ -188,4 +187,17 @@ function reportResult(result: SwitchProfileResult): void {
     '\n  Note: rule collections are not changed by profile switch — edit `llm/packages.json` manually if needed.',
   );
   console.log('\n  Next: run `bluetemberg sync` to regenerate platform files.\n');
+}
+
+/**
+ * The platforms sync emits for, so a Claude Code–only pack is not added to a Cursor-only project.
+ * A config sync cannot load (no `platforms` anywhere in its chain, say) must not make the profile
+ * switch fail, which only needs `profile`: it then routes as `init` does by default.
+ */
+function projectPlatformsFor(root: string): Platform[] {
+  try {
+    return configuredPlatforms(loadConfig(root));
+  } catch {
+    return [...DEFAULT_INIT_PLATFORMS];
+  }
 }

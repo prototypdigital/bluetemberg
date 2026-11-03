@@ -62,7 +62,7 @@ Notes:
 
 ### `platforms` (optional)
 
-The platforms the rule works on, for content that depends on one tool. Same ids as the config's `platforms` (`windsurf` is read as `devin`). Sync writes the rule only for those of the project's platforms; the others are skipped and listed under `limited by platform`. Absent or `[]` means every platform. A file's list overrides its pack's catalog `platforms`; an unknown id matches nothing and warns.
+The platforms the rule works on, for content that depends on one tool. Same ids as the config's `platforms` (`windsurf` is read as `devin`). Sync writes the rule only for those of the project's platforms; the others are skipped and listed under `limited by platform`. Absent or `[]` means every platform. A file's list overrides its pack's catalog `platforms`; an unknown id matches nothing, and sync warns about it.
 
 ```markdown
 ---

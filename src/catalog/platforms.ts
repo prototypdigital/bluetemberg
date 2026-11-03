@@ -44,7 +44,11 @@ export interface PlatformGate {
   /** The effective list as written; `null` = every platform. */
   platforms: string[] | null;
   source: PlatformSource;
-  /** Entries that name no known platform: they match nothing, so sync warns. */
+  /**
+   * Frontmatter entries that name no known platform: they match nothing, so sync warns. Catalog
+   * entries are not listed — a newer packs repo may name a platform this engine predates, which
+   * should match nothing quietly rather than warn on every sync.
+   */
   unknown: string[];
   /** Set when the `platforms:` frontmatter is not a list of strings; it is then ignored. */
   invalid: string | null;
@@ -100,7 +104,7 @@ export function resolvePlatformGate(
   return {
     platforms,
     source: sourceOf(own, fromCatalog),
-    unknown: unknownPlatforms(platforms),
+    unknown: own !== undefined ? unknownPlatforms(own) : [],
     invalid: frontmatterIssue(frontmatter),
   };
 }

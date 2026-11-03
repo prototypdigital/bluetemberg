@@ -172,6 +172,17 @@ describe('sync — pack platform routing', () => {
     expect(has('.cursor/rules/scalar.mdc')).toBe(true);
   });
 
+  it('quietly ignores a catalog platform id this engine does not know (a newer packs repo)', async () => {
+    writeMd(installFakePack(root, 'bluetemberg-agents-future'), 'agents', 'future');
+    writeCatalog(root, [catalogPack('bluetemberg-agents-future', 'agents', ['future'], ['claude', 'zed'])]);
+
+    const results = await sync(root, { config: config(['claude', 'cursor']), silent: true });
+
+    expect(results.warnings).toEqual([]);
+    expect(has('.claude/agents/future.md')).toBe(true);
+    expect(has('.cursor/agents/future.md')).toBe(false);
+  });
+
   it('reports and prunes an output once its pack is limited to other platforms', async () => {
     writeMd(installFakePack(root, 'bluetemberg-agents-pr-reviewer'), 'agents', 'pr-reviewer');
     writeCatalog(root, [catalogPack('bluetemberg-agents-pr-reviewer', 'agents', ['pr-reviewer'])]);

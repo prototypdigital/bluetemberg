@@ -52,7 +52,7 @@ Platform ids are the `platforms` config ids (`cursor`, `claude`, `copilot`, `gem
 2. The owning pack's catalog `platforms`, from `bluetemberg.platforms` in the pack's `package.json`.
 3. Nothing: every platform.
 
-An id that names no platform matches nothing, and sync warns about it. `bluetemberg why <file>` shows the list and the platforms an item is skipped for.
+An id that names no platform matches nothing. Sync warns when a file's own frontmatter has one (a typo); in a catalog entry it stays quiet, since a newer packs repo may name a platform an older engine doesn't know. `bluetemberg why <file>` shows the list and the platforms an item is skipped for.
 
 ## Frontend
 

@@ -165,4 +165,50 @@ describe('switchProfile', () => {
     expect(result.fromProfile).toBeUndefined();
     expect(result.toProfile).toBe('backend');
   });
+
+  describe('platform-specific packs (#281)', () => {
+    const REVIEWER = 'bluetemberg-agents-pr-reviewer';
+
+    function project(config: Record<string, unknown>): void {
+      writeFileSync(
+        join(root, 'bluetemberg.config.json'),
+        JSON.stringify({ profile: 'frontend', ...config }),
+      );
+      mkdirSync(join(root, '.bluetemberg'), { recursive: true });
+      writeFileSync(
+        join(root, '.bluetemberg', 'catalog.json'),
+        JSON.stringify({
+          generated: '2026-11-03T00:00:00.000Z',
+          packs: [
+            {
+              name: REVIEWER,
+              version: '0.1.0',
+              description: '',
+              kind: 'agents',
+              universal: false,
+              profiles: ['backend'],
+              platforms: ['claude'],
+              agents: ['pr-reviewer'],
+              preview: '',
+            },
+          ],
+        }),
+      );
+    }
+
+    it('adds a Claude Code–only pack only when the config targets Claude Code', () => {
+      project({ platforms: ['cursor'], source: 'llm' });
+      expect(switchProfile(root, 'backend', { silent: true }).added).not.toContain(REVIEWER);
+
+      project({ platforms: ['cursor', 'claude'], source: 'llm' });
+      expect(switchProfile(root, 'backend', { silent: true }).added).toContain(REVIEWER);
+    });
+
+    it('still switches when sync could not load the config (no platforms)', () => {
+      project({ source: 'llm' });
+      const result = switchProfile(root, 'backend', { silent: true });
+      expect(result.toProfile).toBe('backend');
+      expect(result.added).toContain(REVIEWER);
+    });
+  });
 });
