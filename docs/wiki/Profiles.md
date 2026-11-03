@@ -42,7 +42,7 @@ A pack that targets stacks in the catalog (Payload, Skeletor, React Native, Tail
 
 ### Platforms
 
-Some packs only work in one tool: the PR-review loop runs headless `claude -p` from a Claude Code hook, and the session audit reads Claude Code transcripts. Such a pack names its platforms in the catalog (`"platforms": ["claude"]`), and it is preselected only when one of them is among the platforms you pick in the wizard or pass with `--platforms`. A Cursor-only or Copilot-only team doesn't get it by default; it is still offered in the wizard. `claude-marketplace` counts as Claude Code, since the plugins it publishes run there.
+Some packs only work in one tool: the PR-review loop runs headless `claude -p` from a Claude Code hook, and the session audit reads Claude Code transcripts. Such a pack can name its platforms in the catalog (`"platforms": ["claude"]`; those two packs get the tag in [bluetemberg-packs#120](https://github.com/prototypdigital/bluetemberg-packs/issues/120), until then they are offered everywhere), and it is preselected only when one of them is among the platforms you pick in the wizard or pass with `--platforms`. A Cursor-only or Copilot-only team doesn't get it by default; it is still offered in the wizard. `claude-marketplace` counts as Claude Code, since the plugins it publishes run there.
 
 Sync applies the same list per platform: a Claude Code–only pack in a project that targets Claude Code and Cursor is written to `.claude/` and skipped for `.cursor/`. Packs that name no platforms (or an empty list) work everywhere, exactly as before.
 
@@ -51,6 +51,8 @@ Platform ids are the `platforms` config ids (`cursor`, `claude`, `copilot`, `gem
 1. A file's own `platforms:` frontmatter (a rule, agent, skill or guardrail). `platforms: []` opens a rule, agent or skill to every platform; on a guardrail it keeps its existing meaning, compiled for no host.
 2. The owning pack's catalog `platforms`, from `bluetemberg.platforms` in the pack's `package.json`.
 3. Nothing: every platform.
+
+Content limited to Codex or Gemini lands in the `AGENTS.md` rules block, which other tools may read too (Copilot, Cursor and Devin read `AGENTS.md` natively, and Claude Code through a `CLAUDE.md` import), so that list narrows what bluetemberg writes, not who can read a shared file. Guardrails compile only for Claude Code, Cursor, Codex, Copilot and Devin; `bluetemberg why` reports one as excluded when none of those is configured.
 
 An id that names no platform matches nothing. Sync warns when a file's own frontmatter has one (a typo); in a catalog entry it stays quiet, since a newer packs repo may name a platform an older engine doesn't know. `bluetemberg why <file>` shows the list and the platforms an item is skipped for.
 
