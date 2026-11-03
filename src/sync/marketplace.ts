@@ -12,6 +12,7 @@ import {
   writeAgentPluginBundle,
 } from './agent-plugins.js';
 import { mergeSourceFiles, mergeSourceDirs } from './extends-loader.js';
+import { skillDirsFor, type SkillOutput } from './targets.js';
 import { TEAM_PROFILES } from '../init/presets.js';
 import type { Catalog } from '../catalog/index.js';
 import { AGENT_PLUGINS_PLATFORM, MARKETPLACE_PLATFORM } from '../types.js';
@@ -355,9 +356,7 @@ function emitPlugin(
 
   for (const [file, sourceDir] of sources.rules) {
     const meta = readRuleMeta(file, sourceDir, maps);
-    // `skills/` is one dir every host of the bundle reads, so a skill goes in when either format
-    // takes it (the rule #281 applies to `.agents/skills/`).
-    if (!hasAnyFormat(formatsForFile(meta, plugin, formats))) continue;
+    if (!bundleTakesSkill(meta, plugin, formats)) continue;
 
     const skillId = ruleToSkillId(file);
     try {
@@ -380,7 +379,7 @@ function emitPlugin(
 
   for (const [dirName, sourceParent] of sources.skills) {
     const meta = readSkillMeta(dirName, sourceParent, maps);
-    if (!hasAnyFormat(formatsForFile(meta, plugin, formats))) continue;
+    if (!bundleTakesSkill(meta, plugin, formats)) continue;
 
     try {
       const source = readFileSync(join(sourceParent, dirName, 'SKILL.md'), 'utf8');
@@ -510,6 +509,24 @@ export function planPluginFormats(
     };
   }
   return { formats };
+}
+
+/**
+ * Whether a skill (or rule skill) goes into the bundle's `skills/`. That dir is one output every host
+ * of the bundle reads, so this is #351's shared-output rule (`skillDirsFor`): it takes the skill when
+ * one of its readers — the bundle platforms this plugin is written for — is allowed.
+ */
+function bundleTakesSkill(
+  fileMeta: FileMeta,
+  plugin: MarketplacePluginDefinition,
+  formats: PluginBundleFormats,
+): boolean {
+  if (!profileMatches(fileMeta, plugin.profiles) || !stackMatches(fileMeta, plugin.stacks)) return false;
+  const readers: Platform[] = [];
+  if (formats.claude) readers.push(MARKETPLACE_PLATFORM);
+  if (formats.agentPlugins) readers.push(AGENT_PLUGINS_PLATFORM);
+  const bundleSkills: SkillOutput = { target: { dir: 'skills' }, platforms: readers, covered: [] };
+  return skillDirsFor([bundleSkills], fileMeta.platforms).length > 0;
 }
 
 function hasAnyFormat(formats: PluginBundleFormats): boolean {
@@ -688,10 +705,11 @@ export function createBundleOutputResolver(
           : readAgentMeta(key, kindDir, maps);
     const out: BundleOutput[] = [];
     for (const plugin of plugins) {
-      const on = formatsForFile(meta, plugin, planPluginFormats(plugin, { claude, agentPlugins }).formats);
-      if (!hasAnyFormat(on)) continue;
+      const planned = planPluginFormats(plugin, { claude, agentPlugins }).formats;
+      const on = formatsForFile(meta, plugin, planned);
       const base = `plugins/${plugin.name}`;
       if (kind !== 'agents') {
+        if (!bundleTakesSkill(meta, plugin, planned)) continue;
         const skillDir = kind === 'rules' ? ruleToSkillId(key) : key;
         if (on.claude)
           out.push({ platform: MARKETPLACE_PLATFORM, path: `${base}/skills/${skillDir}/SKILL.md` });
@@ -699,6 +717,7 @@ export function createBundleOutputResolver(
           out.push({ platform: AGENT_PLUGINS_PLATFORM, path: `${base}/skills/${skillDir}/SKILL.md` });
         continue;
       }
+      if (!hasAnyFormat(on)) continue;
       if (on.claude) out.push({ platform: MARKETPLACE_PLATFORM, path: `${base}/agents/${key}` });
       if (on.agentPlugins) {
         const copilotName = key.replace(/\.md$/, '.agent.md');
