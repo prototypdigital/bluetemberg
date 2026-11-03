@@ -1,11 +1,17 @@
-import { existsSync, readdirSync, readFileSync, rmdirSync, unlinkSync } from 'node:fs';
-import { dirname, extname, join, relative, resolve } from 'node:path';
-import { MARKETPLACE_PLATFORM } from '../types.js';
+import { existsSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync } from 'node:fs';
+import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
+import {
+  AGENT_PLUGINS_MANIFEST,
+  BUNDLE_LOCK_FILE,
+  COPILOT_EXTENSION_DIR,
+  isBluetembergBundleLock,
+} from './agent-plugins.js';
 import type { BlueprintConfig, Platform, SkillTargetConfig, TargetConfig } from '../types.js';
 import {
   DEVIN_PLATFORM,
-  RETIRED_DEVIN_SKILLS_DIR,
   RETIRED_DEVIN_WORKFLOWS_DIR,
+  RETIRED_SKILL_DIRS,
   normalizePlatforms,
   resolveAgentTargets,
   resolveRuleTargets,
@@ -28,6 +34,8 @@ export interface StaleOutput {
   kind: 'generated' | 'handwritten' | 'unverifiable';
   /** Directories to remove once empty after this file is deleted, deepest first. */
   cleanupDirs: string[];
+  /** Set for a file in a skills dir bluetemberg no longer writes (`.cursor/skills`, …): that dir. */
+  retiredDir?: string;
 }
 
 export interface StaleOutputsArgs {
@@ -40,6 +48,8 @@ export interface StaleOutputsArgs {
 
 /** Extensions whose files can carry the generated-file banner (HTML comment, or `#` for TOML). */
 const BANNER_CAPABLE = new Set(['.md', '.mdc', '.toml']);
+/** Supporting files sync generates itself, with a `#` banner (a Codex `agents/openai.yaml`). */
+const BANNERED_SUPPORTING = new Set(['.yaml', '.yml']);
 
 function classify(abs: string): StaleOutput['kind'] {
   if (!BANNER_CAPABLE.has(extname(abs))) return 'unverifiable';
@@ -153,34 +163,144 @@ function collectFlatDir(
 
 /**
  * Outputs of the Windsurf era that Devin Desktop no longer loads: `.windsurf/workflows/` (workflows
- * were deprecated for skills) and `.windsurf/skills/` (skills now go to `.agents/skills/`). Only
- * bannered files are removable, like everywhere else. A dir still configured as a skill target is
- * live output, so it is left to {@link collectSkills}.
+ * were deprecated for skills). Only bannered files are removable, like everywhere else.
  */
 function collectRetiredDevinOutputs(
   out: StaleOutput[],
   root: string,
-  skillTargets: [Platform, SkillTargetConfig][],
   expected: Set<string>,
   isMd: (name: string) => boolean,
 ): void {
   const windsurfDir = join(root, '.windsurf');
   const workflowsDir = join(root, RETIRED_DEVIN_WORKFLOWS_DIR);
   collectFlatDir(out, workflowsDir, isMd, expected, [workflowsDir, windsurfDir]);
+}
 
-  // Compare absolute paths: `root` may be relative (library callers), and a dir listed twice
-  // would be unlinked twice.
-  const skillsBase = join(root, RETIRED_DEVIN_SKILLS_DIR);
-  if (skillTargets.some(([, tc]) => resolve(root, tc.dir) === resolve(skillsBase))) return;
-  for (const name of listSubdirs(skillsBase)) {
-    collectSkillDir(out, join(skillsBase, name), expected, [skillsBase, windsurfDir]);
+function sameBytes(a: string, b: string): boolean {
+  try {
+    return readFileSync(a).equals(readFileSync(b));
+  } catch {
+    return false;
+  }
+}
+
+/** The path with symlinks resolved, or the plain absolute path when it cannot be resolved. */
+function realPath(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+function isInsideAny(path: string, bases: string[]): boolean {
+  return bases.some((base) => path === base || path.startsWith(base + sep));
+}
+
+/**
+ * Whether a file in a retired skill copy is provably sync's: it carries its own banner (a Codex
+ * `openai.yaml`), or the same skill in a live skills dir holds a byte-identical file at the same
+ * path. The twin is read from disk, so the proof also holds while `uninstall` clears every dir.
+ */
+function isProvenSupportingFile(file: string, liveCopies: string[], rel: string): boolean {
+  if (BANNERED_SUPPORTING.has(extname(file))) {
+    try {
+      if (hasGeneratedBanner(readFileSync(file, 'utf8'))) return true;
+    } catch {
+      return false;
+    }
+  }
+  return liveCopies.some((live) => sameBytes(file, resolve(live, rel)));
+}
+
+/**
+ * A skill left in a dir sync no longer writes. Its `SKILL.md` carrying the banner makes it sync's,
+ * and removing that `SKILL.md` is what stops a tool loading the stale copy. Supporting files are
+ * held to more than that: nothing rewrites this copy any more and someone may have added notes or
+ * scripts next to it, so only a file identical to a live copy (or carrying its own banner) goes.
+ * Any other file stays, listed as hand-written, in a dir no host loads once `SKILL.md` is gone.
+ */
+function collectRetiredSkillDir(
+  out: StaleOutput[],
+  skillDir: string,
+  liveCopies: string[],
+  expected: Set<string>,
+  base: { dir: string; cleanup: string[] },
+): void {
+  const skillMd = join(skillDir, 'SKILL.md');
+  if (!existsSync(skillMd) || expected.has(resolve(skillMd))) {
+    // A Cursor-only skill this pass wrote (see `skillDirsFor`): judged like any live skill.
+    if (existsSync(skillMd)) collectSkillDir(out, skillDir, expected);
+    return;
+  }
+  const retiredDir = base.dir;
+  if (classify(resolve(skillMd)) !== 'generated') {
+    out.push({ path: resolve(skillMd), kind: 'handwritten', cleanupDirs: [], retiredDir });
+    return;
+  }
+  for (const rel of walkFiles(skillDir)) {
+    const file = resolve(skillDir, rel);
+    const proven = rel === 'SKILL.md' || isProvenSupportingFile(file, liveCopies, rel);
+    const cleanupDirs = proven ? [...ancestorDirs(resolve(skillDir), file), ...base.cleanup] : [];
+    out.push({ path: file, kind: proven ? 'generated' : 'handwritten', cleanupDirs, retiredDir });
   }
 }
 
 /**
+ * Per-tool skills dirs sync wrote before skills were consolidated (`.cursor/skills/`, and
+ * `.windsurf/skills/` from the Windsurf era), checked while their platform is enabled. A dir that
+ * is, or (through a symlink) resolves into, a configured skill target is live output, so it is
+ * left to {@link collectSkills}: unlinking through the link would delete what this pass wrote.
+ */
+function collectRetiredSkillDirs(
+  out: StaleOutput[],
+  root: string,
+  platforms: Platform[],
+  skillTargets: [Platform, SkillTargetConfig][],
+  expected: Set<string>,
+): void {
+  // Compare absolute paths: `root` may be relative (library callers), and a dir listed twice
+  // would be unlinked twice.
+  const liveBases = skillTargets.map(([, tc]) => resolve(root, tc.dir));
+  const liveReal = liveBases.map(realPath);
+  for (const { platform, dir } of RETIRED_SKILL_DIRS) {
+    if (!platforms.includes(platform)) continue;
+    const base = resolve(root, dir);
+    if (liveBases.includes(base) || isInsideAny(realPath(base), liveReal)) continue;
+    const cleanup = [base, dirname(base)];
+    for (const name of listSubdirs(base)) {
+      const skillDir = join(base, name);
+      if (isInsideAny(realPath(skillDir), liveReal)) continue;
+      const liveCopies = liveBases.map((live) => join(live, name));
+      collectRetiredSkillDir(out, skillDir, liveCopies, expected, { dir, cleanup });
+    }
+  }
+}
+
+/**
+ * A root `plugin.json` may be one a person wrote to make a Claude-only bundle loadable elsewhere, so
+ * it counts as generated only next to a bundle lock bluetemberg wrote, in bluetemberg's namespace.
+ */
+function collectAgentPluginManifests(
+  out: StaleOutput[],
+  pluginDir: string,
+  expected: Set<string>,
+  manifestKind: StaleOutput['kind'],
+): void {
+  const bundleLock = join(pluginDir, BUNDLE_LOCK_FILE);
+  const hasOurLock = existsSync(bundleLock) && isBluetembergBundleLock(bundleLock);
+  const kind: StaleOutput['kind'] = hasOurLock ? manifestKind : 'unverifiable';
+  const rootManifest = join(pluginDir, AGENT_PLUGINS_MANIFEST);
+  if (existsSync(rootManifest)) consider(out, expected, rootManifest, [pluginDir], kind);
+  if (existsSync(bundleLock)) consider(out, expected, bundleLock, [dirname(bundleLock), pluginDir], kind);
+}
+
+/**
  * A plugin directory is bluetemberg's as a whole when every Markdown file in it carries the banner
- * (and there is at least one). Its `plugin.json` / `hooks.json` cannot carry a banner, but with that
- * evidence they are generated too and go with the directory; otherwise they stay (unverifiable).
+ * (and there is at least one). Its JSON (`.claude-plugin/plugin.json`, `hooks/hooks.json`, the
+ * Agent Plugins `plugin.json` and bundle lock) cannot carry a banner, but with that evidence it is
+ * generated too and goes with the directory; otherwise it stays (unverifiable). Both bundle formats
+ * are collected whichever bundle platform is on, so dropping one prunes its files from the other.
  */
 function collectMarketplace(out: StaleOutput[], root: string, expected: Set<string>): void {
   const pluginsBase = join(root, 'plugins');
@@ -194,10 +314,16 @@ function collectMarketplace(out: StaleOutput[], root: string, expected: Set<stri
       collectSkillDir(out, join(skillsDir, skillName), expected, [skillsDir, pluginDir]);
     }
     const skillKinds = out.slice(before).map((file) => file.kind);
-    for (const sub of ['rules', 'agents']) {
-      const dir = join(pluginDir, sub);
+    const copilotDir = join(pluginDir, COPILOT_EXTENSION_DIR);
+    const markdownDirs = [
+      { dir: join(pluginDir, 'rules'), cleanupDirs: [pluginDir] },
+      { dir: join(pluginDir, 'agents'), cleanupDirs: [pluginDir] },
+      { dir: join(copilotDir, 'agents'), cleanupDirs: [copilotDir, pluginDir] },
+    ];
+    for (const { dir, cleanupDirs } of markdownDirs) {
       for (const name of listDir(dir)) {
-        if (name.endsWith('.md')) markdown.push({ path: join(dir, name), cleanupDirs: [dir, pluginDir] });
+        if (name.endsWith('.md'))
+          markdown.push({ path: join(dir, name), cleanupDirs: [dir, ...cleanupDirs] });
       }
     }
 
@@ -214,6 +340,7 @@ function collectMarketplace(out: StaleOutput[], root: string, expected: Set<stri
     const hooksDir = join(pluginDir, 'hooks');
     const hooksJson = join(hooksDir, 'hooks.json');
     if (existsSync(hooksJson)) consider(out, expected, hooksJson, [hooksDir, pluginDir], manifestKind);
+    collectAgentPluginManifests(out, pluginDir, expected, manifestKind);
   }
 
   const marketplaceJson = join(root, '.claude-plugin', 'marketplace.json');
@@ -276,8 +403,9 @@ export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
     collectFlatDir(out, join(root, '.codex', 'agents'), (n) => n.endsWith('.toml'), expected);
   }
   if (platforms.includes(DEVIN_PLATFORM)) {
-    collectRetiredDevinOutputs(out, root, skillTargets, expected, isMd);
+    collectRetiredDevinOutputs(out, root, expected, isMd);
   }
+  collectRetiredSkillDirs(out, root, platforms, skillTargets, expected);
   if (platforms.includes('gemini') || platforms.includes('antigravity')) {
     // Both are outputs of the retired Gemini integration (a GEMINI.md copy of AGENTS.md, and rules
     // Gemini CLI never loaded). Listed so `--check` flags them and `--prune` removes the bannered ones.
@@ -293,7 +421,7 @@ export function collectStaleOutputs(args: StaleOutputsArgs): StaleOutput[] {
     collectSingleton(out, join(root, '.cursor', 'mcp.json'), expected);
     collectSingleton(out, join(root, '.cursor', 'hooks.json'), expected);
   }
-  if (platforms.includes(MARKETPLACE_PLATFORM)) {
+  if (platforms.some((p) => PLUGIN_BUNDLE_PLATFORMS.includes(p))) {
     collectMarketplace(out, root, expected);
   }
 
@@ -316,12 +444,14 @@ function removeEmptyDirs(dirs: string[]): void {
  * a banner and stays too. Both are listed so the user can decide. Runs only after a write pass
  * with no recorded errors; `expectedPaths` must be the set `commitPlannedWrite` populated.
  */
-export function pruneStaleOutputs(args: StaleOutputsArgs & { log: (...args: unknown[]) => void }): void {
+export function pruneStaleOutputs(
+  args: StaleOutputsArgs & { log: (...args: unknown[]) => void },
+): StaleOutput[] {
   const { root, platforms, log } = args;
   // Overlapping targets (two platforms sharing a dir) list a file once per target; unlink it once.
   const stale = [...new Map(collectStaleOutputs(args).map((file) => [file.path, file])).values()];
 
-  let removed = 0;
+  const removed: StaleOutput[] = [];
   const kept: StaleOutput[] = [];
   for (const file of stale) {
     if (file.kind !== 'generated') {
@@ -329,13 +459,13 @@ export function pruneStaleOutputs(args: StaleOutputsArgs & { log: (...args: unkn
       continue;
     }
     unlinkSync(file.path);
-    removed++;
+    removed.push(file);
     removeEmptyDirs(file.cleanupDirs);
   }
-  if (platforms.includes(MARKETPLACE_PLATFORM)) removeEmptyDirs([join(root, 'plugins')]);
+  if (platforms.some((p) => PLUGIN_BUNDLE_PLATFORMS.includes(p))) removeEmptyDirs([join(root, 'plugins')]);
 
-  if (removed > 0) {
-    log(`\nPrune: removed ${removed} stale generated file(s).`);
+  if (removed.length > 0) {
+    log(`\nPrune: removed ${removed.length} stale generated file(s).`);
   }
   if (kept.length > 0) {
     log(
@@ -343,4 +473,5 @@ export function pruneStaleOutputs(args: StaleOutputsArgs & { log: (...args: unkn
     );
     for (const file of kept) log(`  ${relative(root, file.path)}`);
   }
+  return removed;
 }

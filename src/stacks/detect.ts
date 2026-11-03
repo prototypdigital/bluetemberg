@@ -1,8 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { coerce } from 'semver';
+import { loadCatalogSync } from '../catalog/index.js';
 import type { BlueprintConfig, Stack } from '../types.js';
 import type { DetectedStack, DetectedStacks } from './match.js';
+import {
+  buildStackPackages,
+  builtinStackPackages,
+  packageForStack,
+  withImpliedStacks,
+  type StackPackages,
+} from './packages.js';
 
 /**
  * Project stack/version detection (Milestone M4).
@@ -23,25 +31,6 @@ import type { DetectedStack, DetectedStacks } from './match.js';
  */
 
 const AUTO = 'auto';
-
-/** Default stack-name → npm-package-name mapping. Open vocab: unmapped names map to themselves. */
-export const STACK_PACKAGE_MAP: Readonly<Record<string, string>> = {
-  nextjs: 'next',
-  react: 'react',
-  payload: 'payload',
-  angular: '@angular/core',
-  vue: 'vue',
-  svelte: 'svelte',
-  astro: 'astro',
-  solid: 'solid-js',
-  tailwind: 'tailwindcss',
-  drizzle: 'drizzle-orm',
-  trpc: '@trpc/server',
-};
-
-export function packageForStack(stack: Stack): string {
-  return STACK_PACKAGE_MAP[stack] ?? stack;
-}
 
 function readJson(path: string): Record<string, unknown> | null {
   if (!existsSync(path)) return null;
@@ -154,24 +143,45 @@ function coercedFromRange(range: string | undefined): DetectedStack | null {
 }
 
 /**
- * The candidate stack set: every stack declared in config plus every known stack whose package
- * appears in the dependency map. Shared by the on-disk and manifest entry-points so both surface
- * stacks the user did not declare.
+ * The candidate stack set: every stack declared in config, every mapped stack whose package
+ * appears in the dependency map, and every stack those imply (see {@link withImpliedStacks}).
+ * Shared by the on-disk and manifest entry-points so both surface stacks the user did not declare.
+ * Maps each candidate to the stack that implied it (`null` when direct).
  */
-function candidateStacks(declared: Record<string, string>, deps: Record<string, string>): Set<Stack> {
-  const candidates = new Set<Stack>(Object.keys(declared));
-  for (const [stack, pkg] of Object.entries(STACK_PACKAGE_MAP)) {
-    if (deps[pkg] !== undefined) candidates.add(stack);
+function candidateStacks(
+  declared: Record<string, string>,
+  deps: Record<string, string>,
+  packages: StackPackages,
+): Map<Stack, Stack | null> {
+  const direct = new Set<Stack>(Object.keys(declared));
+  for (const [stack, { npm }] of packages) {
+    // Own keys only: `deps.constructor` is Object's, and a catalog may name a stack `constructor`.
+    if (npm !== undefined && Object.hasOwn(deps, npm)) direct.add(stack);
   }
-  return candidates;
+  return withImpliedStacks(direct, packages);
+}
+
+/** The config-declared version of `stack`, never an inherited `Object.prototype` member. */
+function declaredVersion(declared: Record<string, string>, stack: Stack): string | undefined {
+  return Object.hasOwn(declared, stack) ? declared[stack] : undefined;
+}
+
+/** Label an implied detection with what brought it in: `node_modules, implied by nextjs`. */
+function labelImplied(resolved: DetectedStack, impliedBy: Stack | null): DetectedStack {
+  return impliedBy ? { ...resolved, source: `${resolved.source}, implied by ${impliedBy}` } : resolved;
 }
 
 /** Resolve one stack from disk: declared → node_modules → lockfile → coerced manifest range. */
-function resolveStack(root: string, stack: Stack, declared: string | undefined): DetectedStack | null {
+function resolveStack(
+  root: string,
+  stack: Stack,
+  declared: string | undefined,
+  packages: StackPackages,
+): DetectedStack | null {
   if (declared !== undefined && declared !== AUTO) {
     return { version: declared, confidence: 'declared', source: 'config' };
   }
-  const pkg = packageForStack(stack);
+  const pkg = packageForStack(stack, packages);
 
   return (
     resolveFromNodeModules(root, pkg) ??
@@ -186,11 +196,12 @@ function resolveStackFromData(
   declared: string | undefined,
   deps: Record<string, string>,
   lock: Record<string, unknown> | null,
+  packages: StackPackages,
 ): DetectedStack | null {
   if (declared !== undefined && declared !== AUTO) {
     return { version: declared, confidence: 'declared', source: 'config' };
   }
-  const pkg = packageForStack(stack);
+  const pkg = packageForStack(stack, packages);
 
   const fromLock = lockfileVersionFor(lock, pkg);
   if (fromLock) return { version: fromLock, confidence: 'exact', source: 'package-lock.json' };
@@ -200,17 +211,24 @@ function resolveStackFromData(
 
 /**
  * Detect the project's stacks and resolved versions. Considers (a) every stack declared in
- * config and (b) every known stack whose package appears in the project's dependencies, so the
- * wizard/coverage can surface stacks the user did not declare.
+ * config, (b) every mapped stack whose package appears in the project's dependencies, and (c) the
+ * stacks those imply, so the wizard/coverage can surface stacks the user did not declare.
+ *
+ * `packages` is the stack → package map; omitted, it is read from the project's catalog (cache,
+ * else the committed snapshot — never the network), so every command detects with the same map.
  */
-export function detectStacks(root: string, config?: Pick<BlueprintConfig, 'stacks'>): DetectedStacks {
+export function detectStacks(
+  root: string,
+  config?: Pick<BlueprintConfig, 'stacks'>,
+  packages: StackPackages = buildStackPackages(loadCatalogSync(root)).packages,
+): DetectedStacks {
   const declared = config?.stacks ?? {};
   const deps = manifestDeps(root);
 
   const detected: DetectedStacks = new Map();
-  for (const stack of candidateStacks(declared, deps)) {
-    const resolved = resolveStack(root, stack, declared[stack]);
-    if (resolved) detected.set(stack, resolved);
+  for (const [stack, impliedBy] of candidateStacks(declared, deps, packages)) {
+    const resolved = resolveStack(root, stack, declaredVersion(declared, stack), packages);
+    if (resolved) detected.set(stack, labelImplied(resolved, impliedBy));
   }
   return detected;
 }
@@ -219,21 +237,23 @@ export function detectStacks(root: string, config?: Pick<BlueprintConfig, 'stack
  * Detect stacks from already-fetched manifest + lockfile JSON, without touching disk (Milestone
  * M6 remote scan). Mirrors {@link detectStacks} precedence minus the `node_modules` layer, which
  * is unavailable when reading a repo over the GitHub API: declared → lockfile-exact → coerced
- * manifest range. Shares the lockfile-shape and candidate-set logic with the on-disk path.
+ * manifest range. Shares the lockfile-shape and candidate-set logic with the on-disk path. With no
+ * project to read a catalog from, `packages` defaults to the built-in map; callers pass theirs.
  */
 export function detectStacksFromManifests(
   manifestJson: Record<string, unknown>,
   lockfileJson?: Record<string, unknown> | null,
   config?: Pick<BlueprintConfig, 'stacks'>,
+  packages: StackPackages = builtinStackPackages(),
 ): DetectedStacks {
   const declared = config?.stacks ?? {};
   const deps = depsFromManifest(manifestJson);
   const lock = lockfileJson ?? null;
 
   const detected: DetectedStacks = new Map();
-  for (const stack of candidateStacks(declared, deps)) {
-    const resolved = resolveStackFromData(stack, declared[stack], deps, lock);
-    if (resolved) detected.set(stack, resolved);
+  for (const [stack, impliedBy] of candidateStacks(declared, deps, packages)) {
+    const resolved = resolveStackFromData(stack, declaredVersion(declared, stack), deps, lock, packages);
+    if (resolved) detected.set(stack, labelImplied(resolved, impliedBy));
   }
   return detected;
 }

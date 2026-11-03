@@ -93,7 +93,7 @@ describe('resolveExternalSourceDirs', () => {
   });
 
   it('returns empty when nothing is configured', () => {
-    expect(resolveExternalSourceDirs(root)).toEqual({ dirs: [], warnings: [] });
+    expect(resolveExternalSourceDirs(root)).toEqual({ dirs: [], labels: [], warnings: [] });
   });
 
   it('returns the cached dir for a locked + cached source', () => {

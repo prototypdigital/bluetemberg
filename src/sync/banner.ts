@@ -23,13 +23,16 @@ export function generatedBanner(sourceId: string): string {
 /**
  * Index just past the closing `---` delimiter of a leading YAML frontmatter
  * block, or `null` when the content does not open with one. Deliberately does
- * not parse the YAML: this only needs to know where the body starts.
+ * not parse the YAML: this only needs to know where the body starts. CRLF is
+ * accepted too: a Windows checkout can turn a source's endings into CRLF, and
+ * a banner placed above the frontmatter would hide it from every host.
  */
 function frontmatterEnd(content: string): number | null {
-  if (!content.startsWith('---\n')) return null;
-  const close = content.indexOf('\n---\n', 3);
-  if (close === -1) return null;
-  return close + '\n---\n'.length;
+  const open = /^---\r?\n/.exec(content);
+  if (!open) return null;
+  const close = /\r?\n---(?:\r?\n|$)/.exec(content.slice(open[0].length - 1));
+  if (!close) return null;
+  return open[0].length - 1 + close.index + close[0].length;
 }
 
 /**
@@ -46,6 +49,33 @@ export function stripGeneratedBanner(content: string): string {
 }
 
 /**
+ * Removes a banner only from where the emitters put it: the first non-blank line of the file, or of
+ * the body after a leading frontmatter block. A banner quoted further down (in docs explaining it,
+ * say) is content and stays. Tolerates CRLF line endings, which a Windows checkout can introduce.
+ */
+export function stripLeadingGeneratedBanner(content: string): string {
+  const lines = content.split('\n');
+  const index = leadingBannerIndex(lines);
+  if (index === -1) return content;
+
+  lines.splice(index, lines[index + 1]?.trim() === '' ? 2 : 1);
+  return lines.join('\n');
+}
+
+function leadingBannerIndex(lines: string[]): number {
+  let index = 0;
+  if (lines[0]?.trimEnd() === '---') {
+    const close = lines.findIndex((line, i) => i > 0 && line.trimEnd() === '---');
+    if (close === -1) return -1;
+    index = close + 1;
+  }
+  while (index < lines.length && lines[index].trim() === '') index++;
+  const line = lines[index] ?? '';
+  const isBanner = line.startsWith(`<!-- ${BANNER_MARKER}`) || line.startsWith(`# ${BANNER_MARKER}`);
+  return isBanner ? index : -1;
+}
+
+/**
  * TOML cannot carry an HTML comment; `#` is its comment syntax. Same words, same marker, so
  * {@link hasGeneratedBanner} recognizes both forms.
  */
@@ -53,12 +83,19 @@ export function generatedBannerToml(sourceId: string): string {
   return `# ${BANNER_MARKER} from ${sourceId}. Do not edit — run \`bluetemberg sync\` after editing the source.`;
 }
 
-/** Prepends the TOML banner (idempotent: an existing one is replaced). */
-export function withGeneratedBannerToml(content: string, sourceId: string): string {
+/** The TOML counterpart of {@link stripGeneratedBanner}: removes the banner and the blank line after it. */
+export function stripGeneratedBannerToml(content: string): string {
   const lines = content.split('\n');
   const index = lines.findIndex((line) => line.startsWith(`# ${BANNER_MARKER}`));
-  if (index !== -1) lines.splice(index, lines[index + 1] === '' ? 2 : 1);
-  return `${generatedBannerToml(sourceId)}\n\n${lines.join('\n')}`;
+  if (index === -1) return content;
+
+  lines.splice(index, lines[index + 1] === '' ? 2 : 1);
+  return lines.join('\n');
+}
+
+/** Prepends the TOML banner (idempotent: an existing one is replaced). */
+export function withGeneratedBannerToml(content: string, sourceId: string): string {
+  return `${generatedBannerToml(sourceId)}\n\n${stripGeneratedBannerToml(content)}`;
 }
 
 /**
@@ -74,6 +111,8 @@ export function hasGeneratedBanner(content: string): boolean {
 
 /** Inserts the banner after any frontmatter block, else at the top of the file. */
 export function withGeneratedBanner(content: string, sourceId: string): string {
+  // A UTF-8 BOM stays first, ahead of the frontmatter it would otherwise hide.
+  if (content.startsWith('\uFEFF')) return `\uFEFF${withGeneratedBanner(content.slice(1), sourceId)}`;
   const banner = generatedBanner(sourceId);
   const stripped = stripGeneratedBanner(content);
 
@@ -82,7 +121,9 @@ export function withGeneratedBanner(content: string, sourceId: string): string {
     return `${banner}\n\n${stripped}`;
   }
 
+  const eol = stripped.startsWith('---\r\n') ? '\r\n' : '\n';
   const frontmatter = stripped.slice(0, bodyStart);
-  const body = stripped.slice(bodyStart).replace(/^\n+/, '');
-  return `${frontmatter}\n${banner}\n\n${body}`;
+  const body = stripped.slice(bodyStart).replace(/^(\r?\n)+/, '');
+  const closed = frontmatter.endsWith('\n') ? frontmatter : `${frontmatter}${eol}`;
+  return `${closed}${eol}${banner}${eol}${eol}${body}`;
 }

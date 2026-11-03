@@ -11,8 +11,13 @@ export type Platform =
   | 'devin'
   | 'windsurf'
   | 'codex'
-  | 'claude-marketplace';
+  | 'claude-marketplace'
+  | 'agent-plugins';
 export const MARKETPLACE_PLATFORM = 'claude-marketplace' satisfies Platform;
+/** Agent Plugins 1.0 bundles (https://agent-plugins.org), written into the same `plugins/<name>/` dirs. */
+export const AGENT_PLUGINS_PLATFORM = 'agent-plugins' satisfies Platform;
+/** Platforms that publish installable plugin bundles under `plugins/` instead of configuring a tool. */
+export const PLUGIN_BUNDLE_PLATFORMS: readonly Platform[] = [MARKETPLACE_PLATFORM, AGENT_PLUGINS_PLATFORM];
 
 export type PackageManager = 'pnpm' | 'npm' | 'yarn';
 
@@ -128,8 +133,11 @@ export interface BlueprintConfig {
    *
    * For relative paths, Bluetemberg looks for a `llm/` subdirectory at that path, then falls
    * back to the path itself. For npm packages, it looks inside `node_modules/{name}/llm/`.
+   *
+   * An array entry may be a {@link ScopedExtendsEntry} instead of a string; it then applies only
+   * when syncing the platforms it names. A plain string applies to every platform.
    */
-  extends?: string | string[];
+  extends?: string | ExtendsEntry[];
   /**
    * Optional ESM module specifiers (npm package names or `file:` URLs) loaded after built-in sync steps.
    * Each module must `export default` as a function or `{ run(ctx, recordError) }` — see wiki *Adapters*.
@@ -142,6 +150,18 @@ export interface BlueprintConfig {
    */
   root?: boolean;
 }
+
+/**
+ * An `extends` entry limited to some platforms: its source dir is merged only when syncing one of
+ * `platforms` (`windsurf` counts as `devin`). Every other platform syncs as if it were absent.
+ */
+export interface ScopedExtendsEntry {
+  path: string;
+  platforms: Platform[];
+}
+
+/** One `extends` entry: a path or package name for every platform, or a platform-scoped entry. */
+export type ExtendsEntry = string | ScopedExtendsEntry;
 
 export type RuleSource = 'collections' | 'none';
 
@@ -180,6 +200,8 @@ export interface RuleCollectionPreset extends RuleCollectionOverlay {
   tags?: TeamProfile[];
   /** Catalog stacks the pack targets; when set, it is preselected only if one of them is in the project. */
   stacks?: string[];
+  /** Catalog platforms the pack works on; when set, it is preselected only if one of them is targeted. */
+  platforms?: string[];
 }
 
 export interface InitAnswers {
@@ -335,6 +357,8 @@ export interface PresetItem {
   universalExcludeProfiles?: TeamProfile[];
   /** Catalog stacks the pack targets; when set, it is preselected only if one of them is in the project. */
   stacks?: string[];
+  /** Catalog platforms the pack works on; when set, it is preselected only if one of them is targeted. */
+  platforms?: string[];
   /** npm package name in the packs repo (e.g. `bluetemberg-agents-frontend-specialist`). */
   packageName?: string;
 }
@@ -476,6 +500,12 @@ export interface RegistryAddOptions {
    */
   skipSignatureVerification?: boolean;
   /**
+   * Skip the content security scan that runs on every freshly downloaded pack. For trusted
+   * private registries only — blocking findings (credentials, exfiltration, instructions to
+   * disable hooks/guardrails) are no longer checked.
+   */
+  skipScan?: boolean;
+  /**
    * Allow a pack's tarball to be served from a host other than the configured registry
    * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
    * sent to that host.
@@ -499,6 +529,12 @@ export interface RegistryInstallOptions {
    * always signs — verification there is mandatory and cannot be turned off.
    */
   skipSignatureVerification?: boolean;
+  /**
+   * Skip the content security scan that runs on every freshly downloaded pack. For trusted
+   * private registries only — blocking findings (credentials, exfiltration, instructions to
+   * disable hooks/guardrails) are no longer checked.
+   */
+  skipScan?: boolean;
   /**
    * Allow a pack's tarball to be served from a host other than the configured registry
    * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never
@@ -543,6 +579,12 @@ export interface RegistryUpdateOptions {
    * always signs — verification there is mandatory and cannot be turned off.
    */
   skipSignatureVerification?: boolean;
+  /**
+   * Skip the content security scan that runs on every freshly downloaded pack. For trusted
+   * private registries only — blocking findings (credentials, exfiltration, instructions to
+   * disable hooks/guardrails) are no longer checked.
+   */
+  skipScan?: boolean;
   /**
    * Allow a pack's tarball to be served from a host other than the configured registry
    * (e.g. a registry that offloads downloads to a CDN). Registry credentials are never

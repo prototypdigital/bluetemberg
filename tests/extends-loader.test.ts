@@ -26,11 +26,11 @@ describe('resolveExtendedSourceDirs', () => {
   });
 
   it('returns empty dirs and warnings when extends is undefined', () => {
-    expect(resolveExtendedSourceDirs(undefined, root)).toEqual({ dirs: [], warnings: [] });
+    expect(resolveExtendedSourceDirs(undefined, root)).toEqual({ dirs: [], entries: [], warnings: [] });
   });
 
   it('returns empty dirs and warnings when extends is empty array', () => {
-    expect(resolveExtendedSourceDirs([], root)).toEqual({ dirs: [], warnings: [] });
+    expect(resolveExtendedSourceDirs([], root)).toEqual({ dirs: [], entries: [], warnings: [] });
   });
 
   it('resolves relative path that has a llm/ subdirectory', () => {

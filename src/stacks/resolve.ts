@@ -93,6 +93,24 @@ export function resolveStacks(
   frontmatterStacks: StackConstraint | undefined,
   stackMap: StackMap,
 ): StackConstraint {
-  if (frontmatterStacks !== undefined) return frontmatterStacks;
-  return stackMap.get(kindDir, id) ?? {};
+  return resolveStacksWithSource(id, kindDir, frontmatterStacks, stackMap).constraint;
+}
+
+/** Which precedence tier supplied a file's effective constraint (see {@link resolveStacks}). */
+export type ConstraintSource = 'frontmatter' | 'catalog' | 'none';
+
+/**
+ * {@link resolveStacks}, plus which tier won — so a diagnostic (`bluetemberg why`) can say whether a
+ * file was gated by its own `stacks:` or by its pack's catalog tag, from the same decision sync makes.
+ */
+export function resolveStacksWithSource(
+  id: string,
+  kindDir: string,
+  frontmatterStacks: StackConstraint | undefined,
+  stackMap: StackMap,
+): { constraint: StackConstraint; source: ConstraintSource } {
+  if (frontmatterStacks !== undefined) return { constraint: frontmatterStacks, source: 'frontmatter' };
+  const fromCatalog = stackMap.get(kindDir, id);
+  if (fromCatalog !== undefined) return { constraint: fromCatalog, source: 'catalog' };
+  return { constraint: {}, source: 'none' };
 }

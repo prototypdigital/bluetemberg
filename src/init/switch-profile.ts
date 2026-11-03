@@ -8,11 +8,14 @@ import {
   writeManifest,
 } from '../registry/manifest.js';
 import { INIT_TEAM_PROFILES } from './init-catalog.js';
-import { agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
+import { DEFAULT_INIT_PLATFORMS, agentsForProfile, skillsForProfile } from './init-answers-from-profile.js';
 import { resolveAgents, resolveSkills } from './presets.js';
 import { loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
-import type { PackageManifest, PresetItem, TeamProfile } from '../types.js';
+import { loadConfig } from '../sync/index.js';
+import { configuredPlatforms, normalizePlatforms } from '../sync/targets.js';
+import { KNOWN_PLATFORMS } from '../catalog/platforms.js';
+import type { PackageManifest, Platform, PresetItem, TeamProfile } from '../types.js';
 
 export interface SwitchProfileOptions {
   silent?: boolean;
@@ -74,10 +77,11 @@ export function switchProfile(
   const stale: string[] = [];
 
   const projectStacks = new Set(detectStacks(root, { stacks: declaredStacks(raw.stacks) }).keys());
+  const projectPlatforms = projectPlatformsFor(root, raw);
 
   const agentResult = applyPresets(
     manifest,
-    agentsForProfile(toProfile, catalog, projectStacks),
+    agentsForProfile(toProfile, catalog, projectStacks, projectPlatforms),
     resolveAgents(catalog),
   );
   added.push(...agentResult.added);
@@ -85,7 +89,7 @@ export function switchProfile(
 
   const skillResult = applyPresets(
     manifest,
-    skillsForProfile(toProfile, catalog, projectStacks),
+    skillsForProfile(toProfile, catalog, projectStacks, projectPlatforms),
     resolveSkills(catalog),
   );
   added.push(...skillResult.added);
@@ -184,4 +188,23 @@ function reportResult(result: SwitchProfileResult): void {
     '\n  Note: rule collections are not changed by profile switch — edit `llm/packages.json` manually if needed.',
   );
   console.log('\n  Next: run `bluetemberg sync` to regenerate platform files.\n');
+}
+
+/**
+ * The platforms sync emits for, so a Claude Code–only pack is not added to a Cursor-only project.
+ * A config sync cannot load (no `platforms` anywhere in its chain, say) must not make the profile
+ * switch fail, which only needs `profile`: it then routes by the file's own `platforms` when they
+ * are readable, else as `init` does by default.
+ */
+function projectPlatformsFor(root: string, raw: Record<string, unknown>): Platform[] {
+  try {
+    return configuredPlatforms(loadConfig(root));
+  } catch {
+    const own = Array.isArray(raw.platforms) ? raw.platforms.filter(isKnownPlatform) : [];
+    return own.length > 0 ? normalizePlatforms(own) : [...DEFAULT_INIT_PLATFORMS];
+  }
+}
+
+function isKnownPlatform(value: unknown): value is Platform {
+  return typeof value === 'string' && (KNOWN_PLATFORMS as readonly string[]).includes(value);
 }

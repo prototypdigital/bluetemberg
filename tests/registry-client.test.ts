@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   fetchPackageMetadata,
+  fetchDistTags,
   searchPackages,
   downloadTarball,
   verifyIntegrity,
@@ -35,6 +36,41 @@ describe('verifyIntegrity', () => {
 
   it('returns false for empty strings', () => {
     expect(verifyIntegrity('', 'sha512-abc123')).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchDistTags
+// ---------------------------------------------------------------------------
+
+describe('fetchDistTags', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('reads the dist-tags endpoint (not full metadata) and keeps only string tags', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ latest: '16.4.3', canary: '16.5.0-canary.1', bogus: 7 }),
+    });
+
+    await expect(fetchDistTags('@next/env')).resolves.toEqual({
+      latest: '16.4.3',
+      canary: '16.5.0-canary.1',
+    });
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(calledUrl).toBe(`${DEFAULT_REGISTRY}/-/package/@next%2Fenv/dist-tags`);
+  });
+
+  it('throws on 404 and on a malformed body', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: 'Not Found' });
+    await expect(fetchDistTags('nope')).rejects.toThrow('Package "nope" not found in registry');
+
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([]) });
+    await expect(fetchDistTags('odd')).rejects.toThrow('malformed dist-tags');
   });
 });
 

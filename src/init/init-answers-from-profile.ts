@@ -1,8 +1,9 @@
 import { basename } from 'node:path';
-import { MARKETPLACE_PLATFORM } from '../types.js';
+import { PLUGIN_BUNDLE_PLATFORMS } from '../types.js';
 import type { InitAnswers, Platform, TeamProfile } from '../types.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
+import { normalizePlatforms } from '../sync/targets.js';
 import { preselectedCollectionIds, resolvePresetDefaults } from './preset-resolution.js';
 import {
   resolveRuleCollections,
@@ -23,20 +24,37 @@ export function projectStacksFor(targetDir: string, stacks?: Record<string, stri
   return new Set(detectStacks(targetDir).keys());
 }
 
+/** Platforms the wizard checks by default: every one but the marketplace. */
+export const DEFAULT_INIT_PLATFORMS: readonly Platform[] = PLATFORM_CHOICES.filter(
+  (p) => !PLUGIN_BUNDLE_PLATFORMS.includes(p.id),
+).map((p) => p.id);
+
 export function defaultRuleCollections(
   teamProfile: TeamProfile,
   catalog: Catalog,
   projectStacks: ReadonlySet<string>,
+  projectPlatforms: readonly Platform[],
 ): string[] {
-  return preselectedCollectionIds(resolveRuleCollections(catalog), teamProfile, projectStacks);
+  return preselectedCollectionIds(
+    resolveRuleCollections(catalog),
+    teamProfile,
+    projectStacks,
+    normalizePlatforms(projectPlatforms),
+  );
 }
 
 export function agentsForProfile(
   teamProfile: TeamProfile,
   catalog: Catalog,
   projectStacks: ReadonlySet<string>,
+  projectPlatforms: readonly Platform[],
 ): string[] {
-  const resolved = resolvePresetDefaults(resolveAgents(catalog), teamProfile, projectStacks);
+  const resolved = resolvePresetDefaults(
+    resolveAgents(catalog),
+    teamProfile,
+    projectStacks,
+    normalizePlatforms(projectPlatforms),
+  );
   return resolved.filter((a) => a.default).map((a) => a.id);
 }
 
@@ -44,8 +62,14 @@ export function skillsForProfile(
   teamProfile: TeamProfile,
   catalog: Catalog,
   projectStacks: ReadonlySet<string>,
+  projectPlatforms: readonly Platform[],
 ): string[] {
-  const resolved = resolvePresetDefaults(resolveSkills(catalog), teamProfile, projectStacks);
+  const resolved = resolvePresetDefaults(
+    resolveSkills(catalog),
+    teamProfile,
+    projectStacks,
+    normalizePlatforms(projectPlatforms),
+  );
   return resolved.filter((s) => s.default).map((s) => s.id);
 }
 
@@ -53,21 +77,28 @@ function defaultMcpServerIds(): string[] {
   return MCP_SERVER_PRESETS.filter((m) => m.default).map((m) => m.id);
 }
 
-function defaultGuardrailIds(teamProfile: TeamProfile): string[] {
-  const resolved = resolvePresetDefaults(GUARDRAIL_PRESETS, teamProfile, new Set());
+function defaultGuardrailIds(teamProfile: TeamProfile, projectPlatforms: readonly Platform[]): string[] {
+  const resolved = resolvePresetDefaults(
+    GUARDRAIL_PRESETS,
+    teamProfile,
+    new Set(),
+    normalizePlatforms(projectPlatforms),
+  );
   return resolved.filter((g) => g.default).map((g) => g.id);
 }
 
 /**
  * Baseline identical to submitting the wizard with only profile-based checkbox defaults:
  * collections source, all platforms checked, agents/skills/MCP inclusion with wizard defaults.
- * Stack-specific packs are preselected only for stacks in `projectStacks` (detected by default).
+ * Stack-specific packs are preselected only for stacks in `projectStacks` (detected by default), and
+ * platform-specific packs only when one of their platforms is in `platforms`.
  */
 export function buildInitAnswersFromProfile(
   teamProfile: TeamProfile,
   targetDir: string,
   catalog?: Catalog,
   projectStacks: ReadonlySet<string> = projectStacksFor(targetDir),
+  platforms: readonly Platform[] = DEFAULT_INIT_PLATFORMS,
 ): InitAnswers {
   const resolvedCatalog = catalog ?? loadCatalogSync(targetDir);
   return {
@@ -75,20 +106,20 @@ export function buildInitAnswersFromProfile(
     projectName: basename(targetDir),
     projectDescription: '',
     packageManager: 'pnpm',
-    platforms: PLATFORM_CHOICES.filter((p) => p.id !== MARKETPLACE_PLATFORM).map((p) => p.id) as Platform[],
+    platforms: [...platforms],
     ruleSource: 'collections',
     rules: [],
-    ruleCollections: defaultRuleCollections(teamProfile, resolvedCatalog, projectStacks),
+    ruleCollections: defaultRuleCollections(teamProfile, resolvedCatalog, projectStacks, platforms),
     includeAgents: true,
-    agents: agentsForProfile(teamProfile, resolvedCatalog, projectStacks),
+    agents: agentsForProfile(teamProfile, resolvedCatalog, projectStacks, platforms),
     includeSkills: true,
-    skills: skillsForProfile(teamProfile, resolvedCatalog, projectStacks),
+    skills: skillsForProfile(teamProfile, resolvedCatalog, projectStacks, platforms),
     includeMcp: true,
     mcpServers: defaultMcpServerIds(),
     marketplaceRemote: '',
     marketplacePlugins: [],
     includeGuardrails: true,
-    guardrails: defaultGuardrailIds(teamProfile),
+    guardrails: defaultGuardrailIds(teamProfile, platforms),
     externalSources: [],
     github: { ...DEFAULT_GITHUB_CONFIG },
   };
@@ -102,20 +133,21 @@ export function finalizeNonInteractiveAnswers(
 ): InitAnswers {
   const teamProfile = overrides.teamProfile ?? profile;
   const catalog = loadCatalogSync(targetDir);
+  // Resolved before the baseline: `--platforms` decides which platform-specific packs are preselected.
+  const platforms: Platform[] =
+    overrides.platforms !== undefined && overrides.platforms.length > 0
+      ? overrides.platforms
+      : [...DEFAULT_INIT_PLATFORMS];
   const base = buildInitAnswersFromProfile(
     teamProfile,
     targetDir,
     catalog,
     projectStacksFor(targetDir, overrides.stacks),
+    platforms,
   );
 
   let ruleSource = base.ruleSource;
   if (overrides.ruleSource !== undefined) ruleSource = overrides.ruleSource;
-
-  const platforms: Platform[] =
-    overrides.platforms !== undefined && overrides.platforms.length > 0
-      ? overrides.platforms
-      : base.platforms;
 
   let ruleCollections = base.ruleCollections;
   const rules: string[] = [];

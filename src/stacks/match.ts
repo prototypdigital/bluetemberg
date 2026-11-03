@@ -1,4 +1,4 @@
-import { Range, coerce, minVersion, prerelease, satisfies, valid, validRange } from 'semver';
+import { Range, coerce, intersects, minVersion, prerelease, satisfies, valid, validRange } from 'semver';
 import type { StackConstraint } from '../types.js';
 
 /**
@@ -79,6 +79,42 @@ function namesPrerelease(range: string): boolean {
 export function isUnsatisfiableRange(range: string): boolean {
   if (isWildcardRange(range) || validRange(range) === null) return false;
   return minVersion(range) === null;
+}
+
+/**
+ * True when every alternative of `range` is capped from above (`<`, `<=`, or an exact pin), so the
+ * range stops admitting versions at some point. `>=15`, `>13.4` and `^2 || >=4` are open-ended:
+ * they keep matching every future major nobody has checked the guidance against. The wildcard and
+ * invalid ranges return false; callers that treat `*` as deliberate check {@link isWildcardRange}.
+ */
+export function rangeHasUpperBound(range: string): boolean {
+  if (isWildcardRange(range) || validRange(range) === null) return false;
+  return new Range(range).set.every((comparators) =>
+    comparators.some(
+      (c) => c.operator === '<' || c.operator === '<=' || (c.operator === '' && c.value !== ''),
+    ),
+  );
+}
+
+/**
+ * True when some version satisfies both ranges — e.g. a rule's `>=3 <4` and the query `3.4.1`, or
+ * `^2` and `>=2.5 <5`. The wildcard intersects everything; an invalid range intersects nothing.
+ */
+export function rangesIntersect(a: string, b: string): boolean {
+  if (isWildcardRange(a) || isWildcardRange(b)) return true;
+  if (validRange(a) === null || validRange(b) === null) return false;
+  return intersects(a, b);
+}
+
+/**
+ * The range of versions after the release line `latest` belongs to: `>=6.0.0` for `5.2.0`. A 0.x
+ * stack ships breaking changes in minors (semver's caret treats `0.81` as its own line), so
+ * `0.81.4` yields `>=0.82.0`. Returns null for an unparseable version.
+ */
+export function unreleasedLineRange(latest: string): string | null {
+  const v = coerce(latest);
+  if (!v) return null;
+  return v.major === 0 ? `>=0.${v.minor + 1}.0` : `>=${v.major + 1}.0.0`;
 }
 
 export interface StackMatchResult {

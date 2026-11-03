@@ -24,8 +24,8 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Writing Hooks](Writing-Hooks) — Cursor `hooks.json` and Claude Code `hooks.claude.json` in `llm/`
 - [Marketplace](Marketplace) — Claude Code plugin output for zero-install onboarding
 - [Guardrails](Guardrails) — declarative checks enforced as platform-native hooks
-- [Writing Commands](Writing-Commands) — Claude Code slash commands in `llm/commands/`
-- [Writing Prompts](Writing-Prompts) — Copilot prompt files in `llm/prompts/`
+- [Writing Commands](Writing-Commands) — slash commands in `llm/commands/`, synced as skills
+- [Writing Prompts](Writing-Prompts) — prompt files in `llm/prompts/`, synced as skills
 - [Architecture](Architecture) — how the sync engine works
 - [Adapters](Adapters) — sync extensions, platform gates, roadmap
 - [Consumer Setup](Consumer-Setup) — set up a downstream project

@@ -119,7 +119,12 @@ describe('Devin Desktop target', () => {
     } finally {
       console.log = orig;
     }
-    expect(logs.filter((line) => line.includes('-> .agents/skills/'))).toHaveLength(1);
+    // Once for llm/skills/, once for llm/commands/ship.md migrated to a skill.
+    expect(logs.filter((line) => line.includes('-> .agents/skills/'))).toEqual([
+      '  -> .agents/skills/ (1 skills)',
+      '  -> .agents/skills/ (1 skills)',
+    ]);
+    expect(existsSync(join(root, '.agents', 'skills', 'ship', 'SKILL.md'))).toBe(true);
 
     const pruned = await sync(root, { config: both, prune: true, silent: true });
     expect(pruned.errors).toEqual([]);
@@ -223,8 +228,9 @@ describe('Devin Desktop target', () => {
       await sync(root, { config: config(['windsurf']), silent: true });
       const results = await sync(root, { config: config(['windsurf']), check: true, silent: true });
 
-      expect(results.stale).toBe(3);
-      expect(results.outOfSync).toBe(3);
+      // notes.txt has no live copy to match, so it is not provably generated: kept, not stale.
+      expect(results.stale).toBe(2);
+      expect(results.outOfSync).toBe(2);
     });
 
     it('sync --prune removes them and leaves .windsurf/rules/ in place', async () => {
@@ -232,7 +238,9 @@ describe('Devin Desktop target', () => {
 
       expect(results.errors).toEqual([]);
       expect(existsSync(join(root, '.windsurf', 'workflows'))).toBe(false);
-      expect(existsSync(join(root, '.windsurf', 'skills'))).toBe(false);
+      expect(existsSync(join(root, '.windsurf', 'skills', 'review', 'SKILL.md'))).toBe(false);
+      // A file sync cannot prove it wrote stays; without SKILL.md no host loads the dir.
+      expect(existsSync(join(root, '.windsurf', 'skills', 'review', 'notes.txt'))).toBe(true);
       expect(existsSync(join(root, '.windsurf', 'rules', 'testing.md'))).toBe(true);
 
       const check = await sync(root, { config: config(['devin']), check: true, silent: true });

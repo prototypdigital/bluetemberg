@@ -2,6 +2,7 @@ import { loadCatalogSync } from '../catalog/index.js';
 import { loadConfig } from '../sync/index.js';
 import { collectDeclaredRanges } from './declared.js';
 import { detectStacks } from './detect.js';
+import { buildStackPackages } from './packages.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
 import type { DetectedStacks, DetectionConfidence } from './match.js';
 import type { CoverageGapReason, CoveragePrecision, StackOrigin, StackRegistry } from './registry.js';
@@ -34,12 +35,12 @@ export interface DetectedReportEntry {
 
 /**
  * A detect-time warning. `low-confidence` is about one detected stack; `coverage-source` is about
- * the coverage corpus itself (a source of ranges could not be read, so coverage may under-report)
- * and carries no stack.
+ * the coverage corpus itself (a source of ranges could not be read, so coverage may under-report);
+ * `stack-map` is catalog stack-map data detection ignored (#290). The latter two carry no stack.
  */
 export interface DetectWarning {
   stack: string | null;
-  level: 'low-confidence' | 'coverage-source';
+  level: 'low-confidence' | 'coverage-source' | 'stack-map';
   message: string;
 }
 
@@ -119,18 +120,25 @@ function projectRegistry(root: string): {
   registry: StackRegistry;
   detected: DetectedStacks;
   warnings: string[];
+  stackMapIssues: string[];
 } {
   const config = loadConfig(root);
-  const detected = detectStacks(root, config);
   const catalog = loadCatalogSync(root);
+  const stackPackages = buildStackPackages(catalog);
+  const detected = detectStacks(root, config, stackPackages.packages);
   const warnings: string[] = [];
   const declared = collectDeclaredRanges(root, config, catalog, (message) => warnings.push(message));
-  return { registry: buildStackRegistry(catalog, detected, declared), detected, warnings };
+  return {
+    registry: buildStackRegistry(catalog, detected, declared),
+    detected,
+    warnings,
+    stackMapIssues: stackPackages.issues,
+  };
 }
 
 /** Build the detect report (pure — no I/O beyond reading the project). Exposed for testing. */
 export function buildDetectReport(root: string): DetectReport {
-  const { registry, detected, warnings: sourceWarnings } = projectRegistry(root);
+  const { registry, detected, warnings: sourceWarnings, stackMapIssues } = projectRegistry(root);
 
   const entries: DetectedReportEntry[] = [...detected.entries()].map(([stack, det]) => {
     const cov = queryCoverage(registry, stack, det.version);
@@ -166,6 +174,12 @@ export function buildDetectReport(root: string): DetectReport {
   const warnings: DetectWarning[] = [
     // Coverage-source warnings come first: they change how every gap below should be read.
     ...sourceWarnings.map((message) => ({ stack: null, level: 'coverage-source' as const, message })),
+    // Then the stack map: an ignored entry can mean a stack below is missing or mis-versioned.
+    ...stackMapIssues.map((message) => ({
+      stack: null,
+      level: 'stack-map' as const,
+      message: `catalog ${message}`,
+    })),
     ...entries
       .filter((e) => isLowConfidence(e.confidence))
       .map((e) => ({

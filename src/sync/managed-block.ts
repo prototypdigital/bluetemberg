@@ -32,6 +32,12 @@ export const CODEX_MCP_MARKERS: BlockMarkers = {
   end: '# END BLUETEMBERG MANAGED MCP SERVERS',
 };
 
+/** TOML markers for the guardrail hooks block injected into `.codex/config.toml`. */
+export const CODEX_HOOKS_MARKERS: BlockMarkers = {
+  begin: '# BEGIN BLUETEMBERG MANAGED HOOKS',
+  end: '# END BLUETEMBERG MANAGED HOOKS',
+};
+
 /** Raised when a file's managed-block markers are malformed and cannot be paired safely. */
 export class ManagedBlockError extends Error {
   constructor(message: string) {
@@ -133,6 +139,36 @@ export function stripManagedBlock(content: string, markers: BlockMarkers, filePa
   let cursor = 0;
   for (const range of blocks) {
     sections.push(content.slice(cursor, range.start));
+    cursor = range.end;
+  }
+  sections.push(content.slice(cursor));
+
+  return rejoin(...sections);
+}
+
+/**
+ * Returns `content` with every managed block's markers removed and its body kept in place, so the
+ * generated content becomes plain content. `mapInner` can rewrite each body first (e.g. to drop a
+ * "generated, do not edit" line). No-op when the markers are absent.
+ *
+ * @param filePath - Label for diagnostics (a path relative to the project root).
+ * @throws {ManagedBlockError} when the markers are malformed.
+ */
+export function unwrapManagedBlock(
+  content: string,
+  markers: BlockMarkers,
+  filePath: string,
+  mapInner: (inner: string) => string = (inner) => inner,
+): string {
+  const blocks = findManagedBlocks(content, markers, filePath);
+  if (blocks.length === 0) return content;
+
+  const sections: string[] = [];
+  let cursor = 0;
+  for (const range of blocks) {
+    sections.push(content.slice(cursor, range.start));
+    const inner = content.slice(range.start + markers.begin.length, range.end - markers.end.length);
+    sections.push(mapInner(inner.trim()));
     cursor = range.end;
   }
   sections.push(content.slice(cursor));

@@ -191,13 +191,20 @@ With the config above, `api-design` would appear in the `frontend` plugin only i
 
 A plugin with **no `profiles` field** always includes everything (no filtering).
 
+## Platform filtering
+
+Plugins run in Claude Code, so a rule, skill or agent limited to other platforms (its `platforms:` frontmatter, or its pack's catalog `platforms`, see [Profiles → Platforms](Profiles#platforms)) is left out of every plugin. Content that lists `claude` is included; content that lists only `claude-marketplace` ships in the plugins and not in `.claude/`.
+
 ## Output files
 
 ### `plugins/{name}/.claude-plugin/plugin.json`
 
 Per-plugin manifest listing all included skills and agents. This matches Claude Code's actual
 [plugin manifest schema](https://code.claude.com/docs/en/plugins-reference) — there is no `rules`
-key; rule-derived skills appear in `skills` alongside real skills, namespaced as `rule-{id}`:
+key; rule-derived skills appear in `skills` alongside real skills, in `skills/rule-{id}/` directories
+(the entry's `name` is the rule's own name). With `agent-plugins` on, the generated `SKILL.md` uses
+`rule-{id}` as its frontmatter `name`, because the Agent Skills spec requires a skill's `name` to
+match its directory; Claude-only output keeps the rule's name:
 
 ```json
 {
@@ -247,6 +254,53 @@ when omitted, bluetemberg falls back to the owner segment of `marketplace.remote
 }
 ```
 
+## Agent Plugins bundles
+
+[Agent Plugins 1.0](https://agent-plugins.org) (published 2026-07-24) is a cross-host plugin format. VS Code, GitHub Copilot CLI, OpenAI Codex and Cursor all read a root `plugin.json` that declares its `$schema`, ahead of their own legacy manifests. Add `"agent-plugins"` to `platforms` to write one into every `plugins/{name}/` directory:
+
+```json
+{
+  "platforms": ["claude-marketplace", "agent-plugins"],
+  "marketplace": {
+    "remote": "your-org/agent-plugins",
+    "owner": { "name": "Your Org" },
+    "plugins": [{ "name": "frontend", "description": "Frontend kit", "profiles": ["frontend"], "stacks": ["react"] }]
+  }
+}
+```
+
+Both platforms share the `marketplace` config, the profile and stack filtering, the `skills/` directory and the `.claude-plugin/marketplace.json` index. Either works without the other. With `agent-plugins` on, each plugin directory gets:
+
+```
+plugins/frontend/
+├── plugin.json                              # Agent Plugins manifest (spec schema, closed)
+├── skills/                                  # shared with the Claude bundle; rules as rule-{id}
+├── com.github.copilot/agents/*.agent.md     # agents, in Copilot's extension namespace
+└── digital.prototyp.bluetemberg/
+    └── bundle-lock.json                     # pack lock entries + SHA-256 of every file
+```
+
+`plugin.json` holds only the spec's fields: `$schema`, `name`, `author` (the same owner as `marketplace.json`: `owner`, else the owner segment of `remote`, else the project directory name), and, when set, `description`, `repository` (from `remote`) and `keywords` (the plugin's profiles and stacks). A plugin `name` must follow the spec: 1-64 lowercase letters, digits, `-` or `.`, alphanumeric at both ends, no `--` or `..`. For any other name, sync skips that plugin's Agent Plugins files and suggests a valid name. That's a warning when the Claude bundle is still written, and an error when nothing is. The default plugin (no `marketplace.plugins`) takes the project directory's name as it is, so in a directory like `My_App`, set `marketplace.plugins` to name it. Sync never renames a plugin on its own, because that would move its directory and change its `enabledPlugins` key.
+
+Sync also warns about any bundle skill a host would skip under the Agent Skills spec: frontmatter that doesn't parse, a directory name that isn't lowercase letters, digits and single hyphens, a `name` that differs from the directory, or a missing or over-long `description`. Rule-derived skills always conform; their frontmatter is quoted whenever a plain value wouldn't parse. A root `plugin.json` that bluetemberg didn't write is replaced with a warning.
+
+**Integrity.** The spec leaves signing and integrity to a future version, and its manifest schema is closed, so bluetemberg's metadata goes in its own extension directory, `digital.prototyp.bluetemberg/`, which hosts ignore. `bundle-lock.json` lists the `llm/packages-lock.json` entries (version, tarball URL, `sha512` integrity, signing key) of every pack that contributed content, plus a `sha256-` digest of each file a host reads from the bundle, `plugin.json` included. No host checks it yet. It's there so a reviewer, or a later `bluetemberg` command, can confirm a published bundle matches the packs it claims. `eject` removes it, because stripping the banners changes the digests. Bundle skills are copied from the sources as written, without a per-skill pack stamp in their `SKILL.md` `metadata`: a bundle mixes packs per profile, and the lock records each pack once.
+
+**Platform routing.** Agent Plugins bundles are installed by several hosts at once, so they take a rule, skill or agent only when its platform list (its `platforms:` frontmatter, or its pack's catalog `platforms`; see [Profiles → Platforms](Profiles#platforms)) names `agent-plugins`, or when it has no list. Content limited to `claude`, or to one host such as `copilot`, is left out of an Agent Plugins-only bundle. With both bundle platforms on, agents follow each format's rule separately (`agents/` for Claude, `com.github.copilot/agents/` for Agent Plugins). `skills/`, though, is one directory that every host of the bundle reads, so a skill goes in when either format takes it. That's the same rule sync applies to the shared `.agents/skills/`.
+
+**What's not bundled.** The spec's other component is MCP servers (`mcp.json`). They aren't bundled yet: `llm/mcp.json` describes the project's servers, and copying it into every profile bundle would register the same servers once per installed plugin. Claude hooks (`claude-hooks.json`) are Claude-only and stay in the Claude bundle.
+
+**Installing.** No host loads a bundle just because it sits in the opened repo. Every host installs through a marketplace or an explicit path:
+
+| Host | Install | Notes |
+| ---- | ------- | ----- |
+| Copilot CLI | `copilot plugin marketplace add owner/repo`, then `copilot plugin install <name>@<marketplace>` | Reads `.claude-plugin/marketplace.json`. A marketplace added from a local path is loaded live; one from git is copied. |
+| VS Code | Agent plugins (`chat.plugins.enabled`), `chat.plugins.marketplaces` | Shares the Copilot plugin loader and settings. |
+| Codex | `codex plugin marketplace add owner/repo`, then `codex plugin add <name>@<marketplace>` | Reads `.claude-plugin/marketplace.json`. Copies the plugin into a cache: run `plugin add` again after a sync. |
+| Cursor | Customize → Install, or `agent --plugin-dir plugins/<name>` | Loads the bundle's skills. |
+
+The bundle has no `version` field, so hosts can't tell a new sync from an old one. Reinstall after you sync.
+
 ## Claude hooks bundling
 
 When `llm/claude-hooks.json` exists in any source directory, its contents are bundled into every plugin as `plugins/{name}/hooks/hooks.json`. The same file is referenced in `plugin.json` under the `hooks` key.
@@ -270,7 +324,9 @@ When the source file is absent, no `hooks/` directory is created and the `hooks`
 - Rules, skills, agents, `hooks.json`, and `plugin.json` files belonging to plugins that no longer exist or contain that file
 - `marketplace.json` if the platform is removed
 
-This requires `"claude-marketplace"` to remain in `platforms` when pruning. To remove all marketplace output, temporarily keep the platform listed, run `sync --prune`, then remove it from `platforms`.
+The Agent Plugins files (`plugin.json`, `com.github.copilot/agents/`, the bundle lock) are pruned the same way, whichever of the two bundle platforms is still listed, so dropping `"agent-plugins"` and running `sync --prune` with `"claude-marketplace"` left removes them. A root `plugin.json` without bluetemberg's bundle lock next to it is treated as hand-written and kept.
+
+This requires a bundle platform (`"claude-marketplace"` or `"agent-plugins"`) to remain in `platforms` when pruning. To remove all marketplace output, temporarily keep the platform listed, run `sync --prune`, then remove it from `platforms`.
 
 ## Flat output and marketplace together
 

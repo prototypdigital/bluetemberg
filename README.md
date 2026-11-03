@@ -10,7 +10,7 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 **[prototypdigital.github.io/bluetemberg →](https://prototypdigital.github.io/bluetemberg/)** — install guide, pack browser, and docs.
 
-**Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction. See [SECURITY.md](SECURITY.md).
+**Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction, and pack content is scanned for leaked credentials, secret exfiltration, and instructions to disable hooks before it lands. See [SECURITY.md](SECURITY.md).
 
 ## "But everything is converging on AGENTS.md."
 
@@ -28,7 +28,7 @@ tampered with in transit.
 | Integrity verification  | none                   | SHA-512 + ECDSA registry signature per pack            |
 | Per-role filtering      | manual copy-paste      | profiles (role-matched defaults)                       |
 | Teammate onboarding     | clone + copy files     | `init --non-interactive --profile X` + `install`       |
-| Zero-install onboarding | no                     | Claude Marketplace plugin                              |
+| Zero-install onboarding | no                     | Claude Marketplace / Agent Plugins bundle              |
 | Scoping                 | one file per directory | each rule scoped by path in every tool's native format |
 | Stack routing           | none                   | rules gated on the installed framework version         |
 
@@ -79,7 +79,7 @@ The interactive wizard will ask you to pick:
 - **External rule sources** (optional) — pull rules from a GitHub repo, PRPM, or cursor.directory, translated to native format and pinned in `llm/rule-sources.json` (`--sources <csv>` in headless runs)
 - **GitHub repository files** (optional) — Dependabot, issue/PR templates, CODEOWNERS, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, SECURITY. Bluetemberg never writes CI/CD workflows, and never overwrites a file that already exists (`--force` to replace; `--omit-github` to skip them in headless runs)
 
-You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/hooks.claude.json`** (Claude Code hooks — honored from the project's own `llm/` only; packs cannot ship them), **`llm/commands/*.md`** (Claude slash commands), **`llm/prompts/*.md`** (Copilot `*.prompt.md`), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
+You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/hooks.claude.json`** (Claude Code hooks — honored from the project's own `llm/` only; packs cannot ship them), **`llm/commands/*.md`** (slash commands) and **`llm/prompts/*.md`** (prompt files), both synced as skills to every platform, with the legacy `.claude/commands/` and `.github/prompts/` outputs kept until 0.18.0, and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
 
 It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-specific files, and patches `.prettierignore` to protect your prose files from the formatter.
 
@@ -96,25 +96,27 @@ your-project/
 │   ├── rules/                  # Your own vendor-neutral rules
 │   ├── agents/                 # Your own agent definitions
 │   ├── skills/                 # Your own skill workflows
-│   ├── guardrails/             # Optional — enforced hooks (Claude Code)
+│   ├── guardrails/             # Optional — enforced hooks (Claude Code, Cursor, Copilot, Devin, Codex)
 │   ├── mcp.json                # Optional — MCP presets and/or inline servers
 │   ├── mcp-managed.json        # Generated — which .mcp.json / .agents/mcp_config.json servers sync owns; commit
 │   ├── hooks.json              # Optional — Cursor hooks
 │   ├── hooks.claude.json       # Optional — Claude Code hooks (project-local only)
-│   ├── commands/               # Optional — Claude slash commands
-│   └── prompts/                # Optional — Copilot prompt sources
+│   ├── commands/               # Optional — slash commands, synced as skills
+│   └── prompts/                # Optional — prompt files, synced as skills
 ├── .bluetemberg/packs/         # Installed pack cache — gitignored
 ├── .mcp.json                   # Managed servers only (Claude Code, VS Code, Copilot CLI) — the rest is yours
 ├── .cursor/rules/ agents/ skills/   # Generated — do not edit
 ├── .cursor/mcp.json, hooks.json     # Generated (Cursor) — do not edit
-├── .claude/rules/ agents/ skills/ commands/   # Generated — do not edit
+├── .claude/rules/ agents/ skills/ commands/   # Generated — do not edit (commands/ deprecated)
 ├── .claude/settings.json       # Generated keys only (`hooks`, marketplace) — the rest is yours
-├── .github/instructions/ agents/ skills/ prompts/   # Generated — do not edit
+├── .github/instructions/ agents/ skills/ prompts/   # Generated — do not edit (prompts/ deprecated)
 ├── .github/copilot-instructions.md  # Copy of AGENTS.md for Copilot — do not edit
+├── .github/hooks/bluetemberg-guardrails.json  # Generated guardrail hooks (Copilot) — other files in .github/hooks/ are yours
 ├── .gemini/settings.json       # `context.fileName` gains `AGENTS.md` (Gemini) — the rest is yours
 ├── .devin/rules/               # Generated (Devin Desktop) — do not edit
+├── .devin/hooks.v1.json        # Guardrail hooks (Devin Desktop) — hand-written hooks are kept
 ├── .windsurf/rules/            # Generated legacy mirror of .devin/rules/ (transition period) — do not edit
-├── .agents/skills/             # Generated (Codex + Devin Desktop + Antigravity skills, vendor-neutral) — do not edit
+├── .agents/skills/             # Generated (vendor-neutral skills: Codex, Devin, Antigravity, Gemini CLI, Cursor) — do not edit
 ├── .agents/rules/              # Generated (Antigravity) — do not edit
 ├── .agents/mcp_config.json     # Generated servers merged by name (Antigravity) — the rest is yours
 ├── .codex/agents/              # Generated (Codex subagents, TOML) — do not edit
@@ -123,7 +125,7 @@ your-project/
 
 Only `.bluetemberg/` is gitignored. Generated output is meant to be committed, so teammates and CI see exactly what the tools load and `sync --check` can verify it.
 
-Every generated Markdown and TOML file carries that warning **in the file itself**, right after its frontmatter — rules, agents, skills, commands, Copilot prompts, Codex agents, marketplace plugin content, and the `copilot-instructions.md` copy of `AGENTS.md`. JSON outputs can't carry a comment, so `mcp.json` and the marketplace manifests are the exception (in `.mcp.json` and `.agents/mcp_config.json`, `llm/mcp-managed.json` records which servers are bluetemberg's):
+Every generated Markdown and TOML file carries that warning **in the file itself**, right after its frontmatter — rules, agents, skills (including those generated from commands and prompts), commands, Copilot prompts, Codex agents, marketplace plugin content, and the `copilot-instructions.md` copy of `AGENTS.md`. JSON outputs can't carry a comment, so `mcp.json` and the marketplace manifests are the exception (in `.mcp.json` and `.agents/mcp_config.json`, `llm/mcp-managed.json` records which servers are bluetemberg's):
 
 ```md
 <!-- Generated by bluetemberg from rules/no-console-log.md. Do not edit — run `bluetemberg sync` after editing the source. -->
@@ -131,7 +133,7 @@ Every generated Markdown and TOML file carries that warning **in the file itself
 
 A `.gitignore` entry and a comment in this tree only help someone reading the repo root. The banner travels with the file, so an editor who opens `.claude/rules/x.md` directly — or an agent that greps into it — sees that edits there are disposable and where the real source is. This matters most in projects that **commit** their generated output so `sync --check` can verify parity in CI: generated and hand-authored markdown then sit side by side, otherwise indistinguishable.
 
-When `claude-marketplace` is in `platforms`, sync also generates:
+When `claude-marketplace` or `agent-plugins` is in `platforms`, sync also generates:
 
 ```
 .claude-plugin/
@@ -147,6 +149,8 @@ Official Bluetemberg plugin packs (frontend, fullstack, backend, devops) are ser
 Rules, agents, skills and guardrails ship as versioned npm packs from [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). Browse all of them, with their profiles and stacks, in the **[pack browser](https://prototypdigital.github.io/bluetemberg-packs/)**. The wiki's [Profiles](https://github.com/prototypdigital/bluetemberg/wiki/Profiles) page shows what each profile pre-selects; `npx bluetemberg preview <profile>` prints the same list with current versions.
 
 Git, Security and Docs rules and the docs-maintainer agent are pre-selected for every profile except Custom.
+
+Packs that only work in one tool can name their platforms in the catalog (`["claude"]` for a pack that needs Claude Code hooks; the PR-review and session-audit packs are being tagged in [bluetemberg-packs#120](https://github.com/prototypdigital/bluetemberg-packs/issues/120)). `init` preselects such a pack only when one of its platforms is selected, and `sync` writes it only for those platforms (Claude Code and Cursor configured → `.claude/` only). Packs that name no platforms go everywhere. See [Profiles → Platforms](https://github.com/prototypdigital/bluetemberg/wiki/Profiles#platforms).
 
 After `init`, run `bluetemberg install` to download the packs listed in `llm/packages.json` into the local cache (`.bluetemberg/packs/`); `sync` merges them with your local `llm/` content. Use `bluetemberg install --dry-run` to preview what would be installed without writing anything to disk.
 
@@ -212,9 +216,11 @@ Inspect detection and coverage — these have a `--json` twin for agents:
 ```bash
 npx bluetemberg detect              # detected stacks, versions, confidence, gaps
 npx bluetemberg coverage payload@3  # is there version-correct guidance for this stack?
+npx bluetemberg why payload-v3      # why is this rule in (or out)? source, constraint, version matched
+npx bluetemberg why --diff payload@4  # what an upgrade would add/remove, without writing anything
 ```
 
-Or expose the same model to an agent as MCP tools (`bluetemberg_detect_stacks`, `bluetemberg_query_coverage`, `bluetemberg_list_stacks`, `bluetemberg_org_histogram`) — read-only, over stdio:
+Or expose the same model to an agent as MCP tools (`bluetemberg_detect_stacks`, `bluetemberg_query_coverage`, `bluetemberg_list_stacks`, `bluetemberg_why`, `bluetemberg_org_histogram`) — read-only, over stdio:
 
 ```bash
 npx bluetemberg mcp serve
@@ -226,6 +232,13 @@ Maintainers can scan several repos at once to see which `(stack, version)` eras 
 npx bluetemberg scan-org ../app-a ../app-b               # local clones
 npx bluetemberg scan-org --org acme --json               # every repo in the acme org
 npx bluetemberg scan-org --repos acme/app,acme/web       # specific repos
+```
+
+And keep the ranges themselves honest — flag ranges that would silently apply to majors nobody checked, and find every rule pinned to a version:
+
+```bash
+npx bluetemberg stacks lint                  # open-ended ranges, ranges past the latest major
+npx bluetemberg stacks list payload@3        # every rule declaring a range that admits Payload 3
 ```
 
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
@@ -244,7 +257,7 @@ check:
 message: 'EnterWorktree requires a conventional branch name (type/description).'
 ```
 
-Guardrails compile to Claude Code hooks in `.claude/settings.json` today; other platforms don't run them. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
+Guardrails compile to Claude Code hooks in `.claude/settings.json`, to Cursor hooks in `.cursor/hooks.json` (for `PreToolUse` checks on `Bash`, which Cursor calls `Shell`), to GitHub Copilot hooks in `.github/hooks/bluetemberg-guardrails.json` (for `PreToolUse` checks on `Bash`; Copilot CLI, cloud agent and VS Code's Copilot harness), to Devin Desktop hooks in `.devin/hooks.v1.json` (for `PreToolUse` checks on `Bash`, which Devin calls `exec`), and to Codex hooks in a managed block in `.codex/config.toml` (for `PreToolUse` checks on `Bash`; Codex runs project hooks only after you trust them with `/hooks`). Other platforms don't run them yet. The `bluetemberg-guardrails-git` pack blocks auto-generated worktree branch names; `init --non-interactive` adds it, and in the interactive wizard you add it with `bluetemberg add bluetemberg-guardrails-git`. See [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails).
 
 ## Sync
 
@@ -301,29 +314,36 @@ Sources are pinned in `llm/rule-sources.json` + `llm/rule-sources-lock.json` (co
 | Devin Desktop ³ | ✓     | —      | ✓      |
 | OpenAI Codex    | ✓ ²   | ✓ ²    | ✓      |
 
+Two more platform ids publish installable plugin bundles instead of configuring a tool: `claude-marketplace` (Claude Code plugins) and `agent-plugins` ([Agent Plugins 1.0](https://agent-plugins.org) bundles that VS Code, Copilot CLI, Codex and Cursor install). Both write into the same `plugins/<name>/` directories; see [Marketplace](#marketplace).
+
 ¹ `gemini` targets **Gemini CLI for Enterprise** (Gemini Code Assist Standard / Enterprise). Google stopped serving Gemini CLI to free and individual paid users on 2026-06-18 and replaced it with Antigravity CLI, so pick `antigravity` for those. Gemini CLI loads only the context files named by `context.fileName` and has no per-path rules, so sync adds `AGENTS.md` to `context.fileName` in `.gemini/settings.json` (leaving every other setting alone) and folds rules into the managed block in `AGENTS.md`, as for Codex. Agents and skills are not emitted for Gemini CLI.
 
 ² Codex has no per-file rule API — rules are folded into a managed block in `AGENTS.md`, which Codex reads natively. Only Codex and Gemini CLI get that block. Every other platform receives scoped rules through its own directory, and most of them also read `AGENTS.md`, so folding rules in for them would load each rule twice. Agents become per-file TOML under `.codex/agents/`, and skills go to the vendor-neutral `.agents/skills/`. See [the Codex mapping below](#how-sync-works).
 
-³ Devin Desktop is the former Windsurf (renamed 2026-06-02). Use the platform id `devin`; `windsurf` is still accepted as an alias and behaves identically. Rules go to `.devin/rules/` and, for a transition period, are mirrored to the legacy `.windsurf/rules/` that Devin still reads — the mirror will be dropped in a later release. Skills go to `.agents/skills/`, which Devin shares with Codex and Antigravity (written once). Devin deprecated workflows in favor of skills, so `llm/commands/` no longer emits `.windsurf/workflows/`; run `bluetemberg sync --prune` once to remove the old generated `.windsurf/workflows/` and `.windsurf/skills/` files.
+³ Devin Desktop is the former Windsurf (renamed 2026-06-02). Use the platform id `devin`; `windsurf` is still accepted as an alias and behaves identically. Rules go to `.devin/rules/` and, for a transition period, are mirrored to the legacy `.windsurf/rules/` that Devin still reads — the mirror will be dropped in a later release. Skills go to `.agents/skills/`, which Devin shares with Codex, Antigravity, Gemini CLI and Cursor (written once). Devin deprecated workflows in favor of skills, so `llm/commands/` no longer emits `.windsurf/workflows/` and reaches Devin as generated skills in `.agents/skills/` instead; run `bluetemberg sync --prune` once to remove the old generated `.windsurf/workflows/` and `.windsurf/skills/` files. `Bash` [guardrails](#guardrails) compile to Devin hooks in `.devin/hooks.v1.json`.
 
 ## How sync works
 
-| Source               | Cursor                | Claude                         | Copilot                                  | Gemini CLI                                            | Antigravity               | Devin Desktop                                 |
-| -------------------- | --------------------- | ------------------------------ | ---------------------------------------- | ----------------------------------------------------- | ------------------------- | --------------------------------------------- |
-| `llm/rules/*.md`     | `.cursor/rules/*.mdc` | `.claude/rules/*.md`           | `.github/instructions/*.instructions.md` | managed block in `AGENTS.md`                          | `.agents/rules/*.md`      | `.devin/rules/*.md` + `.windsurf/rules/*.md`² |
-| `llm/agents/*.md`    | `.cursor/agents/*.md` | `.claude/agents/*.md`          | `.github/agents/*.agent.md`              | —                                                     | —                         | —                                             |
-| `llm/skills/*/`      | `.cursor/skills/*/`   | `.claude/skills/*/`            | `.github/skills/*/`                      | —                                                     | `.agents/skills/*/`       | `.agents/skills/*/`                           |
-| `llm/mcp.json`       | `.cursor/mcp.json`    | `.mcp.json` (merged)           | `.mcp.json` (merged)                     | —                                                     | `.agents/mcp_config.json` | —                                             |
-| `llm/commands/*.md`  | —                     | `.claude/commands/*.md`        | —                                        | —                                                     | —                         | —                                             |
-| `llm/prompts/*.md`   | —                     | —                              | `.github/prompts/*.prompt.md`            | —                                                     | —                         | —                                             |
-| `AGENTS.md`          | —                     | —                              | `.github/copilot-instructions.md`        | read via `.gemini/settings.json` (`context.fileName`) | read natively             | —                                             |
-| `llm/` (marketplace) | —                     | `plugins/*/skills \| agents/`¹ | —                                        | —                                                     | —                         | —                                             |
+| Source                 | Cursor                                                | Claude                                                     | Copilot                                                          | Gemini CLI                                            | Antigravity               | Devin Desktop                                 |
+| ---------------------- | ----------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------- | ------------------------- | --------------------------------------------- |
+| `llm/rules/*.md`       | `.cursor/rules/*.mdc`                                 | `.claude/rules/*.md`                                       | `.github/instructions/*.instructions.md`                         | managed block in `AGENTS.md`                          | `.agents/rules/*.md`      | `.devin/rules/*.md` + `.windsurf/rules/*.md`² |
+| `llm/agents/*.md`      | `.cursor/agents/*.md`                                 | `.claude/agents/*.md`                                      | `.github/agents/*.agent.md`                                      | —                                                     | —                         | —                                             |
+| `llm/skills/*/` ⁵      | `.agents/skills/*/`, or none when Claude is enabled ⁵ | `.claude/skills/*/`                                        | `.github/skills/*/`                                              | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
+| `llm/mcp.json`         | `.cursor/mcp.json`                                    | `.mcp.json` (merged)                                       | `.mcp.json` (merged)                                             | —                                                     | `.agents/mcp_config.json` | —                                             |
+| `llm/commands/*.md` ⁴  | as skills                                             | `.claude/skills/*/` + `.claude/commands/*.md` (deprecated) | `.github/skills/*/`                                              | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
+| `llm/prompts/*.md` ⁴   | as skills                                             | `.claude/skills/*/`                                        | `.github/skills/*/` + `.github/prompts/*.prompt.md` (deprecated) | `.agents/skills/*/`                                   | `.agents/skills/*/`       | `.agents/skills/*/`                           |
+| `AGENTS.md`            | —                                                     | —                                                          | `.github/copilot-instructions.md`                                | read via `.gemini/settings.json` (`context.fileName`) | read natively             | —                                             |
+| `llm/` (marketplace)   | —                                                     | `plugins/*/skills \| agents/`¹                             | —                                                                | —                                                     | —                         | —                                             |
+| `llm/` (agent-plugins) | `plugins/*/skills/`¹                                  | —                                                          | `plugins/*/skills/` + `com.github.copilot/agents/`¹              | —                                                     | —                         | —                                             |
 
 ¹ Claude Code plugins have no native "rules" component, so the marketplace emitter converts each
 rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace).
 
 ² `.windsurf/rules/` is a transitional mirror for Devin builds that still read the legacy path; it will be dropped in a later release.
+
+⁴ Every host has moved commands and prompt files into skills, so each `llm/commands/` and `llm/prompts/` file is also written as a generated `<name>/SKILL.md` to the platform's skills dir, with `disable-model-invocation: true` so it stays a `/name` the user runs (plus `triggers: [user]` for Devin and `agents/openai.yaml` for Codex, which ignore that field; Antigravity has no equivalent). The `.claude/commands/` and `.github/prompts/` outputs are deprecated: sync warns, and stops writing them in 0.18.0. A real skill of the same name wins. See [Migrating commands and prompts](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills#migrating-commands-and-prompts).
+
+⁵ Skills are written to as few dirs as cover every host: `.claude/skills/` (Claude Code reads nothing else), `.github/skills/` (the only dir Copilot code review reads) and the vendor-neutral `.agents/skills/` for everyone else, written once. Cursor reads `.claude/skills/` and `.agents/skills/` and lists a name once, so it gets no dir of its own when Claude is enabled. VS Code and Copilot CLI read all three dirs, so with Copilot plus any other platform they list a skill twice. That is the price of keeping skills in Copilot code review. A skill limited to Cursor (pack or frontmatter `platforms`) goes to `.cursor/skills/` instead, the one dir no other host reads, so it never reaches Claude Code or Codex. Earlier versions also wrote `.cursor/skills/`; a `targets.skills.cursor` entry still pointing there means the default. Run `bluetemberg sync --prune` once to remove the old generated copies (sync prints a note while they are left; hand-written skills there are kept). A skill from a registry pack carries its pack name, version and integrity in `SKILL.md` `metadata`. See [Adapters](https://github.com/prototypdigital/bluetemberg/wiki/Adapters#skills-dirs-per-host).
 
 Rules get platform-specific frontmatter transforms:
 
@@ -334,22 +354,23 @@ Rules get platform-specific frontmatter transforms:
 - **Devin Desktop** and **Antigravity**: `scope: '**'` -> `trigger: always_on`; otherwise `trigger: glob`, `globs: scope`
 - **OpenAI Codex**: none — Codex rules are plain markdown folded into `AGENTS.md` (see below)
 
-Agents and skills keep their body unchanged. Sync adds the generated-file banner, changes the filename extension, and for Claude Code maps the abstract `tools` names in agent frontmatter to Claude's tool names.
+Agents and skills keep their body unchanged. Sync adds the generated-file banner, changes the filename extension, and for Claude Code maps the abstract `tools` names in agent frontmatter to Claude's tool names. An agent whose name Claude Code rejects (it contains `:`, reserved for plugin namespacing, starts with `-`, or is longer than 256 characters) is not written to `.claude/agents/`, with a warning, because Claude Code would skip it silently.
 
 **Claude Code and `AGENTS.md`:** Claude Code reads `AGENTS.md` natively (v2.1.277+), but only when there is no `CLAUDE.md`. Once a `CLAUDE.md` exists, `AGENTS.md` is ignored unless the `CLAUDE.md` imports it. That is why the scaffolded `CLAUDE.md` starts with `@AGENTS.md`, the pattern Anthropic recommends. `sync` warns when a root `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` would hide `AGENTS.md` this way. See [Architecture](https://github.com/prototypdigital/bluetemberg/wiki/Architecture#claude-code-and-agentsmd).
 
 **OpenAI Codex** consumes config differently from the table above — it reads `AGENTS.md` natively and uses TOML config rather than per-file rule directories:
 
-| Source            | Codex output                                                            |
-| ----------------- | ----------------------------------------------------------------------- |
-| `llm/rules/*.md`  | managed block in `AGENTS.md` (read natively — no per-rule files)        |
-| `llm/agents/*.md` | `.codex/agents/*.toml` (markdown body → `developer_instructions`)       |
-| `llm/skills/*/`   | `.agents/skills/*/` (vendor-neutral; whole directory, format unchanged) |
-| `llm/mcp.json`    | `[mcp_servers.*]` managed block in `.codex/config.toml`                 |
+| Source                                  | Codex output                                                                |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| `llm/rules/*.md`                        | managed block in `AGENTS.md` (read natively — no per-rule files)            |
+| `llm/agents/*.md`                       | `.codex/agents/*.toml` (markdown body → `developer_instructions`)           |
+| `llm/skills/*/`                         | `.agents/skills/*/` (vendor-neutral; whole directory, format unchanged)     |
+| `llm/commands/*.md`, `llm/prompts/*.md` | generated `.agents/skills/<name>/SKILL.md`, mentioned in Codex as `$name` ⁴ |
+| `llm/mcp.json`                          | `[mcp_servers.*]` managed block in `.codex/config.toml`                     |
 
 `AGENTS.md` and `.codex/config.toml` are edited in place via fenced managed blocks, so hand-authored content outside the markers is preserved. The same rules block serves Gemini CLI. When Copilot is also enabled, the block is stripped from its derived `copilot-instructions.md` (Copilot receives scoped rules through `.github/instructions/`). Codex subagents are limited to `name`, `description`, and `developer_instructions`; source-only fields like `tools` and `profiles` are not mapped.
 
-**Monorepo and shared rule packs:** Add an `extends` field to `bluetemberg.config.json` to merge rules/agents/skills from additional source directories — relative paths (e.g. `"../../"` for the monorepo root) or npm package names (e.g. `"@company/ai-rules"`). Local files always take priority. See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration) for details.
+**Monorepo and shared rule packs:** Add an `extends` field to `bluetemberg.config.json` to merge rules/agents/skills from additional source directories — relative paths (e.g. `"../../"` for the monorepo root) or npm package names (e.g. `"@company/ai-rules"`). Local files always take priority. An entry can be scoped to some platforms with `{ "path": "…", "platforms": ["claude"] }`, for example to publish every pack to `claude-marketplace` while `.claude/` gets only a few. See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration) for details.
 
 **Programmatic API (unstable before 1.0):** `import { sync, loadConfig, shouldExitWithFailure } from 'bluetemberg'`. The CLI is the supported interface; exported functions and types may change in a minor release until 1.0. `sync()` returns a **Promise** (it may load optional `adapters`). Always **await** it, e.g. `const results = await sync(root, { config: loadConfig(root), prune: true });`. Use `shouldExitWithFailure(results, checkMode)` to mirror CLI exit semantics. Release notes for each version live in [CHANGELOG.md](CHANGELOG.md) (updated by Release Please). Breaking changes should use conventional commits—see [Contributing — Changelog and breaking changes](https://github.com/prototypdigital/bluetemberg/wiki/Contributing#changelog-and-breaking-changes).
 
@@ -380,23 +401,37 @@ Each plugin bundles only the skills and agents whose `profiles` frontmatter (or 
 
 When `remote` is set, `bluetemberg sync` writes `extraKnownMarketplaces` and `enabledPlugins` to `.claude/settings.json` — Claude Code then auto-prompts teammates to install the relevant plugin when they open the project. **Teammates need no local bluetemberg install.**
 
+### Agent Plugins bundles
+
+Add `"agent-plugins"` to `platforms` (alone or next to `"claude-marketplace"`) to make each `plugins/<name>/` directory an [Agent Plugins 1.0](https://agent-plugins.org) bundle as well: a root `plugin.json` that passes the spec's schema, the shared `skills/` (rules included as `rule-{id}` skills), agents under `com.github.copilot/agents/`, and `digital.prototyp.bluetemberg/bundle-lock.json` with the lockfile entries of the packs it was built from and a SHA-256 digest of every file. The spec leaves integrity to a future version, so the lock sits in bluetemberg's own extension directory, where it can't affect spec validation. It uses the same `marketplace` config (plugins, profiles, stacks, owner, remote).
+
+Hosts install these through a marketplace, not by finding them in the project: Copilot CLI and Codex read the generated `.claude-plugin/marketplace.json` (`copilot plugin marketplace add <repo>`, `codex plugin marketplace add <repo>`), and VS Code uses Copilot's plugin settings. Hosts cache installed plugins, so reinstall after a sync. See [Marketplace — Agent Plugins bundles](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace#agent-plugins-bundles).
+
 See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guide.
 
 ## Uninstall
 
-1. Empty `llm/packages.json` (`{ "packages": {} }`) and delete any local sources under `llm/` you no longer want synced. Keep `llm/mcp-managed.json` until step 2 has run: it is how sync knows which `.mcp.json` and `.agents/mcp_config.json` servers are its own to remove.
-2. Run `npx bluetemberg sync --prune`. It deletes every generated file that carries the banner and removes the guardrail hooks it added to `.claude/settings.json`.
-3. Delete what's left by hand:
-   - `bluetemberg.config.json`, `llm/` and `.bluetemberg/`
-   - the JSON outputs: `.cursor/mcp.json`, `.cursor/hooks.json` (sync already removed its own servers from `.mcp.json` and `.agents/mcp_config.json` once `llm/mcp.json` was gone)
-   - `.github/copilot-instructions.md` (a copy of `AGENTS.md`)
-   - the `AGENTS.md` entry in `context.fileName` of `.gemini/settings.json`
-   - the `BLUETEMBERG MANAGED` block in `.codex/config.toml`
-   - `extraKnownMarketplaces` / `enabledPlugins` in `.claude/settings.json`, if you used a marketplace remote
-   - the `.bluetemberg/` line in `.gitignore` and the `llm/` / `docs/wiki/` lines in `.prettierignore`
-4. `npm uninstall bluetemberg`.
+```bash
+npx bluetemberg uninstall --dry-run   # list what would be removed or edited
+npx bluetemberg uninstall             # show the plan, confirm, remove (--yes to skip the prompt)
+npm uninstall bluetemberg
+```
 
-`AGENTS.md`, `CLAUDE.md` and the GitHub files `init` scaffolded are ordinary files you own; keep or delete them.
+`uninstall` deletes every generated file, `bluetemberg.config.json`, `.bluetemberg/` and the state files under `llm/` (`packages.json` and its lock, `mcp.json`, `mcp-managed.json`, the rule-sources files). It takes bluetemberg's own entries out of shared files and leaves everything else in them: managed MCP servers from `.mcp.json`, the synced hooks and marketplace keys from `.claude/settings.json`, the generated guardrail entries from `.cursor/hooks.json`, `.github/hooks/bluetemberg-guardrails.json` and `.devin/hooks.v1.json`, `AGENTS.md` from `.gemini/settings.json`, the managed blocks from `AGENTS.md` and `.codex/config.toml`, and the `.bluetemberg/` line from `.gitignore` (the `.npmrc` line stays).
+
+It keeps what you wrote: your own sources under `llm/` (rules, agents, skills, commands, prompts, hooks), and the `AGENTS.md`, `CLAUDE.md` and GitHub files `init` scaffolded. The dry run performs the real procedure on a temporary copy, so its list is exactly what a real run changes. Commit first if you want an easy undo.
+
+## Eject
+
+```bash
+npx bluetemberg eject --dry-run   # list what would be removed or edited
+npx bluetemberg eject             # show the plan, confirm, eject (--yes to skip the prompt)
+npm uninstall bluetemberg
+```
+
+`eject` is the other way out: it keeps every generated file and drops bluetemberg, so the project keeps working in every AI tool as plain files your team owns. It strips the "Generated by bluetemberg" banner from every generated rule, agent, skill, command and prompt (the rest of each file is unchanged), removes the managed-block markers from `AGENTS.md` and `.codex/config.toml` while keeping what they fenced, and deletes `bluetemberg.config.json`, `.bluetemberg/`, the `.bluetemberg/` line in `.gitignore` (the `.npmrc` line stays) and the same state files under `llm/` as `uninstall`, including the `mcp-managed.json` ownership record.
+
+Managed JSON entries stay as ordinary config: MCP servers in `.mcp.json`, hooks and marketplace keys in `.claude/settings.json`, `AGENTS.md` in `.gemini/settings.json`. Guardrail hooks are self-contained `bash -c` scripts that never call bluetemberg, so they keep enforcing. Your sources under `llm/` are kept, but nothing syncs them any more: edit the generated files directly from now on, or delete `llm/` once you no longer want it. Remove any `package.json` scripts that call bluetemberg. The dry run works like uninstall's, on a temporary copy.
 
 ## Documentation
 

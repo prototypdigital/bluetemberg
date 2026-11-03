@@ -5,6 +5,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { buildCoverageReport, buildDetectReport, buildStacksList } from '../stacks/report.js';
 import { resolveGithubToken } from '../stacks/github.js';
 import { runScanOrg } from '../stacks/scan.js';
+import { buildWhyDiff, buildWhyReport, parseStackOverride } from '../stacks/why.js';
 
 /**
  * First-party MCP server — exposes Bluetemberg's stack detection + coverage model as tools so any
@@ -62,6 +63,28 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
+    name: 'bluetemberg_why',
+    description:
+      'Explain why a rule, agent, skill or guardrail is included in or excluded from this project. ' +
+      '`file` may be a source path (llm/rules/x.md), a generated path (.claude/rules/x.md) or an id. ' +
+      'Returns { query, matchedAs, matches, ... } — each match has `included`, `reason`, the source ' +
+      '(local / extends / pack name@version / external), and the constraint (frontmatter vs catalog ' +
+      'pack-level) checked against the detected version and its confidence. Pass `diff` instead (e.g. ' +
+      '["payload@4"]) to list what would be added/removed if a stack were at that version. Read-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', description: 'Source path, generated path, or id to explain.' },
+        diff: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Hypothetical stack versions as "stack@version"; returns an added/removed diff.',
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'bluetemberg_org_histogram',
     description:
       '[maintainer] Build a (stack, version) usage histogram vs catalog coverage. Accepts any ' +
@@ -117,6 +140,14 @@ export async function callStacksTool(
       const version =
         typeof args.version === 'string' && args.version.trim() ? args.version.trim() : undefined;
       return buildCoverageReport(root, stack, version);
+    }
+    case 'bluetemberg_why': {
+      const rawDiff = Array.isArray(args.diff) ? args.diff : [];
+      const diff = rawDiff.filter((d): d is string => typeof d === 'string' && d.trim().length > 0);
+      if (diff.length > 0) return buildWhyDiff(root, diff.map(parseStackOverride));
+      const file = typeof args.file === 'string' ? args.file.trim() : '';
+      if (!file) throw new Error('bluetemberg_why requires a non-empty "file" argument, or "diff"');
+      return buildWhyReport(root, file);
     }
     case 'bluetemberg_org_histogram': {
       const rawRoots = Array.isArray(args.roots) ? args.roots : [];

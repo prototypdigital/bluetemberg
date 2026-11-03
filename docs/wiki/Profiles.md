@@ -40,6 +40,22 @@ Collections marked universal in the catalog (Git, Security, Docs) are preselecte
 
 A pack that targets stacks in the catalog (Payload, Skeletor, React Native, Tailwind, Next.js, React) is preselected only when one of those stacks is in the project: detected by `init` from your manifests and lockfile, kept in the wizard's stack prompt, or passed with `--stacks`. In an empty directory no stack-specific pack is preselected. These packs are always offered in the wizard, so you can still tick them by hand. `bluetemberg preview <profile>` runs the same detection in the current directory and lists the packs it would skip.
 
+### Platforms
+
+Some packs only work in one tool: the PR-review loop runs headless `claude -p` from a Claude Code hook, and the session audit reads Claude Code transcripts. Such a pack can name its platforms in the catalog (`"platforms": ["claude"]`; those two packs get the tag in [bluetemberg-packs#120](https://github.com/prototypdigital/bluetemberg-packs/issues/120), until then they are offered everywhere), and it is preselected only when one of them is among the platforms you pick in the wizard or pass with `--platforms`. A Cursor-only or Copilot-only team doesn't get it by default; it is still offered in the wizard. `claude-marketplace` counts as Claude Code, since the plugins it publishes run there.
+
+Sync applies the same list per platform: a Claude Code–only pack in a project that targets Claude Code and Cursor is written to `.claude/` and skipped for `.cursor/`. Packs that name no platforms (or an empty list) work everywhere, exactly as before.
+
+Platform ids are the `platforms` config ids (`cursor`, `claude`, `copilot`, `gemini`, `antigravity`, `devin`, `codex`, `claude-marketplace`, `agent-plugins`); `windsurf` is read as `devin`. Precedence, as for `stacks`:
+
+1. A file's own `platforms:` frontmatter (a rule, agent, skill or guardrail). `platforms: []` opens a rule, agent or skill to every platform; on a guardrail it keeps its existing meaning, compiled for no host.
+2. The owning pack's catalog `platforms`, from `bluetemberg.platforms` in the pack's `package.json`.
+3. Nothing: every platform.
+
+Content limited to Codex or Gemini lands in the `AGENTS.md` rules block, which other tools may read too (Copilot, Cursor and Devin read `AGENTS.md` natively, and Claude Code through a `CLAUDE.md` import), so that list narrows what bluetemberg writes, not who can read a shared file. Guardrails compile only for Claude Code, Cursor, Codex, Copilot and Devin; `bluetemberg why` reports one as excluded when none of those is configured.
+
+An id that names no platform matches nothing. Sync warns when a file's own frontmatter has one (a typo); in a catalog entry it stays quiet, since a newer packs repo may name a platform an older engine doesn't know. `bluetemberg why <file>` shows the list and the platforms an item is skipped for.
+
 ## Frontend
 
 > UI, design systems, accessibility
@@ -393,7 +409,7 @@ After init, switch the active profile at any time:
 bluetemberg switch-profile backend
 ```
 
-This adds any agent and skill packages belonging to the new profile's defaults that are not yet in `llm/packages.json`. Stack-specific packs follow the same rule as `init`: they're added only when their stack is detected in the project or declared in `bluetemberg.config.json` `stacks`. It never removes packages automatically — instead it reports which official agent/skill packages in the manifest are not part of the new profile's defaults so you can decide whether to keep or remove them manually.
+This adds any agent and skill packages belonging to the new profile's defaults that are not yet in `llm/packages.json`. Stack-specific packs follow the same rule as `init`: they're added only when their stack is detected in the project or declared in `bluetemberg.config.json` `stacks`. Platform-specific packs are added only when one of their [platforms](#platforms) is in the config's `platforms`. It never removes packages automatically — instead it reports which official agent/skill packages in the manifest are not part of the new profile's defaults so you can decide whether to keep or remove them manually.
 
 Stale detection is scoped to the agents and skills packs in the catalog. Rule collections (e.g. `bluetemberg-rules-typescript`) and any third-party packs are never flagged — the switch cannot know which kind they are and should not touch them.
 

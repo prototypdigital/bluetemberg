@@ -2,70 +2,86 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
 import matter from 'gray-matter';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
-import { toClaudeAgentContent } from './claude-agent-tools.js';
+import { claudeAgentNameProblem, toClaudeAgentContent } from './claude-agent-tools.js';
 import { withGeneratedBanner } from './banner.js';
 import { listDirs, listFiles } from '../utils/fs.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
-import { collectStaleOutputs, pruneStaleOutputs } from './prune.js';
-import { copySkillSupportingFiles } from './skill-files.js';
+import { collectStaleOutputs, pruneStaleOutputs, type StaleOutput } from './prune.js';
+import { copySkillSupportingFiles, isHandWrittenSkillDir } from './skill-files.js';
+import { stampSkillMetadata } from './skill-metadata.js';
+import type { PackSource } from '../registry/index.js';
 import { syncMcp } from './mcp.js';
 import { syncHooks } from './hooks.js';
 import { syncCommands } from './commands.js';
 import { syncCopilotPrompts } from './prompts.js';
+import { syncLegacySkills } from './legacy-skills.js';
 import { syncCodexRules, syncCodexAgents, syncCodexConfig } from './codex.js';
 import { dropLegacyGeminiRulesTarget, syncGeminiSettings } from './gemini.js';
 import { checkClaudeAgentsMdImport } from './claude-agents-md.js';
 import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
-import { syncMarketplace } from './marketplace.js';
+import { pluginDefinitionsFor, syncPluginBundles } from './marketplace.js';
+import { readLockfile } from '../registry/manifest.js';
 import { syncClaudeSettings } from './settings.js';
-import { syncGuardrails } from './guardrails.js';
+import { syncGuardrails, type GuardrailHooks } from './guardrails.js';
+import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
+import { syncDevinGuardrailHooks } from './guardrails-devin.js';
 import { syncClaudeHooks } from './claude-hooks.js';
 import {
-  normalizePlatforms,
+  configuredPlatforms,
+  DEVIN_PLATFORM,
+  dirKey,
   normalizeTargets,
   resolveAgentTargets,
   resolveRuleTargets,
+  resolveSkillOutputs,
   resolveSkillTargets,
+  skillDirsFor,
+  skillPlatformsWithoutOutput,
+  type SkillOutput,
 } from './targets.js';
+import { findShadowedEntries, normalizeExtends, toExtendsEntries } from './extends-loader.js';
 import {
-  resolveExtendedSourceDirs,
-  mergeSourceFiles,
-  mergeSourceDirs,
-  findShadowedEntries,
-} from './extends-loader.js';
-import { resolvePackSourceDirs } from '../registry/index.js';
-import { resolveExternalSourceDirs } from '../sources/registry.js';
+  activeSources,
+  CONTENT_KINDS,
+  groupViewsByKind,
+  mergeContentKind,
+  resolveSourceViews,
+  resolveSyncSources,
+  type ContentKind,
+  type SourceView,
+  type SyncSource,
+} from './sources.js';
+import { findSplitSharedOutputs } from './extends-scope.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
+import { buildStackPackages } from '../stacks/packages.js';
+import { describeLowConfidence, isValidStackRange, type DetectedStacks } from '../stacks/match.js';
+import { buildStackMap, type StackMap } from '../stacks/resolve.js';
+import { evaluateStackGate } from '../stacks/gate.js';
 import {
-  describeLowConfidence,
-  describeStackMismatch,
-  isValidStackRange,
-  matchStackConstraint,
-  type DetectedStacks,
-} from '../stacks/match.js';
-import {
-  buildStackMap,
-  frontmatterStackIssues,
-  readFrontmatterStacks,
-  resolveStacks,
-  type StackMap,
-} from '../stacks/resolve.js';
-import type { Platform, BlueprintConfig, SyncOptions, SyncResults, TeamProfile } from '../types.js';
+  KNOWN_PLATFORMS,
+  unknownPlatforms,
+  allowsPlatform,
+  buildPlatformMap,
+  resolvePlatformGate,
+  type PlatformMap,
+} from '../catalog/platforms.js';
+import { skippedPlatforms } from './platform-skips.js';
+import { AGENT_PLUGINS_PLATFORM, MARKETPLACE_PLATFORM } from '../types.js';
+import type {
+  Platform,
+  BlueprintConfig,
+  ExtendsEntry,
+  PackageLock,
+  SyncOptions,
+  SkillTargetConfig,
+  SyncResults,
+  TeamProfile,
+} from '../types.js';
 
-const VALID_PLATFORMS: readonly Platform[] = [
-  'cursor',
-  'claude',
-  'copilot',
-  'gemini',
-  'antigravity',
-  'devin',
-  'windsurf',
-  'codex',
-  'claude-marketplace',
-];
+const VALID_PLATFORMS: readonly Platform[] = KNOWN_PLATFORMS;
 
 function validateTargets(targets: unknown, configPath: string, requireComplete = true): void {
   if (targets === undefined) {
@@ -122,6 +138,42 @@ function validateTargets(targets: unknown, configPath: string, requireComplete =
   }
 }
 
+const EXTENDS_SHAPE = '"extends" must be a string or array of strings and { "path", "platforms" } objects';
+const SCOPED_EXTENDS_KEYS = new Set(['path', 'platforms']);
+
+/** `extends`: a string, or an array of strings and `{ "path": string, "platforms": string[] }` entries. */
+function validateExtends(ext: unknown, configPath: string): void {
+  if (typeof ext === 'string') return;
+  if (!Array.isArray(ext)) throw new Error(`Invalid config in ${configPath}: ${EXTENDS_SHAPE}`);
+  ext.forEach((entry: unknown, i) => {
+    if (typeof entry !== 'string') validateScopedExtends(entry, `extends[${i}]`, configPath);
+  });
+}
+
+function validateScopedExtends(entry: unknown, at: string, configPath: string): void {
+  const fail = (detail: string): never => {
+    throw new Error(`Invalid config in ${configPath}: ${at}${detail.startsWith('.') ? '' : ' '}${detail}`);
+  };
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    fail('must be a string or { "path": string, "platforms": string[] }');
+  }
+  const e = entry as Record<string, unknown>;
+  const unknownKeys = Object.keys(e).filter((k) => !SCOPED_EXTENDS_KEYS.has(k));
+  if (unknownKeys.length > 0)
+    fail(`has unknown key(s) ${unknownKeys.join(', ')} — expected "path" and "platforms"`);
+  if (typeof e.path !== 'string' || e.path.trim().length === 0) fail('.path must be a non-empty string');
+  const platforms = e.platforms;
+  if (!Array.isArray(platforms) || platforms.length === 0 || platforms.some((p) => typeof p !== 'string')) {
+    fail('.platforms must be a non-empty array of platform ids');
+  }
+  const invalid = unknownPlatforms(platforms as string[]);
+  if (invalid.length > 0) {
+    fail(
+      `.platforms has unknown platform(s): ${invalid.join(', ')} (expected ${VALID_PLATFORMS.join(', ')})`,
+    );
+  }
+}
+
 interface ValidateConfigOptions {
   /**
    * Require `platforms` to be present. True for a stand-alone or fully-merged config; false when
@@ -168,13 +220,7 @@ function validateConfig(
     }
   }
 
-  if (cfg.extends !== undefined) {
-    const ext = cfg.extends;
-    const isStringArray = Array.isArray(ext) && ext.every((e: unknown) => typeof e === 'string');
-    if (typeof ext !== 'string' && !isStringArray) {
-      throw new Error(`Invalid config in ${configPath}: "extends" must be a string or array of strings`);
-    }
-  }
+  if (cfg.extends !== undefined) validateExtends(cfg.extends, configPath);
 
   if (cfg.adapters !== undefined) {
     if (!Array.isArray(cfg.adapters) || cfg.adapters.some((a: unknown) => typeof a !== 'string')) {
@@ -296,7 +342,7 @@ const DISCOVERY_SKIP_DIRS = new Set([
  * having a config, so recursive sync needs no npm/pnpm/yarn workspace parsing. Skips heavy/generated
  * dirs and dotfolders. Returns absolute paths, root-first then lexical, for deterministic ordering.
  */
-function discoverConfigDirs(root: string): string[] {
+export function discoverConfigDirs(root: string): string[] {
   const start = resolve(root);
   const found: string[] = [];
   const pending = [start];
@@ -345,6 +391,16 @@ export function loadConfig(root: string): BlueprintConfig {
   return validateConfig(effective, files[0].path);
 }
 
+/**
+ * True when there is a config for sync to act on: one in `root`'s ancestor chain, or (when sync may
+ * recurse) a package config below it. {@link loadConfig} falls back to built-in defaults without one,
+ * which the CLI must not do: a project with no config never opted in, or has ejected or uninstalled.
+ */
+export function hasSyncConfig(root: string, recursive = true): boolean {
+  if (collectConfigFiles(root).length > 0) return true;
+  return recursive && discoverConfigDirs(root).length > 0;
+}
+
 function dedupe<T>(values: T[]): T[] {
   return [...new Set(values)];
 }
@@ -361,6 +417,23 @@ function mergeStringList(
 ): string[] | undefined {
   const combined = [...toStringArray(primary), ...toStringArray(secondary)];
   return combined.length > 0 ? dedupe(combined) : undefined;
+}
+
+/**
+ * Merge two `extends` fields, `primary` entries first (higher priority). A path in both keeps the
+ * primary position with the union of its scopes (see {@link normalizeExtends}).
+ */
+function mergeExtends(
+  primary: BlueprintConfig['extends'],
+  secondary: BlueprintConfig['extends'],
+): BlueprintConfig['extends'] {
+  const specs = normalizeExtends([...toExtendsList(primary), ...toExtendsList(secondary)]);
+  return specs.length > 0 ? toExtendsEntries(specs) : undefined;
+}
+
+function toExtendsList(value: BlueprintConfig['extends']): ExtendsEntry[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
 /** Per-platform deep merge: child entries override parent entries, merging their fields. */
@@ -406,7 +479,7 @@ function mergeConfigs(parent: BlueprintConfig, child: BlueprintConfig): Blueprin
     targets: mergeTargets(parent.targets, child.targets),
   };
 
-  const extendsMerged = mergeStringList(child.extends, parent.extends);
+  const extendsMerged = mergeExtends(child.extends, parent.extends);
   if (extendsMerged) merged.extends = extendsMerged;
   else delete merged.extends;
 
@@ -430,6 +503,11 @@ interface SyncContext extends SyncSink {
   sourceDirs: string[];
   /** Count of `extends` dirs (for accurate per-file origin labels). */
   extendedCount: number;
+  /**
+   * Each synced `extends` dir's position in the config's `extends` array, so a label (`extends[i]`)
+   * names the entry as written — the index validation errors use — in every source view.
+   */
+  extendsIndex: ReadonlyMap<string, number>;
   /** Count of registry-pack dirs. */
   packCount: number;
   config: BlueprintConfig;
@@ -448,14 +526,40 @@ interface SyncContext extends SyncSink {
    */
   excludedRules: Map<string, string>;
   excludedAgents: Map<string, string>;
+  /** Catalog pack-level `platforms`, pack-scoped (see `catalog/platforms.ts`). */
+  platformMap: PlatformMap;
+  /**
+   * Rules/agents limited to some platforms (`file → platforms`), recorded by `syncRules`/`syncAgents`
+   * for the emitters that do not walk the per-file loop (Codex, the AGENTS.md block). Files open to
+   * every platform are absent.
+   */
+  rulePlatforms: Map<string, string[]>;
+  agentPlatforms: Map<string, string[]>;
+  /**
+   * Set when scoped `extends` entries split the platforms into more than one source view: steps run
+   * once per view, and a message they repeat word for word is recorded once.
+   */
+  recorded?: Set<string>;
+  /** The locked pack behind each pack source's `skills/` dir, for the `SKILL.md` metadata stamp. */
+  packsBySkillsDir: Map<string, PackSource>;
+}
+
+/** False when this exact message was already recorded by another source view's pass. */
+function firstRecord(ctx: SyncContext, message: string): boolean {
+  if (!ctx.recorded) return true;
+  if (ctx.recorded.has(message)) return false;
+  ctx.recorded.add(message);
+  return true;
 }
 
 function recordError(ctx: SyncContext, message: string): void {
+  if (!firstRecord(ctx, `error:${message}`)) return;
   ctx.results.errors.push(message);
   ctx.log(`  ERROR: ${message}`);
 }
 
 function recordWarning(ctx: SyncContext, message: string): void {
+  if (!firstRecord(ctx, `warn:${message}`)) return;
   ctx.results.warnings.push(message);
   ctx.log(`  WARN: ${message}`);
 }
@@ -531,22 +635,50 @@ function gateByVersion(
   stackMap: StackMap,
   label: string,
 ): VersionGate {
-  const issues = frontmatterStackIssues(frontmatter);
-  if (issues.length > 0) {
+  const gate = evaluateStackGate(id, kindDir, frontmatter, stackMap, ctx.detectedStacks);
+  if (gate.issues.length > 0) {
     recordWarning(
       ctx,
-      `${label}: invalid stack range(s) ${issues.join(', ')} — fix the range; until then the file is mis-gated`,
+      `${label}: invalid stack range(s) ${gate.issues.join(', ')} — fix the range; until then the file is mis-gated`,
     );
   }
-  const constraint = resolveStacks(id, kindDir, readFrontmatterStacks(frontmatter), stackMap);
-  const result = matchStackConstraint(constraint, ctx.detectedStacks);
-  for (const stack of result.lowConfidence) {
+  for (const stack of gate.match.lowConfidence) {
     if (ctx.warnedLowConfidence.has(stack)) continue;
     ctx.warnedLowConfidence.add(stack);
     const det = ctx.detectedStacks.get(stack);
     if (det) recordWarning(ctx, describeLowConfidence(stack, det, label));
   }
-  return { matched: result.matched, reason: result.matched ? '' : describeStackMismatch(result) };
+  return { matched: gate.matched, reason: gate.reason };
+}
+
+const NO_GUARDRAIL_HOOKS: GuardrailHooks = { claude: null, cursor: null, codex: null, applied: null };
+
+/** A copy of `ctx` limited to one source view: its platforms and the sources they read. */
+function toViewContext(ctx: SyncContext, view: SourceView): SyncContext {
+  return {
+    ...ctx,
+    platforms: view.platforms,
+    sourceDirs: view.sources.map((s) => s.dir),
+    extendedCount: view.sources.filter((s) => s.origin === 'extends').length,
+    excludedRules: new Map(),
+    excludedAgents: new Map(),
+    rulePlatforms: new Map(),
+    agentPlatforms: new Map(),
+  };
+}
+
+/** `--verbose`: the source dirs this view reads, in priority order. */
+function logSourceDirs(ctx: SyncContext, sources: readonly SyncSource[]): void {
+  ctx.log(`Source dirs (priority order):`);
+  sources.forEach((source, i) => {
+    let tag: string = source.origin;
+    if (source.origin === 'extends') {
+      const scope = source.platforms === null ? '' : `, ${source.platforms.join(', ')} only`;
+      tag = `extends[${ctx.extendsIndex.get(source.dir) ?? '?'}]${scope}`;
+    }
+    ctx.log(`  [${i}] ${source.dir} (${tag})`);
+  });
+  ctx.log('');
 }
 
 /**
@@ -576,16 +708,15 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     configWarnings.push(w),
   );
   // `windsurf` is an alias for `devin`; every emitter below sees only the canonical id.
-  const platforms = normalizePlatforms(config.platforms || ['cursor', 'claude', 'copilot']);
-  const sourceBase = join(root, config.source || 'llm');
-  const { dirs: extendedDirs, warnings: extendsWarnings } = resolveExtendedSourceDirs(config.extends, root);
-  const { dirs: packDirs, warnings: packWarnings } = resolvePackSourceDirs(root, config.source || 'llm');
-  const { dirs: externalDirs, warnings: externalWarnings } = resolveExternalSourceDirs(
-    root,
-    config.source || 'llm',
-  );
+  const platforms = configuredPlatforms(config);
+  const resolvedSources = resolveSyncSources(root, config);
+  const { sourceBase, packDirs } = resolvedSources;
   // Priority: local sourceBase first, then extends entries, then registry packs, then external sources.
-  const sourceDirs = [sourceBase, ...extendedDirs, ...packDirs, ...externalDirs];
+  // A scoped `extends` entry for no configured platform is left out (sync warns about it).
+  const sources = activeSources(resolvedSources.sources, platforms);
+  const sourceDirs = sources.map((s) => s.dir);
+  const extendsSources = sources.filter((s) => s.origin === 'extends');
+  const extendsIndex = new Map(extendsSources.map((s) => [s.dir, s.extendsIndex ?? 0]));
 
   const results: SyncResults = { synced: 0, outOfSync: 0, stale: 0, errors: [], warnings: [] };
   const log = options.silent ? () => {} : console.log;
@@ -598,7 +729,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // on a Payload-3 project). Detection is cheap and side-effect-free; both default to empty so a
   // project with no `stacks` declared and no stack-tagged packs syncs byte-identically to before.
   const catalog = loadCatalogSync(root);
-  const detectedStacks = detectStacks(root, config);
+  const stackPackages = buildStackPackages(catalog);
+  const detectedStacks = detectStacks(root, config, stackPackages.packages);
 
   if (!orchestrated) log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
@@ -606,7 +738,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     root,
     sourceBase,
     sourceDirs,
-    extendedCount: extendedDirs.length,
+    extendedCount: extendsSources.length,
+    extendsIndex,
     packCount: packDirs.length,
     config,
     platforms,
@@ -621,44 +754,87 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     warnedLowConfidence: new Set(),
     excludedRules: new Map(),
     excludedAgents: new Map(),
+    platformMap: buildPlatformMap(catalog),
+    rulePlatforms: new Map(),
+    agentPlatforms: new Map(),
+    packsBySkillsDir: new Map(
+      resolvedSources.sources.flatMap((s) => (s.pack ? [[join(s.dir, 'skills'), s.pack] as const] : [])),
+    ),
   };
 
   // Surface extends, pack, and external-source resolution warnings before sync output.
-  for (const w of extendsWarnings) recordWarning(ctx, w);
-  for (const w of packWarnings) recordWarning(ctx, w);
-  for (const w of externalWarnings) recordWarning(ctx, w);
+  for (const w of resolvedSources.warnings) recordWarning(ctx, w);
   for (const w of configWarnings) recordWarning(ctx, w);
+  for (const w of stackPackages.issues) recordWarning(ctx, `catalog ${w}`);
+
+  // Scoped `extends` entries split the platforms into views that read different sources. Content
+  // steps (anything reading `sourceDirs`) run once per view; steps that read only the local source
+  // run once with every platform. With no scoped entry there is one view: `ctx` itself.
+  const views = resolveSourceViews(sources, platforms);
+  const multiView = views.length > 1;
+  if (multiView) ctx.recorded = new Set();
+  const viewCtxs = multiView ? views.map((view) => toViewContext(ctx, view)) : [ctx];
+  // Each content kind runs once per group of platforms that merge it to the same files. With one
+  // view every kind has one group: `ctx` itself.
+  const kindGroups = new Map(
+    CONTENT_KINDS.map((kind) => [kind, multiView ? groupViewsByKind(views, kind) : views]),
+  );
+  const kindCtxs = new Map(
+    CONTENT_KINDS.map((kind) => [
+      kind,
+      multiView ? (kindGroups.get(kind) ?? []).map((group) => toViewContext(ctx, group)) : [ctx],
+    ]),
+  );
+  if (multiView) {
+    const split = findSplitSharedOutputs(config, kindGroups);
+    for (const message of split) recordError(ctx, message);
+    if (split.length > 0) {
+      if (!orchestrated) printSummary(log, results, checkMode);
+      return results;
+    }
+  }
+  const containing = (list: readonly SyncContext[], platform: Platform): SyncContext =>
+    list.find((c) => c.platforms.includes(platform)) ?? ctx;
+  /** The context of `platform`'s group for one kind (its own view for `view`). */
+  const ctxFor = (kind: ContentKind | 'view', platform: Platform): SyncContext =>
+    containing(kind === 'view' ? viewCtxs : (kindCtxs.get(kind) ?? []), platform);
+  /** Run `step` once per group of `kind`, under a header naming the group's platforms when there are several. */
+  const perGroup = (kind: ContentKind, step: (groupCtx: SyncContext) => void): void => {
+    const groups = kindCtxs.get(kind) ?? [];
+    for (const groupCtx of groups) {
+      if (groups.length > 1) log(`[${groupCtx.platforms.join(', ')}]`);
+      step(groupCtx);
+    }
+  };
 
   logDetectedStacks(ctx);
-  reportShadowedContent(ctx);
 
-  if (verbose) {
-    log(`Source dirs (priority order):`);
-    log(`  [0] ${sourceBase} (local)`);
-    for (let i = 0; i < extendedDirs.length; i++) {
-      log(`  [${i + 1}] ${extendedDirs[i]} (extends[${i}])`);
-    }
-    const packOffset = 1 + extendedDirs.length;
-    for (let i = 0; i < packDirs.length; i++) {
-      log(`  [${packOffset + i}] ${packDirs[i]} (pack)`);
-    }
-    const externalOffset = packOffset + packDirs.length;
-    for (let i = 0; i < externalDirs.length; i++) {
-      log(`  [${externalOffset + i}] ${externalDirs[i]} (external)`);
-    }
-    log('');
+  for (const [i, viewCtx] of viewCtxs.entries()) {
+    if (multiView) log(`Sources for ${viewCtx.platforms.join(', ')}:`);
+    reportShadowedContent(viewCtx);
+    if (verbose) logSourceDirs(viewCtx, views[i].sources);
   }
+  if (multiView) log('');
 
-  syncRules(ctx);
-  syncAgents(ctx);
-  syncSkills(ctx);
+  perGroup('rules', syncRules);
+  perGroup('agents', syncAgents);
+  perGroup('skills', syncSkills);
   syncCopilotInstructions(ctx);
   // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
   // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
-  const guardrailClaudeHooks = syncGuardrails(ctx, (msg) => recordError(ctx, msg));
+  // Each group compiles its own guardrails; each host's writer takes the result of its own group.
+  const guardrailsByGroup = new Map<SyncContext, GuardrailHooks>();
+  perGroup('guardrails', (groupCtx) =>
+    guardrailsByGroup.set(
+      groupCtx,
+      syncGuardrails(groupCtx, (msg) => recordError(groupCtx, msg)),
+    ),
+  );
+  const guardrailsFor = (platform: Platform): GuardrailHooks =>
+    guardrailsByGroup.get(ctxFor('guardrails', platform)) ?? NO_GUARDRAIL_HOOKS;
   syncClaudeHooks(
-    ctx,
-    guardrailClaudeHooks,
+    ctxFor('view', 'claude'),
+    guardrailsFor('claude').claude,
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
   );
@@ -667,46 +843,27 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
   );
-  syncHooks(ctx, (msg) => recordError(ctx, msg));
+  syncHooks(ctx, guardrailsFor('cursor').cursor, (msg) => recordError(ctx, msg));
+  syncCopilotGuardrailHooks(ctx, guardrailsFor('copilot').applied, (msg) => recordError(ctx, msg));
+  syncDevinGuardrailHooks(ctx, guardrailsFor(DEVIN_PLATFORM).applied, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
-  syncCodexRules(ctx, (msg) => recordError(ctx, msg));
-  syncCodexAgents(ctx, (msg) => recordError(ctx, msg));
-  syncCodexConfig(ctx, (msg) => recordError(ctx, msg));
+  // Migrated commands/prompts come from the local source, but a real skill of the same name wins,
+  // so they run with the skills groups: each group checks the skills its own platforms get.
+  perGroup('skills', (groupCtx) =>
+    syncLegacySkills(
+      groupCtx,
+      (msg) => recordError(ctx, msg),
+      (msg) => recordWarning(ctx, msg),
+    ),
+  );
+  perGroup('rules', (groupCtx) => syncCodexRules(groupCtx, (msg) => recordError(ctx, msg)));
+  syncCodexAgents(ctxFor('agents', 'codex'), (msg) => recordError(ctx, msg));
+  syncCodexConfig(ctx, guardrailsFor('codex').codex, (msg) => recordError(ctx, msg));
   syncGeminiSettings(ctx, (msg) => recordError(ctx, msg));
   checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
-  if (ctx.platforms.includes('claude-marketplace')) {
-    const projectName = basename(root);
-    const pluginDefs = ctx.config.marketplace?.plugins ?? [
-      { name: projectName, displayName: projectName, description: '' },
-    ];
-    const marketplace = syncMarketplace(
-      {
-        ...ctx,
-        plugins: pluginDefs,
-        catalog,
-        owner: ctx.config.marketplace?.owner,
-        remote: ctx.config.marketplace?.remote,
-      },
-      (msg) => recordError(ctx, msg),
-    );
-
-    const remote = ctx.config.marketplace?.remote;
-    // A plugin skipped via recordError is missing from the manifest; syncing settings now
-    // would prune its enabledPlugins entry, so wait for an error-free run.
-    if (remote && marketplace && ctx.results.errors.length === 0) {
-      syncClaudeSettings(
-        {
-          ...ctx,
-          remote,
-          marketplaceName: marketplace.name,
-          plugins: marketplace.plugins.map((p) => p.name),
-        },
-        (msg) => recordWarning(ctx, msg),
-      );
-    }
-  }
+  syncBundles(ctx, ctxFor);
 
   await runOptionalAdapters(
     {
@@ -725,18 +882,80 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   if (checkMode) reportStaleOutputs(ctx);
 
   if (prune && results.errors.length === 0) {
-    pruneStaleOutputs({
+    const removed = pruneStaleOutputs({
       root,
       config,
       platforms,
       expectedPaths: expectedOutputPaths,
       log,
     });
+    logSkillsMigrationNote(ctx, removed, true);
+  } else {
+    const stale = collectStaleOutputs({ root, config, platforms, expectedPaths: expectedOutputPaths });
+    logSkillsMigrationNote(ctx, stale, false);
   }
 
   if (!orchestrated) printSummary(log, results, checkMode);
 
   return results;
+}
+
+/**
+ * `claude-marketplace` and `agent-plugins` share the `plugins/<name>/` bundles and the marketplace
+ * index; each platform adds its own manifest and component dirs to them.
+ */
+function syncBundles(
+  ctx: SyncContext,
+  ctxFor: (kind: ContentKind | 'view', platform: Platform) => SyncContext,
+): void {
+  const formats = {
+    claude: ctx.platforms.includes(MARKETPLACE_PLATFORM),
+    agentPlugins: ctx.platforms.includes(AGENT_PLUGINS_PLATFORM),
+  };
+  if (!formats.claude && !formats.agentPlugins) return;
+  // Under scoped `extends`, both bundle platforms read the same sources (`findSplitSharedOutputs`
+  // stops the sync otherwise, as they share `plugins/`), so either one's view will do.
+  const viewCtx = ctxFor('view', formats.claude ? MARKETPLACE_PLATFORM : AGENT_PLUGINS_PLATFORM);
+
+  const marketplace = syncPluginBundles(
+    {
+      ...viewCtx,
+      plugins: pluginDefinitionsFor(ctx.config, ctx.root),
+      owner: ctx.config.marketplace?.owner,
+      remote: ctx.config.marketplace?.remote,
+      formats,
+      packLock: formats.agentPlugins ? readPackLock(ctx) : undefined,
+    },
+    (msg) => recordError(ctx, msg),
+    (msg) => recordWarning(ctx, msg),
+  );
+
+  const remote = ctx.config.marketplace?.remote;
+  // A plugin skipped via recordError is missing from the manifest; syncing settings now
+  // would prune its enabledPlugins entry, so wait for an error-free run.
+  if (!formats.claude || !remote || !marketplace || ctx.results.errors.length > 0) return;
+  syncClaudeSettings(
+    {
+      ...ctx,
+      remote,
+      marketplaceName: marketplace.name,
+      plugins: marketplace.plugins.map((p) => p.name),
+    },
+    (msg) => recordWarning(ctx, msg),
+  );
+}
+
+/** The project's pack lockfile; a bundle lock without pack entries beats a failed sync. */
+function readPackLock(ctx: SyncContext): PackageLock | undefined {
+  try {
+    return readLockfile(ctx.root, ctx.config.source || 'llm');
+  } catch (err) {
+    recordWarning(
+      ctx,
+      `agent-plugins: bundle locks omit pack entries — ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return undefined;
+  }
 }
 
 /**
@@ -758,6 +977,29 @@ function reportStaleOutputs(ctx: SyncContext): void {
   }
   ctx.results.outOfSync += stale.length;
   ctx.results.stale += stale.length;
+}
+
+/**
+ * Skills used to be copied to each tool's own dir. Shown while old copies are left (and once more
+ * when `--prune` removes them), so it stops by itself after the one migration run.
+ */
+function logSkillsMigrationNote(ctx: SyncContext, files: StaleOutput[], pruned: boolean): void {
+  // Hand-written skills left in a retired dir are kept for good; only generated copies need the note.
+  const generated = files.filter((file) => file.kind === 'generated');
+  const dirs = [...new Set(generated.flatMap((file) => (file.retiredDir ? [file.retiredDir] : [])))];
+  if (dirs.length === 0) return;
+  const where = dirs.map((dir) => `${dir}/`).join(' and ');
+  const targets = resolveSkillTargets(ctx.config, ctx.platforms)
+    .map(([, target]) => `${target.dir}/`)
+    .join(', ');
+  ctx.log(`\nSkills now sync to ${targets} only; the per-tool copies are no longer written.`);
+  if (pruned) {
+    ctx.log(`  Removed the generated copies from ${where}. Hand-written skills there were kept.`);
+    return;
+  }
+  ctx.log(
+    `  ${where} still holds old generated copies, which a tool can load instead of the new ones (Cursor prefers .cursor/skills/). Run \`bluetemberg sync --prune\` once to remove them; hand-written skills there are kept.`,
+  );
 }
 
 /** Print the trailing summary (Done / out-of-sync, plus warning and error counts). */
@@ -830,7 +1072,7 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   if (idx === 0) return 'local';
 
   const extendsEnd = 1 + ctx.extendedCount;
-  if (idx < extendsEnd) return `extends[${idx - 1}]`;
+  if (idx < extendsEnd) return `extends[${ctx.extendsIndex.get(ctx.sourceDirs[idx]) ?? idx - 1}]`;
 
   const packEnd = extendsEnd + ctx.packCount;
   if (idx < packEnd) return `pack[${idx - extendsEnd}]`;
@@ -838,52 +1080,67 @@ function sourceLabel(ctx: SyncContext, sourceDir: string): string {
   return `external[${idx - packEnd}]`;
 }
 
-/**
- * Resolve which `.md` files (rules or agents) are version-filtered out of this project. A file is
- * excluded when its stack constraint (frontmatter `stacks:` > catalog pack-level) names a stack that
- * is absent or whose detected version is outside the declared range — the version-aware gate.
- * Returns `file → reason` for the excluded files; the decision is platform-independent so it is
- * computed once. Used for both rules and agents so version-specific guidance is withheld uniformly.
- */
-function resolveExcludedFiles(
-  ctx: SyncContext,
-  merged: Map<string, string>,
-  kind: 'rules' | 'agents',
-): Map<string, string> {
-  const stackMap = buildStackMap(ctx.catalog);
-  const excluded = new Map<string, string>();
-  for (const [file, sourceDir] of merged) {
-    let data: Record<string, unknown> = {};
-    try {
-      data = matter.read(join(sourceDir, file)).data as Record<string, unknown>;
-    } catch {
-      // Unreadable frontmatter → treat as stack-agnostic here; the write loop reports the read error.
-    }
-    const gate = gateByVersion(ctx, basename(file, '.md'), sourceDir, data, stackMap, `${kind}/${file}`);
-    if (!gate.matched) excluded.set(file, gate.reason);
-  }
-  return excluded;
+/** Per-file gate decisions for one content kind, keyed like `mergeContentKind` (`x.md` or a skill dir). */
+interface KindGates {
+  /** Version-filtered out (`key → reason`); the decision is platform-independent. */
+  excluded: Map<string, string>;
+  /** Limited to some platforms (`key → platforms`); keys open to every platform are absent. */
+  platforms: Map<string, string[]>;
 }
 
 /**
- * Resolve which skill directories are version-filtered out. A skill is gated on the `stacks:`
- * frontmatter of its `SKILL.md` (id = directory name), mirroring rules/agents so a version-specific
- * skill is withheld on projects it does not target. Returns `dirName → reason` for excluded skills.
+ * Resolve the version gate and the platform gate for every entry of one content kind. A file is
+ * version-excluded when its stack constraint (frontmatter `stacks:` > catalog pack-level) names a
+ * stack that is absent or whose detected version is outside the declared range; it is limited to
+ * some platforms when its `platforms` (frontmatter > catalog pack-level) names any. `fileOf` maps an
+ * entry to the file whose frontmatter decides (the `.md` itself, or a skill's `SKILL.md`).
  */
-function resolveExcludedSkills(ctx: SyncContext, merged: Map<string, string>): Map<string, string> {
+function resolveKindGates(
+  ctx: SyncContext,
+  merged: Map<string, string>,
+  kind: 'rules' | 'agents' | 'skills',
+): KindGates {
   const stackMap = buildStackMap(ctx.catalog);
-  const excluded = new Map<string, string>();
-  for (const [dirName, sourceParent] of merged) {
+  const gates: KindGates = { excluded: new Map(), platforms: new Map() };
+  for (const [key, kindDir] of merged) {
+    const id = kind === 'skills' ? key : basename(key, '.md');
+    const file = kind === 'skills' ? join(kindDir, key, 'SKILL.md') : join(kindDir, key);
+    const label = `${kind}/${key}`;
     let data: Record<string, unknown> = {};
     try {
-      data = matter.read(join(sourceParent, dirName, 'SKILL.md')).data as Record<string, unknown>;
+      data = matter.read(file).data as Record<string, unknown>;
     } catch {
-      // Unreadable SKILL.md → treat as stack-agnostic; the write loop reports the read error.
+      // Unreadable frontmatter → treat as agnostic here; the write loop reports the read error.
     }
-    const gate = gateByVersion(ctx, dirName, sourceParent, data, stackMap, `skills/${dirName}`);
-    if (!gate.matched) excluded.set(dirName, gate.reason);
+    const gate = gateByVersion(ctx, id, kindDir, data, stackMap, label);
+    if (!gate.matched) gates.excluded.set(key, gate.reason);
+    const platforms = gateByPlatform(ctx, id, kindDir, data, label);
+    if (platforms !== null) gates.platforms.set(key, platforms);
   }
-  return excluded;
+  return gates;
+}
+
+/**
+ * The platforms a file is limited to (frontmatter `platforms:` > catalog pack-level), or `null` when
+ * it is open to every platform. Warns when the frontmatter is malformed or names an unknown id —
+ * either would otherwise skip the file silently.
+ */
+function gateByPlatform(
+  ctx: SyncContext,
+  id: string,
+  kindDir: string,
+  frontmatter: Record<string, unknown>,
+  label: string,
+): string[] | null {
+  const gate = resolvePlatformGate(id, kindDir, frontmatter, ctx.platformMap);
+  if (gate.invalid) recordWarning(ctx, `${label}: ${gate.invalid}`);
+  if (gate.unknown.length > 0) {
+    recordWarning(
+      ctx,
+      `${label}: unknown platform(s) ${gate.unknown.join(', ')} in \`platforms\` — they match nothing; valid ids are ${KNOWN_PLATFORMS.join(', ')}`,
+    );
+  }
+  return gate.platforms;
 }
 
 /** Log the shared "applied · filtered out by version" summary for a synced kind (id → reason). */
@@ -897,16 +1154,38 @@ function logVersionFiltered(ctx: SyncContext, appliedCount: number, excluded: Ma
   }
 }
 
+/**
+ * Log the entries skipped for some of this project's platforms, and which. Entries the version
+ * gate already withheld, and entries whose platforms cover every synced platform, are not listed.
+ */
+function logPlatformLimited(ctx: SyncContext, gates: KindGates, kind: 'rules' | 'agents' | 'skills'): void {
+  const lines: string[] = [];
+  for (const [key, platforms] of gates.platforms) {
+    if (gates.excluded.has(key)) continue;
+    const skipped = skippedPlatforms(ctx.config, ctx.platforms, kind, platforms);
+    if (skipped.length === 0) continue;
+    lines.push(
+      `    - ${key.replace(/\.md$/, '')}: ${platforms.join(', ')} only — skipped for ${skipped.join(', ')}`,
+    );
+  }
+  if (lines.length === 0) return;
+  ctx.log(`  ${lines.length} limited by platform`);
+  for (const line of lines) ctx.log(line);
+}
+
 function syncRules(ctx: SyncContext): void {
-  const merged = mergeSourceFiles(ctx.sourceDirs, 'rules', (f) => f.endsWith('.md'));
+  const merged = mergeContentKind(ctx.sourceDirs, 'rules');
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedFiles(ctx, merged, 'rules');
+  const gates = resolveKindGates(ctx, merged, 'rules');
+  const { excluded } = gates;
   ctx.excludedRules = excluded;
+  ctx.rulePlatforms = gates.platforms;
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Rules: ${merged.size} source files`);
   logVersionFiltered(ctx, appliedCount, excluded);
+  logPlatformLimited(ctx, gates, 'rules');
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -919,9 +1198,12 @@ function syncRules(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of ruleTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
+    let written = 0;
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
+      if (!allowsPlatform(gates.platforms.get(file), platform)) continue;
+      written++;
       try {
         const source = matter.read(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
@@ -936,20 +1218,23 @@ function syncRules(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${written} files)`);
   }
 }
 
 function syncAgents(ctx: SyncContext): void {
-  const merged = mergeSourceFiles(ctx.sourceDirs, 'agents', (f) => f.endsWith('.md') && f !== 'README.md');
+  const merged = mergeContentKind(ctx.sourceDirs, 'agents');
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedFiles(ctx, merged, 'agents');
+  const gates = resolveKindGates(ctx, merged, 'agents');
+  const { excluded } = gates;
   ctx.excludedAgents = excluded;
+  ctx.agentPlatforms = gates.platforms;
   const appliedCount = merged.size - excluded.size;
 
   ctx.log(`Agents: ${merged.size} source files`);
   logVersionFiltered(ctx, appliedCount, excluded);
+  logPlatformLimited(ctx, gates, 'agents');
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -962,11 +1247,22 @@ function syncAgents(ctx: SyncContext): void {
 
   for (const [platform, targetConfig] of agentTargets) {
     const outDir = join(ctx.root, targetConfig.dir);
+    let written = 0;
 
     for (const [file, sourceDir] of merged) {
       if (excluded.has(file)) continue;
+      if (!allowsPlatform(gates.platforms.get(file), platform)) continue;
+      written++;
       try {
         const source = readFileSync(join(sourceDir, file), 'utf8');
+        const nameProblem = platform === 'claude' ? claudeAgentNameProblem(source, file) : null;
+        if (nameProblem) {
+          recordWarning(
+            ctx,
+            `agents/${file}: ${nameProblem}, so Claude Code would skip it; not written to ${targetConfig.dir}/. Rename the agent.`,
+          );
+          continue;
+        }
         const platformContent = platform === 'claude' ? toClaudeAgentContent(source) : source;
         const content = withGeneratedBanner(platformContent, `agents/${file}`);
         const outName = file.replace(/\.md$/, targetConfig.ext);
@@ -979,23 +1275,25 @@ function syncAgents(ctx: SyncContext): void {
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} files)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${written} files)`);
   }
 }
 
 function syncSkills(ctx: SyncContext): void {
-  const merged = mergeSourceDirs(ctx.sourceDirs, 'skills', (dirPath) =>
-    existsSync(join(dirPath, 'SKILL.md')),
-  );
+  const merged = mergeContentKind(ctx.sourceDirs, 'skills');
   if (merged.size === 0) return;
 
-  const excluded = resolveExcludedSkills(ctx, merged);
+  const gates = resolveKindGates(ctx, merged, 'skills');
+  const { excluded } = gates;
   const appliedCount = merged.size - excluded.size;
 
-  const skillTargets = resolveSkillTargets(ctx.config, ctx.platforms);
+  const outputs = resolveSkillOutputs(ctx.config, ctx.platforms);
+  const routes = skillRoutes(outputs, merged, excluded, gates.platforms);
 
   ctx.log(`Skills: ${merged.size} source directories`);
   logVersionFiltered(ctx, appliedCount, excluded);
+  logPlatformLimited(ctx, gates, 'skills');
+  warnSkillPlatformsWithoutOutput(ctx);
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -1004,25 +1302,91 @@ function syncSkills(ctx: SyncContext): void {
     }
   }
 
-  for (const [, targetConfig] of skillTargets) {
-    for (const [dirName, sourceParent] of merged) {
-      if (excluded.has(dirName)) continue;
+  for (const [targetConfig, dirNames] of routes) {
+    let written = 0;
+    for (const dirName of dirNames) {
+      const sourceParent = merged.get(dirName) ?? '';
+      const outDir = join(ctx.root, targetConfig.dir, dirName);
       try {
-        const srcSkill = join(sourceParent, dirName, 'SKILL.md');
-        const outDir = join(ctx.root, targetConfig.dir, dirName);
-
-        const content = withGeneratedBanner(readFileSync(srcSkill, 'utf8'), `skills/${dirName}/SKILL.md`);
-        const outPath = join(outDir, 'SKILL.md');
-
-        commitPlannedWrite(ctx, outPath, content);
+        const raw = readFileSync(join(sourceParent, dirName, 'SKILL.md'), 'utf8');
+        if (isHandWrittenSkillDir(outDir, raw)) {
+          recordWarning(
+            ctx,
+            `${targetConfig.dir}/${dirName}/ holds a skill bluetemberg did not write (no banner), so it is kept and skills/${dirName} is not synced there. Rename one of them; if it is an old copy from before bluetemberg marked its output, delete it and sync again.`,
+          );
+          continue;
+        }
+        const sourceId = `skills/${dirName}/SKILL.md`;
+        const source = stampPackMetadata(ctx, raw, sourceParent, dirName);
+        commitPlannedWrite(ctx, join(outDir, 'SKILL.md'), withGeneratedBanner(source, sourceId));
         copySkillSupportingFiles(ctx, join(sourceParent, dirName), outDir);
+        written++;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         recordError(ctx, `skills/${dirName} -> ${targetConfig.dir}: ${message}`);
       }
     }
 
-    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${appliedCount} skills)`);
+    if (!ctx.checkMode) ctx.log(`  -> ${targetConfig.dir}/ (${written} skills)`);
+  }
+}
+
+/**
+ * Which skills each dir gets, in output order: a shared dir takes a skill when one of its own readers
+ * is allowed, and a Cursor-only skill gets Cursor's private dir (`skillDirsFor`). A dir with no
+ * skill this pass is still listed, so its count is logged.
+ */
+function skillRoutes(
+  outputs: readonly SkillOutput[],
+  merged: ReadonlyMap<string, string>,
+  excluded: ReadonlyMap<string, string>,
+  lists: ReadonlyMap<string, readonly string[] | null | undefined>,
+): Map<SkillTargetConfig, string[]> {
+  const routes = new Map<SkillTargetConfig, string[]>(outputs.map((output) => [output.target, []]));
+  const byDir = new Map<string, SkillTargetConfig>(
+    outputs.map((output) => [dirKey(output.target.dir), output.target]),
+  );
+  for (const dirName of merged.keys()) {
+    if (excluded.has(dirName)) continue;
+    for (const { target } of skillDirsFor(outputs, lists.get(dirName))) {
+      const key = dirKey(target.dir);
+      const routed = byDir.get(key) ?? target;
+      byDir.set(key, routed);
+      routes.set(routed, [...(routes.get(routed) ?? []), dirName]);
+    }
+  }
+  return routes;
+}
+
+/**
+ * An explicit `targets.skills` replaces the defaults, so a platform it leaves out silently gets no
+ * skills, which is what an upgraded config does to Gemini CLI. Warned once per run, naming the entry.
+ */
+function warnSkillPlatformsWithoutOutput(ctx: SyncContext): void {
+  for (const platform of skillPlatformsWithoutOutput(ctx.config, ctx.platforms)) {
+    const entry = JSON.stringify({ [platform]: DEFAULT_TARGETS.skills[platform] })
+      .slice(1, -1)
+      .replace(/:/g, ': ');
+    recordWarning(
+      ctx,
+      `${platform} is in platforms but gets no skills: targets.skills in bluetemberg.config.json does not list it. Add ${entry} to targets.skills, or drop the section to use the defaults.`,
+    );
+  }
+}
+
+/**
+ * A skill's `SKILL.md`, stamped with the pack it came from when it came from one. A stamp that cannot
+ * be applied (the frontmatter is not valid YAML, say) is a warning: the skill still syncs as is.
+ */
+function stampPackMetadata(ctx: SyncContext, content: string, sourceParent: string, dirName: string): string {
+  const pack = ctx.packsBySkillsDir.get(sourceParent);
+  if (!pack) return content;
+  try {
+    return stampSkillMetadata(content, pack);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    recordWarning(ctx, `skills/${dirName} (${pack.name}): pack metadata not stamped: ${message}`);
+    return content;
   }
 }
 

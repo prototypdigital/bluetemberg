@@ -26,6 +26,8 @@ import {
   lockSatisfiesRange,
   packVersionDir,
 } from './installer.js';
+import { formatFindings } from './scanner.js';
+import type { ScanResult } from './scanner.js';
 import type {
   InstalledPackage,
   NpmSearchResult,
@@ -39,6 +41,45 @@ import type {
   RegistryVerifyOptions,
 } from '../types.js';
 import { loadConfig } from '../sync/index.js';
+
+// ---------------------------------------------------------------------------
+// content scan reporting
+// ---------------------------------------------------------------------------
+
+/**
+ * Installer options for the content scan. Blocking findings throw from the installer; this
+ * routes the non-blocking ones — and the fact that the scan was skipped — through the
+ * command's `log`, so `--silent` and tests capture them like any other progress output.
+ */
+function scanOptions(
+  label: string,
+  skipScan: boolean | undefined,
+  log: (msg: string) => void,
+): { skipScan?: boolean; onScanFindings: (result: ScanResult) => void; onScanSkipped: () => void } {
+  return {
+    skipScan,
+    onScanSkipped: () => log(`  Content scan skipped for ${label} (--skip-scan).`),
+    onScanFindings: (result) => {
+      log(`  Warning: content scan flagged ${result.findings.length} pattern(s) in ${label} (not blocking):`);
+      for (const line of formatFindings(result.findings, '    ')) log(line);
+    },
+  };
+}
+
+/**
+ * The error a multi-pack command throws. Per-pack reasons normally reach the user through
+ * `log`; under `--silent` that is a no-op, so the reasons ride on the error instead — a pack
+ * the content scan refused must still say why on stderr.
+ */
+function failureError(
+  verb: string,
+  failed: ReadonlyArray<{ name: string; error: Error }>,
+  silent?: boolean,
+): Error {
+  const summary = `${failed.length} pack(s) failed to ${verb}.`;
+  if (!silent) return new Error(summary);
+  return new Error([summary, ...failed.map(({ name, error }) => `  ✗ ${name}: ${error.message}`)].join('\n'));
+}
 
 // ---------------------------------------------------------------------------
 // add
@@ -80,6 +121,7 @@ export async function add(
     registryUrl: manifest.registry,
     skipSignatureVerification: options.skipSignatureVerification,
     allowExternalTarballHost: options.allowExternalTarballHost,
+    ...scanOptions(`${name}@${version}`, options.skipScan, log),
   });
 
   // Update manifest and lockfile.
@@ -312,6 +354,7 @@ export async function install(
         registryUrl: manifest.registry,
         skipSignatureVerification: options.skipSignatureVerification,
         allowExternalTarballHost: options.allowExternalTarballHost,
+        ...scanOptions(`${name}@${version}`, options.skipScan, log),
       });
 
       lock.packages[name] = lockEntry;
@@ -354,7 +397,7 @@ export async function install(
       log(`  ✗ ${name}: ${error.message}`);
     }
     log('\nRun "bluetemberg install" again after resolving the errors above.');
-    throw new Error(`${failed.length} pack(s) failed to install.`);
+    throw failureError('install', failed, options.silent);
   }
 
   return installed;
@@ -439,6 +482,7 @@ export async function update(
         registryUrl: manifest.registry,
         skipSignatureVerification: options.skipSignatureVerification,
         allowExternalTarballHost: options.allowExternalTarballHost,
+        ...scanOptions(`${name}@${version}`, options.skipScan, log),
       });
 
       lock.packages[name] = lockEntry;
@@ -507,7 +551,7 @@ export async function update(
       log(`  ✗ ${name}: ${error.message}`);
     }
     log('\nRun "bluetemberg update" again after resolving the errors above.');
-    throw new Error(`${failed.length} pack(s) failed to update.`);
+    throw failureError('update', failed, options.silent);
   }
 
   return results;
@@ -778,16 +822,40 @@ export async function verify(root: string, options: RegistryVerifyOptions = {}):
  *
  * Returns directories in manifest order (lower priority than local source and
  * `extends` entries — caller handles priority ordering) along with any warnings
- * about packs that are declared but missing from the lockfile or cache.
+ * about packs that are declared but missing from the lockfile or cache. `labels[i]` names the pack
+ * behind `dirs[i]` as `name@version`, for diagnostics (`bluetemberg why`).
  */
-export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: string[]; warnings: string[] } {
+export function resolvePackSourceDirs(
+  root: string,
+  source = 'llm',
+): { dirs: string[]; labels: string[]; warnings: string[] } {
+  const { dirs, labels, warnings } = resolvePackSources(root, source);
+  return { dirs, labels, warnings };
+}
+
+/** An installed pack as sync reads it: what is locked, and where its cached copy lives. */
+export interface PackSource {
+  name: string;
+  version: string;
+  /** The lockfile's tarball integrity (`sha512-…`), which `verify` checks the cache against. */
+  integrity: string;
+}
+
+/** {@link resolvePackSourceDirs} plus the locked name, version and integrity behind each dir. */
+export function resolvePackSources(
+  root: string,
+  source = 'llm',
+): { dirs: string[]; labels: string[]; packs: PackSource[]; warnings: string[] } {
   const manifest = readManifest(root, source);
   const lock = readLockfile(root, source);
 
   const manifestNames = Object.keys(manifest.packages);
   const lockNames = Object.keys(lock.packages);
-  if (manifestNames.length === 0 && lockNames.length === 0) return { dirs: [], warnings: [] };
+  if (manifestNames.length === 0 && lockNames.length === 0)
+    return { dirs: [], labels: [], packs: [], warnings: [] };
   const dirs: string[] = [];
+  const labels: string[] = [];
+  const packs: PackSource[] = [];
   const warnings: string[] = [];
 
   // Sync must stay read-only (it runs with --check in CI), so legacy manifests
@@ -816,6 +884,8 @@ export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: str
     }
 
     dirs.push(dir);
+    labels.push(`${name}@${lockEntry.version}`);
+    packs.push({ name, version: lockEntry.version, integrity: lockEntry.integrity });
   }
 
   // Warn about stale lockfile entries that are no longer in the manifest.
@@ -827,7 +897,7 @@ export function resolvePackSourceDirs(root: string, source = 'llm'): { dirs: str
     }
   }
 
-  return { dirs, warnings };
+  return { dirs, labels, packs, warnings };
 }
 
 // ---------------------------------------------------------------------------

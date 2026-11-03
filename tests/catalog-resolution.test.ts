@@ -1,10 +1,17 @@
 import { describe, it, expect } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolveRuleCollections, resolveAgents, resolveSkills } from '../src/init/presets.js';
 import {
+  DEFAULT_INIT_PLATFORMS,
   agentsForProfile,
+  buildInitAnswersFromProfile,
   defaultRuleCollections,
+  finalizeNonInteractiveAnswers,
   skillsForProfile,
 } from '../src/init/init-answers-from-profile.js';
+import { isPreselected } from '../src/init/preset-resolution.js';
 import type { Catalog } from '../src/catalog/index.js';
 
 function catalogWith(packs: Catalog['packs']): Catalog {
@@ -260,12 +267,22 @@ describe('catalog-derived preset resolution', () => {
     });
 
     it('are preselected by their catalog profiles, like curated packs', () => {
-      expect(defaultRuleCollections('frontend', uncurated, none)).toContain('tailwind');
-      expect(defaultRuleCollections('backend', uncurated, none)).not.toContain('tailwind');
-      expect(agentsForProfile('backend', uncurated, none)).toContain('payload-specialist');
-      expect(agentsForProfile('frontend', uncurated, none)).not.toContain('payload-specialist');
-      expect(skillsForProfile('devops', uncurated, none)).toContain('create-rule');
-      expect(skillsForProfile('custom', uncurated, none)).not.toContain('create-rule');
+      expect(defaultRuleCollections('frontend', uncurated, none, DEFAULT_INIT_PLATFORMS)).toContain(
+        'tailwind',
+      );
+      expect(defaultRuleCollections('backend', uncurated, none, DEFAULT_INIT_PLATFORMS)).not.toContain(
+        'tailwind',
+      );
+      expect(agentsForProfile('backend', uncurated, none, DEFAULT_INIT_PLATFORMS)).toContain(
+        'payload-specialist',
+      );
+      expect(agentsForProfile('frontend', uncurated, none, DEFAULT_INIT_PLATFORMS)).not.toContain(
+        'payload-specialist',
+      );
+      expect(skillsForProfile('devops', uncurated, none, DEFAULT_INIT_PLATFORMS)).toContain('create-rule');
+      expect(skillsForProfile('custom', uncurated, none, DEFAULT_INIT_PLATFORMS)).not.toContain(
+        'create-rule',
+      );
     });
 
     it('never surfaces a guardrails pack as a rule, agent, or skill', () => {
@@ -337,14 +354,117 @@ describe('catalog-derived preset resolution', () => {
     });
 
     it('are preselected only when one of their stacks is in the project', () => {
-      expect(defaultRuleCollections('backend', catalog, new Set())).toEqual(['git']);
-      expect(defaultRuleCollections('backend', catalog, new Set(['payload']))).toEqual(['git', 'payload']);
-      expect(skillsForProfile('frontend', catalog, new Set(['nextjs']))).not.toContain('react-patterns');
-      expect(skillsForProfile('frontend', catalog, new Set(['react']))).toContain('react-patterns');
+      expect(defaultRuleCollections('backend', catalog, new Set(), DEFAULT_INIT_PLATFORMS)).toEqual(['git']);
+      expect(
+        defaultRuleCollections('backend', catalog, new Set(['payload']), DEFAULT_INIT_PLATFORMS),
+      ).toEqual(['git', 'payload']);
+      expect(
+        skillsForProfile('frontend', catalog, new Set(['nextjs']), DEFAULT_INIT_PLATFORMS),
+      ).not.toContain('react-patterns');
+      expect(skillsForProfile('frontend', catalog, new Set(['react']), DEFAULT_INIT_PLATFORMS)).toContain(
+        'react-patterns',
+      );
     });
 
     it('are still offered in the wizard when not preselected', () => {
       expect(resolveRuleCollections(catalog).map((c) => c.id)).toContain('payload');
+    });
+  });
+
+  describe('platform-specific packs (#281)', () => {
+    const catalog = catalogWith([
+      {
+        name: 'bluetemberg-agents-pr-reviewer',
+        version: '0.1.0',
+        description: 'PR reviewer agent for Bluetemberg — headless review loop.',
+        kind: 'agents',
+        universal: false,
+        profiles: ['backend'],
+        platforms: ['claude'],
+        agents: ['pr-reviewer'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-skills-session-retrospective',
+        version: '0.1.0',
+        description: 'Session retrospective skill for Bluetemberg — SessionEnd audit.',
+        kind: 'skills',
+        universal: true,
+        profiles: [],
+        platforms: ['claude'],
+        skills: ['session-retrospective'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-rules-devin-only',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: true,
+        profiles: [],
+        platforms: ['windsurf'],
+        rules: ['devin-only'],
+        preview: '',
+      },
+      {
+        name: 'bluetemberg-rules-git',
+        version: '0.1.0',
+        description: '',
+        kind: 'rules',
+        universal: true,
+        profiles: [],
+        platforms: [],
+        rules: ['git-workflow'],
+        preview: '',
+      },
+    ]);
+    const none = new Set<string>();
+
+    it('carry the catalog platforms onto the resolved preset; an empty list means every platform', () => {
+      expect(resolveAgents(catalog).find((a) => a.id === 'pr-reviewer')?.platforms).toEqual(['claude']);
+      expect(resolveRuleCollections(catalog).find((c) => c.id === 'git')?.platforms).toBeUndefined();
+    });
+
+    it('are preselected only when one of their platforms is targeted', () => {
+      expect(agentsForProfile('backend', catalog, none, ['claude', 'cursor'])).toContain('pr-reviewer');
+      expect(agentsForProfile('backend', catalog, none, ['cursor'])).not.toContain('pr-reviewer');
+      expect(skillsForProfile('frontend', catalog, none, ['copilot'])).not.toContain('session-retrospective');
+      expect(skillsForProfile('frontend', catalog, none, ['claude'])).toContain('session-retrospective');
+    });
+
+    it('keep packs without platforms preselected for every platform', () => {
+      expect(defaultRuleCollections('backend', catalog, none, ['copilot'])).toContain('git');
+    });
+
+    it('treat windsurf as devin on both sides', () => {
+      expect(defaultRuleCollections('backend', catalog, none, ['devin'])).toContain('devin-only');
+      expect(defaultRuleCollections('backend', catalog, none, ['windsurf'])).toContain('devin-only');
+      expect(defaultRuleCollections('backend', catalog, none, ['cursor'])).not.toContain('devin-only');
+    });
+
+    it('count claude-marketplace as Claude Code', () => {
+      expect(agentsForProfile('backend', catalog, none, ['claude-marketplace'])).toContain('pr-reviewer');
+    });
+
+    it('never preselect a pack whose platforms name nothing known', () => {
+      const preset = { universal: true, platforms: ['cursr'] };
+      expect(isPreselected(preset, 'backend', none, ['cursor', 'claude'])).toBe(false);
+    });
+
+    it('route non-interactive init by --platforms', () => {
+      // The project catalog cache is what `init` reads, so the fixture catalog goes there.
+      const dir = mkdtempSync(join(tmpdir(), 'bt-init-platforms-'));
+      try {
+        mkdirSync(join(dir, '.bluetemberg'));
+        writeFileSync(join(dir, '.bluetemberg', 'catalog.json'), JSON.stringify(catalog));
+        expect(buildInitAnswersFromProfile('backend', dir, catalog, none).agents).toContain('pr-reviewer');
+        expect(finalizeNonInteractiveAnswers('backend', dir, {}).agents).toContain('pr-reviewer');
+        const cursorOnly = finalizeNonInteractiveAnswers('backend', dir, { platforms: ['cursor'] });
+        expect(cursorOnly.platforms).toEqual(['cursor']);
+        expect(cursorOnly.agents).not.toContain('pr-reviewer');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });

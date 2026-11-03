@@ -22,7 +22,7 @@ Bluetemberg stores project settings in `bluetemberg.config.json` at the reposito
       "copilot": { "dir": ".github/agents", "ext": ".agent.md" }
     },
     "skills": {
-      "cursor": { "dir": ".cursor/skills" },
+      "cursor": { "dir": ".agents/skills" },
       "claude": { "dir": ".claude/skills" },
       "copilot": { "dir": ".github/skills" }
     }
@@ -37,15 +37,17 @@ The `stacks`, `extends`, `adapters`, and `root` fields are optional.
 
 ### `platforms`
 
-Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"antigravity"`, `"devin"`, `"codex"`, `"claude-marketplace"`.
+Array of target platforms. Valid values: `"cursor"`, `"claude"`, `"copilot"`, `"gemini"`, `"antigravity"`, `"devin"`, `"codex"`, `"claude-marketplace"`, `"agent-plugins"`.
 
 `"gemini"` is **Gemini CLI for Enterprise**: Google stopped serving Gemini CLI to free and individual paid users on 2026-06-18, and `"antigravity"` (Antigravity CLI) is its successor. See [Gemini CLI](#gemini-cli-gemini) and [Antigravity CLI](#antigravity-cli-antigravity) below.
 
 `"devin"` is Devin Desktop, formerly Windsurf. The old id `"windsurf"` is still accepted as an alias and behaves identically, so existing configs keep working; `init` now writes `"devin"`. A `targets.<kind>.windsurf` entry is read as the `devin` entry, and one that still points at the old default (`.windsurf/rules`, `.windsurf/skills`) picks up the new Devin default instead. See [Devin Desktop](#devin-desktop-devin) below.
 
-Only selected platforms get generated output during sync.
+Only selected platforms get generated output during sync. Packs can also be limited to some platforms (a Claude Code–only reviewer, say): such a pack gets no output for the other selected platforms, and `init` doesn't preselect it when none of its platforms is selected. See [Profiles](Profiles#platforms).
 
 `"claude-marketplace"` emits a plugin bundle under `plugins/` and `.claude-plugin/` that can be installed by teammates via `/plugin marketplace add owner/repo`. See [Marketplace](Marketplace).
+
+`"agent-plugins"` makes the same `plugins/<name>/` directories [Agent Plugins 1.0](https://agent-plugins.org) bundles (root `plugin.json`, `skills/`, Copilot agents, and a bundle lock), installable in VS Code, Copilot CLI, Codex and Cursor. It is opt-in and works with or without `"claude-marketplace"`. See [Marketplace — Agent Plugins bundles](Marketplace#agent-plugins-bundles).
 
 ### `source`
 
@@ -76,7 +78,7 @@ Optional map of **technology stack → version**, declaring which frameworks (an
 | `"auto"` | Re-detect this stack every sync from `node_modules` / lockfile / `package.json`. |
 | (omitted) | The stack is still auto-detected if its package is a dependency; declare it here only to pin a version or surface it in `bluetemberg detect`. |
 
-Stack names are an **open vocabulary** — adding a framework never requires an engine release. The known stack→package mappings (e.g. `nextjs` → `next`, `angular` → `@angular/core`) are used for auto-detection; unknown names map to themselves. A version declared here is never persisted with a confidence level — confidence is a property of *detection* and is surfaced live by `bluetemberg detect`.
+Stack names are an **open vocabulary** — adding a framework never requires an engine release. Auto-detection uses the [stack map](Stacks#the-stack-map-which-package-is-a-stack) (e.g. `nextjs` → `next`, `angular` → `@angular/core`), built into the engine and extended by the catalog; a declared name with no mapping maps to itself. A version declared here is never persisted with a confidence level — confidence is a property of *detection* and is surfaced live by `bluetemberg detect`.
 
 `bluetemberg init` populates this field via a **detect-then-confirm** step (detected stacks pre-checked, with free-text adds), or pass `--stacks` in headless runs; you can also edit it by hand. Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory). `llm/` remains the source of truth; this field only routes existing content.
 
@@ -84,7 +86,7 @@ See [Stacks & Versioning](Stacks) for the full model: detection precedence and c
 
 ### `extends`
 
-Optional string or array of strings that point to **additional source directories** to merge with the local `source` directory. Extended sources supply rules, agents, and skills that your local `source` dir does not define; when the same filename exists in both, the **local file wins**.
+Optional string or array that points to **additional source directories** to merge with the local `source` directory. An array entry is either a string (applies to every platform) or a [platform-scoped entry](#platform-scoped-extends-entries). Extended sources supply rules, agents, and skills that your local `source` dir does not define; when the same filename exists in both, the **local file wins**.
 
 Supported formats:
 
@@ -121,9 +123,38 @@ my-monorepo/
 
 **Shared npm rule pack use case:** Publish an npm package containing a `llm/` directory, install it, then reference it in `extends`.
 
+#### Platform-scoped `extends` entries
+
+An entry can be limited to some platforms with `{ "path": string, "platforms": string[] }`. It is merged only when syncing one of those platforms; every other platform syncs as if the entry were not there. Plain strings keep applying to every platform, and the two forms mix freely:
+
+```json
+{
+  "platforms": ["claude", "claude-marketplace"],
+  "extends": [
+    "./packages/bluetemberg-skills-create-pack",
+    { "path": "./packages/bluetemberg-rules-kubernetes", "platforms": ["claude-marketplace"] }
+  ]
+}
+```
+
+Here `.claude/` gets only `create-pack`, while the generated marketplace plugins get both. That is the shape for a repo that publishes many packs but uses few itself.
+
+- **Platform ids** are the `platforms` ids above. `windsurf` is read as `devin`. A scope names exactly the platforms that consume the entry: `["claude"]` does **not** include `claude-marketplace`, so list both if both should get it.
+- **Validation:** an entry must be a string or an object with exactly `path` (a non-empty string) and `platforms` (a non-empty array of known ids). Anything else, such as a misspelled key, an unknown platform or an empty list, fails config loading with the entry's index (`extends[2].platforms has unknown platform(s): vscode`). `extends` itself must still be an array to hold scoped entries; a single top-level object is rejected.
+- **Priority** is unchanged: array order, local `source` first. A scoped entry that ships the same file as a lower-priority entry only overrides it for its own platforms. The other platforms get the lower copy.
+- **Unconfigured platforms:** an entry none of whose platforms is in `platforms` is never synced, and sync warns. An entry that names some unconfigured platforms besides configured ones is fine and does not warn.
+- **Duplicate paths:** a path listed more than once (in one file, or across a [monorepo chain](#monorepo-config-inheritance)) keeps its first, highest-priority position, and its scopes are **unioned**. Any plain-string occurrence makes it apply everywhere. A duplicate can only widen a scope; to narrow one, remove the broader entry.
+- **Shared outputs:** some outputs are written for several platforms. Codex, Devin and Antigravity all load `.agents/skills/`, Codex and Gemini both read the rules block in `AGENTS.md`, and a custom `targets` entry can point two platforms at one dir. Such an output holds one set of content, so its platforms must get the same content *of the kind it holds*. A Codex-only entry that ships only rules is fine next to Devin, since `.agents/skills/` stays the same for both. If scopes do give those platforms different content for a shared output, sync fails with an error naming the output and the platforms, and writes nothing. Scope those entries to all of the platforms or none of them.
+- **Labels:** sync warnings and `--verbose` name an entry `extends[i]` by its position in the array, the same index validation errors use.
+- **Pruning:** narrowing a scope makes the files it used to produce for the dropped platform stale. `sync --check` reports them, and `sync --prune` removes them, like any other output whose source is gone.
+- **Marketplace:** `claude-marketplace` reads every unscoped entry plus every entry scoped to it, and nothing else. So does `agent-plugins`. The two write into the same `plugins/<name>/` bundles, so an entry with rules, skills or agents must be scoped to both or to neither; otherwise sync fails with a message naming `plugins/`.
+- **[`bluetemberg why`](Commands#bluetemberg-why-file-directory)** answers for the platform you ask about. A generated path is explained with the copy that platform syncs, and `--diff` diffs each group of platforms against its own copies.
+- **Lockfile:** scopes never touch `llm/packages-lock.json`. `extends` entries are local paths or `node_modules` packages that bluetemberg does not lock (npm's own lockfile pins those), and installed packs are not affected by `extends` scopes.
+- **`init` and `switch-profile`** keep `extends` as written, scoped entries included, when they rewrite the config.
+
 ### `marketplace`
 
-Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how `llm/` content maps to installable plugins:
+Optional. Used when `"claude-marketplace"` or `"agent-plugins"` is in `platforms`. Controls how `llm/` content maps to installable plugins:
 
 ```json
 {
@@ -142,7 +173,7 @@ Optional. Only used when `"claude-marketplace"` is in `platforms`. Controls how 
 ```
 
 - `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` merges `extraKnownMarketplaces` (keyed by marketplace name) and `enabledPlugins` into `.claude/settings.json`, so Claude Code prompts teammates to install the plugins.
-- `plugins` — when omitted, a single plugin named after the project directory is emitted. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks matches; stack-agnostic files are always included).
+- `plugins` — when omitted, a single plugin named after the project directory is emitted. With `"agent-plugins"`, each `name` must be a valid Agent Plugins name (1-64 lowercase letters, digits, `-` or `.`, alphanumeric at both ends, no `--` or `..`). For one that isn't, sync skips that plugin's Agent Plugins files and suggests a name; the Claude bundle is still written. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks matches; stack-agnostic files are always included).
 - `owner` — `{ "name", "email"?, "url"? }`, written into `marketplace.json`, where Claude Code requires it. When omitted, the owner segment of `remote` is used, else the project directory name.
 
 See [Marketplace](Marketplace) for the full schema, profile filtering behavior, and publishing setup.
@@ -168,7 +199,7 @@ On Windows, Git may checkout files with CRLF. Check mode compares normalized lin
 ```
 .cursor/rules/** text eol=lf
 .cursor/agents/** text eol=lf
-.cursor/skills/** text eol=lf
+.agents/skills/** text eol=lf
 .claude/** text eol=lf
 .github/instructions/** text eol=lf
 .github/agents/** text eol=lf
@@ -181,7 +212,7 @@ Adjust the list to match the platforms and directories you use.
 
 #### Generated-file banner
 
-Every generated Markdown and TOML file carries a banner immediately after its frontmatter (TOML: as a `#` comment on the first line) naming the source it came from. That covers rules, agents, skills, commands, Copilot prompts, Codex agent TOML, marketplace plugin skills and agents, and the `.github/copilot-instructions.md` copy of `AGENTS.md`. JSON outputs (`mcp.json`, `.cursor/hooks.json`, `.gemini/settings.json`, `.agents/mcp_config.json`, the marketplace manifests) cannot carry a comment and have none:
+Every generated Markdown and TOML file carries a banner immediately after its frontmatter (TOML: as a `#` comment on the first line) naming the source it came from. That covers rules, agents, skills, commands, Copilot prompts, Codex agent TOML, marketplace plugin skills and agents, and the `.github/copilot-instructions.md` copy of `AGENTS.md`. JSON outputs (`mcp.json`, `.cursor/hooks.json`, `.github/hooks/bluetemberg-guardrails.json`, `.gemini/settings.json`, `.agents/mcp_config.json`, the marketplace manifests) cannot carry a comment and have none:
 
 ```md
 <!-- Generated by bluetemberg from rules/no-console-log.md. Do not edit — run `bluetemberg sync` after editing the source. -->
@@ -234,16 +265,17 @@ Sync normally **only writes**; it does not delete old outputs when you remove or
 
 | Platform    | Default dir        |
 | ----------- | ------------------ |
-| cursor      | `.cursor/skills`   |
+| cursor      | `.agents/skills` (none while Claude's dir is written) |
 | claude      | `.claude/skills`   |
 | copilot     | `.github/skills`   |
 | devin       | `.agents/skills`   |
 | codex       | `.agents/skills`   |
 | antigravity | `.agents/skills`   |
+| gemini      | `.agents/skills`   |
 
-Devin Desktop, Codex and Antigravity share `.agents/skills`; sync writes each skill there once, and `--prune` removes it once.
+Skills are synced as `<skill-name>/SKILL.md` within the target directory. When several platforms share a dir (`.agents/skills`), it is written and pruned once. Cursor also reads `.claude/skills` and lists a skill once, so with `claude` enabled Cursor's default target is dropped and Cursor reads Claude's copy. A dir you set yourself is always written. Why each host gets the dir it gets is in [Adapters](Adapters#skills-dirs-per-host).
 
-Skills are synced as `<skill-name>/SKILL.md` within the target directory. When several platforms share a directory (Devin and Codex both load `.agents/skills/`), it is written and pruned once.
+A `targets.skills.cursor` entry pointing at `.cursor/skills` (what `init` wrote before) means the default. To keep writing a Cursor-only copy, point it at another dir.
 
 > Codex rules, agents, and MCP do **not** use the `targets` tables above — they have fixed,
 > non-per-file outputs. See [OpenAI Codex](#openai-codex-codex) below. Only `targets.skills.codex`
@@ -277,7 +309,7 @@ my-monorepo/
 |-------|----------|
 | `platforms` | **Unioned** across the chain (ancestor entries first), deduped. |
 | `targets` | **Deep-merged per platform.** A local entry overriding only `dir` keeps the inherited `ext`. |
-| `extends` | **Unioned**, with local entries taking priority (placed first), deduped. |
+| `extends` | **Unioned**, with local entries taking priority (placed first), deduped by path. A path in more than one file keeps the local position, with the union of its [platform scopes](#platform-scoped-extends-entries). |
 | `stacks` | **Merged** as an object; local versions override inherited ones. |
 | `adapters` | **Unioned** (local first), deduped. |
 | `source` | **Never inherited** — always the local package's value (or the default `llm`). |
@@ -351,7 +383,7 @@ After changing `mcp.json`, run `bluetemberg sync` (or your `sync:llm-config` scr
 
 ## Cursor hooks (`llm/hooks.json`)
 
-When this file exists and **`cursor`** is in `platforms`, sync writes **`.cursor/hooks.json`** with the same logical content (validated JSON). See [Writing Hooks](Writing-Hooks).
+When this file exists and **`cursor`** is in `platforms`, sync writes **`.cursor/hooks.json`** with the same logical content (validated JSON), composed with any [Guardrails](Guardrails)-generated entries. See [Writing Hooks](Writing-Hooks).
 
 ## Claude Code hooks (`llm/hooks.claude.json`)
 
@@ -366,9 +398,10 @@ Markdown files in this directory (except `README.md`) are copied to **`.claude/c
 Windsurf became Devin Desktop on 2026-06-02. Devin reads `AGENTS.md`, workspace rules from `.devin/rules/*.md` (preferred) and `.windsurf/rules/*.md` (legacy fallback), and skills from `.agents/skills/`.
 
 - **Rules** go to `.devin/rules/` with `trigger: always_on` (for `scope: '**'`) or `trigger: glob` plus `globs:`. For a transition period they are also mirrored to `.windsurf/rules/`, so a Devin build that still reads only the legacy path keeps them. **The mirror will be dropped in a later release**, so make sure your team is on a Devin build that reads `.devin/rules/` before then.
-- **Skills** go to `.agents/skills/`, shared with Codex and Antigravity. Bluetemberg no longer writes `.windsurf/skills/`.
+- **Skills** go to `.agents/skills/`, shared with Codex, Antigravity, Gemini CLI and Cursor. Bluetemberg no longer writes `.windsurf/skills/`.
+- **Guardrails** compile to `PreToolUse` hooks in `.devin/hooks.v1.json` for `Bash` checks (Devin's `exec` tool). Hand-written hooks in that file are kept. See [Guardrails](Guardrails#devin-desktop).
 - **Workflows** are gone: Devin deprecated them in favor of skills (2026-07-29), so `llm/commands/` no longer emits `.windsurf/workflows/`. Ship the procedure as a skill instead.
-- **Upgrading:** generated files left in `.windsurf/workflows/` and `.windsurf/skills/` show up as `STALE:` in `sync --check`. Run `bluetemberg sync --prune` once to remove them. A workflow file without the banner is left alone. A skill directory is handled as one unit, like every [stale skill directory](#stale-generated-files-sync---prune): if its `SKILL.md` carries the banner, the whole directory goes, including any file you added to it. If its `SKILL.md` has no banner, the directory is left alone.
+- **Upgrading:** generated files left in `.windsurf/workflows/` and `.windsurf/skills/` show up as `STALE:` in `sync --check`. Run `bluetemberg sync --prune` once to remove them. A workflow file without the banner is left alone. A skill there goes when its `SKILL.md` carries the banner. Its other files go only when they are identical to the live copy in `.agents/skills/`; any other file stays and is listed, in a dir no host loads once `SKILL.md` is gone. If its `SKILL.md` has no banner, the directory is left alone. `.cursor/skills/` is pruned the same way (see [Adapters](Adapters#skills-dirs-per-host)).
 
 ## Copilot prompt files (`llm/prompts/`)
 
@@ -384,6 +417,7 @@ Codex reads `AGENTS.md` natively and uses TOML configuration, so it does not fol
 | `llm/agents/*.md`       | `.codex/agents/<name>.toml`             | Markdown body → `developer_instructions`; only `name` + `description` carry over.            |
 | `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`        | Vendor-neutral path; format unchanged. Configurable via `targets.skills.codex`.             |
 | `llm/mcp.json`          | `[mcp_servers.*]` in `.codex/config.toml` | Fenced managed block; hand-authored config preserved.                                       |
+| `llm/guardrails/*.md`   | `[[hooks.PreToolUse]]` in `.codex/config.toml` | Fenced managed block for `Bash` guardrails; Codex runs them once trusted with `/hooks`. See [Guardrails](Guardrails#codex). |
 
 `AGENTS.md` and `.codex/config.toml` are edited in place via managed blocks, so they are **not** removed by `--prune` (the generated `.codex/agents/*.toml` files **are** pruned). If `copilot` is also enabled, the rules block is stripped from its derived `copilot-instructions.md`, since Copilot receives scoped rules through `.github/instructions/`. The block is written only when `codex` or `gemini` is selected. For the reasoning, and for the overlap when it is combined with Claude Code, Cursor, Copilot, or Antigravity (all of which read `AGENTS.md` on at least some surfaces), see [Architecture](Architecture#why-the-rules-block-is-only-for-codex-and-gemini-cli).
 
@@ -395,8 +429,11 @@ For **Gemini CLI for Enterprise** (Gemini Code Assist Standard / Enterprise lice
 | ---------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `AGENTS.md`      | `context.fileName` in `.gemini/settings.json`      | `AGENTS.md` is added to the list; with no list yet it becomes `["AGENTS.md", "GEMINI.md"]`, so a hand-written `GEMINI.md` still loads. |
 | `llm/rules/*.md` | managed block in `AGENTS.md`                       | The same block Codex reads, with each rule's `scope` noted as `_Applies to: …_`.          |
+| `llm/skills/*/`  | `.agents/skills/<name>/`                           | Gemini CLI reads `.agents/skills/` (ahead of `.gemini/skills/`). Shared with Codex, Devin and Antigravity. Configurable via `targets.skills.gemini`. |
 
-Sync owns only that one entry in `.gemini/settings.json`. Every other setting is kept, a file that already lists `AGENTS.md` is left byte for byte, and a file sync cannot parse as JSON (for example one with comments) is never overwritten: sync records an error asking for the one-line edit instead. Agents, skills, and MCP are not emitted for Gemini CLI.
+**Skills on an existing config:** an explicit `targets.skills` section (which `init` writes) replaces the defaults, and configs written before Gemini CLI got skills have no `gemini` entry. Add `"gemini": { "dir": ".agents/skills" }` to `targets.skills`, or Gemini CLI gets no skills. Sync warns about this, naming the entry to add, for any enabled platform that reads skills but has no skills output.
+
+Sync owns only that one entry in `.gemini/settings.json`. Every other setting is kept, a file that already lists `AGENTS.md` is left byte for byte, and a file sync cannot parse as JSON (for example one with comments) is never overwritten: sync records an error asking for the one-line edit instead. Agents and MCP are not emitted for Gemini CLI.
 
 **Upgrading from an earlier bluetemberg:** sync used to copy `AGENTS.md` into a bannered `GEMINI.md` and write rules to `.gemini/context/`, which Gemini CLI never loaded. Both are now reported as `STALE:` by `sync --check`; run `bluetemberg sync --prune` to delete the bannered copies (hand-written files there are kept), and remove any `targets.rules.gemini` entry from your config.
 
@@ -407,7 +444,7 @@ Antigravity CLI succeeds Gemini CLI for individual users. It reads `AGENTS.md` (
 | Source                  | Output                                     | Notes                                                                                     |
 | ----------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `llm/rules/*.md`        | `.agents/rules/<name>.md`                  | `scope: '**'` → `trigger: always_on`; otherwise `trigger: glob`, `globs: scope`. Configurable via `targets.rules.antigravity`. |
-| `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`           | Shared with Codex and Devin Desktop. Configurable via `targets.skills.antigravity`.        |
+| `llm/skills/*/SKILL.md` | `.agents/skills/<name>/SKILL.md`           | Shared with Codex, Devin Desktop, Gemini CLI and Cursor. Configurable via `targets.skills.antigravity`. |
 | `llm/mcp.json`          | `mcpServers` in `.agents/mcp_config.json`  | stdio servers as `command` / `args`, remote ones as `serverUrl`.                           |
 
 **Moving from `gemini`:** if your config has explicit `targets.rules` or `targets.skills` sections (`init` writes them), they replace the defaults, so add `"antigravity": { "dir": ".agents/rules", "ext": ".md" }` to `targets.rules` and `"antigravity": { "dir": ".agents/skills" }` to `targets.skills`; otherwise Antigravity gets no rules or skills. The bannered `GEMINI.md` and `.gemini/context/` files from the old Gemini integration are reported as stale with `antigravity` selected too (Antigravity loads `GEMINI.md`), so `bluetemberg sync --prune` removes them.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { program, InvalidArgumentError } from 'commander';
-import { readFileSync, writeSync } from 'node:fs';
+import { readFileSync, statSync, writeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -339,8 +339,15 @@ program
   .option('--verbose', 'Emit debug output: resolved source dirs, per-file origins, warnings')
   .option('--no-recursive', 'Sync only this directory; do not descend into configured workspace packages')
   .action(async (directory, options) => {
-    const { sync, loadConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
+    const { sync, loadConfig, hasSyncConfig, shouldExitWithFailure } = await import('../dist/sync/index.js');
     const root = resolve(directory);
+
+    if (!hasSyncConfig(root, options.recursive)) {
+      console.error(
+        `Error: No bluetemberg.config.json found for ${root}, so there is nothing to sync. Run \`bluetemberg init\` to set one up.`,
+      );
+      process.exit(1);
+    }
 
     // Validate the local config early for a clean error + exit code. Sync (re)loads config per
     // package, so a recursive run picks up each workspace package's own merged config and stacks.
@@ -394,6 +401,121 @@ program
     }
   });
 
+/** One line per top-level path: hundreds of generated files read better as counts. */
+function summarizePaths(paths) {
+  const groups = new Map();
+  for (const path of paths) {
+    const parts = path.split(/[\\/]/);
+    const key = parts.length > 2 ? `${parts[0]}/${parts[1]}/` : path;
+    groups.set(key, (groups.get(key) ?? 0) + 1);
+  }
+  return [...groups].map(([key, count]) => (count > 1 ? `${key} (${count} files)` : key));
+}
+
+function printUninstallPlan(result, verb) {
+  console.log(`\n  ${verb} remove:`);
+  for (const line of summarizePaths(result.removed)) console.log(`    ${line}`);
+  if (result.edited.length > 0) {
+    console.log(`\n  ${verb} edit (bluetemberg-owned keys, blocks or lines only):`);
+    for (const path of result.edited) console.log(`    ${path}`);
+  }
+}
+
+program
+  .command('uninstall')
+  .description('Remove generated output, managed config and bluetemberg state; keep files you wrote')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--dry-run', 'Show what would be removed or edited, change nothing')
+  .option('-y, --yes', 'Skip the confirmation prompt')
+  .option('--silent', 'Suppress output')
+  .action(async (directory, options) => {
+    const { uninstall } = await import('../dist/uninstall/index.js');
+    const root = resolve(directory);
+    try {
+      if (options.dryRun) {
+        printUninstallPlan(await uninstall(root, { dryRun: true }), 'Would');
+        return;
+      }
+      if (!options.yes) {
+        if (!process.stdin.isTTY) {
+          console.error('Error: uninstall deletes files. Pass --yes to confirm, or --dry-run to preview.');
+          process.exit(1);
+        }
+        printUninstallPlan(await uninstall(root, { dryRun: true }), 'Will');
+        const { confirm } = await import('@inquirer/prompts');
+        if (!(await confirm({ message: 'Uninstall bluetemberg from this project?', default: false }))) {
+          console.log('Nothing changed.');
+          return;
+        }
+      }
+      const result = await uninstall(root);
+      if (!options.silent) {
+        console.log(`\nRemoved ${result.removed.length} file(s), edited ${result.edited.length}.`);
+        console.log(
+          'Kept: AGENTS.md, CLAUDE.md, the GitHub files init scaffolded, and your own sources under llm/.',
+        );
+        console.log('Finish with: npm uninstall bluetemberg');
+      }
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+function printEjectPlan(result, verb) {
+  console.log(`\n  ${verb} remove (bluetemberg config and state):`);
+  for (const line of summarizePaths(result.removed)) console.log(`    ${line}`);
+  if (result.edited.length > 0) {
+    console.log(`\n  ${verb} edit (generated banners and managed-block markers only):`);
+    for (const line of summarizePaths(result.edited)) console.log(`    ${line}`);
+  }
+}
+
+program
+  .command('eject')
+  .description(
+    'Keep the generated files as plain files you own; remove banners, config and bluetemberg state',
+  )
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--dry-run', 'Show what would be removed or edited, change nothing')
+  .option('-y, --yes', 'Skip the confirmation prompt')
+  .option('--silent', 'Suppress output')
+  .action(async (directory, options) => {
+    const { eject } = await import('../dist/eject/index.js');
+    const root = resolve(directory);
+    try {
+      if (options.dryRun) {
+        printEjectPlan(await eject(root, { dryRun: true }), 'Would');
+        return;
+      }
+      if (!options.yes) {
+        if (!process.stdin.isTTY) {
+          console.error('Error: eject deletes files. Pass --yes to confirm, or --dry-run to preview.');
+          process.exit(1);
+        }
+        printEjectPlan(await eject(root, { dryRun: true }), 'Will');
+        const { confirm } = await import('@inquirer/prompts');
+        if (!(await confirm({ message: 'Eject bluetemberg from this project?', default: false }))) {
+          console.log('Nothing changed.');
+          return;
+        }
+      }
+      const result = await eject(root);
+      if (!options.silent) {
+        console.log(`\nRemoved ${result.removed.length} file(s), edited ${result.edited.length}.`);
+        console.log(
+          'Kept as plain files you own: every generated file, AGENTS.md, MCP servers, hooks and guardrails, and your sources under llm/ (nothing syncs them now).',
+        );
+        console.log(
+          'Finish with: npm uninstall bluetemberg, and drop any package.json scripts that call it.',
+        );
+      }
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
 program
   .command('preview')
   .description(
@@ -402,6 +524,10 @@ program
   .argument('[profile]', `Profile to preview (one of: ${[...TEAM_PROFILES].join(', ')})`)
   .option('--list', 'List all available profiles')
   .option('--force', 'Force re-fetch of the pack catalog')
+  .option(
+    '--platforms <csv>',
+    'Platforms to preview for (default: the project config, else every platform but claude-marketplace)',
+  )
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (profile, options) => {
     const { preview, previewList } = await import('../dist/preview/index.js');
@@ -416,10 +542,17 @@ program
       process.exit(1);
     }
 
+    const platforms = options.platforms === undefined ? undefined : csvList(options.platforms);
+    if (platforms !== undefined && (platforms.length === 0 || platforms.some((p) => !PLATFORMS.has(p)))) {
+      console.error(`--platforms must be comma-separated from: ${Array.from(PLATFORMS).join(', ')}`);
+      process.exit(1);
+    }
+
     try {
       await preview(process.cwd(), profile, {
         silent: options.silent,
         force: options.force,
+        platforms,
       });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -461,6 +594,97 @@ program
         silent: options.silent,
         log: console.log,
       });
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+const stacksCmd = program
+  .command('stacks')
+  .description('[maintainer] Inspect the stacks: ranges declared by guidance (lint, list)');
+
+stacksCmd
+  .command('lint')
+  .description('Flag open-ended stacks: ranges and ranges past the latest released major')
+  .argument('[directory]', 'Project root, or a packs repo (packages/<pack>/llm)', '.')
+  .option('--offline', 'Do not query the npm registry; use cached latest versions only')
+  .option('--json', 'Emit machine-readable JSON (findings, latest, unchecked, warnings)')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
+  .action(async (directory, options) => {
+    const { buildRangeLintReport, formatRangeLint } = await import('../dist/stacks/ranges.js');
+    try {
+      const report = await buildRangeLintReport(resolve(directory), { offline: options.offline });
+      if (!options.silent) {
+        console.log(options.json ? JSON.stringify(report, null, 2) : formatRangeLint(report).join('\n'));
+      }
+      if (report.findings.length > 0) process.exitCode = 1;
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+stacksCmd
+  .command('list')
+  .description('List guidance declaring a range for a stack (e.g. "payload@3" or "payload@>=3 <4")')
+  .argument('<stack>', 'Stack name with an optional @version or @range')
+  .argument('[directory]', 'Project root, or a packs repo (packages/<pack>/llm)', '.')
+  .option('--json', 'Emit machine-readable JSON (query, matches, nameLevel, warnings)')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
+  .action(async (stackSpec, directory, options) => {
+    const { buildRangeListReport, formatRangeList } = await import('../dist/stacks/ranges.js');
+    const atIdx = String(stackSpec).indexOf('@');
+    const stack = atIdx === -1 ? stackSpec : stackSpec.slice(0, atIdx);
+    const version = atIdx === -1 ? undefined : stackSpec.slice(atIdx + 1) || undefined;
+    try {
+      const report = buildRangeListReport(resolve(directory), stack, version);
+      if (!options.silent) {
+        console.log(options.json ? JSON.stringify(report, null, 2) : formatRangeList(report).join('\n'));
+      }
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('why')
+  .description(
+    'Explain why a rule, agent, skill or guardrail is included or excluded, or diff the set under a stack upgrade (--diff)',
+  )
+  .argument('[file]', 'Source path (llm/rules/x.md), generated path (.claude/rules/x.md), or id (x)')
+  .argument('[directory]', 'Project root directory', '.')
+  .option(
+    '--diff <stack@version>',
+    'List what would be added/removed if the stack were at this version (repeatable; writes nothing)',
+    (spec, specs) => [...specs, spec],
+    [],
+  )
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (file, directory, options) => {
+    const { buildWhyReport, buildWhyDiff, formatWhyReport, formatWhyDiff, parseStackOverride } =
+      await import('../dist/stacks/why.js');
+    const print = (data, lines) =>
+      console.log(options.json ? JSON.stringify(data, null, 2) : lines.join('\n'));
+    try {
+      if (options.diff.length > 0) {
+        // With --diff there is no <file>: a single positional is the project directory.
+        const root = resolve(file ?? directory);
+        if (
+          (file !== undefined && directory !== '.') ||
+          !statSync(root, { throwIfNoEntry: false })?.isDirectory()
+        ) {
+          throw new Error('--diff takes no <file>; pass only the project directory');
+        }
+        const report = buildWhyDiff(root, options.diff.map(parseStackOverride));
+        print(report, formatWhyDiff(report));
+        return;
+      }
+      if (file === undefined) throw new Error('pass a <file> to explain, or --diff <stack@version>');
+      const report = buildWhyReport(resolve(directory), file, { cwd: process.cwd() });
+      print(report, formatWhyReport(report));
+      if (report.matchedAs === null) process.exitCode = 1;
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -529,6 +753,7 @@ program
     '--skip-signature-verification',
     'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
   )
+  .option('--skip-scan', 'Skip the content security scan (trusted private registries only)')
   .option(
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
@@ -544,6 +769,7 @@ program
         await add(process.cwd(), packageSpec, {
           silent: options.silent,
           skipSignatureVerification: options.skipSignatureVerification,
+          skipScan: options.skipScan,
           allowExternalTarballHost: options.allowExternalTarballHost,
         });
       } catch (err) {
@@ -610,6 +836,7 @@ program
     '--skip-signature-verification',
     'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
   )
+  .option('--skip-scan', 'Skip the content security scan (trusted private registries only)')
   .option(
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
@@ -623,6 +850,7 @@ program
         silent: options.silent,
         dryRun: options.dryRun,
         skipSignatureVerification: options.skipSignatureVerification,
+        skipScan: options.skipScan,
         allowExternalTarballHost: options.allowExternalTarballHost,
       });
       if (!options.dryRun) {
@@ -649,6 +877,7 @@ program
     '--skip-signature-verification',
     'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
   )
+  .option('--skip-scan', 'Skip the content security scan (trusted private registries only)')
   .option(
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
@@ -661,6 +890,7 @@ program
         latest: options.latest,
         silent: options.silent,
         skipSignatureVerification: options.skipSignatureVerification,
+        skipScan: options.skipScan,
         allowExternalTarballHost: options.allowExternalTarballHost,
       });
       const { refreshCatalogCache } = await import('../dist/catalog/index.js');

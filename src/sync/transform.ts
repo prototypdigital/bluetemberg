@@ -96,14 +96,16 @@ export const DEFAULT_TARGETS: {
     copilot: { dir: '.github/agents', ext: '.agent.md' },
   },
   skills: {
-    cursor: { dir: '.cursor/skills' },
+    // Claude Code reads only `.claude/skills/` and Copilot code review only `.github/skills/`; every
+    // other host reads the vendor-neutral `.agents/skills/`, which is written once however many
+    // platforms share it. Cursor also reads `.claude/skills/` and dedupes by name, so its target is
+    // dropped when Claude's is written (see `resolveSkillTargets`).
+    cursor: { dir: '.agents/skills' },
     claude: { dir: '.claude/skills' },
     copilot: { dir: '.github/skills' },
-    // Codex, Devin Desktop and Antigravity all scan `.agents/skills/` (vendor-neutral) for project-level
-    // skills; the SKILL.md + name/description frontmatter shape already matches our source.
-    // The shared dir is written once (see `resolveSkillTargets`).
     devin: { dir: '.agents/skills' },
     codex: { dir: '.agents/skills' },
     antigravity: { dir: '.agents/skills' },
+    gemini: { dir: '.agents/skills' },
   },
 };

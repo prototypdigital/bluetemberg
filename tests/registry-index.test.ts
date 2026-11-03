@@ -33,12 +33,12 @@ describe('resolvePackSourceDirs', () => {
   });
 
   it('returns empty dirs and no warnings when no manifest exists', () => {
-    expect(resolvePackSourceDirs(root)).toEqual({ dirs: [], warnings: [] });
+    expect(resolvePackSourceDirs(root)).toEqual({ dirs: [], labels: [], warnings: [] });
   });
 
   it('returns empty dirs and no warnings when manifest has no packages', () => {
     writeManifest(root, { packages: {} });
-    expect(resolvePackSourceDirs(root)).toEqual({ dirs: [], warnings: [] });
+    expect(resolvePackSourceDirs(root)).toEqual({ dirs: [], labels: [], warnings: [] });
   });
 
   it('returns source dirs for locked and cached packages', () => {

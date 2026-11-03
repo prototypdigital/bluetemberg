@@ -51,8 +51,8 @@ llm/
 ├── mcp-managed.json    # Generated: the .mcp.json / .agents/mcp_config.json servers sync owns (commit it)
 ├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
 ├── hooks.claude.json   # Optional: Claude Code hooks → hooks key of .claude/settings.json (project-local only; packs cannot ship these)
-├── commands/           # Optional: Claude slash commands → .claude/commands/*.md
-└── prompts/            # Optional: Copilot prompts → .github/prompts/*.prompt.md
+├── commands/           # Optional: slash commands → generated skills + .claude/commands/*.md (deprecated)
+└── prompts/            # Optional: prompt files → generated skills + .github/prompts/*.prompt.md (deprecated)
 ```
 
 For optional sync extensions, MCP/hooks details, and roadmap, see [Adapters](Adapters).
@@ -93,7 +93,7 @@ Rules have three intent levels, not just on/off:
 | **Collection default** | Pre-checked for a given team profile; the whole collection is toggled | `git`, `security`, `docs` (all profiles); `typescript` (frontend/backend/fullstack) |
 | **Collection optional** | Available but not pre-checked for the profile | `nextjs` (backend), `devops` (frontend) |
 
-The wizard offers **every rules, agents and skills pack in the catalog** (`catalog.json`), resolved at load time via `resolveRuleCollections` / `resolveAgents` / `resolveSkills`. Rule ids, profile tags and stacks always come from the catalog, so they can never drift from the published packs. `src/init/presets.ts` keeps curated overlays (`RULE_COLLECTION_OVERLAYS`, `AGENT_OVERLAYS`, `SKILL_OVERLAYS`) only for display text and order; a pack without one is listed after them, with its id taken from the package name and its display text from the catalog description. Preselection (`isPreselected` in `src/init/preset-resolution.ts`) checks the profile tags and, for a pack that targets stacks, the stacks in the project. The catalog is read from the project cache (`.bluetemberg/catalog.json`, refreshed on `install`/`update`/`add`) and falls back to a snapshot committed at `src/catalog/catalog.json` (run `npm run sync:catalog` to refresh it). See [Profiles](Profiles) for the full matrix.
+The wizard offers **every rules, agents and skills pack in the catalog** (`catalog.json`), resolved at load time via `resolveRuleCollections` / `resolveAgents` / `resolveSkills`. Rule ids, profile tags and stacks always come from the catalog, so they can never drift from the published packs. `src/init/presets.ts` keeps curated overlays (`RULE_COLLECTION_OVERLAYS`, `AGENT_OVERLAYS`, `SKILL_OVERLAYS`) only for display text and order; a pack without one is listed after them, with its id taken from the package name and its display text from the catalog description. Preselection (`isPreselected` in `src/init/preset-resolution.ts`) checks the profile tags and, for a pack that targets stacks, the stacks in the project. The catalog is read from the project cache (`.bluetemberg/catalog.json`, refreshed on `install`/`update`/`add`; a monorepo package without one reads the nearest cache above it, up to the `.git` directory) and falls back to a snapshot committed at `src/catalog/catalog.json` (run `npm run sync:catalog` to refresh it). See [Profiles](Profiles) for the full matrix.
 
 ## Config resolution
 
@@ -112,7 +112,7 @@ flowchart TD
 
 **Gemini CLI** (`gemini`, now Enterprise-only) reads whatever files `context.fileName` names in `.gemini/settings.json`, so instead of a copy, sync adds `AGENTS.md` to that list (`src/sync/gemini.ts`). It merges the one entry and leaves every other setting alone; with no list yet it writes `["AGENTS.md", "GEMINI.md"]`, so Gemini CLI's default `GEMINI.md` still loads. Earlier versions copied `AGENTS.md` to `GEMINI.md` and wrote rules to `.gemini/context/`, a directory Gemini CLI never scans. `--check` reports those bannered leftovers as stale and `--prune` removes them, and a config's `targets.rules.gemini` entry naming `.gemini/context` is ignored with a warning.
 
-**Antigravity CLI** (`antigravity`) reads `AGENTS.md` natively. Its scoped rules go to `.agents/rules/` through the frontmatter transform (`trigger: always_on` or `trigger: glob` + `globs`), skills to `.agents/skills/` (shared with Codex and Devin Desktop, written once), and MCP servers are merged into `mcpServers` in `.agents/mcp_config.json` by the same ownership-tracked merge as the root `.mcp.json` (`src/sync/mcp.ts`; the entry shape is in `src/sync/antigravity.ts`).
+**Antigravity CLI** (`antigravity`) reads `AGENTS.md` natively. Its scoped rules go to `.agents/rules/` through the frontmatter transform (`trigger: always_on` or `trigger: glob` + `globs`), skills to `.agents/skills/` (shared with Codex, Devin Desktop, Gemini CLI and Cursor, written once), and MCP servers are merged into `mcpServers` in `.agents/mcp_config.json` by the same ownership-tracked merge as the root `.mcp.json` (`src/sync/mcp.ts`; the entry shape is in `src/sync/antigravity.ts`).
 
 **OpenAI Codex** reads `AGENTS.md` natively, so the monolithic instructions need no derivation. Codex is also the one target whose rules do **not** go through the frontmatter transform: scoped rules from `llm/rules/` are folded into a fenced *managed block* in `AGENTS.md`, agents become per-file TOML under `.codex/agents/`, and MCP servers become a `[mcp_servers.*]` managed block in `.codex/config.toml`. Skills use the vendor-neutral `.agents/skills/`. Managed blocks (`src/sync/managed-block.ts`) preserve hand-authored content outside the markers and keep `sync --check` idempotent; the rules block is stripped from the derived `copilot-instructions.md`.
 
@@ -164,10 +164,16 @@ Duplicated blocks — both sides of a conflict kept, each with a matching pair �
 
 Sync also refuses to **author** an unpairable block: a rule whose body quotes `<!-- BEGIN BLUETEMBERG MANAGED RULES -->` or its END counterpart verbatim is rejected before the first write, with an error naming the rule file. Without that check the marker would land inside the generated block, and no later run could pair it — not even after the rule was deleted, because the wreckage would already be on disk. Reword the rule so the literal marker does not appear (dropping the comment delimiters is enough).
 
+## Skills output
+
+A skill is written to as few dirs as reach every enabled host (`resolveSkillOutputs` in `src/sync/targets.ts`). Claude Code reads only `.claude/skills/`, Copilot code review only `.github/skills/`, and every other host reads the vendor-neutral `.agents/skills/`, which is written once. Cursor reads `.claude/skills/` as well and lists a name once, so its default target is dropped while Claude's dir is written. A dir the user configured is always written. The per-host table, with sources, is in [Adapters](Adapters#skills-dirs-per-host).
+
+A skill from a registry pack is stamped with its pack name, version and lockfile integrity in `SKILL.md` `metadata` (`src/sync/skill-metadata.ts`). Frontmatter without a `metadata` key gets the block appended as text, so the author's formatting is kept byte for byte. An existing `metadata` map is merged into.
+
 ## Check mode
 
 `bluetemberg sync --check` performs a dry run: reads all sources, generates expected output in memory, compares against existing files. If any differ, it reports them and exits with code 1. No files are written and no directories are created — the check leaves the working tree byte-for-byte untouched. Comparisons **normalize line endings** (CRLF vs LF) so check mode is less sensitive to platform checkout settings.
 
 ## Prune (optional)
 
-`bluetemberg sync --prune` (write mode only) removes generated files under the **managed** output directories that were **not** produced in the current pass—useful after deleting or renaming sources under `llm/`. Only files carrying the generated-file banner are deleted; anything else in those directories is kept and listed. `--check` reports the same files as `STALE:` drift without deleting them. Prune runs only when the sync finishes with **no recorded errors**. See [Configuration](Configuration) for caveats (adapters, JSON outputs).
+`bluetemberg sync --prune` (write mode only) removes generated files under the **managed** output directories that were **not** produced in the current pass—useful after deleting or renaming sources under `llm/`. Only files carrying the generated-file banner are deleted; anything else in those directories is kept and listed. Skills dirs sync no longer writes (`.cursor/skills/`, `.windsurf/skills/`) are held to more: a copy's supporting files go only when identical to the live copy. `--check` reports the same files as `STALE:` drift without deleting them. Prune runs only when the sync finishes with **no recorded errors**. See [Configuration](Configuration) for caveats (adapters, JSON outputs).
