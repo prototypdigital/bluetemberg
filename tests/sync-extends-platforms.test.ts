@@ -382,7 +382,7 @@ describe('extends: platform-scoped entries', () => {
       });
 
       expect(results.errors).toEqual([
-        'scoped "extends" entries give codex, devin different sources, but they all write .agents/skills/ — scope those entries to all of codex, devin or none of them',
+        'scoped "extends" entries give codex, devin different content for .agents/skills/, which they all write — scope those entries to all of codex, devin or none of them',
       ]);
       expect(results.synced).toBe(0);
       expect(existsSync(join(root, '.agents/skills/codex-skill/SKILL.md'))).toBe(false);
@@ -402,7 +402,74 @@ describe('extends: platform-scoped entries', () => {
         silent: true,
       });
 
-      expect(results.errors.some((e) => e.includes('they all write AGENTS.md'))).toBe(true);
+      expect(results.errors.some((e) => e.includes('different content for AGENTS.md'))).toBe(true);
+    });
+
+    it('allows a codex-only rules pack while devin shares .agents/skills/', async () => {
+      // The entry ships no skills, so codex and devin still get identical .agents/skills/.
+      writeRule(join(root, 'codex-rules', 'llm'), 'c');
+      writeSkill(join(root, 'llm'), 'local-skill');
+      writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
+      const config: BlueprintConfig = {
+        platforms: ['codex', 'devin'],
+        source: 'llm',
+        targets: {},
+        extends: [{ path: './codex-rules', platforms: ['codex'] }],
+      };
+
+      const results = await sync(root, { config, silent: true });
+
+      expect(results.errors).toEqual([]);
+      expect(readFileSync(join(root, 'AGENTS.md'), 'utf8')).toContain('# c');
+      expect(existsSync(join(root, '.devin/rules/c.md'))).toBe(false);
+      expect(existsSync(join(root, '.agents/skills/local-skill/SKILL.md'))).toBe(true);
+      expect((await sync(root, { config, check: true, silent: true })).outOfSync).toBe(0);
+    });
+
+    it('allows codex and gemini to differ in agents while sharing the AGENTS.md rules', async () => {
+      mkdirSync(join(root, 'codex-agents', 'llm', 'agents'), { recursive: true });
+      writeFileSync(
+        join(root, 'codex-agents', 'llm', 'agents', 'reviewer.md'),
+        '---\nname: reviewer\ndescription: r\n---\n\nReview.\n',
+      );
+      writeRule(join(root, 'llm'), 'shared');
+      writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
+
+      const results = await sync(root, {
+        config: {
+          platforms: ['codex', 'gemini'],
+          source: 'llm',
+          targets: {},
+          extends: [{ path: './codex-agents', platforms: ['codex'] }],
+        },
+        silent: true,
+      });
+
+      expect(results.errors).toEqual([]);
+      expect(existsSync(join(root, '.codex/agents/reviewer.toml'))).toBe(true);
+    });
+
+    it('migrates a command for a platform whose own sources lack a same-named skill', async () => {
+      mkdirSync(join(root, 'llm', 'commands'), { recursive: true });
+      writeFileSync(
+        join(root, 'llm', 'commands', 'deploy.md'),
+        '---\ndescription: Deploy\n---\n\nDeploy it.\n',
+      );
+      writeSkill(join(root, 'market', 'llm'), 'deploy');
+
+      const results = await sync(root, {
+        config: {
+          platforms: ['claude', 'claude-marketplace'],
+          source: 'llm',
+          targets: { skills: { claude: { dir: '.claude/skills' } } },
+          extends: [{ path: './market', platforms: ['claude-marketplace'] }],
+        },
+        silent: true,
+      });
+
+      expect(results.errors).toEqual([]);
+      expect(results.warnings.some((w) => w.includes('skill "deploy" already exists'))).toBe(false);
+      expect(existsSync(join(root, '.claude/skills/deploy/SKILL.md'))).toBe(true);
     });
 
     it('allows a split when the sharing platforms are scoped alike', async () => {

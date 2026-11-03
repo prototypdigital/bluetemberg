@@ -155,3 +155,24 @@ export function mergeContentKind(dirs: string[], kind: ContentKind): Map<string,
   const isAgentReadme = (f: string): boolean => kind === 'agents' && f === 'README.md';
   return mergeSourceFiles(dirs, kind, (f) => f.endsWith('.md') && !isAgentReadme(f));
 }
+
+/**
+ * Group source views by what one content kind merges to: views whose sources yield the same
+ * `kind` files (same names from the same dirs) form one group, holding all their platforms and the
+ * sources of the first. A kind step runs once per group, so platforms that differ only in, say,
+ * their skills still share one rules pass, and an output they share holds one set of rules.
+ */
+export function groupViewsByKind(views: readonly SourceView[], kind: ContentKind): SourceView[] {
+  const groups = new Map<string, SourceView>();
+  for (const view of views) {
+    const merged = mergeContentKind(
+      view.sources.map((s) => s.dir),
+      kind,
+    );
+    const key = JSON.stringify([...merged.entries()].sort(([a], [b]) => a.localeCompare(b)));
+    const group = groups.get(key);
+    if (group) group.platforms.push(...view.platforms);
+    else groups.set(key, { platforms: [...view.platforms], sources: view.sources });
+  }
+  return [...groups.values()];
+}

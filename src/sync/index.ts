@@ -37,9 +37,12 @@ import {
 import { findShadowedEntries, normalizeExtends, toExtendsEntries } from './extends-loader.js';
 import {
   activeSources,
+  CONTENT_KINDS,
+  groupViewsByKind,
   mergeContentKind,
   resolveSourceViews,
   resolveSyncSources,
+  type ContentKind,
   type SourceView,
   type SyncSource,
 } from './sources.js';
@@ -754,42 +757,69 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // steps (anything reading `sourceDirs`) run once per view; steps that read only the local source
   // run once with every platform. With no scoped entry there is one view: `ctx` itself.
   const views = resolveSourceViews(sources, platforms);
-  if (views.length > 1) ctx.recorded = new Set();
-  const viewCtxs = views.length === 1 ? [ctx] : views.map((view) => toViewContext(ctx, view));
-  if (viewCtxs.length > 1) {
-    const split = findSplitSharedOutputs(config, views);
+  const multiView = views.length > 1;
+  if (multiView) ctx.recorded = new Set();
+  const viewCtxs = multiView ? views.map((view) => toViewContext(ctx, view)) : [ctx];
+  // Each content kind runs once per group of platforms that merge it to the same files. With one
+  // view every kind has one group: `ctx` itself.
+  const kindGroups = new Map(
+    CONTENT_KINDS.map((kind) => [kind, multiView ? groupViewsByKind(views, kind) : views]),
+  );
+  const kindCtxs = new Map(
+    CONTENT_KINDS.map((kind) => [
+      kind,
+      multiView ? (kindGroups.get(kind) ?? []).map((group) => toViewContext(ctx, group)) : [ctx],
+    ]),
+  );
+  if (multiView) {
+    const split = findSplitSharedOutputs(config, kindGroups);
     for (const message of split) recordError(ctx, message);
     if (split.length > 0) {
       if (!orchestrated) printSummary(log, results, checkMode);
       return results;
     }
   }
-  const ctxFor = (platform: Platform): SyncContext =>
-    viewCtxs.find((v) => v.platforms.includes(platform)) ?? ctx;
+  const containing = (list: readonly SyncContext[], platform: Platform): SyncContext =>
+    list.find((c) => c.platforms.includes(platform)) ?? ctx;
+  /** The context of `platform`'s group for one kind (its own view for `view`). */
+  const ctxFor = (kind: ContentKind | 'view', platform: Platform): SyncContext =>
+    containing(kind === 'view' ? viewCtxs : (kindCtxs.get(kind) ?? []), platform);
+  /** Run `step` once per group of `kind`, under a header naming the group's platforms when there are several. */
+  const perGroup = (kind: ContentKind, step: (groupCtx: SyncContext) => void): void => {
+    const groups = kindCtxs.get(kind) ?? [];
+    for (const groupCtx of groups) {
+      if (groups.length > 1) log(`[${groupCtx.platforms.join(', ')}]`);
+      step(groupCtx);
+    }
+  };
 
   logDetectedStacks(ctx);
 
-  const guardrailsByView = new Map<SyncContext, GuardrailHooks>();
   for (const [i, viewCtx] of viewCtxs.entries()) {
-    if (viewCtxs.length > 1) log(`Sources for ${viewCtx.platforms.join(', ')}:\n`);
+    if (multiView) log(`Sources for ${viewCtx.platforms.join(', ')}:`);
     reportShadowedContent(viewCtx);
     if (verbose) logSourceDirs(viewCtx, views[i].sources);
-    syncRules(viewCtx);
-    syncAgents(viewCtx);
-    syncSkills(viewCtx);
-    // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
-    // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
-    // Each view compiles its own guardrails; each host's writer takes the result of its own view.
-    guardrailsByView.set(
-      viewCtx,
-      syncGuardrails(viewCtx, (msg) => recordError(viewCtx, msg)),
-    );
   }
+  if (multiView) log('');
+
+  perGroup('rules', syncRules);
+  perGroup('agents', syncAgents);
+  perGroup('skills', syncSkills);
   syncCopilotInstructions(ctx);
+  // Guardrails compute their Claude hook entries; syncClaudeHooks is the single writer of the
+  // `hooks` key in .claude/settings.json, composing guardrail entries with llm/hooks.claude.json.
+  // Each group compiles its own guardrails; each host's writer takes the result of its own group.
+  const guardrailsByGroup = new Map<SyncContext, GuardrailHooks>();
+  perGroup('guardrails', (groupCtx) =>
+    guardrailsByGroup.set(
+      groupCtx,
+      syncGuardrails(groupCtx, (msg) => recordError(groupCtx, msg)),
+    ),
+  );
   const guardrailsFor = (platform: Platform): GuardrailHooks =>
-    guardrailsByView.get(ctxFor(platform)) ?? NO_GUARDRAIL_HOOKS;
+    guardrailsByGroup.get(ctxFor('guardrails', platform)) ?? NO_GUARDRAIL_HOOKS;
   syncClaudeHooks(
-    ctxFor('claude'),
+    ctxFor('view', 'claude'),
     guardrailsFor('claude').claude,
     (msg) => recordError(ctx, msg),
     (msg) => recordWarning(ctx, msg),
@@ -804,21 +834,23 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   syncDevinGuardrailHooks(ctx, guardrailsFor(DEVIN_PLATFORM).applied, (msg) => recordError(ctx, msg));
   syncCommands(ctx, (msg) => recordError(ctx, msg));
   syncCopilotPrompts(ctx, (msg) => recordError(ctx, msg));
-  // Migrated commands/prompts come from the local source only; `ctx.sourceDirs` holds every source,
-  // so a real skill of that name in any view keeps the migration from shadowing it.
-  syncLegacySkills(
-    ctx,
-    (msg) => recordError(ctx, msg),
-    (msg) => recordWarning(ctx, msg),
+  // Migrated commands/prompts come from the local source, but a real skill of the same name wins,
+  // so they run with the skills groups: each group checks the skills its own platforms get.
+  perGroup('skills', (groupCtx) =>
+    syncLegacySkills(
+      groupCtx,
+      (msg) => recordError(ctx, msg),
+      (msg) => recordWarning(ctx, msg),
+    ),
   );
-  for (const viewCtx of viewCtxs) syncCodexRules(viewCtx, (msg) => recordError(ctx, msg));
-  syncCodexAgents(ctxFor('codex'), (msg) => recordError(ctx, msg));
+  perGroup('rules', (groupCtx) => syncCodexRules(groupCtx, (msg) => recordError(ctx, msg)));
+  syncCodexAgents(ctxFor('agents', 'codex'), (msg) => recordError(ctx, msg));
   syncCodexConfig(ctx, guardrailsFor('codex').codex, (msg) => recordError(ctx, msg));
   syncGeminiSettings(ctx, (msg) => recordError(ctx, msg));
   checkClaudeAgentsMdImport(ctx, (msg) => recordWarning(ctx, msg));
 
   if (ctx.platforms.includes('claude-marketplace')) {
-    const marketplaceCtx = ctxFor('claude-marketplace');
+    const marketplaceCtx = ctxFor('view', 'claude-marketplace');
     const projectName = basename(root);
     const pluginDefs = ctx.config.marketplace?.plugins ?? [
       { name: projectName, displayName: projectName, description: '' },
