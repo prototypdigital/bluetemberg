@@ -204,6 +204,13 @@ describe('switchProfile', () => {
       expect(switchProfile(root, 'backend', { silent: true }).added).toContain(REVIEWER);
     });
 
+    it('routes by the file’s own platforms when sync cannot load the rest of the config', () => {
+      project({ platforms: ['cursor'], source: 'llm', targets: { rules: { cursor: 'oops' } } });
+      const result = switchProfile(root, 'backend', { silent: true });
+      expect(result.toProfile).toBe('backend');
+      expect(result.added).not.toContain(REVIEWER);
+    });
+
     it('still switches when sync could not load the config (no platforms)', () => {
       project({ source: 'llm' });
       const result = switchProfile(root, 'backend', { silent: true });

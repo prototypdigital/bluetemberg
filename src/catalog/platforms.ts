@@ -111,6 +111,7 @@ export function resolvePlatformGate(
 
 /** Entries of `list` that are not platform ids. */
 export function unknownPlatforms(list: readonly string[] | null | undefined): string[] {
+  // Widening `Platform[]` to `string[]` is always safe; it lets `includes` take an unvalidated id.
   return (list ?? []).filter((p) => !(KNOWN_PLATFORMS as readonly string[]).includes(p));
 }
 

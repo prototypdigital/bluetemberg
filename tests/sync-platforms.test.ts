@@ -231,12 +231,13 @@ describe('sync — pack platform routing', () => {
     expect(has('.claude/settings.json')).toBe(false);
   });
 
-  it('routes each monorepo package by its own platforms', async () => {
+  it('routes each monorepo package by its own merged platforms', async () => {
     writeFileSync(
       join(root, 'bluetemberg.config.json'),
       JSON.stringify({ platforms: ['claude'], source: 'llm', root: true }),
     );
     writeMd(join(root, 'llm'), 'rules', 'claude-only', 'platforms: [claude]');
+    // `web` inherits the root's `claude` (platforms union up the chain) and adds `cursor`.
     const web = join(root, 'packages', 'web');
     mkdirSync(web, { recursive: true });
     writeFileSync(
@@ -244,13 +245,58 @@ describe('sync — pack platform routing', () => {
       JSON.stringify({ platforms: ['cursor'], source: 'llm' }),
     );
     writeMd(join(web, 'llm'), 'rules', 'claude-only', 'platforms: [claude]');
-    writeMd(join(web, 'llm'), 'rules', 'shared');
+    // `legacy` stops inheritance, so it targets Cursor alone.
+    const legacy = join(root, 'packages', 'legacy');
+    mkdirSync(legacy, { recursive: true });
+    writeFileSync(
+      join(legacy, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['cursor'], source: 'llm', root: true }),
+    );
+    writeMd(join(legacy, 'llm'), 'rules', 'claude-only', 'platforms: [claude]');
+    writeMd(join(legacy, 'llm'), 'rules', 'shared');
 
     await sync(root, { silent: true });
 
     expect(has('.claude/rules/claude-only.md')).toBe(true);
+    expect(existsSync(join(web, '.claude', 'rules', 'claude-only.md'))).toBe(true);
     expect(existsSync(join(web, '.cursor', 'rules', 'claude-only.mdc'))).toBe(false);
-    expect(existsSync(join(web, '.cursor', 'rules', 'shared.mdc'))).toBe(true);
+    expect(existsSync(join(legacy, '.claude'))).toBe(false);
+    expect(existsSync(join(legacy, '.cursor', 'rules', 'claude-only.mdc'))).toBe(false);
+    expect(existsSync(join(legacy, '.cursor', 'rules', 'shared.mdc'))).toBe(true);
+  });
+
+  it('does not report a platform as skipped when it reads a shared output that is written', async () => {
+    writeSkill(join(root, 'llm'), 'devin-flow', 'platforms: [devin]');
+    writeMd(join(root, 'llm'), 'rules', 'gemini-only', 'platforms: [gemini]');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    let printed: string[];
+    try {
+      await sync(root, { config: config(['devin', 'codex', 'claude', 'gemini']) });
+      printed = log.mock.calls.map((c) => String(c[0]));
+    } finally {
+      log.mockRestore();
+    }
+
+    // `.agents/skills/` is read by Codex too; the AGENTS.md block by Codex and Gemini.
+    expect(printed).toContain('    - devin-flow: devin only — skipped for claude, gemini');
+    expect(printed).toContain('    - gemini-only: gemini only — skipped for devin, claude');
+  });
+
+  it('applies a guardrail pack’s catalog platforms through the Copilot and Devin hosts', async () => {
+    const pack = installFakePack(root, 'bluetemberg-guardrails-copilot');
+    mkdirSync(join(pack, 'guardrails'), { recursive: true });
+    writeFileSync(
+      join(pack, 'guardrails', 'shell-guard.md'),
+      '---\ntrigger: Bash\nmessage: blocked\ncheck:\n  field: command\n  not_empty: true\n---\n',
+    );
+    writeCatalog(root, [
+      catalogPack('bluetemberg-guardrails-copilot', 'guardrails', ['shell-guard'], ['copilot']),
+    ]);
+
+    await sync(root, { config: config(['copilot', 'devin']), silent: true });
+
+    expect(has('.github/hooks/bluetemberg-guardrails.json')).toBe(true);
+    expect(has('.devin/hooks.v1.json')).toBe(false);
   });
 
   it('syncs byte-identically when nothing declares platforms', async () => {

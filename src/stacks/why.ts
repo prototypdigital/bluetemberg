@@ -9,6 +9,7 @@ import { discoverConfigDirs, loadConfig } from '../sync/index.js';
 import { dropLegacyGeminiRulesTarget } from '../sync/gemini.js';
 import { guardrailValidationIssue } from '../sync/guardrails.js';
 import { AGENTS_MD_RULE_PLATFORMS } from '../sync/codex.js';
+import { GUARDRAIL_PLATFORMS, skippedPlatforms } from '../sync/platform-skips.js';
 import {
   CONTENT_KINDS,
   mergeContentKind,
@@ -104,6 +105,8 @@ export interface WhyItem {
     skipped: Platform[];
     /** Entries of `list` that name no platform (sync warns; they match nothing). */
     unknown: string[];
+    /** Set when the `platforms:` frontmatter is malformed and ignored (sync warns). */
+    invalid: string | null;
   };
   /** Why sync rejects this guardrail before gating (invalid frontmatter/regex), else `null`. */
   invalid: string | null;
@@ -299,8 +302,22 @@ function exclusionReason(
   if (item.kind === 'guardrails' && isEmptyList(item.frontmatter.platforms)) {
     return '`platforms: []` — a guardrail with an empty list is compiled for no platform';
   }
+  if (item.kind === 'guardrails') return guardrailPlatformReason(ctx, platformGate);
   if (allowsAnyPlatform(platformGate.platforms, ctx.platforms)) return null;
   return `limited to ${(platformGate.platforms ?? []).join(', ')} — this project syncs ${ctx.platforms.join(', ')}`;
+}
+
+/**
+ * Only some platforms compile guardrails, and `claude-marketplace` is not one of them: a guardrail
+ * compiled for no configured host writes nothing, so `why` must not call it included.
+ */
+function guardrailPlatformReason(ctx: WhyContext, platformGate: PlatformGate): string | null {
+  const hosts = GUARDRAIL_PLATFORMS.filter((p) => ctx.platforms.includes(p));
+  if (hosts.length === 0) {
+    return `no configured platform compiles guardrails (they compile for ${GUARDRAIL_PLATFORMS.join(', ')}; this project syncs ${ctx.platforms.join(', ')})`;
+  }
+  if (allowsAnyPlatform(platformGate.platforms, hosts)) return null;
+  return `limited to ${(platformGate.platforms ?? []).join(', ')} — of this project's platforms, guardrails compile for ${hosts.join(', ')}`;
 }
 
 function isEmptyList(value: unknown): boolean {
@@ -375,8 +392,9 @@ function explainItem(ctx: WhyContext, item: ResolvedItem): WhyItem {
     platforms: {
       source: platformGate.source,
       list: platformGate.platforms,
-      skipped: ctx.platforms.filter((p) => !allowsPlatform(platformGate.platforms, p)),
+      skipped: skippedPlatforms(ctx.config, ctx.platforms, item.kind, platformGate.platforms),
       unknown: platformGate.unknown,
+      invalid: platformGate.invalid,
     },
     invalid: guardrailIssue(item),
     outputs: excluded === null ? writtenOutputs(ctx, item, platformGate.platforms) : [],
@@ -667,14 +685,16 @@ function formatItem(item: WhyItem): string[] {
 }
 
 function formatPlatforms(item: WhyItem): string[] {
-  const { source, list, skipped, unknown } = item.platforms;
-  if (list === null) return [];
-  const from =
-    source === 'frontmatter'
-      ? 'frontmatter `platforms:`'
-      : `catalog platforms of ${item.constraint.pack ?? 'its pack'}`;
-  const lines = [`  platforms:  ${list.join(', ')} (${from})`];
-  if (skipped.length > 0) lines.push(`    skipped for: ${skipped.join(', ')}`);
+  const { source, list, skipped, unknown, invalid } = item.platforms;
+  const lines = invalid ? [`  WARN: ${invalid}`] : [];
+  if (list !== null) {
+    const from =
+      source === 'frontmatter'
+        ? 'frontmatter `platforms:`'
+        : `catalog platforms of ${item.constraint.pack ?? 'its pack'}`;
+    lines.push(`  platforms:  ${list.join(', ')} (${from})`);
+  }
+  if (list !== null && skipped.length > 0) lines.push(`    skipped for: ${skipped.join(', ')}`);
   if (unknown.length > 0)
     lines.push(`  WARN: unknown platform(s) ${unknown.join(', ')} — they match nothing`);
   return lines;

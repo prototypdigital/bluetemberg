@@ -465,6 +465,36 @@ describe('bluetemberg why <file> — platform routing (#281)', () => {
     expect(existsSync(join(root, '.codex/agents/cursor-agent.toml'))).toBe(false);
   });
 
+  it('excludes a guardrail when no configured platform compiles guardrails', () => {
+    writeConfig(root, { platforms: ['antigravity', 'claude-marketplace'] });
+    const guard = (platforms: string): string =>
+      `---\ntrigger: Bash\ncheck:\n  field: command\n  matches: 'rm'\nmessage: 'no'\nplatforms: [${platforms}]\n---\n`;
+    writeGuardrail(root, 'g-claude', guard('claude'));
+    writeGuardrail(root, 'g-ag', guard('antigravity'));
+
+    for (const id of ['g-claude', 'g-ag']) {
+      const item = only(buildWhyReport(root, id));
+      expect(item.included, id).toBe(false);
+      expect(item.reason).toMatch(/no configured platform compiles guardrails/);
+    }
+  });
+
+  it('names only the platforms that get no output, shared outputs included', () => {
+    writeConfig(root, { platforms: ['devin', 'codex', 'claude'] });
+    writeSkill(root, 'devin-flow', 'platforms: [devin]');
+
+    expect(only(buildWhyReport(root, 'devin-flow')).platforms.skipped).toEqual(['claude']);
+  });
+
+  it('surfaces a malformed `platforms:` the way sync warns about it', () => {
+    writeConfig(root);
+    writeRule(root, 'scalar', 'platforms: claude');
+
+    const report = buildWhyReport(root, 'scalar');
+    expect(only(report).platforms.invalid).toMatch(/must be a list/);
+    expect(formatWhyReport(report).join('\n')).toMatch(/WARN: `platforms:` must be a list/);
+  });
+
   it('treats a guardrail’s empty `platforms: []` as no host, as sync does', () => {
     writeConfig(root);
     writeGuardrail(

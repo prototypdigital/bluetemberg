@@ -50,6 +50,7 @@ import {
   resolvePlatformGate,
   type PlatformMap,
 } from '../catalog/platforms.js';
+import { skippedPlatforms } from './platform-skips.js';
 import type { Platform, BlueprintConfig, SyncOptions, SyncResults, TeamProfile } from '../types.js';
 
 const VALID_PLATFORMS: readonly Platform[] = KNOWN_PLATFORMS;
@@ -925,11 +926,11 @@ function logVersionFiltered(ctx: SyncContext, appliedCount: number, excluded: Ma
  * Log the entries skipped for some of this project's platforms, and which. Entries the version
  * gate already withheld, and entries whose platforms cover every synced platform, are not listed.
  */
-function logPlatformLimited(ctx: SyncContext, gates: KindGates): void {
+function logPlatformLimited(ctx: SyncContext, gates: KindGates, kind: 'rules' | 'agents' | 'skills'): void {
   const lines: string[] = [];
   for (const [key, platforms] of gates.platforms) {
     if (gates.excluded.has(key)) continue;
-    const skipped = ctx.platforms.filter((p) => !allowsPlatform(platforms, p));
+    const skipped = skippedPlatforms(ctx.config, ctx.platforms, kind, platforms);
     if (skipped.length === 0) continue;
     lines.push(
       `    - ${key.replace(/\.md$/, '')}: ${platforms.join(', ')} only — skipped for ${skipped.join(', ')}`,
@@ -952,7 +953,7 @@ function syncRules(ctx: SyncContext): void {
 
   ctx.log(`Rules: ${merged.size} source files`);
   logVersionFiltered(ctx, appliedCount, excluded);
-  logPlatformLimited(ctx, gates);
+  logPlatformLimited(ctx, gates, 'rules');
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -1001,7 +1002,7 @@ function syncAgents(ctx: SyncContext): void {
 
   ctx.log(`Agents: ${merged.size} source files`);
   logVersionFiltered(ctx, appliedCount, excluded);
-  logPlatformLimited(ctx, gates);
+  logPlatformLimited(ctx, gates, 'agents');
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
@@ -1052,7 +1053,7 @@ function syncSkills(ctx: SyncContext): void {
 
   ctx.log(`Skills: ${merged.size} source directories`);
   logVersionFiltered(ctx, appliedCount, excluded);
-  logPlatformLimited(ctx, gates);
+  logPlatformLimited(ctx, gates, 'skills');
 
   const hasExtended = ctx.sourceDirs.length > 1;
   if (hasExtended) {
