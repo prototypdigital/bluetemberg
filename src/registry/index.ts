@@ -26,6 +26,8 @@ import {
   lockSatisfiesRange,
   packVersionDir,
 } from './installer.js';
+import { formatFindings } from './scanner.js';
+import type { ScanResult } from './scanner.js';
 import type {
   InstalledPackage,
   NpmSearchResult,
@@ -39,6 +41,30 @@ import type {
   RegistryVerifyOptions,
 } from '../types.js';
 import { loadConfig } from '../sync/index.js';
+
+// ---------------------------------------------------------------------------
+// content scan reporting
+// ---------------------------------------------------------------------------
+
+/**
+ * Installer options for the content scan. Blocking findings throw from the installer; this
+ * routes the non-blocking ones — and the fact that the scan was skipped — through the
+ * command's `log`, so `--silent` and tests capture them like any other progress output.
+ */
+function scanOptions(
+  label: string,
+  skipScan: boolean | undefined,
+  log: (msg: string) => void,
+): { skipScan?: boolean; onScanFindings: (result: ScanResult) => void } {
+  if (skipScan) log(`  Content scan skipped for ${label} (--skip-scan).`);
+  return {
+    skipScan,
+    onScanFindings: (result) => {
+      log(`  Warning: content scan flagged ${result.findings.length} pattern(s) in ${label} (not blocking):`);
+      for (const line of formatFindings(result.findings, '    ')) log(line);
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // add
@@ -80,6 +106,7 @@ export async function add(
     registryUrl: manifest.registry,
     skipSignatureVerification: options.skipSignatureVerification,
     allowExternalTarballHost: options.allowExternalTarballHost,
+    ...scanOptions(`${name}@${version}`, options.skipScan, log),
   });
 
   // Update manifest and lockfile.
@@ -312,6 +339,7 @@ export async function install(
         registryUrl: manifest.registry,
         skipSignatureVerification: options.skipSignatureVerification,
         allowExternalTarballHost: options.allowExternalTarballHost,
+        ...scanOptions(`${name}@${version}`, options.skipScan, log),
       });
 
       lock.packages[name] = lockEntry;
@@ -439,6 +467,7 @@ export async function update(
         registryUrl: manifest.registry,
         skipSignatureVerification: options.skipSignatureVerification,
         allowExternalTarballHost: options.allowExternalTarballHost,
+        ...scanOptions(`${name}@${version}`, options.skipScan, log),
       });
 
       lock.packages[name] = lockEntry;

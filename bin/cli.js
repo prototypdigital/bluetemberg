@@ -742,6 +742,7 @@ program
     '--skip-signature-verification',
     'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
   )
+  .option('--skip-scan', 'Skip the content security scan (trusted private registries only)')
   .option(
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
@@ -757,6 +758,7 @@ program
         await add(process.cwd(), packageSpec, {
           silent: options.silent,
           skipSignatureVerification: options.skipSignatureVerification,
+          skipScan: options.skipScan,
           allowExternalTarballHost: options.allowExternalTarballHost,
         });
       } catch (err) {
@@ -823,6 +825,7 @@ program
     '--skip-signature-verification',
     'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
   )
+  .option('--skip-scan', 'Skip the content security scan (trusted private registries only)')
   .option(
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
@@ -836,6 +839,7 @@ program
         silent: options.silent,
         dryRun: options.dryRun,
         skipSignatureVerification: options.skipSignatureVerification,
+        skipScan: options.skipScan,
         allowExternalTarballHost: options.allowExternalTarballHost,
       });
       if (!options.dryRun) {
@@ -862,6 +866,7 @@ program
     '--skip-signature-verification',
     'Allow unsigned packs from a non-default registry (ignored for npmjs.org)',
   )
+  .option('--skip-scan', 'Skip the content security scan (trusted private registries only)')
   .option(
     '--allow-external-tarball-host',
     'Allow tarballs served from a host other than the configured registry (no credentials are sent there)',
@@ -874,6 +879,7 @@ program
         latest: options.latest,
         silent: options.silent,
         skipSignatureVerification: options.skipSignatureVerification,
+        skipScan: options.skipScan,
         allowExternalTarballHost: options.allowExternalTarballHost,
       });
       const { refreshCatalogCache } = await import('../dist/catalog/index.js');

@@ -385,6 +385,7 @@ bluetemberg add bluetemberg-rules-typescript bluetemberg-agents-code-reviewer
 | Option | Description |
 | ------ | ----------- |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--skip-scan` | Skip the content security scan. For trusted private registries only — see [Content scan](Registry#content-scan) |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
 | `--silent` | Suppress progress output; errors still print to stderr |
 
@@ -421,6 +422,7 @@ NPM_TOKEN=... bluetemberg install --skip-signature-verification
 | `--force` | Force re-download even if cached |
 | `--dry-run` | Resolve packs and print the install plan without writing files |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--skip-scan` | Skip the content security scan. For trusted private registries only — see [Content scan](Registry#content-scan) |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
 | `--silent` | Suppress progress output; errors still print to stderr |
 
@@ -441,6 +443,7 @@ bluetemberg update --latest
 | ------ | ----------- |
 | `--latest` | Widen ranges to `"latest"` in manifest, not just re-resolve current range |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--skip-scan` | Skip the content security scan. For trusted private registries only — see [Content scan](Registry#content-scan) |
 | `--allow-external-tarball-host` | Allow a tarball served from a host other than the configured registry |
 | `--silent` | Suppress progress output; errors still print to stderr |
 

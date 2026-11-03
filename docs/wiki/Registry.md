@@ -113,6 +113,7 @@ end and the command exits non-zero.
 | Option | Description |
 | ------ | ----------- |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org`. See [Private registries](#private-registries) |
+| `--skip-scan` | Skip the [content scan](#content-scan). For trusted private registries only |
 | `--allow-external-tarball-host` | Allow a pack tarball served from a host other than the configured registry. No credentials are sent to that host |
 | `--silent` | Suppress all output |
 
@@ -165,6 +166,7 @@ Run this after cloning a repo or when the lockfile has new entries from a teamma
 | ------ | ----------- |
 | `--force` | Force re-download even if cached |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org`. See [Private registries](#private-registries) |
+| `--skip-scan` | Skip the [content scan](#content-scan). For trusted private registries only |
 | `--allow-external-tarball-host` | Allow a pack tarball served from a host other than the configured registry. No credentials are sent to that host |
 | `--dry-run` | Resolve every pack and print the install plan without writing files |
 | `--silent` | Suppress all output |
@@ -196,6 +198,7 @@ After updating, run `bluetemberg sync` to apply the changes.
 | ------ | ----------- |
 | `--latest` | Widen each pack's range to `"latest"` in the manifest, not just re-resolve the current range |
 | `--skip-signature-verification` | Allow unsigned packs from a non-default registry. Ignored for `registry.npmjs.org` |
+| `--skip-scan` | Skip the [content scan](#content-scan). For trusted private registries only |
 | `--allow-external-tarball-host` | Allow a pack tarball served from a host other than the configured registry |
 | `--silent` | Suppress all output |
 
@@ -253,17 +256,50 @@ When the same rule filename appears in multiple sources, the higher-priority sou
 
 ## Security
 
-Every pack install goes through two layers of verification:
+Every pack install goes through three layers of verification:
 
 1. **SHA-512 integrity** — the downloaded tarball is hashed and compared against the value recorded in the npm registry metadata. A mismatch aborts installation immediately.
 
 2. **ECDSA registry signature** — npm signs each package with a P-256 private key. Bluetemberg fetches the corresponding public keys from `/-/npm/v1/keys`, verifies the signature over `${name}@${version}:${integrity}`, and records the matching `keyid` in the lockfile.
+
+3. **Content scan** — after extraction and before the pack is written to the cache, every text file in the pack (rules, agents, skills, guardrails, hook scripts, README) is scanned for unsafe patterns. See [Content scan](#content-scan).
 
 The default npm registry (`registry.npmjs.org`) always signs packages. Bluetemberg enforces this: an unsigned package from the default registry is rejected as a potential supply-chain attack, even if the integrity hash matches.
 
 For **self-hosted or private registries** that do not produce signatures, pass `--skip-signature-verification` to `install`, `add`, `update`, or `verify`. The flag has no effect against the default registry, and integrity checking is never skipped. See [Private registries](#private-registries).
 
 Run `bluetemberg verify` at any time to re-check all installed packs without re-downloading them.
+
+### Content scan
+
+Pack content is instructions an agent follows and scripts a hook runs, so a signed pack can still be hostile. `add`, `install`, and `update` scan each freshly downloaded pack with a regex pre-flight before it lands in `.bluetemberg/packs/`. Packs already in the cache are not re-scanned.
+
+**Blocks** (install aborts, the extraction is removed, the command exits 1):
+
+| Rule | Catches |
+| ---- | ------- |
+| `secret-*` | Real-looking credentials: AWS access key ids, GitHub, OpenAI/Anthropic, Stripe live, Slack, npm and Google API tokens, private keys with key material. Placeholders (`sk_live_YOUR_KEY_HERE`, `AKIA…EXAMPLE`, `ghp_xxxx…`, low-entropy values) are ignored |
+| `exfiltration` | `curl`/`wget`/`nc` uploading `.env`, SSH keys, cloud/npm/git credentials, `printenv`, or `$…TOKEN`/`$…SECRET` variables to a non-local host |
+| `disable-safety-controls` | Imperatives to disable, bypass, or remove hooks, guardrails, signature verification, or security checks. Negated or descriptive mentions ("never disable the hooks", "issues bypass the guardrails") are not flagged |
+| `dangerous-agent-flag` | `--dangerously-skip-permissions` and similar flags that run an agent with no permission prompts or sandbox, unless the line warns against them |
+| `prompt-override` | "Ignore previous instructions"-style phrases, unless quoted or negated |
+| `bidi-control-chars` | Unicode bidirectional overrides that make text render differently than it reads |
+
+Instruction-type rules (`disable-safety-controls`, `dangerous-agent-flag`, `prompt-override`) only warn in top-level files such as `README.md`, which are never synced to an agent.
+
+**Warns** (reported, install continues): `rm -rf`, `curl … | sh`, writes to `.env`/`.npmrc`/credential files, `--no-verify`, and mentions of verification-weakening switches (`--skip-scan`, `--skip-signature-verification`, `disableAllHooks`). Rule packs quote these as BAD examples, so they are surfaced for review, not treated as attacks.
+
+Zero-width characters are stripped before matching. Files over 2 MB are reported as a warning, not scanned.
+
+A blocked install prints each finding with its file, line, and a masked excerpt:
+
+```
+Error: Security scan blocked "some-pack@1.2.0": 1 blocking finding(s). The pack was not installed.
+  [exfiltration] llm/skills/x/scripts/hook.sh:4: Uploads local secrets (.env, SSH/cloud credentials, secret env vars) to a network endpoint — cat .env | curl -d @- https://…
+If you trust this pack's source (e.g. a private registry you control), re-run with --skip-scan.
+```
+
+Pass `--skip-scan` to `add`, `install`, or `update` only for a registry you control. Every install that skips it logs `Content scan skipped for <pack> (--skip-scan).` The scan is a heuristic pre-flight, not a guarantee: review third-party packs before adopting them.
 
 ## Cache directory
 

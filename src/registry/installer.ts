@@ -14,6 +14,8 @@ import { downloadTarball, verifyIntegrity, fetchRegistryKeys, verifyRegistrySign
 import { DEFAULT_REGISTRY } from './constants.js';
 import { redactCredentials, registryAuthHeaders, transportAllowsCredentials } from './auth.js';
 import { extractTarball } from '../sources/tarball.js';
+import { formatBlockedScan, scanPackContent } from './scanner.js';
+import type { ScanResult } from './scanner.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
 const PACKS_DIR = '.bluetemberg/packs';
@@ -111,6 +113,8 @@ function warnSignatureSkipped(name: string, version: string, registryUrl: string
  * 1. Fetch tarball from the resolved URL.
  * 2. Verify integrity hash.
  * 3. Extract into `.bluetemberg/packs/<name>/<version>/`.
+ * 4. Scan the extracted content for unsafe patterns (unless `skipScan`); a blocking
+ *    finding removes the extraction and throws, warnings go to `onScanFindings`.
  *
  * @returns The lock entry with version, resolved URL, and integrity hash.
  */
@@ -123,6 +127,10 @@ export async function installPackVersion(
     registryUrl?: string;
     allowExternalTarballHost?: boolean;
     skipSignatureVerification?: boolean;
+    /** Skip the content scan (trusted private registries). */
+    skipScan?: boolean;
+    /** Receives non-blocking scan findings; the installer itself never prints them. */
+    onScanFindings?: (result: ScanResult) => void;
   } = {},
 ): Promise<PackageLockEntry> {
   const dest = packVersionDir(root, metadata.name, version);
@@ -286,6 +294,13 @@ export async function installPackVersion(
 
     // Extract tarball with security filtering (rejects symlinks + path traversal).
     await extractTarball(tmpFile, dest, metadata.name);
+
+    // Scan before the integrity marker is written: a blocked pack never becomes a cache hit.
+    if (!options.skipScan) {
+      const scan = scanPackContent(dest);
+      if (scan.blocked) throw new Error(formatBlockedScan(`${metadata.name}@${version}`, scan));
+      if (scan.findings.length > 0) options.onScanFindings?.(scan);
+    }
 
     // Preserve tarball in cache so verify() can recompute integrity from disk
     // rather than trusting the marker file alone.
