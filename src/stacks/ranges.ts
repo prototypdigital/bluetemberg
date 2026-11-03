@@ -8,7 +8,7 @@ import {
   packsRepoSourceDirs,
   type DeclaredRange,
 } from './declared.js';
-import { resolveLatestVersions, type LatestLookup, type LatestOptions } from './latest.js';
+import { lintStackPackages, resolveLatestVersions, type LatestLookup, type LatestOptions } from './latest.js';
 import {
   isValidStackRange,
   isWildcardRange,
@@ -149,10 +149,12 @@ export async function buildRangeLintReport(root: string, opts: LatestOptions = {
   const { mode, declared, warnings } = collectRangesAt(root);
   const ranged = declared.filter((d) => !isWildcardRange(d.range) && isValidStackRange(d.range));
 
+  // Resolved here, not inside resolveLatestVersions, so ignored stack-map data reaches `warnings`.
+  const stackMap = opts.packages ? null : lintStackPackages(root);
   const latest = await resolveLatestVersions(
     root,
     ranged.map((d) => d.stack),
-    opts,
+    { ...opts, packages: opts.packages ?? stackMap?.packages },
   );
   const latestByStack = new Map(latest.map((l) => [l.stack, l.latest]));
 
@@ -165,7 +167,16 @@ export async function buildRangeLintReport(root: string, opts: LatestOptions = {
     .filter((l) => l.latest === null)
     .map((l) => ({ stack: l.stack, package: l.package, reason: l.note ?? 'unknown' }));
 
-  return { root, mode, checked: ranged.length, findings, latest, unchecked, warnings };
+  const stackMapWarnings = stackMap?.issues.map((w) => `catalog ${w}`) ?? [];
+  return {
+    root,
+    mode,
+    checked: ranged.length,
+    findings,
+    latest,
+    unchecked,
+    warnings: [...warnings, ...stackMapWarnings],
+  };
 }
 
 /**

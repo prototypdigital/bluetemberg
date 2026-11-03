@@ -76,7 +76,7 @@ Optional map of **technology stack → version**, declaring which frameworks (an
 | `"auto"` | Re-detect this stack every sync from `node_modules` / lockfile / `package.json`. |
 | (omitted) | The stack is still auto-detected if its package is a dependency; declare it here only to pin a version or surface it in `bluetemberg detect`. |
 
-Stack names are an **open vocabulary** — adding a framework never requires an engine release. The known stack→package mappings (e.g. `nextjs` → `next`, `angular` → `@angular/core`) are used for auto-detection; unknown names map to themselves. A version declared here is never persisted with a confidence level — confidence is a property of *detection* and is surfaced live by `bluetemberg detect`.
+Stack names are an **open vocabulary** — adding a framework never requires an engine release. Auto-detection uses the [stack map](Stacks#the-stack-map-which-package-is-a-stack) (e.g. `nextjs` → `next`, `angular` → `@angular/core`), built into the engine and extended by the catalog; a declared name with no mapping maps to itself. A version declared here is never persisted with a confidence level — confidence is a property of *detection* and is surfaced live by `bluetemberg detect`.
 
 `bluetemberg init` populates this field via a **detect-then-confirm** step (detected stacks pre-checked, with free-text adds), or pass `--stacks` in headless runs; you can also edit it by hand. Inspect what the engine resolves with [`bluetemberg detect`](Commands#bluetemberg-detect-directory). `llm/` remains the source of truth; this field only routes existing content.
 

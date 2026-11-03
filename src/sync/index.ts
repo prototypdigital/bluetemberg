@@ -37,6 +37,7 @@ import { mergeContentKind, resolveSyncSources } from './sources.js';
 import { INIT_TEAM_PROFILES } from '../init/init-catalog.js';
 import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { detectStacks } from '../stacks/detect.js';
+import { buildStackPackages } from '../stacks/packages.js';
 import { describeLowConfidence, isValidStackRange, type DetectedStacks } from '../stacks/match.js';
 import { buildStackMap, type StackMap } from '../stacks/resolve.js';
 import { evaluateStackGate } from '../stacks/gate.js';
@@ -588,7 +589,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // on a Payload-3 project). Detection is cheap and side-effect-free; both default to empty so a
   // project with no `stacks` declared and no stack-tagged packs syncs byte-identically to before.
   const catalog = loadCatalogSync(root);
-  const detectedStacks = detectStacks(root, config);
+  const stackPackages = buildStackPackages(catalog);
+  const detectedStacks = detectStacks(root, config, stackPackages.packages);
 
   if (!orchestrated) log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
@@ -616,6 +618,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // Surface extends, pack, and external-source resolution warnings before sync output.
   for (const w of resolvedSources.warnings) recordWarning(ctx, w);
   for (const w of configWarnings) recordWarning(ctx, w);
+  for (const w of stackPackages.issues) recordWarning(ctx, `catalog ${w}`);
 
   logDetectedStacks(ctx);
   reportShadowedContent(ctx);

@@ -38,6 +38,17 @@ for (const pack of json.packs) {
   }
 }
 
+// `stackPackages` (#290) is parsed leniently by the engine, which drops bad entries at runtime.
+// Committing a block that is not even an object would only ever be a packs-side bug — catch it here.
+const stackPackages = json.stackPackages;
+if (
+  stackPackages !== undefined &&
+  (!stackPackages || typeof stackPackages !== 'object' || Array.isArray(stackPackages))
+) {
+  console.error('Invalid catalog format: "stackPackages" must be an object');
+  process.exit(1);
+}
+
 // Reduce item arrays to string ids — the engine consumes ids, not the packs repo's richer
 // `{ name, description }` objects. Keeps the committed snapshot compact and shape-stable.
 const ITEM_KINDS = ['rules', 'agents', 'skills', 'guardrails'];

@@ -186,7 +186,7 @@ npx bluetemberg detect
 npx bluetemberg detect --json
 ```
 
-Each `warnings[]` entry carries a `level`: `low-confidence` names the stack whose version was coerced, while `coverage-source` (with `stack: null`) means a source of covered ranges could not be read — a malformed `llm/packages.json`, say — so coverage may under-report. A broken manifest degrades the report to catalog-only coverage; it never aborts it.
+Each `warnings[]` entry carries a `level`: `low-confidence` names the stack whose version was coerced, while `coverage-source` (with `stack: null`) means a source of covered ranges could not be read — a malformed `llm/packages.json`, say — so coverage may under-report. A broken manifest degrades the report to catalog-only coverage; it never aborts it. `stack-map` (also `stack: null`) means the catalog's [stack map](Stacks#the-stack-map-which-package-is-a-stack) carried data this engine ignored — a newer schema, or a malformed entry — so a stack may be missing or read from its built-in package.
 
 ## `bluetemberg coverage <stack>[@version] [directory]`
 

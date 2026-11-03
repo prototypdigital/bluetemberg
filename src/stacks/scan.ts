@@ -4,6 +4,7 @@ import { loadCatalogSync } from '../catalog/index.js';
 import { loadConfig } from '../sync/index.js';
 import { collectDeclaredRanges } from './declared.js';
 import { detectStacks, detectStacksFromManifests } from './detect.js';
+import { buildStackPackages, type StackPackages } from './packages.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
 import type { CoverageGapReason, CoveragePrecision, StackRegistry } from './registry.js';
 import type { Catalog } from '../catalog/index.js';
@@ -221,8 +222,8 @@ function coverageRegistry(root: string, catalog: Catalog, warn: (m: string) => v
 /** Build the histogram + ranked gap list from folded units (the shared local/remote core). */
 function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot: string): ScanReport {
   const { acc, empty } = foldUnits(units);
-  const warnings: string[] = [];
   const catalog = loadCatalogSync(catalogRoot);
+  const warnings = buildStackPackages(catalog).issues.map((w) => `catalog ${w}`);
   const registry = coverageRegistry(catalogRoot, catalog, (m) => warnings.push(m));
 
   const histogram: StackHistogramEntry[] = [];
@@ -287,8 +288,21 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
  * and tests. The async {@link runScanOrg} adds the remote path on top of this same core.
  */
 export function buildScanReport(roots: string[], catalogRoot?: string): ScanReport {
-  const units = roots.map((root) => ({ id: root, detected: detectStacks(root, loadConfig(root)) }));
-  return buildReport(units, [], catalogRoot ?? process.cwd());
+  const base = catalogRoot ?? process.cwd();
+  return buildReport(localUnits(roots, scanStackPackages(base)), [], base);
+}
+
+/**
+ * The stack → package map every scanned repo is detected with: the scanner's catalog, not each
+ * repo's own cache. One scan, one vocabulary — so a local and a remote repo on the same stack land
+ * in the same histogram row, and detection agrees with the coverage corpus it is compared against.
+ */
+function scanStackPackages(catalogRoot: string): StackPackages {
+  return buildStackPackages(loadCatalogSync(catalogRoot)).packages;
+}
+
+function localUnits(roots: string[], packages: StackPackages): DetectionUnit[] {
+  return roots.map((root) => ({ id: root, detected: detectStacks(root, loadConfig(root), packages) }));
 }
 
 /** Run async tasks with a bounded concurrency window (no dependency; politeness vs GitHub limits). */
@@ -315,6 +329,7 @@ async function gatherRemoteUnits(
   repos: string[],
   token: string,
   progress: (m: string) => void,
+  packages: StackPackages,
   sinceDate?: Date,
 ): Promise<{ units: DetectionUnit[]; skipped: SkippedRepo[] }> {
   const targets = [...repos];
@@ -332,7 +347,10 @@ async function gatherRemoteUnits(
     try {
       const { manifest, lock } = await fetchRepoManifests(fullName, token);
       progress(`  [${++done}/${unique.length}] ${fullName}`);
-      return { id: fullName, detected: detectStacksFromManifests(manifest, lock) } as DetectionUnit;
+      return {
+        id: fullName,
+        detected: detectStacksFromManifests(manifest, lock, undefined, packages),
+      } as DetectionUnit;
     } catch (err) {
       const reason: SkipReason = err instanceof GithubFetchError ? err.reason : 'unknown';
       skipped.push({ repo: fullName, reason, message: err instanceof Error ? err.message : String(err) });
@@ -420,10 +438,9 @@ export async function runScanOrg(localRoots: string[], opts: ScanOptions = {}): 
   const log = resolveSink(opts.silent, opts.log);
   const progress = resolveSink(opts.silent, opts.progress);
 
-  const localUnits: DetectionUnit[] = localRoots.map((root) => ({
-    id: root,
-    detected: detectStacks(root, loadConfig(root)),
-  }));
+  const catalogRoot = opts.catalogRoot ?? process.cwd();
+  const packages = scanStackPackages(catalogRoot);
+  const locals = localUnits(localRoots, packages);
 
   let remoteUnits: DetectionUnit[] = [];
   let skipped: SkippedRepo[] = [];
@@ -433,12 +450,19 @@ export async function runScanOrg(localRoots: string[], opts: ScanOptions = {}): 
       throw new Error('No GitHub token found. Set GITHUB_TOKEN or GH_TOKEN in your environment.');
     }
     const sinceDate = opts.since ? new Date(Date.now() - opts.since * 24 * 60 * 60 * 1000) : undefined;
-    const remote = await gatherRemoteUnits(opts.org, opts.repos ?? [], opts.token, progress, sinceDate);
+    const remote = await gatherRemoteUnits(
+      opts.org,
+      opts.repos ?? [],
+      opts.token,
+      progress,
+      packages,
+      sinceDate,
+    );
     remoteUnits = remote.units;
     skipped = remote.skipped;
   }
 
-  const report = buildReport([...localUnits, ...remoteUnits], skipped, opts.catalogRoot ?? process.cwd());
+  const report = buildReport([...locals, ...remoteUnits], skipped, catalogRoot);
   if (opts.json) {
     log(JSON.stringify(report, null, 2));
   } else {

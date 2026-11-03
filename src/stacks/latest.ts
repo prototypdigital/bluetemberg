@@ -2,10 +2,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { valid } from 'semver';
+import { type Catalog, loadCatalogSync } from '../catalog/index.js';
 import { fetchDistTags } from '../registry/client.js';
 import { DEFAULT_REGISTRY } from '../registry/constants.js';
 import type { Stack } from '../types.js';
-import { packageForStack } from './detect.js';
+import { packsRepoSourceDirs } from './declared.js';
+import {
+  buildStackPackages,
+  packageForStack,
+  type StackPackages,
+  type StackPackagesResult,
+} from './packages.js';
 
 /**
  * The latest released version of each stack, from the npm registry (#294).
@@ -63,6 +70,29 @@ export interface LatestOptions {
   fetchLatest?: (pkg: string) => Promise<string>;
   /** Injected for tests: the current time in ms. */
   now?: () => number;
+  /** Stack → package map; defaults to {@link lintStackPackages}. */
+  packages?: StackPackages;
+}
+
+/**
+ * The stack map a lint at `root` should look packages up with. In a packs repo that is the repo's
+ * own `catalog.json` — the one about to be published, so a mapping added there is linted before it
+ * ships. Anywhere else it is the map detection uses: the project's catalog.
+ */
+export function lintStackPackages(root: string): StackPackagesResult {
+  if (packsRepoSourceDirs(root).size === 0) return buildStackPackages(loadCatalogSync(root));
+  try {
+    // Only `stackPackages` is read, and buildStackPackages validates it from `unknown` itself.
+    const own = JSON.parse(readFileSync(join(root, 'catalog.json'), 'utf8')) as Partial<Catalog> | null;
+    return buildStackPackages({ stackPackages: own?.stackPackages });
+  } catch (err) {
+    const fallback = buildStackPackages(loadCatalogSync(root));
+    const reason = errorMessage(err);
+    return {
+      ...fallback,
+      issues: [`stackPackages ignored: catalog.json could not be read (${reason})`, ...fallback.issues],
+    };
+  }
 }
 
 async function fetchLatestFromRegistry(pkg: string, root: string): Promise<string> {
@@ -134,11 +164,12 @@ export async function resolveLatestVersions(
   const cacheFile = opts.cacheFile ?? latestCachePath();
   const now = (opts.now ?? Date.now)();
   const fetchLatest = opts.fetchLatest ?? ((pkg: string) => fetchLatestFromRegistry(pkg, root));
+  const packages = opts.packages ?? lintStackPackages(root).packages;
   const cache = readCache(cacheFile);
   let dirty = false;
 
   const lookup = async (stack: Stack): Promise<LatestLookup> => {
-    const pkg = packageForStack(stack);
+    const pkg = packageForStack(stack, packages);
     const cached = cache[pkg];
     if (cached && isFresh(cached, now)) return fromCache(stack, pkg, cached, 'cache', null);
 

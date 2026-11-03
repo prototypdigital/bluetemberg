@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { detectStacks, detectStacksFromManifests, packageForStack } from '../src/stacks/detect.js';
+import { detectStacks, detectStacksFromManifests } from '../src/stacks/detect.js';
+import { packageForStack } from '../src/stacks/packages.js';
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-detect-${Date.now()}-${Math.random().toString(36).slice(2)}`);

@@ -25,6 +25,7 @@ import {
   resolveSkillTargets,
 } from '../sync/targets.js';
 import { detectStacks } from './detect.js';
+import { buildStackPackages } from './packages.js';
 import { evaluateStackGate, type StackGate } from './gate.js';
 import {
   versionSatisfies,
@@ -169,6 +170,8 @@ function loadWhyContext(root: string): WhyContext {
       items.push({ kind, key, kindDir, sourceIndex, ...readItem(kind, kindDir, key) });
     }
   }
+  const catalog = loadCatalogSync(root);
+  const stackPackages = buildStackPackages(catalog);
   const shipped = dirs.map(
     (dir) => new Map(CONTENT_KINDS.map((kind) => [kind, new Set(mergeContentKind([dir], kind).keys())])),
   );
@@ -179,9 +182,10 @@ function loadWhyContext(root: string): WhyContext {
     sources: resolved.sources,
     shipped,
     items,
-    stackMap: buildStackMap(loadCatalogSync(root)),
-    detected: detectStacks(root, config),
-    warnings: resolved.warnings,
+    stackMap: buildStackMap(catalog),
+    detected: detectStacks(root, config, stackPackages.packages),
+    // The catalog stack-map lines are worded exactly as sync warns them.
+    warnings: [...resolved.warnings, ...stackPackages.issues.map((w) => `catalog ${w}`)],
   };
 }
 
