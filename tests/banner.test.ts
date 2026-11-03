@@ -23,6 +23,14 @@ describe('withGeneratedBanner', () => {
     );
   });
 
+  it('keeps CRLF frontmatter at the top of the file, where hosts look for it', () => {
+    const content = '---\r\nname: demo\r\n---\r\n\r\nBody\r\n';
+    const once = withGeneratedBanner(content, SOURCE);
+
+    expect(once).toBe(`---\r\nname: demo\r\n---\r\n\r\n${generatedBanner(SOURCE)}\r\n\r\nBody\r\n`);
+    expect(withGeneratedBanner(once, SOURCE)).toBe(once);
+  });
+
   it('inserts the banner at the top when there is no frontmatter', () => {
     const content = '# Just a heading\n\nBody.\n';
 

@@ -1,12 +1,13 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import matter from 'gray-matter';
 import type { BlueprintConfig, Platform } from '../types.js';
 import { listFiles } from '../utils/fs.js';
-import { hasGeneratedBanner, withGeneratedBanner, withGeneratedBannerToml } from './banner.js';
+import { withGeneratedBanner, withGeneratedBannerToml } from './banner.js';
+import { isHandWrittenSkillDir } from './skill-files.js';
 import { mergeSourceDirs } from './extends-loader.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
-import { dirKey, normalizePlatforms, resolveSkillTargets } from './targets.js';
+import { dirKey, normalizePlatforms, resolveSkillOutputs, resolveSkillTargets } from './targets.js';
 
 /**
  * Commands (`llm/commands/`) and prompt files (`llm/prompts/`) predate skills. Every host has
@@ -277,17 +278,6 @@ function codexPolicy(sourceId: string): string {
   return withGeneratedBannerToml('policy:\n  allow_implicit_invocation: false\n', sourceId);
 }
 
-/**
- * True when the output dir holds something sync did not write: a `SKILL.md` without the banner, or
- * files with no `SKILL.md` at all. Writing a bannered `SKILL.md` there would make `--prune` treat
- * every file in the dir as generated and delete it, so the dir is left alone.
- */
-function isHandWritten(skillDir: string): boolean {
-  const skillMd = join(skillDir, 'SKILL.md');
-  if (existsSync(skillMd)) return !hasGeneratedBanner(readFileSync(skillMd, 'utf8'));
-  return existsSync(skillDir) && readdirSync(skillDir).length > 0;
-}
-
 /** Writes each command and prompt as a generated skill to every skills target. */
 export function syncLegacySkills(
   ctx: LegacySkillsSyncContext,
@@ -296,7 +286,7 @@ export function syncLegacySkills(
 ): void {
   warnLegacyOutputs(ctx, recordWarning);
 
-  const targets = resolveSkillTargets(ctx.config, ctx.platforms);
+  const targets = resolveSkillOutputs(ctx.config, ctx.platforms).map((output) => output.target);
   if (targets.length === 0) return;
 
   const planned = planLegacySkills(ctx, recordError, recordWarning);
@@ -306,12 +296,12 @@ export function syncLegacySkills(
   const codexDirs = skillDirsOf(ctx, 'codex');
 
   ctx.log(`Commands and prompts as skills: ${planned.length} source file(s)`);
-  for (const [, target] of targets) {
+  for (const target of targets) {
     const dir = dirKey(target.dir);
     let written = 0;
     for (const skill of planned) {
       const skillDir = join(ctx.root, target.dir, skill.name);
-      if (isHandWritten(skillDir)) {
+      if (isHandWrittenSkillDir(skillDir)) {
         recordWarning(
           `${target.dir}/${skill.name}/ holds files bluetemberg did not write, so it is kept and no skill is generated there.`,
         );

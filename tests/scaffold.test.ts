@@ -108,7 +108,7 @@ describe('scaffold', () => {
       scaffold(root, { ...baseAnswers, includeSkills: true, skills: ['patterns'] });
 
       const config = JSON.parse(readFileSync(join(root, 'bluetemberg.config.json'), 'utf8'));
-      expect(config.targets.skills?.cursor).toEqual({ dir: '.cursor/skills' });
+      expect(config.targets.skills?.cursor).toEqual({ dir: '.agents/skills' });
       expect(config.targets.skills?.claude).toEqual({ dir: '.claude/skills' });
     });
 

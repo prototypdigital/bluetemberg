@@ -24,7 +24,7 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 | ------ | ------ | ------------ |
 | `llm/rules/` | Per-platform rule files for Cursor, Claude, Copilot, Devin Desktop, Antigravity (`targets.rules`; Devin also gets a transitional `.windsurf/rules/` mirror); a managed block in `AGENTS.md` for Codex and Gemini CLI | Always, per `targets` + `platforms`, after version gating |
 | `llm/agents/` | Cursor / Claude / Copilot agent files (`targets.agents`); `.codex/agents/*.toml` for Codex | When source files exist |
-| `llm/skills/` | Skill directories for Cursor, Claude, Copilot, Devin Desktop, Codex, Antigravity (`targets.skills`; Devin, Codex and Antigravity share `.agents/skills/`, written once) | When source directories exist |
+| `llm/skills/` | Skill directories (`targets.skills`): `.claude/skills/` for Claude, `.github/skills/` for Copilot, and the shared `.agents/skills/` (written once) for Codex, Devin Desktop, Antigravity, Gemini CLI and Cursor. Cursor gets no dir of its own when Claude is enabled. Pack skills are stamped with pack name, version and integrity in `metadata`. See [Skills dirs per host](#skills-dirs-per-host) | When source directories exist |
 | `llm/guardrails/` | `hooks` key of `.claude/settings.json` (composed with `llm/hooks.claude.json`); `.cursor/hooks.json` (composed with `llm/hooks.json`); `.github/hooks/bluetemberg-guardrails.json`; `.devin/hooks.v1.json` (composed with hand-written entries); `[[hooks.PreToolUse]]` block in `.codex/config.toml` | When **claude** / **cursor** / **copilot** / **devin** / **codex** is in `platforms` — see [Guardrails](Guardrails) |
 | `llm/hooks.claude.json` | `hooks` key of `.claude/settings.json` | When the file exists in the project's own `llm/` and **claude** is in `platforms` |
 | `llm/hooks.json` | `.cursor/hooks.json` | When file exists and **cursor** is in `platforms` |
@@ -38,6 +38,31 @@ There is **no** built-in allowlist or sandbox today; optional future guardrails 
 | `adapters` in config | User-defined ESM modules (last sync step) | When `adapters` is a non-empty array of specifiers |
 
 Nothing runs your hooks or MCP at sync time: the CLI only writes files. `sync --check` diffs the same outputs.
+
+## Skills dirs per host
+
+Every host now reads skills from more than one directory, so writing a copy per tool made the same skill show up twice. Sync writes the fewest dirs that still reach every enabled host. The per-host facts below were checked against each vendor's docs on 2026-11-03, and Cursor's dedupe was also confirmed live with `cursor-agent`.
+
+| Host | Project skills dirs it reads | Same name in two dirs | Sync writes |
+| ---- | ---------------------------- | --------------------- | ----------- |
+| Claude Code | `.claude/skills/` only | — | `.claude/skills/` |
+| Cursor | `.cursor/skills/`, `.claude/skills/`, `.agents/skills/` (and `.codex/skills/`) | Listed once; `.cursor` wins, then `.claude`, then `.agents` (verified live) | nothing of its own when Claude is enabled, else `.agents/skills/` |
+| Copilot code review | `.github/skills/` only | — | `.github/skills/` |
+| VS Code, Copilot CLI, Copilot cloud agent | `.github/skills/`, `.claude/skills/`, `.agents/skills/` | VS Code lists both | `.github/skills/` (shared with code review) |
+| OpenAI Codex | `.agents/skills/` | Both can appear | `.agents/skills/` |
+| Antigravity | `.agents/skills/` (and legacy `.agent/skills/`) | Undocumented | `.agents/skills/` |
+| Gemini CLI | `.agents/skills/` and `.gemini/skills/` | `.agents` wins | `.agents/skills/` |
+| Devin Desktop | `.devin/skills/`, `.agents/skills/`, legacy `.windsurf/skills/` | Undocumented | `.agents/skills/` |
+
+With the default platforms (`cursor`, `claude`, `copilot`), sync writes `.claude/skills/` and `.github/skills/`. With `cursor` and `copilot` but no `claude`, it writes `.agents/skills/` and `.github/skills/`. Cursor reads the Claude copy. The duplicate that remains is in VS Code and Copilot CLI, which read both dirs. It cannot be avoided without losing skills elsewhere: Claude Code reads only `.claude/skills/`, and Copilot code review reads only `.github/skills/`.
+
+**Platform-limited skills.** A skill limited to some platforms (catalog or frontmatter `platforms`) goes to a shared dir only when one of that dir's own readers is allowed. Cursor reads `.claude/skills/` and `.agents/skills/` alongside their owners, so it never pulls a skill into either one. A Cursor-only skill goes to `.cursor/skills/` instead, which no other host reads. Under scoped `extends` entries, Cursor counts as a writer of a dir only when it has no covering dir in its own group, so a Codex-scoped entry doesn't split `.agents/skills/` from a Cursor that reads Claude's dir.
+
+The per-host user-only switches for commands and prompts migrated to skills ([Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts)) are written only where their host reads them. `triggers: [user]` goes to the dir Devin reads, and `agents/openai.yaml` to the dir Codex reads; both are `.agents/skills/`.
+
+**Upgrading.** Earlier versions also wrote `.cursor/skills/`. A `targets.skills.cursor` entry that still points there (what `init` wrote) means the default. The old generated copies are reported as `STALE:` by `sync --check`. A plain `sync` prints a note while they are left, because Cursor prefers `.cursor/skills/` over the fresh copies. Run `bluetemberg sync --prune` once. It removes a copy's `SKILL.md` only when it carries the banner, and a supporting file only when it is identical to the live copy. A hand-written skill, or a file someone added inside a copy, stays and is listed. Sync also no longer overwrites a skill dir in a target that holds an unbannered `SKILL.md`. It warns instead, so delete an old copy from before banners existed by hand.
+
+**Provenance.** A skill synced from a registry pack records where it came from in the Agent Skills `metadata` map: `bluetemberg-pack`, `bluetemberg-version` and `bluetemberg-integrity`, the lockfile's tarball hash that `bluetemberg verify` checks. The values come from the lockfile, not from the output, so the stamp never changes the hash it records. A skill's own `metadata` entries are kept.
 
 ## Optional npm / file adapters
 

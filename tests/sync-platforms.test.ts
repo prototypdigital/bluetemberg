@@ -277,8 +277,8 @@ describe('sync — pack platform routing', () => {
       log.mockRestore();
     }
 
-    // `.agents/skills/` is read by Codex too; the AGENTS.md block by Codex and Gemini.
-    expect(printed).toContain('    - devin-flow: devin only — skipped for claude, gemini');
+    // `.agents/skills/` is read by Codex and Gemini CLI too; the AGENTS.md block by Codex and Gemini.
+    expect(printed).toContain('    - devin-flow: devin only — skipped for claude');
     expect(printed).toContain('    - gemini-only: gemini only — skipped for devin, claude');
   });
 
@@ -305,5 +305,59 @@ describe('sync — pack platform routing', () => {
     expect(first.synced).toBe(2);
     const check = await sync(root, { config: config(['claude', 'cursor']), check: true, silent: true });
     expect(check.outOfSync).toBe(0);
+  });
+});
+
+// #285 consolidated skills on `.claude/skills` + `.agents/skills`; routing must still hold per platform.
+describe('sync — pack platform routing with consolidated skills dirs', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  const has = (rel: string): boolean => existsSync(join(root, rel));
+
+  it('keeps a claude-only pack skill out of .agents/skills, and stamps it with its pack', async () => {
+    const pack = installFakePack(root, 'bluetemberg-skills-claude-only', '1.4.0');
+    writeSkill(pack, 'claude-skill');
+    writeCatalog(root, [
+      catalogPack('bluetemberg-skills-claude-only', 'skills', ['claude-skill'], ['claude']),
+    ]);
+
+    const results = await sync(root, { config: config(['claude', 'cursor', 'codex']), silent: true });
+
+    expect(results.errors).toEqual([]);
+    expect(has('.claude/skills/claude-skill/SKILL.md')).toBe(true);
+    expect(has('.agents/skills/claude-skill')).toBe(false);
+    expect(has('.cursor/skills/claude-skill')).toBe(false);
+    const skill = readFileSync(join(root, '.claude/skills/claude-skill/SKILL.md'), 'utf8');
+    expect(skill).toContain('bluetemberg-pack: "bluetemberg-skills-claude-only"');
+    expect(skill).toContain('bluetemberg-version: "1.4.0"');
+    expect(skill).toContain('bluetemberg-integrity: "sha512-x"');
+  });
+
+  it('gives a cursor-only skill Cursor’s private dir instead of a dir Claude Code or Codex reads', async () => {
+    writeSkill(join(root, 'llm'), 'cursor-skill', 'platforms: [cursor]');
+    writeSkill(join(root, 'llm'), 'shared-skill');
+    const cfg = config(['claude', 'cursor', 'codex']);
+
+    await sync(root, { config: cfg, silent: true });
+
+    expect(has('.cursor/skills/cursor-skill/SKILL.md')).toBe(true);
+    expect(has('.claude/skills/cursor-skill')).toBe(false);
+    expect(has('.agents/skills/cursor-skill')).toBe(false);
+    // Unlimited skills still go only to the shared dirs.
+    expect(has('.cursor/skills/shared-skill')).toBe(false);
+    expect((await sync(root, { config: cfg, check: true, silent: true })).outOfSync).toBe(0);
+
+    // Once the skill is gone, its private copy is stale and pruned like any generated output.
+    rmSync(join(root, 'llm', 'skills', 'cursor-skill'), { recursive: true });
+    await sync(root, { config: cfg, prune: true, silent: true });
+    expect(has('.cursor/skills/cursor-skill')).toBe(false);
   });
 });

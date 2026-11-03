@@ -79,12 +79,14 @@ The platforms the skill works on, e.g. `[claude]`. Sync skips its output for the
 
 ## How skills are synced
 
-A skill is a directory, and the whole directory is synced. `SKILL.md` is copied with its content unchanged apart from the generated-file banner added after the frontmatter. Every other file in the directory — the `scripts/`, `references/` and `assets/` the [Agent Skills](https://agentskills.io) layout allows, or anything else you put there — is copied byte for byte with its file mode kept, so a script that is executable in `llm/` is executable in the output. Supporting files get no banner. Dotfiles are skipped.
+A skill is a directory, and the whole directory is synced. `SKILL.md` is copied with its content unchanged apart from the generated-file banner added after the frontmatter, and, for a skill from a registry pack, a `metadata` entry naming the pack (`bluetemberg-pack`, `bluetemberg-version`, `bluetemberg-integrity`). Every other file in the directory — the `scripts/`, `references/` and `assets/` the [Agent Skills](https://agentskills.io) layout allows, or anything else you put there — is copied byte for byte with its file mode kept, so a script that is executable in `llm/` is executable in the output. Supporting files get no banner. Dotfiles are skipped.
 
-| Source                                 | Cursor                                     | Claude                                     | Copilot                                    |
+| Source                                 | Claude (Cursor reads this one too)         | Copilot                                    | Codex, Devin, Antigravity, Gemini CLI      |
 | -------------------------------------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
-| `llm/skills/patterns/SKILL.md`         | `.cursor/skills/patterns/SKILL.md`         | `.claude/skills/patterns/SKILL.md`         | `.github/skills/patterns/SKILL.md`         |
-| `llm/skills/patterns/scripts/check.sh` | `.cursor/skills/patterns/scripts/check.sh` | `.claude/skills/patterns/scripts/check.sh` | `.github/skills/patterns/scripts/check.sh` |
+| `llm/skills/patterns/SKILL.md`         | `.claude/skills/patterns/SKILL.md`         | `.github/skills/patterns/SKILL.md`         | `.agents/skills/patterns/SKILL.md`         |
+| `llm/skills/patterns/scripts/check.sh` | `.claude/skills/patterns/scripts/check.sh` | `.github/skills/patterns/scripts/check.sh` | `.agents/skills/patterns/scripts/check.sh` |
+
+Each dir is written once for every enabled host that reads it; without Claude, Cursor gets `.agents/skills/`. See [Adapters](Adapters#skills-dirs-per-host) for which host reads which dir.
 
 Reference supporting files from `SKILL.md` by their path relative to the skill directory (`scripts/check.sh`), which is the same in the source and in every output. The same copy happens for marketplace plugin skills under `plugins/<name>/skills/`.
 
@@ -98,7 +100,7 @@ Every host has folded slash commands and prompt files into skills:
 - VS Code runs prompt files only in the Local harness and recommends migrating them to skills, with a built-in "Convert Prompt to Skills" migration ([VS Code 1.129](https://code.visualstudio.com/updates/v1_129), [Migrate customizations](https://code.visualstudio.com/docs/agent-customization/migrate-customizations)).
 - Devin Desktop replaced workflows with skills ([Devin: Workflows](https://docs.devin.ai/desktop/cascade/workflows)).
 
-So sync now also writes each `llm/commands/*.md` and `llm/prompts/*.md` file as a **generated skill**, to every skills target of the enabled platforms (`.claude/skills/`, `.github/skills/`, `.cursor/skills/`, `.agents/skills/`). Before, a command reached Claude Code only and a prompt reached Copilot only.
+So sync now also writes each `llm/commands/*.md` and `llm/prompts/*.md` file as a **generated skill**, to every skills target of the enabled platforms (`.claude/skills/`, `.github/skills/`, `.agents/skills/`). Before, a command reached Claude Code only and a prompt reached Copilot only.
 
 | Source                          | Generated skill                  |
 | ------------------------------- | -------------------------------- |

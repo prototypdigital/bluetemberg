@@ -9,7 +9,7 @@ import {
   type ResolvedExtendsEntry,
 } from './extends-loader.js';
 import { configuredPlatforms, normalizePlatforms } from './targets.js';
-import { resolvePackSourceDirs } from '../registry/index.js';
+import { resolvePackSources, type PackSource } from '../registry/index.js';
 import { resolveExternalSourceDirs } from '../sources/registry.js';
 
 /**
@@ -29,6 +29,8 @@ export interface SyncSource {
   platforms: Platform[] | null;
   /** For an `extends` source, its position in the config's `extends` array. */
   extendsIndex?: number;
+  /** The locked pack behind a `pack` source. */
+  pack?: PackSource;
 }
 
 /** A set of platforms that read the same sources: everything but scoped `extends` entries is shared. */
@@ -53,7 +55,7 @@ export function resolveSyncSources(root: string, config: BlueprintConfig): Resol
   const source = config.source || 'llm';
   const sourceBase = join(root, source);
   const extended = resolveExtendedSourceDirs(config.extends, root);
-  const packs = resolvePackSourceDirs(root, source);
+  const packs = resolvePackSources(root, source);
   const external = resolveExternalSourceDirs(root, source);
   const configured = configuredPlatforms(config);
 
@@ -71,6 +73,7 @@ export function resolveSyncSources(root: string, config: BlueprintConfig): Resol
       origin: 'pack' as const,
       label: packs.labels[i] ?? `pack[${i}]`,
       platforms: null,
+      pack: packs.packs[i],
     })),
     ...external.dirs.map((dir, i) => ({
       dir,

@@ -22,11 +22,10 @@ import {
 } from '../sync/sources.js';
 import {
   configuredPlatforms,
-  dirKey,
   resolveAgentTargets,
   resolveRuleTargets,
-  resolveSkillTargets,
-  skillDirReaders,
+  resolveSkillOutputs,
+  skillDirsFor,
 } from '../sync/targets.js';
 import {
   allowsAnyPlatform,
@@ -292,10 +291,14 @@ function candidateOutputs(
     out.push({ platform, path: toProjectPath(ctx.root, join(ctx.root, path)) });
   };
   if (item.kind === 'skills') {
-    const readers = skillDirReaders(ctx.config, platforms);
-    for (const [platform, t] of resolveSkillTargets(ctx.config, platforms))
-      for (const reader of readers.get(dirKey(t.dir)) ?? [platform])
-        push(reader, `${t.dir}/${item.id}/SKILL.md`);
+    // The dirs sync picks for this skill, with every platform that loads each: Cursor reads
+    // `.claude/skills/` when that is written for it, and gets a Cursor-only skill in its own dir.
+    const outputs = skillDirsFor(
+      resolveSkillOutputs(ctx.config, platforms),
+      platformGateFor(ctx, item).platforms,
+    );
+    for (const output of outputs)
+      for (const reader of output.platforms) push(reader, `${output.target.dir}/${item.id}/SKILL.md`);
     return out;
   }
   const targets = item.kind === 'rules' ? resolveRuleTargets : resolveAgentTargets;

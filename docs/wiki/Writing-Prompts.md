@@ -5,7 +5,7 @@
 VS Code–style **prompt files** (invoked from chat via `/`) can live under `llm/prompts/` as Markdown. Sync writes each one twice:
 
 - to **`.github/prompts/`** using Copilot’s `*.prompt.md` naming. Deprecated; see the removal plan.
-- as a generated skill, `<skills dir>/<name>/SKILL.md`, to every skills target of the enabled platforms (`.github/skills/`, `.claude/skills/`, `.cursor/skills/`, `.agents/skills/`). Copilot shows skills as `/name` slash commands too.
+- as a generated skill, `<skills dir>/<name>/SKILL.md`, to every skills target of the enabled platforms (`.github/skills/`, `.claude/skills/`, `.agents/skills/`). Copilot shows skills as `/name` slash commands too.
 
 ## Layout
 

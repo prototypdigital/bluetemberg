@@ -216,7 +216,8 @@ describe('bluetemberg why <file>', () => {
 
       const skill = buildWhyReport(root, '.claude/skills/payload-migrate');
       expect(skill.matchedAs).toBe('output');
-      expect(skill.platforms).toEqual(['claude']);
+      // Cursor reads `.claude/skills/` too, so it gets no dir of its own while Claude's is written.
+      expect(skill.platforms).toEqual(['claude', 'cursor']);
       expect(only(skill).included).toBe(false);
     });
 

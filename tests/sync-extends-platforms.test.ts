@@ -381,6 +381,32 @@ describe('extends: platform-scoped entries', () => {
       expect(existsSync(join(root, '.agents/skills/codex-skill/SKILL.md'))).toBe(false);
     });
 
+    it('lands a codex-scoped skill in .agents/skills only, with Cursor left to Claude’s dir', async () => {
+      writeSkill(join(root, 'codex-only', 'llm'), 'codex-skill');
+      writeSkill(join(root, 'llm'), 'shared-skill');
+      const config: BlueprintConfig = {
+        platforms: ['claude', 'cursor', 'codex'],
+        source: 'llm',
+        targets: {},
+        extends: [{ path: './codex-only', platforms: ['codex'] }],
+      };
+
+      const results = await sync(root, { config, silent: true });
+
+      // Cursor writes nothing of its own here, so it does not split `.agents/skills/` from Codex.
+      expect(results.errors).toEqual([]);
+      expect(existsSync(join(root, '.agents/skills/codex-skill/SKILL.md'))).toBe(true);
+      expect(existsSync(join(root, '.claude/skills/codex-skill'))).toBe(false);
+      expect(existsSync(join(root, '.cursor/skills/codex-skill'))).toBe(false);
+      expect(existsSync(join(root, '.claude/skills/shared-skill/SKILL.md'))).toBe(true);
+      expect(existsSync(join(root, '.agents/skills/shared-skill/SKILL.md'))).toBe(true);
+      expect((await sync(root, { config, check: true, silent: true })).outOfSync).toBe(0);
+
+      writeConfig(root, { ...config });
+      const [explained] = buildWhyReport(root, 'codex-skill').matches;
+      expect(explained.outputs).toEqual(['.agents/skills/codex-skill/SKILL.md']);
+    });
+
     it('refuses to split codex and gemini, which share the AGENTS.md rules block', async () => {
       writeRule(join(root, 'codex-only', 'llm'), 'r');
       writeFileSync(join(root, 'AGENTS.md'), '# Project\n');
