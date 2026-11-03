@@ -274,15 +274,16 @@ Run `bluetemberg verify` at any time to re-check all installed packs without re-
 
 Pack content is instructions an agent follows and scripts a hook runs, so a signed pack can still be hostile. `add`, `install`, and `update` scan each freshly downloaded pack with a regex pre-flight before it lands in `.bluetemberg/packs/`. Packs already in the cache are not re-scanned.
 
-Every file in the pack is scanned in full: rules, agents, skills, guardrails, `hooks.json`, `mcp.json`, hook scripts, and the README. The only files skipped are those with a binary extension (images, fonts, archives) whose content is also binary.
+Every file in the pack is scanned in full: rules, agents, skills, guardrails, `hooks.json`, `mcp.json`, hook scripts, the README, and binaries, since a payload behind a PNG header still runs as `sh payload.png`. A pack that ships the engine's own cache markers (`.bluetemberg-integrity`, `.bluetemberg-keyid`, `.bluetemberg-pack.tgz`) at its root is refused outright, even with `--skip-scan`, because a shipped `.bluetemberg-keyid` could forge a signature record.
 
 **Blocks** (install aborts, the extraction is removed, the command exits 1):
 
 | Rule | Catches |
 | ---- | ------- |
 | `secret-*` | Real-looking credentials: AWS access key ids, GitHub, OpenAI/Anthropic, Stripe live, Slack, npm and Google API tokens, private keys with key material. Placeholders (`sk_live_YOUR_KEY_HERE`, `AKIA…EXAMPLE`, `ghp_xxxx…`, low-entropy values) are ignored |
-| `exfiltration` | Putting local secrets in the body of a request to a non-local host: `curl -d @.env`, `cat ~/.ssh/id_rsa \| curl …`, `printenv \| nc …`, `-d "$GITHUB_TOKEN"`, `fetch(url, { body: readFileSync('.env') })`, `requests.post(url, data=open('~/.aws/credentials'))`. A token in an `Authorization`/`-H`/`-u` argument is authentication and is not flagged |
+| `exfiltration` | Putting local secrets in the body of a request to a non-local host: `curl -d @.env`, `cat ~/.ssh/id_rsa \| curl …`, `printenv \| nc …`, `-d "$GITHUB_TOKEN"`, `fetch(url, { body: readFileSync('.env') })`, `requests.post(url, data=open('~/.aws/credentials'))`, `scp ~/.ssh/id_rsa host:`. A local target only counts as local when no other host is named on the line, so a `# 127.0.0.1` comment is no decoy. A token in an `Authorization`/`-H`/`-u` argument is authentication and is not flagged |
 | `decode-to-shell` | A base64/hex blob decoded straight into a shell (`… \| base64 -d \| sh`) |
+| `pipe-to-shell` (in JSON configs) | `curl … \| sh` inside a pack's `hooks.json`/`mcp.json` (and other non-root JSON), where the command runs automatically. It warns everywhere else |
 | `disable-safety-controls` | Imperatives to disable, bypass, or skip hooks, guardrails, signature verification, or security checks. Negated or descriptive mentions ("never disable the hooks", "issues bypass the guardrails") are not flagged |
 | `dangerous-agent-flag` | `--dangerously-skip-permissions` and similar flags that run an agent with no permission prompts or sandbox, unless the line warns against them |
 | `prompt-override` | "Ignore previous instructions"-style phrases, unless quoted or negated |
@@ -292,7 +293,7 @@ Every file in the pack is scanned in full: rules, agents, skills, guardrails, `h
 
 **BAD examples.** In markdown, the instruction-type and exfiltration rules warn instead of block inside a code fence labelled as a bad example (`Bad:`, `**Don't:**`, `❌`, "Insecure example", "An attacker might run"), or on a line that starts with such a label. Credentials still block there, because a real key in an example is still a leaked key. Scripts never get this downgrade. Instruction-type rules also only warn in top-level files such as `README.md`, which are never synced to an agent.
 
-**Evasion handling.** Before matching, text is NFKC-normalised (fullwidth letters fold to ASCII), and zero-width characters and NULs are stripped. Shell `\` continuations and hard-wrapped prose paragraphs are joined, base64 blobs and JSON string escapes are decoded and re-scanned, and long lines are matched in overlapping windows. Excerpts are masked for credentials and escaped for terminal control sequences.
+**Evasion handling.** Before matching, text is NFKC-normalised (fullwidth letters fold to ASCII), and zero-width characters and NULs are stripped. Shell continuations (`\`, or a trailing `|`, `&&`, `||`, including YAML `run: |` blocks) and hard-wrapped prose paragraphs are joined. Base64 blobs, JSON string escapes, and `command` + `args` argv arrays are decoded or joined and re-scanned. HTML comments (`<!-- … -->`) are read like any other text, and long lines are matched in overlapping windows. Quoted YAML/JSON values such as a guardrail's `message: "…"` count as delivered text, not as citations. Excerpts are masked for credentials and escaped for terminal control sequences.
 
 A blocked install prints each finding with its file, line, and a masked excerpt:
 
@@ -302,7 +303,7 @@ Error: Security scan blocked "some-pack@1.2.0": 1 blocking finding(s). The pack 
 If you trust this pack's source (e.g. a private registry you control), re-run with --skip-scan.
 ```
 
-Pass `--skip-scan` to `add`, `install`, or `update` only for a registry you control. Every install that skips it logs `Content scan skipped for <pack> (--skip-scan).`
+Pass `--skip-scan` to `add`, `install`, or `update` only for a registry you control. Every fresh download that skips it logs `Content scan skipped for <pack> (--skip-scan).` With `--silent`, `install` and `update` still put each refused pack's findings in the error printed to stderr.
 
 The scan is a heuristic pre-flight, not a guarantee. Cross-script homoglyphs, shell obfuscation (`c''url`, `${x}url`, `eval`), and secrets passed between lines through variables in markdown are out of reach for regex matching. Review third-party packs before adopting them.
 

@@ -318,6 +318,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'dangerous agent flags',
           'prompt-override phrases',
           'bidi control characters',
+          'curl | sh in hooks.json/mcp.json',
+          'packs shipping reserved engine marker files',
         ],
         warns: [
           'rm -rf',

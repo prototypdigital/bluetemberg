@@ -14,7 +14,7 @@ import { downloadTarball, verifyIntegrity, fetchRegistryKeys, verifyRegistrySign
 import { DEFAULT_REGISTRY } from './constants.js';
 import { redactCredentials, registryAuthHeaders, transportAllowsCredentials } from './auth.js';
 import { extractTarball } from '../sources/tarball.js';
-import { formatBlockedScan, scanPackContent } from './scanner.js';
+import { ENGINE_MARKER_FILES, formatBlockedScan, scanPackContent } from './scanner.js';
 import type { ScanResult } from './scanner.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -107,6 +107,35 @@ function warnSignatureSkipped(name: string, version: string, registryUrl: string
 }
 
 /**
+ * The cache markers are the engine's record of what it verified. A pack that ships its own
+ * `.bluetemberg-keyid` would otherwise survive an unsigned (`skipSignatureVerification`)
+ * install — the engine never overwrites it there — and forge a signature on the next cache hit.
+ * Checked regardless of `skipScan`: this is not a content heuristic.
+ */
+function assertNoShippedMarkers(dest: string, label: string): void {
+  const shipped = readdirSync(dest).filter((entry) => ENGINE_MARKER_FILES.has(entry));
+  if (shipped.length === 0) return;
+  throw new Error(
+    `Pack "${label}" ships reserved engine file(s) ${shipped.join(', ')} at its root — refusing to install.`,
+  );
+}
+
+/** Scan before the integrity marker is written, so a blocked pack never becomes a cache hit. */
+function scanExtractedPack(
+  dest: string,
+  label: string,
+  options: { skipScan?: boolean; onScanFindings?: (result: ScanResult) => void; onScanSkipped?: () => void },
+): void {
+  if (options.skipScan) {
+    options.onScanSkipped?.();
+    return;
+  }
+  const scan = scanPackContent(dest);
+  if (scan.blocked) throw new Error(formatBlockedScan(label, scan));
+  if (scan.findings.length > 0) options.onScanFindings?.(scan);
+}
+
+/**
  * Download and extract a specific pack version into the local cache.
  *
  * Steps:
@@ -131,6 +160,8 @@ export async function installPackVersion(
     skipScan?: boolean;
     /** Receives non-blocking scan findings; the installer itself never prints them. */
     onScanFindings?: (result: ScanResult) => void;
+    /** Called when a freshly downloaded pack was installed without a scan (`skipScan`). */
+    onScanSkipped?: () => void;
   } = {},
 ): Promise<PackageLockEntry> {
   const dest = packVersionDir(root, metadata.name, version);
@@ -294,13 +325,8 @@ export async function installPackVersion(
 
     // Extract tarball with security filtering (rejects symlinks + path traversal).
     await extractTarball(tmpFile, dest, metadata.name);
-
-    // Scan before the integrity marker is written: a blocked pack never becomes a cache hit.
-    if (!options.skipScan) {
-      const scan = scanPackContent(dest);
-      if (scan.blocked) throw new Error(formatBlockedScan(`${metadata.name}@${version}`, scan));
-      if (scan.findings.length > 0) options.onScanFindings?.(scan);
-    }
+    assertNoShippedMarkers(dest, `${metadata.name}@${version}`);
+    scanExtractedPack(dest, `${metadata.name}@${version}`, options);
 
     // Preserve tarball in cache so verify() can recompute integrity from disk
     // rather than trusting the marker file alone.
