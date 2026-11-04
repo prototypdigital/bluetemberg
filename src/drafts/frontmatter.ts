@@ -1,4 +1,4 @@
-import { parse, stringify } from 'yaml';
+import { Document, isMap, isScalar, isSeq, parse } from 'yaml';
 
 /**
  * A strict frontmatter reader for drafts. Drafts are model output — untrusted data — so they are
@@ -38,8 +38,18 @@ export function parseStrictFrontmatter(text: string): ParsedDraft {
   return { data, body: lines.slice(close + 1).join('\n') };
 }
 
+/** Top-level list keys written inline (`tools: [read, search]`), the house format for agents. */
+const FLOW_KEYS = new Set(['tools']);
+
 /** Render frontmatter + body in the house format (`---` fence, YAML, blank line, body). */
 export function renderFrontmatter(data: Record<string, unknown>, body: string): string {
-  const yaml = stringify(data, { lineWidth: 0 }).trimEnd();
+  const doc = new Document(data);
+  if (isMap(doc.contents)) {
+    for (const pair of doc.contents.items) {
+      const key = isScalar(pair.key) ? pair.key.value : null;
+      if (typeof key === 'string' && FLOW_KEYS.has(key) && isSeq(pair.value)) pair.value.flow = true;
+    }
+  }
+  const yaml = doc.toString({ lineWidth: 0 }).trimEnd();
   return `${FENCE}\n${yaml}\n${FENCE}\n\n${body.trim()}\n`;
 }

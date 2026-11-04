@@ -50,7 +50,7 @@ Marks an unvetted draft from the [create-loop](Drafts). A file carrying a `draft
 
 ## How agents are synced
 
-Unlike rules, agents keep their body and frontmatter. Sync adds the generated-file banner after the frontmatter, changes the file extension, and for Claude Code maps abstract `tools` names to Claude's tool names:
+Unlike rules, agents keep their body and frontmatter. Sync adds the generated-file banner after the frontmatter, changes the file extension, and for Claude Code maps abstract `tools` names to Claude's tool names (`tools` may be an inline list or a YAML block list; a bare `tools:` with no value is left as is, so the agent keeps inheriting every tool):
 
 | Source                              | Cursor                                  | Claude                                  | Copilot                                       |
 | ----------------------------------- | --------------------------------------- | --------------------------------------- | --------------------------------------------- |

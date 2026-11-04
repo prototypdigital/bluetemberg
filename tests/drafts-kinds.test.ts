@@ -245,9 +245,19 @@ describe('promote by kind', () => {
       readFileSync(join(root, 'llm', 'agents', 'payload-4-jobs.md'), 'utf8'),
     );
     expect(data.tools).toEqual(['read', 'edit']);
+    expect(readFileSync(join(root, 'llm', 'agents', 'payload-4-jobs.md'), 'utf8')).toMatch(
+      /^tools: \[ read, edit \]$/m,
+    );
 
     await sync(root, { config: CONFIG, silent: true });
-    expect(existsSync(join(root, '.claude', 'agents', 'payload-4-jobs.md'))).toBe(true);
+    const claude = readFileSync(join(root, '.claude', 'agents', 'payload-4-jobs.md'), 'utf8');
+    // The Claude output must carry Claude's own tool names, parsed as a real list.
+    expect(claude).toMatch(/^tools: \["Read", "Edit", "Write"\]$/m);
+    expect(parseStrictFrontmatter(claude.replace(/<!--[\s\S]*?-->\n?/, '')).data.tools).toEqual([
+      'Read',
+      'Edit',
+      'Write',
+    ]);
   });
 
   it('never writes into an existing skill dir, even an empty one', async () => {
