@@ -106,6 +106,13 @@ function shellQuote(value: string): string {
 }
 
 /**
+ * jq prelude for a slurped (`jq -s`) stdin: exactly one JSON value, or an error. Without `-s`, jq
+ * reads empty stdin as no input (exit 0, no output) and runs the filter once per value when several
+ * are concatenated, so neither case would fail.
+ */
+const ONE_PAYLOAD = 'if length == 1 then .[0] else error("expected one JSON payload") end';
+
+/**
  * Fixed hook script. Contains NO guardrail-derived content — the field, regexes,
  * and message arrive as positional parameters ($1..$5), so untrusted pack content
  * is never parsed as shell or jq code. `$2`/`$3` are used as the right-hand side of
@@ -126,13 +133,30 @@ function shellQuote(value: string): string {
  * The path reaches jq as `--arg` data and is resolved
  * with `getpath`, so a key jq cannot spell as `.a.b` (`file-path`, `0`) still reads correctly. A
  * jq failure (jq missing, a payload that is not JSON or not shaped like the path) blocks instead
- * of reading as an empty value, which would let a `not_matches` check pass. The block message goes
- * to stderr, the stream Claude Code feeds back to the model on exit 2. Codex runs this script unchanged:
- * it also blocks on exit 2 with the reason on stderr, and treats a silent exit 0 as "continue".
+ * of reading as an empty value, which would let a `not_matches` check pass.
+ *
+ * jq reads stdin whole (`-s`, see {@link ONE_PAYLOAD}), so it must hold exactly one JSON value:
+ * empty stdin used to read as an empty value, and two concatenated payloads as both values joined
+ * by a newline, and an anchored `not_matches` let either through. `tool_input` must be an object: a
+ * payload without one used to read the field as missing. A field holding a list or an object (an
+ * argv-style `command`) blocks too, instead of testing the regex against its JSON text. The block
+ * message goes to stderr, the stream Claude Code feeds back to the model on exit 2. Codex runs this
+ * script unchanged: it also blocks on exit 2 with the reason on stderr, and treats a silent exit 0
+ * as "continue".
  */
-const GUARDRAIL_CHECK_STEPS = [
+const READ_STEPS = [
+  `v=$(jq -rs --arg f "$1" '${ONE_PAYLOAD} | ($f / ".") as $p | .tool_input | if type == "object" then . else error("tool_input is not an object") end | getpath($p) // empty | if type == "array" or type == "object" then error("not a string, number or boolean") else . end' 2>/dev/null)`,
+  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read field .%s from the hook payload (is jq installed? It must be one JSON object with an object tool_input, and the field a string, number or boolean), so the condition cannot be evaluated. Blocking.\\n" "$1" >&2; exit 2; fi',
+];
+
+/** The read the v0.16.0–v0.19.0 engines generated; kept so orphan cleanup recognizes their hooks. */
+const V16_READ_STEPS = [
   `v=$(jq -r --arg f "$1" '($f / ".") as $p | .tool_input | getpath($p) // empty' 2>/dev/null)`,
   'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read field .%s from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" "$1" >&2; exit 2; fi',
+];
+
+/** Evaluates the read value `$v` against the conditions; sets `fail` on a violation. */
+const EVALUATE_STEPS = [
   'fail=',
   'bad=',
   'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
@@ -141,10 +165,14 @@ const GUARDRAIL_CHECK_STEPS = [
   'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
 ];
 
+const GUARDRAIL_CHECK_STEPS = [...READ_STEPS, ...EVALUATE_STEPS];
+const V16_CHECK_STEPS = [...V16_READ_STEPS, ...EVALUATE_STEPS];
+
 /** A violated check: the guardrail's message on stderr, exit 2. */
 const CLAUDE_DENY_STEP = 'if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; exit 2; fi';
 
 const CLAUDE_HOOK_SCRIPT = [...GUARDRAIL_CHECK_STEPS, CLAUDE_DENY_STEP].join('; ');
+const V16_CLAUDE_HOOK_SCRIPT = [...V16_CHECK_STEPS, CLAUDE_DENY_STEP].join('; ');
 
 /**
  * Scripts earlier engines generated. A settings file synced by one of them still carries its
@@ -188,7 +216,8 @@ const LEGACY_CLAUDE_HOOK_SCRIPTS = [
  * carries no `permission`, so it never auto-approves anything. A failure (a violated check, or `jq`
  * missing or unable to read the payload) still exits 2 with nothing on stdout.
  */
-const CURSOR_HOOK_SCRIPT = [CLAUDE_HOOK_SCRIPT, 'printf "{}\\n"'].join('; ');
+const cursorScript = (claudeScript: string): string => [claudeScript, 'printf "{}\\n"'].join('; ');
+const CURSOR_HOOK_SCRIPT = cursorScript(CLAUDE_HOOK_SCRIPT);
 
 /**
  * GitHub Copilot runs the same checks behind a tool-name gate, and denies with a JSON reason.
@@ -205,16 +234,30 @@ const CURSOR_HOOK_SCRIPT = [CLAUDE_HOOK_SCRIPT, 'printf "{}\\n"'].join('; ');
  * exit-2 deny, so the message goes there as well as to stderr. jq builds that JSON from `$4` as
  * data. A passing call exits 0 with no output, which Copilot reads as "no decision": it never
  * auto-approves. Any other failure exits non-zero, which Copilot treats as a deny for `preToolUse`.
+ *
+ * The `tool_name` read slurps stdin like the shared steps ({@link ONE_PAYLOAD}): empty stdin used to
+ * read as an empty name, which the gate took for "another tool" and let through.
  */
-const COPILOT_HOOK_SCRIPT = [
-  'in=$(cat)',
-  `t=$(printf "%s" "$in" | jq -r 'if (.tool_name | type) == "string" then .tool_name else error("no tool_name") end' 2>/dev/null)`,
-  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read tool_name from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi',
-  '[[ "$t" =~ $6 ]]; s=$?; if [ "$s" -eq 2 ]; then printf "bluetemberg guardrail: invalid tool-name pattern. Blocking.\\n" >&2; exit 2; elif [ "$s" -ne 0 ]; then exit 0; fi',
-  'exec <<<"$in"',
-  ...GUARDRAIL_CHECK_STEPS,
-  `if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; jq -cn --arg r "$4" '{permissionDecision: "deny", permissionDecisionReason: $r}'; exit 2; fi`,
-].join('; ');
+const copilotScript = (toolNameRead: string, checkSteps: readonly string[]): string =>
+  [
+    'in=$(cat)',
+    toolNameRead,
+    'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read tool_name from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi',
+    '[[ "$t" =~ $6 ]]; s=$?; if [ "$s" -eq 2 ]; then printf "bluetemberg guardrail: invalid tool-name pattern. Blocking.\\n" >&2; exit 2; elif [ "$s" -ne 0 ]; then exit 0; fi',
+    'exec <<<"$in"',
+    ...checkSteps,
+    `if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; jq -cn --arg r "$4" '{permissionDecision: "deny", permissionDecisionReason: $r}'; exit 2; fi`,
+  ].join('; ');
+
+const TOOL_NAME_FILTER = 'if (.tool_name | type) == "string" then .tool_name else error("no tool_name") end';
+const COPILOT_HOOK_SCRIPT = copilotScript(
+  `t=$(printf "%s" "$in" | jq -rs '${ONE_PAYLOAD} | ${TOOL_NAME_FILTER}' 2>/dev/null)`,
+  GUARDRAIL_CHECK_STEPS,
+);
+const V16_COPILOT_HOOK_SCRIPT = copilotScript(
+  `t=$(printf "%s" "$in" | jq -r '${TOOL_NAME_FILTER}' 2>/dev/null)`,
+  V16_CHECK_STEPS,
+);
 
 /** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */
 const TOOL_INPUT_PREFIX = 'tool_input.';
@@ -226,6 +269,9 @@ const KNOWN_COMMAND_PREFIXES = [
   CURSOR_HOOK_SCRIPT,
   COPILOT_HOOK_SCRIPT,
   ...LEGACY_CLAUDE_HOOK_SCRIPTS,
+  V16_CLAUDE_HOOK_SCRIPT,
+  cursorScript(V16_CLAUDE_HOOK_SCRIPT),
+  V16_COPILOT_HOOK_SCRIPT,
 ].map(commandPrefix);
 
 /**

@@ -1823,7 +1823,7 @@ message: "Branch name required"
     // not_empty branch, which prints the message verbatim to stderr and exits 2.
     let stderr = '';
     try {
-      execSync(command, { input: '{}', encoding: 'utf8', stdio: 'pipe' });
+      execSync(command, { input: '{"tool_input":{}}', encoding: 'utf8', stdio: 'pipe' });
     } catch (err) {
       stderr = String((err as { stderr?: string }).stderr ?? '');
     }
@@ -1990,6 +1990,17 @@ message: "Branch name required"
       'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
       'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
       'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
+    ],
+    'v0.16.0–v0.19.0': [
+      `v=$(jq -r --arg f "$1" '($f / ".") as $p | .tool_input | getpath($p) // empty' 2>/dev/null)`,
+      'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read field .%s from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" "$1" >&2; exit 2; fi',
+      'fail=',
+      'bad=',
+      'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+      'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
+      'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
+      'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
+      'if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; exit 2; fi',
     ],
   };
 
