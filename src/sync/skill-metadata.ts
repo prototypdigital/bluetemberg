@@ -1,4 +1,4 @@
-import matter from 'gray-matter';
+import { type FrontmatterFile, parseFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
 import type { PackSource } from '../registry/index.js';
 
 /**
@@ -55,7 +55,7 @@ export function stampSkillMetadata(content: string, pack: PackSource): string {
   const match = FRONTMATTER.exec(text);
   if (!match) return content;
 
-  const parsed = matter(text);
+  const parsed = parseFrontmatter(text);
   if (!('metadata' in parsed.data)) {
     const appended = appendMetadataBlock(text, match, pack);
     // Appending is only safe after block-style YAML; a flow map (`{name: a}`) or a frontmatter
@@ -76,7 +76,7 @@ const BOM = '\uFEFF';
 /** Whether `content` parses and its `metadata` holds the stamp. */
 function carriesStamp(content: string, pack: PackSource): boolean {
   try {
-    const metadata: unknown = matter(content).data.metadata;
+    const metadata: unknown = parseFrontmatter(content).data.metadata;
     if (!isPlainObject(metadata)) return false;
     return Object.entries(stampEntries(pack)).every(([key, value]) => metadata[key] === value);
   } catch {
@@ -89,11 +89,7 @@ function carriesStamp(content: string, pack: PackSource): boolean {
  * merge into it. Re-serializing is the only safe way to edit a nested YAML map; a stamp key the
  * source already carries is replaced, never repeated. Comments in that frontmatter are lost.
  */
-function mergeStamp(
-  parsed: matter.GrayMatterFile<string>,
-  metadata: Record<string, unknown>,
-  pack: PackSource,
-): string {
+function mergeStamp(parsed: FrontmatterFile, metadata: Record<string, unknown>, pack: PackSource): string {
   const data = { ...parsed.data, metadata: { ...metadata, ...stampEntries(pack) } };
-  return matter.stringify(parsed.content, data);
+  return stringifyFrontmatter(parsed.content, data);
 }
