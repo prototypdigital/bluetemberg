@@ -135,7 +135,7 @@ It needs `marketplace.remote` (an `owner/repo`) and the `.claude-plugin/marketpl
 | `--plugin <name>` | Force-enable only this plugin (repeatable). Default: every plugin in the index |
 | `--strict` | Also write `strictKnownMarketplaces`, which blocks every marketplace not listed. The entry for your marketplace carries the same `ref` as the one registered |
 | `--allow-marketplace <owner/repo>` | With `--strict`, keep another GitHub marketplace allowed (repeatable) |
-| `--mcp-allowlist` | Also write `allowedMcpServers` with exactly the `llm/mcp.json` servers. Refused when there are none, since an empty list blocks every server |
+| `--mcp-allowlist` | Also write `allowedMcpServers` with exactly the servers in `llm/mcp.json` and the root `.mcp.json`. Refused when there are none, since an empty list blocks every server |
 | `--dry-run` | Print the files instead of writing them |
 | `--json` | Print the plan (marketplace, plugins, pack versions, warnings, files) as JSON |
 | `--silent` | Suppress progress output; errors still go to stderr |

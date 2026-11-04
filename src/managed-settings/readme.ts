@@ -119,13 +119,13 @@ function mcpSection(base: Base): string[] {
   const allow =
     base.mcpServers.length > 0
       ? [
-          '`allowedMcpServers` lists the servers in `llm/mcp.json` by exact command or URL. Every other MCP',
+          '`allowedMcpServers` lists the servers in `llm/mcp.json` and the root `.mcp.json` by exact command or URL. Every other MCP',
           'server users add is blocked. Claude Code merges allowlists from every settings file; Copilot',
           'intersects them, so a narrower list elsewhere still wins there. A command is matched exactly,',
           'arguments included: a server started another way (for example `cmd /c npx …` on Windows) needs its',
           'own entry.',
         ]
-      : ['No MCP allowlist was written (pass `--mcp-allowlist` to list the `llm/mcp.json` servers).'];
+      : ["No MCP allowlist was written (pass `--mcp-allowlist` to list this project's servers)."];
   return [
     '## MCP servers',
     '',

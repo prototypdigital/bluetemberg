@@ -37,7 +37,7 @@ The output directory holds one file per host and a README that says where each f
 | `extraKnownMarketplaces` | Always | The marketplace `name` in `.claude-plugin/marketplace.json`, the repo in `marketplace.remote`, `--ref`, `--auto-update` |
 | `enabledPlugins` | Always | Every plugin the index lists (`plugin@marketplace: true`), or the `--plugin` selection |
 | `strictKnownMarketplaces` | With `--strict` | Your marketplace with the same `ref`, plus each `--allow-marketplace`. The Claude Code file adds `{ "source": "skills-dir" }` |
-| `allowedMcpServers` | With `--mcp-allowlist` | The servers in `llm/mcp.json` and its presets, as exact `serverCommand` or `serverUrl` matchers |
+| `allowedMcpServers` | With `--mcp-allowlist` | The servers in `llm/mcp.json` (presets resolved) and the root `.mcp.json`, as exact `serverCommand` or `serverUrl` matchers |
 | `deniedMcpServers` | Never | Nothing in the project says what to deny |
 
 A managed `enabledPlugins` entry set to `true` force-enables the plugin: users can't turn it off. If your plugins split by profile (`frontend`, `backend`), use `--plugin` and deploy a different file to each group.
@@ -65,6 +65,7 @@ Neither host pins a plugin version: `enabledPlugins` only names `plugin@marketpl
 To keep that in step with `llm/packages-lock.json`:
 
 - The command refuses to run when an Agent Plugins bundle lock (`plugins/*/digital.prototyp.bluetemberg/bundle-lock.json`) records a pack version or integrity that the lockfile no longer has. Run `bluetemberg sync`, publish, then generate again. Without `agent-plugins` there are no bundle locks, and the command warns that it could not check.
+- A pack installed after the last sync is in the lockfile but in no bundle lock, so the check above can't catch it. The command warns about every locked pack no bundle records; packs that ship nothing bundled (guardrails only, or another profile's content) show up there too, which is why it is a warning. `bluetemberg sync --check` is the exact test.
 - The generated README lists the pack versions the bundles were built from. The command can't see the remote repo, so make sure the tag you pass to `--ref` points at the commit you published from this output.
 - Claude Code takes a branch or tag only. A full commit SHA is refused unless `--host copilot`; tag the commit instead.
 
@@ -78,9 +79,9 @@ To keep that in step with `llm/packages-lock.json`:
 
 ## MCP allowlists and deny lists
 
-`--mcp-allowlist` writes `allowedMcpServers` with exactly the project's `llm/mcp.json` servers, matched by command and arguments (stdio) or URL (remote). Every other server users add is then blocked. Commands match exactly, so a server started another way, such as `cmd /c npx …` on Windows, needs its own entry. The command refuses to write an empty allowlist (no `llm/mcp.json`, or no servers in it), because both hosts read an empty list as "block every server".
+`--mcp-allowlist` writes `allowedMcpServers` with exactly the servers this project runs: those in `llm/mcp.json` and those in the root `.mcp.json`, including servers someone added there by hand (sync keeps them). They are matched by command and arguments (stdio) or URL (remote). Every other server users add is then blocked. Commands match exactly, so a server started another way, such as `cmd /c npx …` on Windows, needs its own entry. An entry that uses `${VAR}` expansion gets a warning: Claude Code expands policy entries from a pinned environment, so it may not match. The command refuses to write an empty allowlist (no servers in either file), and refuses an `llm/mcp.json` with errors or a `.mcp.json` that isn't valid JSON, because both hosts read an empty list as "block every server".
 
-No deny list is generated. If you add `deniedMcpServers` yourself, a deny entry wins over every allow entry in both hosts, so check it against the servers in `llm/mcp.json` before you deploy.
+No deny list is generated. If you add `deniedMcpServers` yourself, a deny entry wins over every allow entry in both hosts, so check it against the servers in `llm/mcp.json` and `.mcp.json` before you deploy.
 
 ## Marketplace name
 

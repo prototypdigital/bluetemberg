@@ -417,7 +417,7 @@ To install the marketplace for a whole organization rather than per repository, 
 npx bluetemberg managed-settings --ref v1.4.0 --out managed-settings
 ```
 
-This writes `claude-code/managed-settings.json` (Claude Code), `github-copilot/managed-settings.json` (GitHub Copilot) and a `README.md` that says where each one goes on macOS, Linux and Windows. Each file registers the marketplace from `marketplace.remote` and force-enables its plugins. Add `--strict` to block every other marketplace and `--mcp-allowlist` to allow only the `llm/mcp.json` servers. `sync` never writes these files, and the command refuses to run without a configured marketplace. Neither host pins plugin versions, so the marketplace `ref` is the pin; the command refuses when the local bundles have drifted from `packages-lock.json`. See [Org rollout](https://github.com/prototypdigital/bluetemberg/wiki/Org-Rollout).
+This writes `claude-code/managed-settings.json` (Claude Code), `github-copilot/managed-settings.json` (GitHub Copilot) and a `README.md` that says where each one goes on macOS, Linux and Windows. Each file registers the marketplace from `marketplace.remote` and force-enables its plugins. Add `--strict` to block every other marketplace and `--mcp-allowlist` to allow only the project's MCP servers (`llm/mcp.json` and `.mcp.json`). `sync` never writes these files, and the command refuses to run without a configured marketplace. Neither host pins plugin versions, so the marketplace `ref` is the pin; the command refuses when the local bundles have drifted from `packages-lock.json`. See [Org rollout](https://github.com/prototypdigital/bluetemberg/wiki/Org-Rollout).
 
 ## Uninstall
 

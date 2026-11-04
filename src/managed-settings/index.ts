@@ -59,6 +59,12 @@ export interface ManagedSettingsPlan {
 
 type McpMatcher = { serverCommand: string[] } | { serverUrl: string };
 
+interface McpAllowlist {
+  ids: string[];
+  matchers: McpMatcher[];
+  warnings: string[];
+}
+
 /** A full commit SHA (SHA-1 or SHA-256 object names). A shorter hex string may be a tag. */
 const FULL_SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i;
 /** Conservative git ref name: no spaces, no leading `-` or `/`, no `..`. */
@@ -73,8 +79,10 @@ export function planManagedSettings(root: string, options: ManagedSettingsOption
   checkConfigMatchesIndex(inputs);
   checkBundlesMatchLockfile(inputs);
 
-  const warnings: string[] = [];
-  const mcp = options.mcpAllowlist ? mcpAllowlist(inputs) : { ids: [], matchers: [] };
+  const mcp: McpAllowlist = options.mcpAllowlist
+    ? mcpAllowlist(inputs)
+    : { ids: [], matchers: [], warnings: [] };
+  const warnings: string[] = [...mcp.warnings, ...unbundledPackWarnings(inputs)];
   if (inputs.bundleLocks.length === 0) {
     warnings.push(
       'No Agent Plugins bundle locks found, so the published bundles could not be checked against ' +
@@ -230,6 +238,22 @@ function checkBundlesMatchLockfile(inputs: ProjectInputs): void {
   );
 }
 
+/**
+ * A pack installed after the last sync is in the lockfile but in no bundle lock, so the drift check
+ * above can't see it. Packs that ship nothing bundled (guardrails only, or another profile) look the
+ * same, so this warns rather than refuses.
+ */
+function unbundledPackWarnings(inputs: ProjectInputs): string[] {
+  if (inputs.bundleLocks.length === 0) return [];
+  const bundled = new Set(inputs.bundleLocks.flatMap((b) => Object.keys(b.packs)));
+  const missing = Object.keys(inputs.lock.packages).filter((name) => !bundled.has(name));
+  if (missing.length === 0) return [];
+  return [
+    `packages-lock.json has pack(s) no plugin bundle records: ${missing.sort().join(', ')}. ` +
+      'If they ship rules, skills or agents, run "bluetemberg sync" and publish before deploying.',
+  ];
+}
+
 function packsFor(inputs: ProjectInputs): Record<string, PackPin> {
   const fromBundles: Record<string, PackPin> = {};
   for (const { packs } of inputs.bundleLocks) Object.assign(fromBundles, packs);
@@ -252,24 +276,39 @@ function mcpMatcher(id: string, config: McpServerConfig): McpMatcher {
 }
 
 /**
- * An allowlist of exactly the project's servers. An empty `allowedMcpServers` blocks every server
+ * An allowlist of exactly the servers this project runs: `llm/mcp.json` (with presets resolved) plus
+ * the root `.mcp.json`, which also holds servers people added by hand and sync keeps. Leaving those
+ * out would block servers the project itself uses. An empty `allowedMcpServers` blocks every server
  * users add in both hosts, so a project without servers is refused rather than locked down.
  */
-function mcpAllowlist(inputs: ProjectInputs): { ids: string[]; matchers: McpMatcher[] } {
-  if (inputs.mcp === null) {
-    throw new Error('--mcp-allowlist needs llm/mcp.json; without servers it would block every MCP server.');
-  }
-  if (inputs.mcp.errors.length > 0) {
+function mcpAllowlist(inputs: ProjectInputs): McpAllowlist {
+  if (inputs.mcp !== null && inputs.mcp.errors.length > 0) {
     throw new Error(`llm/mcp.json has errors: ${inputs.mcp.errors.join('; ')}`);
   }
-  const { configs } = inputs.mcp;
-  const ids = Object.keys(configs).sort();
-  if (ids.length === 0) {
+  if (inputs.rootMcp.error) throw new Error(inputs.rootMcp.error);
+  const servers: [string, McpServerConfig][] = [
+    ...Object.entries(inputs.mcp?.configs ?? {}),
+    ...Object.entries(inputs.rootMcp.configs),
+  ];
+  if (servers.length === 0) {
     throw new Error(
-      '--mcp-allowlist found no servers in llm/mcp.json; an empty allowlist blocks every MCP server.',
+      '--mcp-allowlist found no servers in llm/mcp.json or .mcp.json; an empty allowlist blocks every MCP server.',
     );
   }
-  return { ids, matchers: ids.map((id) => mcpMatcher(id, configs[id])) };
+  const matchers = new Map<string, McpMatcher>();
+  for (const [id, config] of servers) {
+    const matcher = mcpMatcher(id, config);
+    matchers.set(JSON.stringify(matcher), matcher);
+  }
+  const ids = [...new Set(servers.map(([id]) => id))].sort();
+  const withVars = [...matchers.values()].filter((m) => JSON.stringify(m).includes('${'));
+  const warnings =
+    withVars.length > 0
+      ? [
+          `${withVars.length} MCP allowlist entr${withVars.length === 1 ? 'y uses' : 'ies use'} \${VAR} expansion. Claude Code expands a policy entry from a pinned environment, so it may not match the running server; prefer literal commands and URLs.`,
+        ]
+      : [];
+  return { ids, matchers: [...matchers.values()], warnings };
 }
 
 type Base = Omit<ManagedSettingsPlan, 'files'>;

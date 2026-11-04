@@ -236,6 +236,16 @@ describe('planManagedSettings', () => {
     expect(() => planManagedSettings(root)).toThrow(/no longer in packages-lock.json/);
   });
 
+  it('warns about a locked pack no bundle records (installed after the last sync)', () => {
+    fixture();
+    write('llm/packages-lock.json', {
+      lockfileVersion: 1,
+      packages: { [PACK]: LOCKED, '@acme/rules-new': { ...LOCKED, version: '0.1.0' } },
+    });
+    const plan = planManagedSettings(root);
+    expect(plan.warnings.join('\n')).toMatch(/no plugin bundle records: @acme\/rules-new/);
+  });
+
   it('warns that drift could not be checked when no bundle locks exist', () => {
     fixture({ bundlePack: null });
     const plan = planManagedSettings(root);
@@ -260,7 +270,39 @@ describe('planManagedSettings', () => {
       fixture({ mcp: { servers: [] } });
       expect(() => planManagedSettings(root, { mcpAllowlist: true })).toThrow(/empty allowlist blocks every/);
       rmSync(join(root, 'llm', 'mcp.json'));
-      expect(() => planManagedSettings(root, { mcpAllowlist: true })).toThrow(/needs llm\/mcp.json/);
+      expect(() => planManagedSettings(root, { mcpAllowlist: true })).toThrow(/empty allowlist blocks every/);
+    });
+
+    it('keeps servers added to the root .mcp.json by hand, so the project does not block itself', () => {
+      fixture({ mcp: { servers: ['context7'] } });
+      write('.mcp.json', {
+        mcpServers: {
+          context7: { type: 'stdio', command: 'npx', args: ['-y', '@upstash/context7-mcp'] },
+          local: { command: 'node', args: ['tools/mcp.js'], env: { TOKEN: 'x' } },
+          docs: { type: 'http', url: 'https://docs.acme.dev/mcp' },
+        },
+      });
+      const plan = planManagedSettings(root, { mcpAllowlist: true });
+      expect(plan.mcpServers).toEqual(['context7', 'docs', 'local']);
+      expect(settingsFor(plan, 'copilot').allowedMcpServers).toEqual([
+        { serverCommand: ['npx', '-y', '@upstash/context7-mcp'] },
+        { serverCommand: ['node', 'tools/mcp.js'] },
+        { serverUrl: 'https://docs.acme.dev/mcp' },
+      ]);
+    });
+
+    it('allows .mcp.json servers without llm/mcp.json, and refuses a broken .mcp.json', () => {
+      fixture();
+      write('.mcp.json', { mcpServers: { docs: { type: 'http', url: 'https://docs.acme.dev/mcp' } } });
+      expect(planManagedSettings(root, { mcpAllowlist: true }).mcpServers).toEqual(['docs']);
+      write('.mcp.json', '{ not json');
+      expect(() => planManagedSettings(root, { mcpAllowlist: true })).toThrow(/.mcp.json is not valid JSON/);
+    });
+
+    it('warns about ${VAR} in an allowlist entry', () => {
+      fixture({ mcp: { servers: [{ id: 'home', type: 'stdio', command: '${HOME}/bin/mcp' }] } });
+      const plan = planManagedSettings(root, { mcpAllowlist: true });
+      expect(plan.warnings.join('\n')).toMatch(/uses \$\{VAR\} expansion/);
     });
 
     it('refuses a manifest with errors or a server it cannot match', () => {

@@ -565,7 +565,10 @@ program
     (repo, repos) => [...repos, repo],
     [],
   )
-  .option('--mcp-allowlist', 'Also write allowedMcpServers: only the llm/mcp.json servers may run')
+  .option(
+    '--mcp-allowlist',
+    'Also write allowedMcpServers: only the llm/mcp.json and .mcp.json servers may run',
+  )
   .option('--dry-run', 'Print the files instead of writing them')
   .option('--json', 'Emit the plan (files included) as JSON')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')

@@ -379,7 +379,8 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         },
         {
           long: '--mcp-allowlist',
-          description: 'Also write allowedMcpServers listing exactly the llm/mcp.json servers.',
+          description:
+            'Also write allowedMcpServers listing exactly the servers in llm/mcp.json and the root .mcp.json.',
         },
         { long: '--dry-run', description: 'Print the files instead of writing them.' },
         { long: '--json', description: 'Emit the plan, files included, as JSON.' },
