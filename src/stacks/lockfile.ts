@@ -1,5 +1,5 @@
 import { parsePnpmLock } from './lockfile-pnpm.js';
-import { isPlainObject } from './lockfile-shared.js';
+import { isPlainObject, leadingPackageName } from './lockfile-shared.js';
 import { parseYarnLock } from './lockfile-yarn.js';
 
 /**
@@ -19,6 +19,26 @@ import { parseYarnLock } from './lockfile-yarn.js';
 /** Lockfile names, in the order they are tried when one directory holds several. */
 export const LOCKFILE_NAMES = ['package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'] as const;
 export type LockfileName = (typeof LOCKFILE_NAMES)[number];
+
+const MANAGER_LOCKFILES: Readonly<Record<string, LockfileName>> = {
+  npm: 'package-lock.json',
+  pnpm: 'pnpm-lock.yaml',
+  yarn: 'yarn.lock',
+};
+
+/**
+ * The lockfiles to look for beside `manifest`, most trusted first: the one its `packageManager`
+ * field names (`pnpm@9.15.0` → `pnpm-lock.yaml`), then {@link LOCKFILE_NAMES} order. Detection
+ * reads only the first that exists — locally and in a remote scan alike — so a stale
+ * `package-lock.json` left in a pnpm repo is never preferred over the lockfile pnpm maintains.
+ */
+export function lockfileCandidates(manifest: Record<string, unknown> | null | undefined): LockfileName[] {
+  const field = manifest?.packageManager;
+  const manager = typeof field === 'string' ? field.split('@')[0] : '';
+  const preferred = Object.hasOwn(MANAGER_LOCKFILES, manager) ? MANAGER_LOCKFILES[manager] : undefined;
+  if (!preferred) return [...LOCKFILE_NAMES];
+  return [preferred, ...LOCKFILE_NAMES.filter((name) => name !== preferred)];
+}
 
 /**
  * Lockfiles above this size are not read: detection falls back to the range rather than holding a
@@ -54,21 +74,35 @@ export interface Lockfile {
 export type ParsedLockfile = { lock: Lockfile; error?: undefined } | { lock?: undefined; error: string };
 
 /**
+ * One npm lockfile entry's version of `pkg`: `undefined` when the entry has none, null when it is
+ * an alias to another package (v2/3 record `name: "preact"`, v1 a `npm:preact@…` version).
+ */
+function npmEntryVersion(pkg: string, entry: unknown): string | null | undefined {
+  if (!isPlainObject(entry) || typeof entry.version !== 'string') return undefined;
+  if (typeof entry.name === 'string' && entry.name !== pkg) return null;
+  if (!entry.version.startsWith('npm:')) return entry.version;
+  const target = entry.version.slice('npm:'.length);
+  const name = leadingPackageName(target);
+  return name === pkg ? target.slice(name.length + 1) : null;
+}
+
+/**
  * `package-lock.json`: lockfileVersion 2/3 (`packages["<path>/node_modules/<pkg>"]`) and 1
- * (`dependencies[<pkg>]`). The same lookup as before #291, so npm results do not change.
+ * (`dependencies[<pkg>]`) — the lookup used before #291, plus one change: an alias to another
+ * package (`"svelte": "npm:preact@10.19.0"`) answers null instead of preact's version.
  */
 export function npmLockfile(lock: Record<string, unknown>): Lockfile {
   return {
     file: 'package-lock.json',
     versionOf(pkg, chain) {
-      const packages = lock.packages as Record<string, { version?: unknown }> | undefined;
+      const packages = isPlainObject(lock.packages) ? lock.packages : {};
       for (const { path } of chain) {
-        const v3 = packages?.[`${path ? `${path}/` : ''}node_modules/${pkg}`]?.version;
-        if (typeof v3 === 'string') return v3;
+        const key = `${path ? `${path}/` : ''}node_modules/${pkg}`;
+        const v3 = Object.hasOwn(packages, key) ? npmEntryVersion(pkg, packages[key]) : undefined;
+        if (v3 !== undefined) return v3;
       }
-      const deps = lock.dependencies as Record<string, { version?: unknown }> | undefined;
-      const v1 = deps?.[pkg]?.version;
-      return typeof v1 === 'string' ? v1 : null;
+      const deps = isPlainObject(lock.dependencies) ? lock.dependencies : {};
+      return (Object.hasOwn(deps, pkg) ? npmEntryVersion(pkg, deps[pkg]) : undefined) ?? null;
     },
   };
 }

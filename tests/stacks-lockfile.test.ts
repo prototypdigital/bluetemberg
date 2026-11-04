@@ -140,18 +140,50 @@ describe('yarn.lock berry', () => {
     });
   });
 
-  it('a range-specific resolution wins over a name-only one, whatever their order', () => {
-    const text = readFileSync(fixture('yarn-berry-workspace', 'yarn.lock'), 'utf8');
-    const legacy = [{ path: 'packages/legacy', range: '^17.0.2' }];
-    for (const resolutions of [
-      { react: '^18.2.0', 'react@npm:^17.0.2': '17.0.1' },
-      { 'react@^17.0.2': '17.0.1', react: '^18.2.0' },
-    ]) {
-      const { lock } = parseLockfile('yarn.lock', text, { rootManifest: { resolutions } });
-      expect(lock?.versionOf('react', legacy)).toBe('17.0.1');
-      // web's react@npm:^18.2.0 has no specific entry, so the name-only resolution applies
-      expect(lock?.versionOf('react', [{ path: 'packages/web', range: '^18.2.0' }])).toBe('18.3.1');
-    }
+  // The resolution fixtures below were each written by yarn 4 from the manifest beside them, so
+  // the expected version is what yarn itself locked — not what the reader is assumed to do.
+  it('resolutions: the first matching key wins, as yarn applies them', () => {
+    // { "react": "17.0.1", "react@^17.0.2": "17.0.0" } → yarn locked react@npm:17.0.1
+    expect(summary(fixture('yarn-berry-resolution-order'))).toEqual({ react: '17.0.1 exact yarn.lock' });
+    // { "react@npm:^17.0.2": "17.0.0", "react": "17.0.1" } → yarn locked react@npm:17.0.0
+    expect(summary(fixture('yarn-berry-resolution-order-specific-first'))).toEqual({
+      react: '17.0.0 exact yarn.lock',
+    });
+  });
+
+  it("resolutions: a parent-scoped key overrides that workspace's own dependency only", () => {
+    // { "web/react": "17.0.2" } — web's entry still lists npm:^18.2.0; yarn 4.5 locked 17.0.2 for it
+    expect(summary(fixture('yarn-berry-resolution-parent', 'packages', 'web'))).toEqual({
+      react: '17.0.2 exact ../../yarn.lock',
+    });
+    expect(summary(fixture('yarn-berry-resolution-parent'))).toEqual({ react: '18.3.1 exact yarn.lock' });
+  });
+
+  it('resolutions: glob keys are ignored, as yarn 2+ ignores them (YN0057)', () => {
+    const text = readFileSync(fixture('yarn-berry-resolution-parent', 'yarn.lock'), 'utf8');
+    const { lock } = parseLockfile('yarn.lock', text, {
+      rootManifest: { resolutions: { '**/react': '17.0.2' } },
+    });
+    expect(lock?.versionOf('react', [{ path: '', range: '^18.2.0' }])).toBe('18.3.1');
+  });
+
+  it('yarn 2/3: workspace entries list bare ranges, which still map to their npm: entry', () => {
+    expect(summary(fixture('yarn-v3-workspace', 'packages', 'web'))).toEqual({
+      react: '18.3.1 exact ../../yarn.lock',
+    });
+  });
+
+  it('a patch of an alias installs the aliased package, so it is never this stack', () => {
+    // "svelte": "patch:svelte@npm%3Apreact%4010.19.0#~/p.patch" — neither exact nor a coerced "3"
+    expect(summary(fixture('yarn-berry-patched-alias'))).toEqual({});
+  });
+
+  it('catalog: pointing at an alias is not answered, with or without .yarnrc.yml', () => {
+    // root: react ^18.2.0 (18.3.1); web: react "catalog:" → npm:preact@10.19.0
+    expect(summary(fixture('yarn-berry-catalog-alias', 'packages', 'web'))).toEqual({});
+    const text = readFileSync(fixture('yarn-berry-catalog-alias', 'yarn.lock'), 'utf8');
+    const remote = parseLockfile('yarn.lock', text).lock;
+    expect(remote?.versionOf('react', [{ path: 'packages/web', range: 'catalog:' }])).toBeNull();
   });
 
   it('without .yarnrc.yml (remote), catalog: resolves only when the lockfile has one version', () => {
@@ -272,6 +304,58 @@ describe('lockfile fallbacks', () => {
       source: 'package.json',
     });
     expect(warnings).toEqual([]);
+  });
+
+  it('package-lock.json: an alias to another package is not this stack', () => {
+    // npm 11: "svelte": "npm:preact@10.19.0" → packages["node_modules/svelte"].name === "preact"
+    expect(summary(fixture('npm-alias'))).toEqual({});
+    const v1 = parseLockfile(
+      'package-lock.json',
+      JSON.stringify({
+        lockfileVersion: 1,
+        dependencies: { svelte: { version: 'npm:preact@10.19.0' }, react: { version: 'npm:react@18.3.1' } },
+      }),
+    ).lock;
+    expect(v1?.versionOf('svelte', [{ path: '', range: undefined }])).toBeNull();
+    expect(v1?.versionOf('react', [{ path: '', range: undefined }])).toBe('18.3.1');
+  });
+
+  it('the lockfile packageManager names wins over a stale one beside it, and only one is read', () => {
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ packageManager: 'pnpm@9.15.0', dependencies: { next: '^14.0.0', react: '^18.2.0' } }),
+    );
+    writeFileSync(
+      join(root, 'package-lock.json'),
+      JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/next': { version: '13.5.6' } } }),
+    );
+    writeFileSync(
+      join(root, 'pnpm-lock.yaml'),
+      "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      next:\n        specifier: ^14.0.0\n        version: 14.2.3\n",
+    );
+    expect(detect(root).get('nextjs')).toEqual({
+      version: '14.2.3',
+      confidence: 'exact',
+      source: 'pnpm-lock.yaml',
+    });
+    // react is only in the stale npm lockfile — not read, exactly as a remote scan would not fetch it
+    writeFileSync(
+      join(root, 'package-lock.json'),
+      JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/react': { version: '18.3.1' } } }),
+    );
+    expect(detect(root).get('react')?.confidence).toBe('coerced');
+  });
+
+  it('unwraps a same-package patch: range before coercing it', () => {
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ dependencies: { 'solid-js': 'patch:solid-js@npm%3A1.8.17#~/patches/solid.patch' } }),
+    );
+    expect(detect(root).get('solid')).toEqual({
+      version: '1.8.17',
+      confidence: 'coerced',
+      source: 'package.json',
+    });
   });
 
   it('never coerces an alias to another package into this stack', () => {

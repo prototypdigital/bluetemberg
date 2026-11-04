@@ -61,10 +61,10 @@ Without `node_modules`, the lockfile still gives an exact version for npm, pnpm 
 What the readers handle:
 
 - **pnpm:** `catalog:` specifiers, `overrides` and `patchedDependencies` (the importer already records the resolved version), peer suffixes (`14.2.3(react@18.3.1)`, 5.x `13.4.0_<hash>`), and the config-dependency document pnpm 11 writes ahead of the project's own. Only the part before `packages:` is parsed, so a large lockfile stays cheap.
-- **yarn berry:** root `resolutions`, `patch:` descriptors, and `catalog:` (read from `.yarnrc.yml`; a remote scan, which has no `.yarnrc.yml`, uses the lockfile's only version of the package and falls back to the range when there are several).
+- **yarn berry (2, 3 and 4):** root `resolutions` as yarn applies them — the first matching key wins, a parent-scoped key (`web/react`) overrides that workspace's own dependency, and glob keys (`**/react`), which yarn ignores, are ignored too. Also `patch:` descriptors, and `catalog:` read from `.yarnrc.yml`. A remote scan has no `.yarnrc.yml`, so it answers a `catalog:` dependency only when every lockfile entry for the package is the same version of the package itself, and falls back to the range otherwise.
 - **yarn v1:** entries keyed by several specs (`react-dom@^18.2.0, react-dom@^18.3.0:`); `resolutions` are already reflected in the version.
-- **Aliases:** `npm:same-name@1.2.3` resolves; an alias to another package (`"svelte": "npm:preact@10.19.0"`) is never reported as that stack, from the lockfile or from the range.
-- **Not versions:** a workspace link (`link:`, `workspace:`), a local directory, or a git/tarball URL resolves to nothing, and the range is used instead.
+- **Aliases:** `npm:same-name@1.2.3` resolves; an alias to another package (`"svelte": "npm:preact@10.19.0"`, or a berry `patch:` of one) is never reported as that stack — not from any lockfile, and not from the range either.
+- **Not versions:** a workspace link (`link:`, `workspace:`, berry `portal:`) or a local directory resolves to nothing, and the range is used instead. A git or tarball dependency resolves to nothing from `pnpm-lock.yaml`, which records only the URL; npm and yarn lockfiles record the installed package's own `version`, and that is reported.
 
 A lockfile that can't be used — malformed (a merge conflict left in it, say), an unrecognised format, or over 64 MiB — never fails detection. It falls back to the coerced `package.json` range and warns once, with the same line in `sync`, `why`, `detect` (`level: "lockfile"`) and `scan-org`:
 
@@ -72,7 +72,7 @@ A lockfile that can't be used — malformed (a merge conflict left in it, say), 
 WARN: yarn.lock could not be parsed (line 3: expected an entry header) — using package.json ranges for stack versions
 ```
 
-When one directory holds several lockfiles, they are tried in the order of the table. An implied stack (`react` from `nextjs`) is resolved only when the package itself lists it, or `node_modules` has it; pnpm and yarn lockfiles do not record which peers a package was resolved against at the importer level.
+When one directory holds several lockfiles, only one is read: the one the `package.json` `packageManager` field names (`pnpm@9.15.0` → `pnpm-lock.yaml`), else the first in the order of the table. A stale `package-lock.json` left in a pnpm repo is therefore never preferred, and a remote scan reads the same file. An implied stack (`react` from `nextjs`) resolves from `node_modules` or from `package-lock.json`'s hoisted entry; pnpm and yarn lockfiles key versions by what each package declares, so from them an implied stack resolves only when the package lists it.
 
 **Prereleases** are matched as the release they preview: `19.0.0-rc.1` is treated as `19.0.0`. Plain semver sorts an RC *below* `19.0.0`, which would give a team trying the next major the previous major's rules (`>=18 <19.0.0` matches) and not the new ones (`>=19.0.0` does not).
 

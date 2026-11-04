@@ -1,0 +1,1 @@
+{"name":"root","dependencies":{"svelte":"npm:preact@10.19.0","left-pad":"github:stevemao/left-pad#v1.3.0","local":"file:./vendor/local"}}

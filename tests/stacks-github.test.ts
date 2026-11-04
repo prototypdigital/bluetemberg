@@ -97,6 +97,20 @@ describe('fetchRepoManifests', () => {
     ]);
   });
 
+  it('fetches the lockfile packageManager names first, so a stale package-lock.json is skipped', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/contents/package.json')) {
+        return Promise.resolve(mockResponse({ body: { packageManager: 'yarn@4.18.1' } }));
+      }
+      return Promise.resolve(mockResponse({ body: `${url.split('/contents/')[1]} body` }));
+    });
+    globalThis.fetch = fetchMock;
+
+    const { lock } = await fetchRepoManifests('acme/yarn', 'tok');
+    expect(lock).toEqual({ file: 'yarn.lock', text: 'yarn.lock body' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('reports an oversized lockfile from Content-Length without reading its body', async () => {
     const text = vi.fn();
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {

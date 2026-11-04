@@ -1,4 +1,4 @@
-import { LOCKFILE_NAMES, oversizeError, type LockfileName } from './lockfile.js';
+import { lockfileCandidates, oversizeError, type LockfileName } from './lockfile.js';
 
 /**
  * Minimal GitHub REST client for remote stack scanning (Milestone M6, remote path).
@@ -126,7 +126,8 @@ async function fetchOptionalText(
     }
     return null;
   }
-  const tooLarge = oversizeError(Number(res.headers.get('content-length') ?? 0));
+  const length = Number(res.headers.get('content-length'));
+  const tooLarge = Number.isFinite(length) ? oversizeError(length) : null;
   if (tooLarge) {
     await res.body?.cancel();
     return { error: tooLarge };
@@ -135,12 +136,16 @@ async function fetchOptionalText(
 }
 
 /**
- * The first lockfile present beside the manifest, tried in {@link LOCKFILE_NAMES} order — the
- * same order local detection uses. Stops at the first one found, so an npm repo costs one request
- * as before and a pnpm or yarn repo one or two more.
+ * The first lockfile present beside the manifest, in {@link lockfileCandidates} order (its
+ * `packageManager` first) — the same choice local detection makes. Stops at the first one found,
+ * so an npm repo costs one request as before and a pnpm or yarn repo one or two more.
  */
-async function fetchLockfile(base: string, token: string): Promise<RemoteLockfile | null> {
-  for (const file of LOCKFILE_NAMES) {
+async function fetchLockfile(
+  base: string,
+  token: string,
+  manifest: Record<string, unknown>,
+): Promise<RemoteLockfile | null> {
+  for (const file of lockfileCandidates(manifest)) {
     const fetched = await fetchOptionalText(`${base}${file}`, token);
     if (fetched) return { file, ...fetched };
   }
@@ -158,7 +163,7 @@ export async function fetchRepoManifests(fullName: string, token: string, path =
   const base = `${API}/repos/${fullName}/contents/${prefix}`;
   const manifest = await fetchJsonFile(`${base}package.json`, token, false);
   if (!manifest) throw new GithubFetchError('not-found', `No package.json in ${fullName}`);
-  const lock = await fetchLockfile(base, token);
+  const lock = await fetchLockfile(base, token, manifest);
   return { manifest, lock };
 }
 

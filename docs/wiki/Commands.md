@@ -277,7 +277,7 @@ If payload 3.4.1 → 4.0.0 (nothing is written):
 Two sources, one report — and they can be combined in a single run:
 
 - **Local** — pass filesystem paths to cloned repos. Detection precedence is `node_modules` → lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`) → coerced `package.json` range, so installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`.
-- **Remote** — `--org`/`--repos` read each repo's `package.json` and its lockfile (the first of `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` that exists) over the GitHub Contents API **without cloning**. Detection precedence is lockfile → coerced `package.json` range (there is no `node_modules` over the API). A lockfile that can't be used is listed in `warnings`, prefixed with the repo.
+- **Remote** — `--org`/`--repos` read each repo's `package.json` and its lockfile (the one `packageManager` names, else the first of `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` that exists — the same choice local detection makes) over the GitHub Contents API **without cloning**. Detection precedence is lockfile → coerced `package.json` range (there is no `node_modules` over the API). A lockfile that can't be used is listed in `warnings`, prefixed with the repo.
 
 The corpus it compares against is read from the current working directory — its catalog (project cache → committed snapshot) plus the version ranges its available guidance declares — never from the scanned repos, whose own rules would otherwise count as org-wide coverage and mask the gaps you are looking for.
 

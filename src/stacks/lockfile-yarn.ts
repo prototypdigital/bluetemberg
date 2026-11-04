@@ -27,6 +27,8 @@ import { aliasesOtherPackage, isPlainObject, leadingPackageName } from './lockfi
  */
 
 interface YarnEntry {
+  /** Every descriptor in the entry's header. */
+  specs: string[];
   version?: string;
   resolution?: string;
   linkType?: string;
@@ -112,7 +114,7 @@ function readEntries(text: string, berry: boolean): ParsedEntries {
       if (indent === 0) {
         if (!line.endsWith(':')) throw new Error('expected an entry header');
         const specs = parseHeader(line.slice(0, -1));
-        current = {};
+        current = { specs };
         entries.push(current);
         for (const spec of specs) bySpec.set(spec, current);
         collectDeps = berry && specs.some((spec) => spec.includes('@workspace:'));
@@ -158,6 +160,12 @@ function berryDescriptor(range: string): string {
   return /^[a-z][a-z0-9+.-]*:/i.test(range) ? range : `npm:${range}`;
 }
 
+/** A berry workspace entry: its package name (for parent-scoped resolutions) and descriptors. */
+interface BerryWorkspace {
+  name: string;
+  dependencies: Map<string, string>;
+}
+
 /** The workspace path in a `name@workspace:<path>` resolution, or null for any other entry. */
 function workspacePath(resolution: string | undefined): string | null {
   const name = resolution ? leadingPackageName(resolution) : null;
@@ -166,26 +174,62 @@ function workspacePath(resolution: string | undefined): string | null {
   return rest.startsWith('workspace:') ? rest.slice('workspace:'.length) : null;
 }
 
+/** One `name[@range]` part of a resolutions key, and what follows it. */
+interface KeyPart {
+  name: string;
+  range: string | undefined;
+  rest: string;
+}
+
+function readKeyPart(key: string): KeyPart | null {
+  const nameStart = key.startsWith('@') ? key.indexOf('/') + 1 : 0;
+  if (key.startsWith('@') && nameStart === 0) return null;
+  let end = nameStart;
+  while (end < key.length && key[end] !== '@' && key[end] !== '/') end++;
+  const name = key.slice(0, end);
+  if (key[end] !== '@') return { name, range: undefined, rest: key.slice(end) };
+  const slash = key.indexOf('/', end);
+  const rangeEnd = slash < 0 ? key.length : slash;
+  return { name, range: key.slice(end + 1, rangeEnd), rest: key.slice(rangeEnd) };
+}
+
 /**
- * Apply the root manifest's `resolutions` to a direct dependency's descriptor, the way berry does
- * before locking: `react@<range>` (most specific), else `react` / `**\/react`, replaces the
- * descriptor. A parent-scoped key (`some-lib/react`) only applies to transitive dependencies, so
- * it is skipped here.
+ * A `resolutions` key as yarn berry parses it: `[parent[@range]/]name[@range]`. Glob keys
+ * (`**\/react`) were removed in yarn 2 — yarn 4 warns (YN0057) and ignores them — so they parse
+ * to null and never apply.
  */
-function applyResolutions(pkg: string, descriptor: string, resolutions: Record<string, unknown>): string {
-  let byName: string | null = null;
+function parseResolutionKey(key: string): { parent: KeyPart | null; target: KeyPart } | null {
+  if (key.includes('*')) return null;
+  const first = readKeyPart(key);
+  if (!first) return null;
+  if (first.rest === '') return { parent: null, target: first };
+  if (!first.rest.startsWith('/')) return null;
+  const target = readKeyPart(first.rest.slice(1));
+  return target && target.rest === '' ? { parent: first, target } : null;
+}
+
+/**
+ * Apply the root manifest's `resolutions` to `workspace`'s direct dependency, as yarn berry does
+ * before locking. Like yarn, the **first** matching key in manifest order wins (verified against
+ * yarn 4.5 and 4.18 lockfiles): `react`, `react@<range>`, and `<workspace>/react` — a parent-scoped
+ * key also overrides that workspace's own dependency.
+ */
+function applyResolutions(
+  pkg: string,
+  descriptor: string,
+  resolutions: Record<string, unknown>,
+  workspace: string | undefined,
+): string {
   for (const [key, value] of Object.entries(resolutions)) {
     if (typeof value !== 'string') continue;
-    const target = key.startsWith('**/') ? key.slice(3) : key;
-    const name = leadingPackageName(target) ?? target;
-    if (name !== pkg) continue;
-    if (target === name) {
-      byName ??= berryDescriptor(value);
-      continue;
-    }
-    if (berryDescriptor(target.slice(name.length + 1)) === descriptor) return berryDescriptor(value);
+    const parsed = parseResolutionKey(key);
+    if (!parsed || parsed.target.name !== pkg) continue;
+    const { parent, target } = parsed;
+    if (target.range !== undefined && berryDescriptor(target.range) !== descriptor) continue;
+    if (parent && (parent.name !== workspace || !/^(?:workspace:|$)/.test(parent.range ?? ''))) continue;
+    return berryDescriptor(value);
   }
-  return byName ?? descriptor;
+  return descriptor;
 }
 
 /** The range a `catalog:` / `catalog:<name>` descriptor names in `.yarnrc.yml`, or null. */
@@ -202,36 +246,63 @@ function catalogRange(
   return typeof range === 'string' ? range : null;
 }
 
+/**
+ * The package a berry resolution installs. A patch wraps another locator, URL-encoded:
+ * `svelte@patch:preact@npm%3A10.19.0#…` installs preact, whatever name the dependency uses.
+ */
+function installedName(resolution: string): string | null {
+  const name = leadingPackageName(resolution);
+  if (!name) return null;
+  const rest = resolution.slice(name.length + 1);
+  if (!rest.startsWith('patch:')) return name;
+  try {
+    return installedName(decodeURIComponent(rest.slice('patch:'.length).split('#')[0]));
+  } catch {
+    return null;
+  }
+}
+
 /** The version of `entry` when it is a real (non-linked) install of `pkg` itself, else null. */
 function entryVersion(pkg: string, entry: YarnEntry | undefined): string | null {
   if (!entry || entry.linkType === 'soft') return null;
-  const name = entry.resolution ? leadingPackageName(entry.resolution) : pkg;
+  const name = entry.resolution ? installedName(entry.resolution) : pkg;
   if (name !== pkg) return null;
   return valid(entry.version ?? '');
 }
 
-/** The single version of `pkg` in the lockfile, or null when there are none or several. */
+/**
+ * The version of `pkg` when every lockfile entry keyed by `pkg` is a real install of it at one
+ * version; null when there are none, several, or any that installs something else (an alias, a
+ * link) — the unknown descriptor could be that one.
+ */
 function onlyVersion(pkg: string, entries: YarnEntry[]): string | null {
-  const versions = new Set(entries.map((entry) => entryVersion(pkg, entry)).filter((v) => v !== null));
-  return versions.size === 1 ? [...versions][0] : null;
+  const versions = new Set<string | null>();
+  for (const entry of entries) {
+    if (!entry.specs.some((spec) => leadingPackageName(spec) === pkg)) continue;
+    if (workspacePath(entry.resolution) !== null) continue;
+    versions.add(entryVersion(pkg, entry));
+  }
+  const [only] = versions;
+  return versions.size === 1 && only !== undefined ? only : null;
 }
 
 function berryLockfile({ bySpec, entries }: ParsedEntries, context: LockfileContext): Lockfile {
-  const workspaces = new Map<string, Map<string, string>>();
+  const workspaces = new Map<string, BerryWorkspace>();
   for (const entry of entries) {
     const path = workspacePath(entry.resolution);
-    if (path !== null) workspaces.set(path, entry.dependencies ?? new Map());
+    const name = entry.resolution ? leadingPackageName(entry.resolution) : null;
+    if (path !== null && name) workspaces.set(path, { name, dependencies: entry.dependencies ?? new Map() });
   }
   const manifestResolutions = context.rootManifest?.resolutions;
   const resolutions = isPlainObject(manifestResolutions) ? manifestResolutions : {};
 
-  const resolve = (pkg: string, declared: string): string | null => {
-    let descriptor = applyResolutions(pkg, declared, resolutions);
+  const resolve = (pkg: string, declared: string, workspace: string | undefined): string | null => {
+    let descriptor = applyResolutions(pkg, declared, resolutions, workspace);
     if (descriptor.startsWith('catalog:')) {
       const range = catalogRange(context.yarnrc, descriptor.slice('catalog:'.length), pkg);
-      // Without `.yarnrc.yml` (a remote scan), a package locked at one version is unambiguous.
+      // Without `.yarnrc.yml` (a remote scan), only an unambiguous lockfile can answer.
       if (range === null) return onlyVersion(pkg, entries);
-      descriptor = applyResolutions(pkg, berryDescriptor(range), resolutions);
+      descriptor = applyResolutions(pkg, berryDescriptor(range), resolutions, workspace);
     }
     return entryVersion(pkg, bySpec.get(`${pkg}@${descriptor}`));
   };
@@ -240,9 +311,10 @@ function berryLockfile({ bySpec, entries }: ParsedEntries, context: LockfileCont
     file: 'yarn.lock',
     versionOf(pkg: string, chain: LockfileImporter[]) {
       for (const { path, range } of chain) {
-        const fromWorkspace = workspaces.get(path || '.')?.get(pkg);
-        const declared = fromWorkspace ?? (range === undefined ? undefined : berryDescriptor(range));
-        if (declared !== undefined) return resolve(pkg, declared);
+        const workspace = workspaces.get(path || '.');
+        // yarn 2/3 list a workspace's bare range (`^18.2.0`); yarn 4 writes `npm:^18.2.0`.
+        const declared = workspace?.dependencies.get(pkg) ?? range;
+        if (declared !== undefined) return resolve(pkg, berryDescriptor(declared), workspace?.name);
       }
       return null;
     },

@@ -1,0 +1,6 @@
+{
+  "name": "web",
+  "dependencies": {
+    "react": "catalog:"
+  }
+}

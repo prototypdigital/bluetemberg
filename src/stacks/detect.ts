@@ -5,7 +5,7 @@ import { parse as parseYaml } from 'yaml';
 import { loadCatalogSync } from '../catalog/index.js';
 import type { BlueprintConfig, Stack } from '../types.js';
 import {
-  LOCKFILE_NAMES,
+  lockfileCandidates,
   npmLockfile,
   oversizeError,
   parseLockfile,
@@ -13,7 +13,7 @@ import {
   type LockfileImporter,
   type LockfileName,
 } from './lockfile.js';
-import { aliasesOtherPackage, isPlainObject } from './lockfile-shared.js';
+import { isPlainObject, ownRange } from './lockfile-shared.js';
 import type { DetectedStack, DetectedStacks } from './match.js';
 import {
   buildStackPackages,
@@ -218,24 +218,25 @@ function sessionLockfile(session: DetectSession, dir: string, file: LockfileName
  * Resolve from the nearest lockfile at or above `root` (in a workspace, the root lockfile holds
  * every package's install). The chain handed to the reader runs from the package itself up to the
  * lockfile's directory, nearest first, so the package's own pnpm importer / yarn workspace / npm
- * nested entry wins over the root's. Several lockfiles in one directory are tried in
- * {@link LOCKFILE_NAMES} order.
+ * nested entry wins over the root's. When one directory holds several lockfiles, only the one
+ * {@link lockfileCandidates} ranks first is read — the same choice a remote scan makes.
  */
 function resolveFromLockfile(session: DetectSession, pkg: string): DetectedStack | null {
   const dirs = resolutionDirs(session.root);
   for (let i = 0; i < dirs.length; i++) {
     const lockDir = dirs[i];
-    const files = LOCKFILE_NAMES.filter((file) => existsSync(join(lockDir, file)));
-    if (files.length === 0) continue;
+    const file = lockfileCandidates(readJson(join(lockDir, 'package.json'))).find((name) =>
+      existsSync(join(lockDir, name)),
+    );
+    if (!file) continue;
     const chain: LockfileImporter[] = dirs.slice(0, i + 1).map((dir) => ({
       path: relative(lockDir, dir).split(sep).join('/'),
       range: depRange(sessionDeps(session, dir), pkg),
     }));
-    for (const file of files) {
-      const version = sessionLockfile(session, lockDir, file)?.versionOf(pkg, chain);
-      if (version) return { version, confidence: 'exact', source: sourceLabel(session.root, lockDir, file) };
-    }
-    return null;
+    const version = sessionLockfile(session, lockDir, file)?.versionOf(pkg, chain);
+    return version
+      ? { version, confidence: 'exact', source: sourceLabel(session.root, lockDir, file) }
+      : null;
   }
   return null;
 }
@@ -251,11 +252,13 @@ function toLockfile(value: Lockfile | Record<string, unknown> | null | undefined
 
 /**
  * Coerce `pkg`'s manifest range to a concrete (low-confidence) version, or null. An alias to a
- * different package (`"svelte": "npm:preact@10.19.0"`) is that package's range, never `pkg`'s.
+ * different package (`"svelte": "npm:preact@10.19.0"`, or a berry `patch:` of one) is that
+ * package's range, never `pkg`'s; a same-package `npm:` / `patch:` wrapper is unwrapped first.
  */
 function coercedFromRange(pkg: string, range: string | undefined): DetectedStack | null {
-  if (!range || aliasesOtherPackage(pkg, range)) return null;
-  const c = coerce(range, { includePrerelease: true });
+  const own = range === undefined ? null : ownRange(pkg, range);
+  if (!own) return null;
+  const c = coerce(own, { includePrerelease: true });
   return c ? { version: c.version, confidence: 'coerced', source: 'package.json' } : null;
 }
 
