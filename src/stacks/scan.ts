@@ -8,7 +8,14 @@ import { buildStackPackages, type StackPackages } from './packages.js';
 import { buildStackRegistry, queryCoverage } from './registry.js';
 import type { CoverageGapReason, CoveragePrecision, StackRegistry } from './registry.js';
 import type { Catalog } from '../catalog/index.js';
-import { GithubFetchError, fetchOrgRepos, fetchRepoManifests, type SkipReason } from './github.js';
+import {
+  GithubFetchError,
+  fetchOrgRepos,
+  fetchRepoManifests,
+  type RemoteLockfile,
+  type SkipReason,
+} from './github.js';
+import { parseLockfile, type Lockfile } from './lockfile.js';
 import type { DetectedStacks, DetectionConfidence } from './match.js';
 
 /**
@@ -26,7 +33,8 @@ import type { DetectedStacks, DetectionConfidence } from './match.js';
  *
  * Two sources, one report shape:
  *   - LOCAL: filesystem paths to cloned repos (node_modules → lockfile → coerced; highest confidence).
- *   - REMOTE: `--org`/`--repos` read manifests over the GitHub API without cloning (lockfile → coerced).
+ *   - REMOTE: `--org`/`--repos` read manifests over the GitHub API without cloning (lockfile → coerced);
+ *     the lockfile is `package-lock.json`, `pnpm-lock.yaml` or `yarn.lock`, read by the same readers.
  *
  * Read-only. INTERNAL-ONLY: reached via `bin/cli.js` dynamic import and the MCP tool, never
  * re-exported from `src/index.ts`. Keep it off the public package contract (see issue #196).
@@ -114,7 +122,10 @@ export interface ScanReport {
   gaps: ScanGap[];
   /** Buckets covered only name-level, ranked by usage — the second authoring list. */
   weakCoverage: WeakCoverage[];
-  /** Sources of covered ranges that could not be read — every gap below may be a false positive. */
+  /**
+   * Sources of covered ranges that could not be read — every gap below may be a false positive —
+   * and lockfiles that could not be used, prefixed with the repo (those repos fall back to ranges).
+   */
   warnings: string[];
 }
 
@@ -155,6 +166,8 @@ export interface ScanOptions {
 interface DetectionUnit {
   id: string;
   detected: DetectedStacks;
+  /** Lockfiles this repo could not use; detection fell back to `package.json` ranges. */
+  warnings: string[];
 }
 
 function resolveSink(silent: boolean | undefined, sink?: (m: string) => void): (m: string) => void {
@@ -224,6 +237,7 @@ function buildReport(units: DetectionUnit[], skipped: SkippedRepo[], catalogRoot
   const { acc, empty } = foldUnits(units);
   const catalog = loadCatalogSync(catalogRoot);
   const warnings = buildStackPackages(catalog).issues.map((w) => `catalog ${w}`);
+  for (const unit of units) warnings.push(...unit.warnings.map((w) => `${unit.id}: ${w}`));
   const registry = coverageRegistry(catalogRoot, catalog, (m) => warnings.push(m));
 
   const histogram: StackHistogramEntry[] = [];
@@ -302,7 +316,28 @@ function scanStackPackages(catalogRoot: string): StackPackages {
 }
 
 function localUnits(roots: string[], packages: StackPackages): DetectionUnit[] {
-  return roots.map((root) => ({ id: root, detected: detectStacks(root, loadConfig(root), packages) }));
+  return roots.map((root) => {
+    const warnings: string[] = [];
+    const detected = detectStacks(root, loadConfig(root), packages, (w) => warnings.push(w));
+    return { id: root, detected, warnings };
+  });
+}
+
+/** Parse a fetched lockfile with the same readers local detection uses; warn instead of failing. */
+function remoteLockfile(
+  fetched: RemoteLockfile | null,
+  manifest: Record<string, unknown>,
+  warnings: string[],
+): Lockfile | null {
+  if (!fetched) return null;
+  const parsed =
+    'error' in fetched
+      ? { error: fetched.error }
+      : parseLockfile(fetched.file, fetched.text, { rootManifest: manifest });
+  if (parsed.error !== undefined) {
+    warnings.push(`${fetched.file} ${parsed.error} — using package.json ranges for stack versions`);
+  }
+  return parsed.lock ?? null;
 }
 
 /** Run async tasks with a bounded concurrency window (no dependency; politeness vs GitHub limits). */
@@ -347,9 +382,12 @@ async function gatherRemoteUnits(
     try {
       const { manifest, lock } = await fetchRepoManifests(fullName, token);
       progress(`  [${++done}/${unique.length}] ${fullName}`);
+      const warnings: string[] = [];
+      const parsed = remoteLockfile(lock, manifest, warnings);
       return {
         id: fullName,
-        detected: detectStacksFromManifests(manifest, lock, undefined, packages),
+        detected: detectStacksFromManifests(manifest, parsed, undefined, packages),
+        warnings,
       } as DetectionUnit;
     } catch (err) {
       const reason: SkipReason = err instanceof GithubFetchError ? err.reason : 'unknown';

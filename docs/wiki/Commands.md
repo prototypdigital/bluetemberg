@@ -178,7 +178,7 @@ npx bluetemberg sync ./my-project
 
 ## `bluetemberg detect [directory]`
 
-Report the technology stacks and versions detected in the project, each with its detection confidence and coverage status. Detection precedence (highest confidence first): a pinned version in the `stacks` config field → `node_modules/<pkg>/package.json` → `package-lock.json` → a version coerced from the `package.json` range (low confidence). This is the read side of the same machinery that gates rules at sync — an agent can call it once and self-select version-correct guidance.
+Report the technology stacks and versions detected in the project, each with its detection confidence and coverage status. Detection precedence (highest confidence first): a pinned version in the `stacks` config field → `node_modules/<pkg>/package.json` → the lockfile (`package-lock.json`, `pnpm-lock.yaml` or `yarn.lock`; see [Stacks → Lockfiles](Stacks#lockfiles)) → a version coerced from the `package.json` range (low confidence). This is the read side of the same machinery that gates rules at sync — an agent can call it once and self-select version-correct guidance.
 
 | Option | Description |
 | ------ | ----------- |
@@ -190,7 +190,7 @@ npx bluetemberg detect
 npx bluetemberg detect --json
 ```
 
-Each `warnings[]` entry carries a `level`: `low-confidence` names the stack whose version was coerced, while `coverage-source` (with `stack: null`) means a source of covered ranges could not be read — a malformed `llm/packages.json`, say — so coverage may under-report. A broken manifest degrades the report to catalog-only coverage; it never aborts it. `stack-map` (also `stack: null`) means the catalog's [stack map](Stacks#the-stack-map-which-package-is-a-stack) carried data this engine ignored — a newer schema, or a malformed entry — so a stack may be missing or read from its built-in package.
+Each `warnings[]` entry carries a `level`: `low-confidence` names the stack whose version was coerced, while `coverage-source` (with `stack: null`) means a source of covered ranges could not be read — a malformed `llm/packages.json`, say — so coverage may under-report. A broken manifest degrades the report to catalog-only coverage; it never aborts it. `lockfile` (also `stack: null`) means a lockfile could not be used — malformed, unrecognised, or too large — so versions fell back to `package.json` ranges. `stack-map` (also `stack: null`) means the catalog's [stack map](Stacks#the-stack-map-which-package-is-a-stack) carried data this engine ignored — a newer schema, or a malformed entry — so a stack may be missing or read from its built-in package.
 
 ## `bluetemberg coverage <stack>[@version] [directory]`
 
@@ -276,8 +276,8 @@ If payload 3.4.1 → 4.0.0 (nothing is written):
 
 Two sources, one report — and they can be combined in a single run:
 
-- **Local** — pass filesystem paths to cloned repos. Detection precedence is `node_modules` → `package-lock.json` → coerced `package.json` range, so installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`.
-- **Remote** — `--org`/`--repos` read each repo's `package.json` (and `package-lock.json` when present) over the GitHub Contents API **without cloning**. Detection precedence is `package-lock.json` → coerced `package.json` range (there is no `node_modules` over the API).
+- **Local** — pass filesystem paths to cloned repos. Detection precedence is `node_modules` → lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`) → coerced `package.json` range, so installed `node_modules` give `exact` versions, a lockfile alone still gives `exact`, and a bare manifest falls back to `coerced`.
+- **Remote** — `--org`/`--repos` read each repo's `package.json` and its lockfile (the one `packageManager` names, else the first of `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock` that exists — the same choice local detection makes) over the GitHub Contents API **without cloning**. Detection precedence is lockfile → coerced `package.json` range (there is no `node_modules` over the API). A lockfile that can't be used is listed in `warnings`, prefixed with the repo.
 
 The corpus it compares against is read from the current working directory — its catalog (project cache → committed snapshot) plus the version ranges its available guidance declares — never from the scanned repos, whose own rules would otherwise count as org-wide coverage and mask the gaps you are looking for.
 
@@ -310,7 +310,7 @@ Progress is written to **stderr**, so `--json` output on stdout stays clean for 
 - Coverage compares against the catalog **and** the version ranges declared by the guidance available in the working directory, so `scan-org` answers the version-era question, not just "does a pack for this stack exist". Install the packs you publish into the directory you scan from to get version-precise buckets; an uninstalled catalogued pack can only contribute name-level (`*`) coverage.
 - If that corpus cannot be read (a malformed manifest, say), the scan degrades to catalog-only coverage and records why in `warnings` — every gap it then reports may be a false positive.
 - Remote repos that can't be read (no `package.json`, private/forbidden, rate-limited, …) are recorded in `skipped` with a typed `reason` and the scan continues — one bad repo never aborts the run.
-- Remote detection only reads `package-lock.json`; repos using `yarn.lock`/`pnpm-lock.yaml` resolve to `coerced` confidence from the manifest range (still useful for a histogram). Scan a local clone for `exact` versions across any package manager.
+- Remote detection reads the lockfile beside the root `package.json` only, so a monorepo's workspace packages are not scanned remotely. Scan a local clone for per-package `exact` versions.
 
 ## `bluetemberg stacks lint [directory]`
 

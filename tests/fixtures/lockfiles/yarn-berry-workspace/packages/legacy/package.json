@@ -1,0 +1,12 @@
+{
+  "name": "legacy",
+  "dependencies": {
+    "@trpc/server": "catalog:",
+    "react": "^17.0.2",
+    "solid-js": "patch:solid-js@npm%3A1.8.17#~/patches/solid.patch",
+    "vue": "npm:vue@3.4.21"
+  },
+  "devDependencies": {
+    "react-dom": "^18.3.0"
+  }
+}
