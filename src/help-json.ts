@@ -367,10 +367,13 @@ export function getMachineReadableHelp(): Record<string, unknown> {
       ],
       contentScan: {
         description:
-          'Every freshly downloaded pack is scanned before it lands in the cache. Blocking findings abort the install; warnings are reported.',
+          'Every freshly downloaded pack and external source is scanned before it lands in the cache; cached content an older scanner vetted is re-scanned on the next install. Blocking findings abort the install; warnings are reported.',
         blocks: [
           'real-looking credentials',
-          'secrets in the body of a request to a non-local host',
+          'secrets in the body of a request to a non-local host (URL hosts parsed, userinfo and numeric IPs resolved)',
+          'secrets sent over DNS lookups, gh publishing, or committed and pushed with git',
+          'markdown links/images whose URL carries a secret',
+          'invisible Unicode tag text and variation-selector payloads',
           'decode-to-shell pipelines',
           'instructions to disable hooks/guardrails/verification',
           'dangerous agent flags',
@@ -387,6 +390,10 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'mentions of verification-weakening switches',
           'scripts that read secrets and upload on separate lines',
           'blocking patterns quoted in BAD-labelled markdown examples',
+          'markdown image URLs with template slots',
+          'link text naming a different site than the link target',
+          'settings that widen agent permissions',
+          'unpinned npx -y packages',
         ],
       },
     },

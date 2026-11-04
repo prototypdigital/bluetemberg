@@ -1227,11 +1227,12 @@ sourceCmd
     '<spec>',
     'Source spec: github:owner/repo[#ref][:path] | prpm:name[@range] | cursor-directory:slug',
   )
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (spec, options) => {
     const { addSource } = await import('../dist/sources/registry.js');
     try {
-      await addSource(process.cwd(), spec, { silent: options.silent });
+      await addSource(process.cwd(), spec, { silent: options.silent, skipScan: options.skipScan });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -1271,11 +1272,16 @@ sourceCmd
   .command('install')
   .description('Install all external sources from the manifest (like npm ci)')
   .option('--force', 'Force re-download even if cached')
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (options) => {
     const { installSources } = await import('../dist/sources/registry.js');
     try {
-      await installSources(process.cwd(), { force: options.force, silent: options.silent });
+      await installSources(process.cwd(), {
+        force: options.force,
+        silent: options.silent,
+        skipScan: options.skipScan,
+      });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -1286,11 +1292,12 @@ sourceCmd
   .command('update')
   .description('Re-resolve external sources to the newest ref/version satisfying their spec')
   .argument('[key]', 'Source key to update (updates all when omitted)')
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (key, options) => {
     const { updateSources } = await import('../dist/sources/registry.js');
     try {
-      await updateSources(process.cwd(), key, { silent: options.silent });
+      await updateSources(process.cwd(), key, { silent: options.silent, skipScan: options.skipScan });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
