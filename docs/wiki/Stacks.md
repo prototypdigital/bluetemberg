@@ -43,10 +43,36 @@ When a stack is not pinned in config (or is set to `"auto"`), Bluetemberg resolv
 |---|---|---|---|
 | 1 | `bluetemberg.config.json` `stacks` (pinned, not `"auto"`) | `declared` | Asserted as fact — cheap and deterministic |
 | 2 | `node_modules/<pkg>/package.json` | `exact` | The installed truth |
-| 3 | `package-lock.json` | `exact` | Resolved lockfile version |
+| 3 | `package-lock.json`, `pnpm-lock.yaml` or `yarn.lock` | `exact` | Resolved lockfile version — see [Lockfiles](#lockfiles) |
 | 4 | `package.json` dependency range (coerced) | `coerced` | Low confidence — a range like `^15` coerces to its lowest anchor |
 
 Steps 2 and 3 follow Node's own module resolution. In a workspace, a package whose dependency was **hoisted** resolves it from the workspace root's `node_modules` (source shown as `../../node_modules`), and from the root `package-lock.json`, where an entry nested under the package's own path (`packages/legacy/node_modules/react`) wins over the hoisted one. The climb stops at the nearest repo/workspace boundary — a directory with `.git`, a lockfile, `pnpm-workspace.yaml`, or a `package.json` with `workspaces` — so detection never reads an unrelated parent directory. The version reported is the one the package actually runs, not a coerced guess.
+
+### Lockfiles
+
+Without `node_modules`, the lockfile still gives an exact version for npm, pnpm and yarn projects. Each workspace package is resolved from **its own** entry, so two packages on different versions of one stack each get their own:
+
+| Lockfile | Formats read | How a package's dependency is found |
+|---|---|---|
+| `package-lock.json` | lockfileVersion 1, 2, 3 | `packages/<pkg-path>/node_modules/<dep>`, then the hoisted `node_modules/<dep>` |
+| `pnpm-lock.yaml` | 5.x (pnpm 7), 6.0 (pnpm 8), 9.0 (pnpm 9–11) | the package's `importers` entry (`packages/web`, or `.` at the root) |
+| `yarn.lock` | v1 (classic) and berry (yarn 2+) | v1: the `name@<range>` entry for the package's own `package.json` range; berry: the descriptor the workspace entry (`web@workspace:packages/web`) lists |
+
+What the readers handle:
+
+- **pnpm:** `catalog:` specifiers, `overrides` and `patchedDependencies` (the importer already records the resolved version), peer suffixes (`14.2.3(react@18.3.1)`, 5.x `13.4.0_<hash>`), and the config-dependency document pnpm 11 writes ahead of the project's own. Only the part before `packages:` is parsed, so a large lockfile stays cheap.
+- **yarn berry (2, 3 and 4):** root `resolutions` as yarn applies them — the first matching key wins, a parent-scoped key (`web/react`) overrides that workspace's own dependency, and glob keys (`**/react`), which yarn ignores, are ignored too. Also `patch:` descriptors, and `catalog:` read from `.yarnrc.yml`. A remote scan has no `.yarnrc.yml`, so it answers a `catalog:` dependency only when every lockfile entry for the package is the same version of the package itself, and falls back to the range otherwise.
+- **yarn v1:** entries keyed by several specs (`react-dom@^18.2.0, react-dom@^18.3.0:`); `resolutions` are already reflected in the version.
+- **Aliases:** `npm:same-name@1.2.3` resolves; an alias to another package (`"svelte": "npm:preact@10.19.0"`, or a berry `patch:` of one) is never reported as that stack — not from any lockfile, and not from the range either.
+- **Not versions:** a workspace link (`link:`, `workspace:`, berry `portal:`) or a local directory resolves to nothing, and the range is used instead. A git or tarball dependency resolves to nothing from `pnpm-lock.yaml`, which records only the URL; npm and yarn lockfiles record the installed package's own `version`, and that is reported.
+
+A lockfile that can't be used — malformed (a merge conflict left in it, say), an unrecognised format, or over 64 MiB — never fails detection. It falls back to the coerced `package.json` range and warns once, with the same line in `sync`, `why`, `detect` (`level: "lockfile"`) and `scan-org`:
+
+```text
+WARN: yarn.lock could not be parsed (line 3: expected an entry header) — using package.json ranges for stack versions
+```
+
+When one directory holds several lockfiles, only one is read: the one the `package.json` `packageManager` field names (`pnpm@9.15.0` → `pnpm-lock.yaml`), else the first in the order of the table. A stale `package-lock.json` left in a pnpm repo is therefore never preferred, and a remote scan reads the same file. An implied stack (`react` from `nextjs`) resolves from `node_modules` or from `package-lock.json`'s hoisted entry; pnpm and yarn lockfiles key versions by what each package declares, so from them an implied stack resolves only when the package lists it.
 
 **Prereleases** are matched as the release they preview: `19.0.0-rc.1` is treated as `19.0.0`. Plain semver sorts an RC *below* `19.0.0`, which would give a team trying the next major the previous major's rules (`>=18 <19.0.0` matches) and not the new ones (`>=19.0.0` does not).
 
@@ -71,7 +97,7 @@ Detection needs to know which package carries a stack's version: `nextjs` is the
 - **The catalog wins over the built-in table, field by field.** An entry's `packages.npm` replaces the built-in package for that stack; leave it out (as `nextjs` does above) to keep the built-in one. The catalog can add or remap a stack, never delete a built-in one.
 - **`implies` lists stacks that come along.** When `nextjs` is detected, `react` becomes a candidate too, and is resolved from its own package like any other stack. An implied stack is only reported when `node_modules` or the lockfile actually has it (source shown as `node_modules, implied by nextjs`); it is never coerced from a range the project does not declare. Implication is transitive, and a cycle simply stops.
 - **One package, one stack.** Two stacks that map the same package warn, because both names are detected and `scan-org` counts each repo twice. That includes a catalog entry that reuses a built-in stack's package under a new name: a built-in cannot be deleted, so this adds an alias rather than a rename. Use the existing name instead.
-- **`packages` is keyed by ecosystem.** Only `npm` is read today, because detection only reads `package.json`, `node_modules` and `package-lock.json`. Other keys (`pypi`, …) are kept for future readers and ignored now, so a stack mapped only to another ecosystem behaves like an unmapped one: it is never auto-detected, even when an npm package shares its name, and is resolved by its own name only when declared in config or implied.
+- **`packages` is keyed by ecosystem.** Only `npm` is read today, because detection only reads `package.json`, `node_modules` and the npm, pnpm and yarn lockfiles. Other keys (`pypi`, …) are kept for future readers and ignored now, so a stack mapped only to another ecosystem behaves like an unmapped one: it is never auto-detected, even when an npm package shares its name, and is resolved by its own name only when declared in config or implied.
 - **No field for calendar or channel versions.** npm requires every published version to be semver, so a calendar-versioned package (`2024.10.1`) already compares correctly, and a release channel (`15.4.0-canary.12`) is handled by the prerelease rule above. A future ecosystem that needs version normalization gets it through a new `schema`.
 - **Which catalog.** Detection reads the same catalog every other command does, and never the network, so it works offline:
   1. the project cache, `.bluetemberg/catalog.json`, refreshed by `add`, `install` (not `--dry-run`), `update` and `preview`. A monorepo package with no cache of its own reads the nearest one above it, up to the directory holding `.git`, so a package uses the catalog its repo installed from.
@@ -190,7 +216,7 @@ Version-aware routing is maturing. Tracked in [issue #212](https://github.com/pr
 - **Monorepos: solved per-package, not per-version-within-a-package.** A monorepo with `react@14` in one package and `react@15` in another is handled — `bluetemberg sync` [fans out](Commands#bluetemberg-sync-directory) and gates each package against its own detected stacks. What's still not expressible is *two versions of one stack inside a single package* (the detection model resolves one version per stack name per directory).
 - **Cross-stack matching is AND-only.** "applies to A≥3 *or* B≥2" across two different stacks is not expressible (OR *within* one stack via `||` is).
 - **Only npm packages are detected.** The [stack map](#the-stack-map-which-package-is-a-stack) is data, but the readers are not: a stack is auto-detected only when the map (built-in or catalog) names its npm package. Any other stack is detected only when declared in config.
-- **Uninstalled pnpm/yarn projects fall back to a coerced range.** Once installed, `node_modules` gives an exact version for every package manager; without an install, only `package-lock.json` is read.
+- **Some lockfile entries can't be mapped.** A berry `catalog:` dependency in a remote scan with several versions of the package locked, a GitHub shorthand (`user/repo`) in berry, and a lockfile older than pnpm 7's format fall back to the coerced range. Remote `scan-org` reads the lockfile beside the root `package.json` only.
 
 ## See also
 

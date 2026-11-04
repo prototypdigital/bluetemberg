@@ -1,0 +1,8 @@
+{
+  "name": "root",
+  "private": true,
+  "packageManager": "yarn@4.18.1",
+  "dependencies": {
+    "svelte": "patch:svelte@npm%3Apreact%4010.19.0#~/p.patch"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "m1",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  },
+  "resolutions": {
+    "react-dom": "18.2.0"
+  }
+}

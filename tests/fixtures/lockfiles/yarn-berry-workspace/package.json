@@ -1,0 +1,13 @@
+{
+  "name": "mb",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  },
+  "resolutions": {
+    "react@npm:^17.0.2": "17.0.1"
+  }
+}

@@ -181,6 +181,38 @@ describe('bluetemberg why <file>', () => {
     });
   });
 
+  it('agrees with sync on a lockfile-resolved version and on an unusable lockfile (#291)', async () => {
+    writeConfig(root);
+    writeRule(root, 'payload-v3', 'stacks:\n  payload: ">=3 <4"');
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ dependencies: { payload: '^2.0.0' } }));
+    // yarn v1 pins payload 3.4.1 though the range says ^2 — the lockfile, not the range, decides.
+    writeFileSync(
+      join(root, 'yarn.lock'),
+      '# yarn lockfile v1\r\n\r\n\r\npayload@^2.0.0, payload@^3.0.0:\r\n  version "3.4.1"\r\n',
+    );
+    const item = only(buildWhyReport(root, 'payload-v3'));
+    expect(item.included).toBe(true);
+    expect(item.constraint.stacks[0]).toMatchObject({
+      detected: { version: '3.4.1', confidence: 'exact', source: 'yarn.lock' },
+    });
+    expect(existsSync(join(root, '.claude', 'rules', 'payload-v3.md'))).toBe(false);
+    await sync(root, { silent: true });
+    expect(existsSync(join(root, '.claude', 'rules', 'payload-v3.md'))).toBe(true);
+
+    writeFileSync(join(root, 'yarn.lock'), '# yarn lockfile v1\n\n<<<<<<< HEAD\n');
+    rmSync(join(root, '.claude', 'rules', 'payload-v3.md'));
+    const why = buildWhyReport(root, 'payload-v3');
+    const synced = await sync(root, { silent: true });
+    const lockWarning = /^yarn\.lock could not be parsed/;
+    expect(why.warnings.filter((w) => lockWarning.test(w))).toHaveLength(1);
+    expect(synced.warnings.filter((w) => lockWarning.test(w))).toEqual(
+      why.warnings.filter((w) => lockWarning.test(w)),
+    );
+    // Both fell back to the coerced ^2.0.0 range, so both now exclude the >=3 rule.
+    expect(only(why).included).toBe(false);
+    expect(existsSync(join(root, '.claude', 'rules', 'payload-v3.md'))).toBe(false);
+  });
+
   describe('<file> forms', () => {
     beforeEach(() => {
       writeConfig(root, { stacks: { payload: '3.4.1' } });
