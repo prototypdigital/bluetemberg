@@ -1,7 +1,9 @@
+import { LOCKFILE_NAMES, oversizeError, type LockfileName } from './lockfile.js';
+
 /**
  * Minimal GitHub REST client for remote stack scanning (Milestone M6, remote path).
  *
- * Reads a repo's `package.json` + `package-lock.json` over the API WITHOUT cloning, and lists an
+ * Reads a repo's `package.json` + lockfile (npm, pnpm or yarn) over the API WITHOUT cloning, and lists an
  * org's repositories. Uses the platform `fetch` + `AbortSignal.timeout` (same pattern as
  * `catalog/index.ts`) — no HTTP dependency. Read-only.
  *
@@ -69,9 +71,8 @@ async function ghFetch(url: string, accept: string, token: string): Promise<Resp
 /**
  * Fetch and parse one JSON file from a repo via the Contents API. Uses the `raw` media type so the
  * response body is the file's bytes (works for files up to 100 MB — covers large lockfiles — and
- * avoids base64 decoding). `optional` files degrade to `null` on 404 / not-readable / unparseable
- * (e.g. a missing or oversized `package-lock.json` falls back to manifest-coerced detection); a
- * rate-limit always propagates so the scan can record it rather than silently under-reporting.
+ * avoids base64 decoding). `optional` files degrade to `null` on 404 / not-readable / unparseable;
+ * a rate-limit always propagates so the scan can record it rather than silently under-reporting.
  */
 async function fetchJsonFile(
   url: string,
@@ -97,22 +98,67 @@ async function fetchJsonFile(
   }
 }
 
+/**
+ * A repo's lockfile as fetched: its raw text for the caller to parse, or why it was not read (an
+ * oversized file is reported, not downloaded).
+ */
+export type RemoteLockfile = { file: LockfileName; text: string } | { file: LockfileName; error: string };
+
 export interface RepoManifests {
   manifest: Record<string, unknown>;
-  lock: Record<string, unknown> | null;
+  lock: RemoteLockfile | null;
 }
 
 /**
- * Fetch a repo's `package.json` (required) and `package-lock.json` (optional) from its default
- * branch. `path` targets a subdirectory's manifest for non-root projects. Throws
- * {@link GithubFetchError} when the manifest can't be read so the caller can skip just this repo.
+ * Fetch one optional text file. `null` on 404 / not readable; a rate limit always propagates. A
+ * file the `Content-Length` says is over the lockfile size limit is reported without its body.
+ */
+async function fetchOptionalText(
+  url: string,
+  token: string,
+): Promise<{ text: string } | { error: string } | null> {
+  const res = await ghFetch(url, 'application/vnd.github.raw+json', token);
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const reason = classifyStatus(res.status, res.headers.get('x-ratelimit-remaining'));
+    if (reason === 'rate-limited') {
+      throw new GithubFetchError(reason, `${res.status} ${res.statusText}: ${safePath(url)}`);
+    }
+    return null;
+  }
+  const tooLarge = oversizeError(Number(res.headers.get('content-length') ?? 0));
+  if (tooLarge) {
+    await res.body?.cancel();
+    return { error: tooLarge };
+  }
+  return { text: await res.text() };
+}
+
+/**
+ * The first lockfile present beside the manifest, tried in {@link LOCKFILE_NAMES} order — the
+ * same order local detection uses. Stops at the first one found, so an npm repo costs one request
+ * as before and a pnpm or yarn repo one or two more.
+ */
+async function fetchLockfile(base: string, token: string): Promise<RemoteLockfile | null> {
+  for (const file of LOCKFILE_NAMES) {
+    const fetched = await fetchOptionalText(`${base}${file}`, token);
+    if (fetched) return { file, ...fetched };
+  }
+  return null;
+}
+
+/**
+ * Fetch a repo's `package.json` (required) and its lockfile (optional: `package-lock.json`,
+ * `pnpm-lock.yaml` or `yarn.lock`) from its default branch. `path` targets a subdirectory's
+ * manifest for non-root projects. Throws {@link GithubFetchError} when the manifest can't be read
+ * so the caller can skip just this repo.
  */
 export async function fetchRepoManifests(fullName: string, token: string, path = ''): Promise<RepoManifests> {
   const prefix = path ? `${path.replace(/^\/+|\/+$/g, '')}/` : '';
   const base = `${API}/repos/${fullName}/contents/${prefix}`;
   const manifest = await fetchJsonFile(`${base}package.json`, token, false);
   if (!manifest) throw new GithubFetchError('not-found', `No package.json in ${fullName}`);
-  const lock = await fetchJsonFile(`${base}package-lock.json`, token, true);
+  const lock = await fetchLockfile(base, token);
   return { manifest, lock };
 }
 

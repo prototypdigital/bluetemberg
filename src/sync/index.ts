@@ -730,7 +730,8 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   // project with no `stacks` declared and no stack-tagged packs syncs byte-identically to before.
   const catalog = loadCatalogSync(root);
   const stackPackages = buildStackPackages(catalog);
-  const detectedStacks = detectStacks(root, config, stackPackages.packages);
+  const detectionWarnings: string[] = [];
+  const detectedStacks = detectStacks(root, config, stackPackages.packages, (w) => detectionWarnings.push(w));
 
   if (!orchestrated) log(checkMode ? 'Checking sync status...\n' : 'Syncing AI config...\n');
 
@@ -766,6 +767,7 @@ async function syncSingle(root: string, options: SyncOptions, orchestrated = fal
   for (const w of resolvedSources.warnings) recordWarning(ctx, w);
   for (const w of configWarnings) recordWarning(ctx, w);
   for (const w of stackPackages.issues) recordWarning(ctx, `catalog ${w}`);
+  for (const w of detectionWarnings) recordWarning(ctx, w);
 
   // Scoped `extends` entries split the platforms into views that read different sources. Content
   // steps (anything reading `sourceDirs`) run once per view; steps that read only the local source

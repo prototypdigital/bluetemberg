@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+catalog:
+  react: ^18.3.1
+  react-dom: ^18.3.1
+patchedDependencies:
+  vue@3.4.21: patches/vue@3.4.21.patch

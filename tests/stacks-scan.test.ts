@@ -307,6 +307,51 @@ describe('runScanOrg — remote', () => {
     globalThis.fetch = originalFetch;
   });
 
+  it('reads pnpm and yarn lockfiles over the API; an unusable one warns and falls back', async () => {
+    writeCatalog(workdir, [PAYLOAD_PACK]);
+    const pnpmLock = [
+      "lockfileVersion: '9.0'",
+      '',
+      'importers:',
+      '',
+      '  .:',
+      '    dependencies:',
+      '      next:',
+      '        specifier: ^15.0.0',
+      '        version: 15.3.1(react@19.1.0)',
+      '',
+      'packages:',
+      '',
+    ].join('\n');
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/contents/package.json')) {
+        return Promise.resolve(ghResponse({ dependencies: { next: '^15.0.0' } }));
+      }
+      if (url.includes('acme/pnpm/contents/pnpm-lock.yaml')) return Promise.resolve(ghResponse(pnpmLock));
+      if (url.includes('acme/yarn/contents/yarn.lock')) {
+        return Promise.resolve(ghResponse('# yarn lockfile v1\n\n<<<<<<< HEAD\n'));
+      }
+      return Promise.resolve(gh404());
+    });
+
+    const report = await runScanOrg([], {
+      repos: ['acme/pnpm', 'acme/yarn'],
+      token: 'tok',
+      catalogRoot: workdir,
+      silent: true,
+    });
+    const versions = report.histogram.find((h) => h.stack === 'nextjs')?.versions;
+    expect(versions?.map((v) => [v.version, v.confidence, v.repos])).toEqual([
+      ['15.3.1', 'exact', ['acme/pnpm']],
+      ['15.0.0', 'coerced', ['acme/yarn']],
+    ]);
+    expect(report.warnings).toEqual([
+      expect.stringMatching(
+        /^acme\/yarn: yarn\.lock could not be parsed \(line 3: .+\) — using package\.json ranges for stack versions$/,
+      ),
+    ]);
+  });
+
   it('scans --repos over the API and merges them into the histogram', async () => {
     writeCatalog(workdir, [PAYLOAD_PACK]);
     globalThis.fetch = vi.fn().mockImplementation((url: string) => {

@@ -228,6 +228,8 @@ function loadWhyContext(root: string): WhyContext {
   }
   const catalog = loadCatalogSync(root);
   const stackPackages = buildStackPackages(catalog);
+  const detectionWarnings: string[] = [];
+  const detected = detectStacks(root, config, stackPackages.packages, (w) => detectionWarnings.push(w));
   const shipped = dirs.map(
     (dir) => new Map(CONTENT_KINDS.map((kind) => [kind, new Set(mergeContentKind([dir], kind).keys())])),
   );
@@ -249,9 +251,13 @@ function loadWhyContext(root: string): WhyContext {
     stackMap: buildStackMap(catalog),
     platformMap: buildPlatformMap(catalog),
     bundleOutputs: createBundleOutputResolver(config, platforms, root, catalog),
-    detected: detectStacks(root, config, stackPackages.packages),
-    // The catalog stack-map lines are worded exactly as sync warns them.
-    warnings: [...resolved.warnings, ...stackPackages.issues.map((w) => `catalog ${w}`)],
+    detected,
+    // The catalog stack-map and lockfile lines are worded exactly as sync warns them.
+    warnings: [
+      ...resolved.warnings,
+      ...stackPackages.issues.map((w) => `catalog ${w}`),
+      ...detectionWarnings,
+    ],
   };
 }
 

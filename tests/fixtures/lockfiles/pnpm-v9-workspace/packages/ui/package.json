@@ -1,0 +1,1 @@
+{ "name": "ui", "peerDependencies": { "react": "*" }, "devDependencies": { "react": "catalog:" } }

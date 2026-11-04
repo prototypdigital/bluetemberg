@@ -72,7 +72,59 @@ describe('fetchRepoManifests', () => {
 
     const { manifest, lock } = await fetchRepoManifests('acme/app', 'tok');
     expect(manifest.dependencies).toEqual({ next: '^15.0.0' });
-    expect((lock?.packages as Record<string, unknown>)['node_modules/next']).toEqual({ version: '15.3.1' });
+    expect(lock?.file).toBe('package-lock.json');
+    const text = lock && 'text' in lock ? lock.text : '';
+    expect(JSON.parse(text).packages['node_modules/next']).toEqual({ version: '15.3.1' });
+  });
+
+  it('falls through to pnpm-lock.yaml, then yarn.lock, stopping at the first one found', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/contents/package.json')) return Promise.resolve(mockResponse({ body: {} }));
+      if (url.endsWith('/contents/pnpm-lock.yaml')) {
+        return Promise.resolve(mockResponse({ body: "lockfileVersion: '9.0'\n" }));
+      }
+      if (url.endsWith('/contents/yarn.lock')) return Promise.resolve(mockResponse({ body: 'unused' }));
+      return Promise.resolve(notFound());
+    });
+    globalThis.fetch = fetchMock;
+
+    const { lock } = await fetchRepoManifests('acme/pnpm', 'tok');
+    expect(lock).toEqual({ file: 'pnpm-lock.yaml', text: "lockfileVersion: '9.0'\n" });
+    expect(fetchMock.mock.calls.map(([url]) => String(url).split('/contents/')[1])).toEqual([
+      'package.json',
+      'package-lock.json',
+      'pnpm-lock.yaml',
+    ]);
+  });
+
+  it('reports an oversized lockfile from Content-Length without reading its body', async () => {
+    const text = vi.fn();
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/contents/package.json')) return Promise.resolve(mockResponse({ body: {} }));
+      if (url.endsWith('/contents/yarn.lock')) {
+        return Promise.resolve({
+          ...mockResponse({ headers: { 'content-length': String(200 * 1024 * 1024) } }),
+          text,
+          body: null,
+        } as unknown as Response);
+      }
+      return Promise.resolve(notFound());
+    });
+
+    const { lock } = await fetchRepoManifests('acme/huge', 'tok');
+    expect(lock).toEqual({
+      file: 'yarn.lock',
+      error: expect.stringMatching(/^too large to read \(200\.0 MiB/),
+    });
+    expect(text).not.toHaveBeenCalled();
+  });
+
+  it('propagates a rate limit on a lockfile request', async () => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/contents/package.json')) return Promise.resolve(mockResponse({ body: {} }));
+      return Promise.resolve(mockResponse({ ok: false, status: 429, statusText: 'Too Many Requests' }));
+    });
+    await expect(fetchRepoManifests('acme/app', 'tok')).rejects.toMatchObject({ reason: 'rate-limited' });
   });
 
   it('treats a missing package-lock.json as null (degrades to manifest-coerced)', async () => {

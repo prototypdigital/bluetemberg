@@ -40,7 +40,7 @@ export interface DetectedReportEntry {
  */
 export interface DetectWarning {
   stack: string | null;
-  level: 'low-confidence' | 'coverage-source' | 'stack-map';
+  level: 'low-confidence' | 'coverage-source' | 'stack-map' | 'lockfile';
   message: string;
 }
 
@@ -121,11 +121,13 @@ function projectRegistry(root: string): {
   detected: DetectedStacks;
   warnings: string[];
   stackMapIssues: string[];
+  lockfileIssues: string[];
 } {
   const config = loadConfig(root);
   const catalog = loadCatalogSync(root);
   const stackPackages = buildStackPackages(catalog);
-  const detected = detectStacks(root, config, stackPackages.packages);
+  const lockfileIssues: string[] = [];
+  const detected = detectStacks(root, config, stackPackages.packages, (w) => lockfileIssues.push(w));
   const warnings: string[] = [];
   const declared = collectDeclaredRanges(root, config, catalog, (message) => warnings.push(message));
   return {
@@ -133,12 +135,19 @@ function projectRegistry(root: string): {
     detected,
     warnings,
     stackMapIssues: stackPackages.issues,
+    lockfileIssues,
   };
 }
 
 /** Build the detect report (pure — no I/O beyond reading the project). Exposed for testing. */
 export function buildDetectReport(root: string): DetectReport {
-  const { registry, detected, warnings: sourceWarnings, stackMapIssues } = projectRegistry(root);
+  const {
+    registry,
+    detected,
+    warnings: sourceWarnings,
+    stackMapIssues,
+    lockfileIssues,
+  } = projectRegistry(root);
 
   const entries: DetectedReportEntry[] = [...detected.entries()].map(([stack, det]) => {
     const cov = queryCoverage(registry, stack, det.version);
@@ -180,6 +189,8 @@ export function buildDetectReport(root: string): DetectReport {
       level: 'stack-map' as const,
       message: `catalog ${message}`,
     })),
+    // A lockfile that could not be used: the versions below fell back to package.json ranges.
+    ...lockfileIssues.map((message) => ({ stack: null, level: 'lockfile' as const, message })),
     ...entries
       .filter((e) => isLowConfidence(e.confidence))
       .map((e) => ({

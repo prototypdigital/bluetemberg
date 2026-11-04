@@ -1,0 +1,61 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies:
+      '@pnpm/plugin-better-defaults':
+        specifier: 0.3.0
+        version: 0.3.0
+
+packages:
+
+  '@pnpm/plugin-better-defaults@0.3.0':
+    resolution: {integrity: sha512-J500v1tfdFlKXkvO0ivkwJlrTiKNa+2Yb6aX01719FPnH2fGuf9we0ObZRB3OoTetWEChLudHglNDYl7Z3+mLQ==}
+
+snapshots:
+
+  '@pnpm/plugin-better-defaults@0.3.0': {}
+
+---
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+pnpmfileChecksum: sha256-IV/a5nDtApptjchVFShjgy2zhastShRIn1UdoiAUEIA=
+
+importers:
+
+  .:
+    dependencies:
+      react:
+        specifier: ^18.2.0
+        version: 18.2.0
+
+packages:
+
+  js-tokens@4.0.0:
+    resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
+
+  loose-envify@1.4.0:
+    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
+    hasBin: true
+
+  react@18.2.0:
+    resolution: {integrity: sha512-/3IjMdb2L9QbBdWiW5e3P2/npwMBaU9mHCSCUzNln0ZCYbcfTsGbTJrU/kGemdH2IWmB2ioZ+zkxtmq6g09fGQ==}
+    engines: {node: '>=0.10.0'}
+
+snapshots:
+
+  js-tokens@4.0.0: {}
+
+  loose-envify@1.4.0:
+    dependencies:
+      js-tokens: 4.0.0
+
+  react@18.2.0:
+    dependencies:
+      loose-envify: 1.4.0

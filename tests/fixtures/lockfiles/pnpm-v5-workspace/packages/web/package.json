@@ -1,0 +1,1 @@
+{"name":"web","dependencies":{"next":"13.4.0","react":"^18.2.0","react-dom":"^18.2.0","svelte":"npm:preact@10.19.0"}}
