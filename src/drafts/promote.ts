@@ -43,6 +43,8 @@ export interface PromoteOptions {
   /** Show `review` to a human and return their decision. */
   confirm: (review: PromotionReview) => Promise<boolean>;
   now?: Date;
+  /** The environment checked for agent-session markers. Defaults to `process.env`. */
+  env?: Record<string, string | undefined>;
 }
 
 export interface PromoteResult {
@@ -54,6 +56,20 @@ export interface PromoteResult {
 }
 
 const MAX_REVIEWER_CHARS = 100;
+
+/**
+ * Environment variables agent hosts set in the shells their tools run in. A TTY alone does not
+ * prove a human: an agent can wrap the command in a pseudo-terminal (`script`, `expect`) and type
+ * the name itself. These markers survive that wrapping, so `promote` refuses when one is present.
+ * Best-effort — a host that sets none of them is not detected, and a determined local user can
+ * unset them; the gate stops an agent's normal tool use, it is not a sandbox.
+ */
+export const AGENT_SESSION_ENV = ['CLAUDECODE', 'CURSOR_AGENT', 'GEMINI_CLI', 'CODEX_SANDBOX'] as const;
+
+/** The first agent-session marker set in `env`, or null. */
+export function agentSessionMarker(env: Record<string, string | undefined>): string | null {
+  return AGENT_SESSION_ENV.find((key) => (env[key] ?? '') !== '') ?? null;
+}
 
 function assertReviewer(reviewedBy: string): string {
   const who = reviewedBy.trim();
@@ -109,6 +125,12 @@ function refuse(name: string, errors: DraftIssue[]): never {
 }
 
 export async function promoteDraft(root: string, name: string, opts: PromoteOptions): Promise<PromoteResult> {
+  const marker = agentSessionMarker(opts.env ?? process.env);
+  if (marker) {
+    throw new Error(
+      `draft promote refuses to run inside an agent session (${marker} is set) — a human promotes drafts from their own terminal`,
+    );
+  }
   const reviewedBy = assertReviewer(opts.reviewedBy);
   const now = opts.now ?? new Date();
   const { path, bytes } = readDraftBytes(root, name);
@@ -152,6 +174,7 @@ export async function promoteDraft(root: string, name: string, opts: PromoteOpti
   }
 
   mkdirSync(dirname(target), { recursive: true });
+  assertNoSymlinks(root, target);
   writeFileSync(target, output, { flag: 'wx' });
   mkdirSync(promotedDir(root), { recursive: true });
   assertNoSymlinks(root, archive);

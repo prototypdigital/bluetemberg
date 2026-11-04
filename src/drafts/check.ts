@@ -30,6 +30,12 @@ const ALLOWED_KEYS = new Set(['description', 'scope', 'stacks', DRAFT_KEY]);
 const LOCAL_HOST_SUFFIXES = ['.local', '.localhost', '.internal', '.lan', '.home.arpa'];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/**
+ * Characters a reviewer cannot see but a model reads: Unicode format characters (zero-width,
+ * bidi, and the U+E0000 tag block that can spell out whole hidden sentences), private-use
+ * characters and variation selectors. None belongs in a rule, so any one is an error.
+ */
+const HIDDEN_CHARS = /[\p{Cf}\p{Co}\u{FE00}-\u{FE0F}\u{E0100}-\u{E01EF}]/gu;
 
 export interface DraftIssue {
   code: string;
@@ -288,6 +294,18 @@ function checkScan(issues: Issues, text: string, name: string): void {
   }
 }
 
+function checkHiddenChars(issues: Issues, text: string): void {
+  const found = [...new Set(text.match(HIDDEN_CHARS) ?? [])];
+  if (found.length === 0) return;
+  const codes = found
+    .slice(0, 5)
+    .map((ch) => `U+${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`);
+  issues.error(
+    'hidden-chars',
+    `the draft contains characters a reviewer cannot see (${codes.join(', ')}${found.length > 5 ? ', …' : ''}) — remove them`,
+  );
+}
+
 export interface CheckedText {
   errors: DraftIssue[];
   warnings: DraftIssue[];
@@ -300,6 +318,7 @@ export interface CheckedText {
 /** Check one draft's text. Pure — exposed so `promote` checks exactly the bytes it displays. */
 export function checkDraftText(text: string, name: string, now: Date = new Date()): CheckedText {
   const issues = new Issues();
+  checkHiddenChars(issues, text);
   if (text.includes(TODO_MARKER)) {
     issues.error('todo', `the draft still contains ${TODO_MARKER} markers`);
   }

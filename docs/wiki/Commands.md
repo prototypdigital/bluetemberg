@@ -386,7 +386,7 @@ The human-gated create-loop: open a draft rule for a stack gap, let an agent fil
 | `draft new <stack@version> [directory] --name <rule> [--scope <glob>] [--json]` | `.bluetemberg/drafts/<rule>.md` | Refuses a covered version, an existing draft or rule of that name, and a symlinked drafts dir |
 | `draft list [directory] [--json]` | nothing | Pending and promoted drafts |
 | `draft check <name> [directory] [--json]` | nothing | Strict frontmatter, a bounded range that covers the gap, at least one citation, no `TODO(draft)`, the security scan, and that the gap is still open. Exits 1 on errors |
-| `draft promote <name> [directory] --reviewed-by <who>` | `<source>/rules/<name>.md` | **Human only.** Needs an interactive terminal. Shows the rule; you type its name to confirm; aborts if the draft changed during review; never overwrites |
+| `draft promote <name> [directory] --reviewed-by <who>` | `<source>/rules/<name>.md` | **Human only.** Needs an interactive terminal, and refuses inside an agent session (`CLAUDECODE`, `CURSOR_AGENT`, `GEMINI_CLI`, `CODEX_SANDBOX`). Shows the rule; you type its name to confirm; aborts if the draft changed during review; never overwrites |
 
 A file carrying a `draft:` frontmatter key is withheld by sync, guardrails, `why` and the marketplace, even inside `llm/rules/`.
 

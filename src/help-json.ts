@@ -70,7 +70,7 @@ const DRAFT_COMMANDS = [
     name: 'draft promote',
     args: '<name> [directory]',
     description:
-      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md (never overwrites). Needs an interactive terminal; no --yes, no MCP equivalent.',
+      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md (never overwrites). Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
     options: [{ long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' }],
   },
 ];

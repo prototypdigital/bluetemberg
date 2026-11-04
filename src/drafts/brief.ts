@@ -3,8 +3,8 @@ import { extname, join, relative, sep } from 'node:path';
 import { coerce } from 'semver';
 
 import { loadCatalogSync } from '../catalog/index.js';
-import { sanitizeForTerminal } from '../registry/scanner.js';
 import { buildStackPackages, packageForStack } from '../stacks/packages.js';
+import { isValidStackRange } from '../stacks/match.js';
 import { buildRangeListReport, type RangeListEntry } from '../stacks/ranges.js';
 import { buildCoverageReport, buildDetectReport } from '../stacks/report.js';
 import type { DetectionConfidence } from '../stacks/match.js';
@@ -56,7 +56,6 @@ export interface GapBrief {
 const MAX_EVIDENCE_FILES = 20;
 const MAX_FILES_SCANNED = 5000;
 const MAX_SCANNED_BYTES = 256 * 1024;
-const MAX_PATH_CHARS = 240;
 const SOURCE_EXTENSIONS = new Set([
   '.ts',
   '.tsx',
@@ -72,8 +71,24 @@ const SOURCE_EXTENSIONS = new Set([
 ]);
 const SKIPPED_DIRS = new Set(['node_modules', 'dist', 'build', 'out', 'coverage', 'vendor']);
 
+/**
+ * File paths and rule ids are relayed to a model, and both can come from third-party content (a
+ * file name, an external source's rule id). Only strings of plain path characters are relayed;
+ * anything else — spaces included — is dropped, so a name cannot carry a sentence.
+ */
+const SAFE_TOKEN = /^[\w.\/@()[\]+-]{1,240}$/;
+const MAX_RELAYED_RANGE_CHARS = 100;
+
 const VERSION_PATTERN = /^v?\d+(?:\.\d+){0,2}(?:-[0-9A-Za-z.-]+)?$/;
 const STACK_PATTERN = /^[a-z0-9][a-z0-9._-]*$/;
+
+function isRelayable(entry: RangeListEntry): boolean {
+  return (
+    SAFE_TOKEN.test(entry.from) &&
+    entry.range.length <= MAX_RELAYED_RANGE_CHARS &&
+    isValidStackRange(entry.range)
+  );
+}
 
 /** Throws unless `stack` is a stack name and `version` a concrete version (not a range). */
 export function assertGapQuery(stack: string, version: string): void {
@@ -132,8 +147,8 @@ function walkEvidence(root: string, dir: string, pattern: RegExp, acc: EvidenceW
     }
     acc.scanned++;
     if (!fileImports(full, pattern)) continue;
-    const rel = sanitizeForTerminal(relative(root, full).split(sep).join('/'));
-    if (rel.length > MAX_PATH_CHARS) continue;
+    const rel = relative(root, full).split(sep).join('/');
+    if (!SAFE_TOKEN.test(rel)) continue;
     acc.files.push(rel);
     if (acc.files.length >= MAX_EVIDENCE_FILES) acc.truncated = true;
   }
@@ -225,7 +240,10 @@ export function buildGapBrief(root: string, stack: string, version: string): Gap
     proposedRange: releaseLineRange(version),
     package: pkg,
     coverage: { coveredRanges: coverage.result.coveredRanges, matchedRange: coverage.result.matchedRange },
-    nearestGuidance: { ranged: ranges.matches, nameLevel: ranges.nameLevel },
+    nearestGuidance: {
+      ranged: ranges.matches.filter(isRelayable),
+      nameLevel: ranges.nameLevel.filter(isRelayable),
+    },
     evidence: findEvidence(root, pkg),
     citationContract: CITATION_CONTRACT,
     authoring: {

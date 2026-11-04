@@ -84,6 +84,7 @@ draft:
 | ----- | ---------- |
 | Strict frontmatter | The fence is not exactly `---`, the YAML has aliases or duplicate keys, or a key other than `description`, `scope`, `stacks` or `draft` is present |
 | Placeholders | Any `TODO(draft)` marker is left |
+| Hidden characters | The draft contains characters a reviewer cannot see but a model reads: zero-width, bidi, Unicode tag characters, private-use characters or variation selectors |
 | Range | The gap stack has no range, the range is open-ended or a wildcard, or it does not satisfy the gap version |
 | Citations | There are none. A URL is not `https`, carries credentials, or names an IP, `localhost` or a private host. A quote is empty or longer than 500 characters. A `retrieved` date is not a date, or is in the future |
 | Review marker | `draft.reviewedBy` is set. Only `promote` records a reviewer |
@@ -97,15 +98,15 @@ draft:
 
 `draft promote <name> --reviewed-by <who>`:
 
-1. Refuses without an interactive terminal. It has no `--yes`, and there is no MCP equivalent.
+1. Refuses without an interactive terminal. It also refuses inside an agent session: when `CLAUDECODE`, `CURSOR_AGENT`, `GEMINI_CLI` or `CODEX_SANDBOX` is set, because an agent can wrap the command in a pseudo-terminal. It has no `--yes`, and there is no MCP equivalent.
 2. Re-runs every check, and refuses on any error.
 3. Prints the exact rule file it will write. Control and bidi characters are neutralised before display. It also prints the citations and any warnings.
 4. Asks you to **type the rule name**. Anything else cancels.
 5. Re-reads the draft and compares its SHA-256 with what you reviewed. If one byte changed, nothing is written.
-6. Writes `<source>/rules/<name>.md` with exclusive create, so it never overwrites. The written file has only `description`, `scope` and `stacks`, plus a `## Sources` section listing the citations.
+6. Writes `<source>/rules/<name>.md` with exclusive create, so it never overwrites. The target must be inside the project, with no symlink on the way. The written file has only `description`, `scope` and `stacks`, plus a `## Sources` section listing the citations.
 7. Archives the draft with `reviewedBy`, `reviewedAt` and the hash.
 
-The gate stops an agent from promoting through its normal tool use, whether by mistake or under a prompt injection. It is not a sandbox against someone at your keyboard, who could edit `llm/rules/` directly anyway.
+The gate stops an agent from promoting through its normal tool use, whether by mistake or under a prompt injection. The agent-session check is best-effort: a host that sets none of those variables is not detected. It is not a sandbox against someone at your keyboard, who could edit `llm/rules/` directly anyway.
 
 ## Drafts are data
 

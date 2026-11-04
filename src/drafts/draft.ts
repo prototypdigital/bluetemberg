@@ -33,10 +33,16 @@ export interface NewDraftResult {
   brief: GapBrief;
 }
 
-/** The rule file promotion would write for `name`. */
+/**
+ * The rule file promotion would write for `name`. It must sit inside the project with no symlink
+ * on the way: a symlinked `llm/rules` would land the write somewhere the reviewer never saw, while
+ * the review shows the innocent-looking relative path.
+ */
 export function promotionTarget(root: string, name: string): string {
   assertDraftName(name);
-  return join(resolve(root), loadConfig(root).source, 'rules', `${name}.md`);
+  const target = join(resolve(root), loadConfig(root).source, 'rules', `${name}.md`);
+  assertNoSymlinks(root, target);
+  return target;
 }
 
 function skeleton(brief: GapBrief, opts: NewDraftOptions, now: Date): string {
