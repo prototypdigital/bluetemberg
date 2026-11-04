@@ -120,6 +120,28 @@ Run `npm uninstall bluetemberg` afterwards and drop any `package.json` scripts t
 
 Without `--yes`, the command prints the dry-run plan and asks before changing anything. Eject runs on the given directory only: nested monorepo packages with their own `bluetemberg.config.json` are skipped. Malformed managed-block markers, or an `AGENTS.md` / `.codex/config.toml` symlinked to a file outside the project, stop the eject before any file changes. A symlink inside the project (`AGENTS.md -> CLAUDE.md`) is followed, and the file it points at is the one edited. A `source` directory outside the project (`"source": "../shared/llm"`) is shared, so its state files are left alone, by `uninstall` too.
 
+## `bluetemberg managed-settings [directory]`
+
+Writes org policy files that install the project's marketplace for everyone in an organization: `claude-code/managed-settings.json` for Claude Code, `github-copilot/managed-settings.json` for GitHub Copilot, and a `README.md` that says where an admin deploys each one. The command only writes files under `--out`; it never installs anything on the machine it runs on, and `sync` never writes these files. See [Org rollout](Org-Rollout) for the host formats and the rollout steps.
+
+It needs `marketplace.remote` (an `owner/repo`) and the `.claude-plugin/marketplace.json` that `sync` generates, and refuses to run without either. Each file registers the marketplace under `extraKnownMarketplaces` and force-enables its plugins under `enabledPlugins`.
+
+| Flag | Description |
+| ---- | ----------- |
+| `--host <claude\|copilot\|all>` | Hosts to write for. Default: Claude Code when `claude-marketplace` is in `platforms`, Copilot when `agent-plugins` is. A host whose bundle platform is off is refused |
+| `--out <dir>` | Output directory, relative to the current directory (default `managed-settings`) |
+| `--ref <ref>` | Pin the marketplace source to a git tag or branch. Copilot also takes a commit SHA; Claude Code does not, so a SHA is refused unless `--host copilot` |
+| `--auto-update` | Set `autoUpdate: true` on the marketplace so clients refresh it in the background |
+| `--plugin <name>` | Force-enable only this plugin (repeatable). Default: every plugin in the index |
+| `--strict` | Also write `strictKnownMarketplaces`, which blocks every marketplace not listed. The entry for your marketplace carries the same `ref` as the one registered |
+| `--allow-marketplace <owner/repo>` | With `--strict`, keep another GitHub marketplace allowed (repeatable) |
+| `--mcp-allowlist` | Also write `allowedMcpServers` with exactly the `llm/mcp.json` servers. Refused when there are none, since an empty list blocks every server |
+| `--dry-run` | Print the files instead of writing them |
+| `--json` | Print the plan (marketplace, plugins, pack versions, warnings, files) as JSON |
+| `--silent` | Suppress progress output; errors still go to stderr |
+
+The command also refuses when a plugin bundle's lock records a pack version that `llm/packages-lock.json` no longer has, or when the index lists different plugins than `marketplace.plugins`. Run `sync` and publish first. No `deniedMcpServers` list is ever generated.
+
 ## `bluetemberg preview [profile]`
 
 Prints the rule collections, guardrails, agents and skills a profile preselects, with each pack's current version and a one-line preview, without touching the project. Use it to compare profiles before `init` or `switch-profile`. Stack-specific packs are filtered by the stacks detected in the current directory, as `init` would, and platform-specific packs by the platforms it previews for (see [Profiles](Profiles#platforms)); the ones it skips are listed at the end. When the platforms differ from `init`'s defaults, the suggested `init` command carries the matching `--platforms`.

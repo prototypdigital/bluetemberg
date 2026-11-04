@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -356,5 +356,68 @@ cliSuite('cli init headless', () => {
     const r = runCli(['init', '--config', cfgPath, '--profile', 'devops', root], root);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/Cannot combine/);
+  });
+});
+
+cliSuite('cli managed-settings', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = createTmpDir();
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({
+        platforms: ['claude-marketplace'],
+        source: 'llm',
+        marketplace: { remote: 'acme/ai-marketplace', plugins: [{ name: 'team' }] },
+      }),
+    );
+    mkdirSync(join(root, '.claude-plugin'), { recursive: true });
+    writeFileSync(
+      join(root, '.claude-plugin', 'marketplace.json'),
+      JSON.stringify({
+        name: 'proj',
+        owner: { name: 'acme' },
+        plugins: [{ name: 'team', source: './plugins/team' }],
+      }),
+    );
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('exits 1 with a clear error when no marketplace is configured', () => {
+    writeFileSync(
+      join(root, 'bluetemberg.config.json'),
+      JSON.stringify({ platforms: ['claude'], source: 'llm' }),
+    );
+    const r = runCli(['managed-settings', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('No marketplace is configured');
+    expect(existsSync(join(root, 'managed-settings'))).toBe(false);
+  });
+
+  it('--dry-run prints the files and writes nothing', () => {
+    const r = runCli(['managed-settings', '--dry-run', root], root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('--- claude-code/managed-settings.json');
+    expect(r.stdout).toContain('"team@proj": true');
+    expect(existsSync(join(root, 'managed-settings'))).toBe(false);
+  });
+
+  it('writes into --out only and reports the paths as JSON', () => {
+    const r = runCli(['managed-settings', '--out', 'policy', '--json', root], root);
+    expect(r.status).toBe(0);
+    const plan = JSON.parse(r.stdout) as { written: string[] };
+    expect(plan.written.every((p) => p.startsWith(join(realpathSync(root), 'policy')))).toBe(true);
+    expect(existsSync(join(root, 'policy', 'claude-code', 'managed-settings.json'))).toBe(true);
+    expect(existsSync(join(root, 'policy', 'github-copilot'))).toBe(false);
+  });
+
+  it('rejects an unknown --host', () => {
+    const r = runCli(['managed-settings', '--host', 'cursor', root], root);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('Expected one of claude, copilot, all');
   });
 });

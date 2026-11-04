@@ -98,6 +98,8 @@ This is the shape Claude Code's [settings reference](https://code.claude.com/doc
 - If the sync records any error (for example a plugin with an unknown profile), `.claude/settings.json` is left untouched, so a misconfiguration cannot prune `enabledPlugins` entries.
 - The marketplace name is the directory name of the project root. Run sync from a checkout whose folder has the canonical name. Running it from a worktree or a differently named clone writes a second marketplace entry under that folder's name.
 
+To install the marketplace for a whole organization instead of per repository, see [Org rollout](Org-Rollout): `bluetemberg managed-settings` writes the same keys as an org policy file for Claude Code and GitHub Copilot.
+
 ## The `marketplace` config key
 
 Defined under `blueprintconfig.marketplace`. Controls how `llm/` content maps to installable plugins.

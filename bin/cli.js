@@ -516,6 +516,89 @@ program
     }
   });
 
+const MANAGED_SETTINGS_HOST_IDS = ['claude', 'copilot', 'all'];
+
+function printManagedSettingsPlan(plan, written) {
+  const { name, repo, ref } = plan.marketplace;
+  console.log(`Marketplace "${name}" (${repo}${ref ? `@${ref}` : ', unpinned'})`);
+  console.log(`  plugins: ${plan.plugins.join(', ')}`);
+  if (plan.strict) console.log(`  strictKnownMarketplaces: on (blocks every marketplace not listed)`);
+  if (plan.mcpServers.length > 0) console.log(`  allowedMcpServers: ${plan.mcpServers.join(', ')}`);
+  for (const warning of plan.warnings) console.warn(`Warning: ${warning}`);
+  if (written) {
+    for (const path of written) console.log(`  -> ${path}`);
+    console.log(
+      'Deploy them as the README in that directory describes; nothing was installed on this machine.',
+    );
+  }
+}
+
+program
+  .command('managed-settings')
+  .description(
+    'Write org policy files (Claude Code, GitHub Copilot) that install this marketplace; admins deploy them',
+  )
+  .argument('[directory]', 'Project root directory', '.')
+  .option(
+    '--host <host>',
+    'claude | copilot | all (default: the hosts the project builds bundles for)',
+    (v) => {
+      if (!MANAGED_SETTINGS_HOST_IDS.includes(v)) {
+        throw new InvalidArgumentError(`Expected one of ${MANAGED_SETTINGS_HOST_IDS.join(', ')}`);
+      }
+      return v;
+    },
+  )
+  .option('--out <dir>', 'Directory to write into, relative to the current directory', 'managed-settings')
+  .option('--ref <ref>', 'Pin the marketplace to this git tag or branch (Copilot also takes a commit SHA)')
+  .option('--auto-update', 'Set autoUpdate on the marketplace so clients refresh it in the background')
+  .option(
+    '--plugin <name>',
+    'Force-enable only this plugin (repeatable; default: every published plugin)',
+    (name, names) => [...names, name],
+    [],
+  )
+  .option('--strict', 'Also write strictKnownMarketplaces: block every marketplace not listed')
+  .option(
+    '--allow-marketplace <owner/repo>',
+    'With --strict, keep another GitHub marketplace allowed (repeatable)',
+    (repo, repos) => [...repos, repo],
+    [],
+  )
+  .option('--mcp-allowlist', 'Also write allowedMcpServers: only the llm/mcp.json servers may run')
+  .option('--dry-run', 'Print the files instead of writing them')
+  .option('--json', 'Emit the plan (files included) as JSON')
+  .option('--silent', 'Suppress progress output (errors still go to stderr)')
+  .action(async (directory, options) => {
+    const { planManagedSettings, writeManagedSettings } = await import('../dist/managed-settings/index.js');
+    try {
+      const plan = planManagedSettings(resolve(directory), {
+        host: options.host,
+        ref: options.ref,
+        strict: options.strict,
+        allowMarketplaces: options.allowMarketplace,
+        autoUpdate: options.autoUpdate,
+        plugins: options.plugin,
+        mcpAllowlist: options.mcpAllowlist,
+      });
+      const out = resolve(options.out);
+      const written = options.dryRun ? null : writeManagedSettings(plan, out);
+      if (options.json) {
+        console.log(JSON.stringify({ ...plan, outDir: out, written: written ?? [] }, null, 2));
+        return;
+      }
+      if (options.dryRun) {
+        for (const file of plan.files) console.log(`--- ${file.path}\n${file.content}`);
+        for (const warning of plan.warnings) console.warn(`Warning: ${warning}`);
+        return;
+      }
+      if (!options.silent) printManagedSettingsPlan(plan, written);
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
 program
   .command('preview')
   .description(

@@ -345,6 +345,47 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         ],
       },
     },
+    managedSettings: {
+      command: 'managed-settings',
+      args: '[directory]',
+      description:
+        'Write org policy files for Claude Code and GitHub Copilot that register the configured marketplace (marketplace.remote) and force-enable its plugins. Admins deploy them; sync never writes them.',
+      requires: 'marketplace.remote, plus a synced .claude-plugin/marketplace.json',
+      outputs: ['claude-code/managed-settings.json', 'github-copilot/managed-settings.json', 'README.md'],
+      options: [
+        {
+          long: '--host <claude|copilot|all>',
+          description:
+            'Hosts to write for. Default: claude with claude-marketplace, copilot with agent-plugins.',
+        },
+        {
+          long: '--out <dir>',
+          description: 'Output directory, relative to the current directory (default managed-settings).',
+        },
+        {
+          long: '--ref <ref>',
+          description:
+            'Pin the marketplace source to a git tag or branch. A commit SHA is accepted for Copilot only.',
+        },
+        { long: '--auto-update', description: 'Set autoUpdate: true on the marketplace entry.' },
+        { long: '--plugin <name>', description: 'Force-enable only this plugin (repeatable).' },
+        {
+          long: '--strict',
+          description: 'Also write strictKnownMarketplaces, which blocks every marketplace not listed.',
+        },
+        {
+          long: '--allow-marketplace <owner/repo>',
+          description: 'With --strict, keep another GitHub marketplace allowed (repeatable).',
+        },
+        {
+          long: '--mcp-allowlist',
+          description: 'Also write allowedMcpServers listing exactly the llm/mcp.json servers.',
+        },
+        { long: '--dry-run', description: 'Print the files instead of writing them.' },
+        { long: '--json', description: 'Emit the plan, files included, as JSON.' },
+        { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
+      ],
+    },
     source: {
       types: [...SOURCE_TYPES],
       specFormat: {
