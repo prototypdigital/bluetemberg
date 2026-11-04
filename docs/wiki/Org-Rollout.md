@@ -28,7 +28,7 @@ flowchart LR
 npx bluetemberg managed-settings --ref v1.4.0 --out managed-settings
 ```
 
-The output directory holds one file per host and a README that says where each file goes on macOS, Linux and Windows, which other delivery methods the host supports, and which pack versions the bundles were built from. Preview without writing with `--dry-run`; get the plan as JSON with `--json`. All flags are in [Commands](Commands#bluetemberg-managed-settings-directory).
+The output directory holds one file per host and a README that says where each file goes on macOS, Linux and Windows, which other delivery methods the host supports, and which pack versions the bundles were built from. Preview without writing with `--dry-run`; get the plan as JSON with `--json`. Use a dedicated `--out` directory: the command refuses to write a file at a host's live policy path (so `--out /etc` can't install the policy by accident), inside `~/.claude`, through a symlink, or over a file it did not generate. Warnings go to stderr even with `--silent`. Paths here say `llm/`, the default config `source` dir; the command reads whichever `source` you configured. All flags are in [Commands](Commands#bluetemberg-managed-settings-directory).
 
 ## What goes into the files
 
@@ -40,7 +40,7 @@ The output directory holds one file per host and a README that says where each f
 | `allowedMcpServers` | With `--mcp-allowlist` | The servers in `llm/mcp.json` (presets resolved) and the root `.mcp.json`, as exact `serverCommand` or `serverUrl` matchers |
 | `deniedMcpServers` | Never | Nothing in the project says what to deny |
 
-A managed `enabledPlugins` entry set to `true` force-enables the plugin: users can't turn it off. If your plugins split by profile (`frontend`, `backend`), use `--plugin` and deploy a different file to each group.
+A managed `enabledPlugins` entry set to `true` force-enables the plugin: users can't turn it off. If your plugins split by profile (`frontend`, `backend`), use `--plugin` and deploy a different file to each group. Each host's file only lists plugins that have a bundle in that host's format: a plugin whose name isn't a valid Agent Plugins name has a Claude bundle but no Agent Plugins one, so it is left out of the Copilot file.
 
 ## The host formats
 
@@ -64,7 +64,7 @@ Neither host pins a plugin version: `enabledPlugins` only names `plugin@marketpl
 
 To keep that in step with `llm/packages-lock.json`:
 
-- The command refuses to run when an Agent Plugins bundle lock (`plugins/*/digital.prototyp.bluetemberg/bundle-lock.json`) records a pack version or integrity that the lockfile no longer has. Run `bluetemberg sync`, publish, then generate again. Without `agent-plugins` there are no bundle locks, and the command warns that it could not check.
+- The command refuses to run when an Agent Plugins bundle lock (`plugins/*/digital.prototyp.bluetemberg/bundle-lock.json`) records a pack version or integrity that the lockfile no longer has. Run `bluetemberg sync`, publish, then generate again. Only Agent Plugins bundles carry a lock. With `claude-marketplace` alone nothing is checked: the command warns `Drift NOT checked` and the generated README says so, so run `bluetemberg sync --check` before publishing. A plugin without a lock (for example one left out of the Agent Plugins format) is named in a warning too.
 - A pack installed after the last sync is in the lockfile but in no bundle lock, so the check above can't catch it. The command warns about every locked pack no bundle records; packs that ship nothing bundled (guardrails only, or another profile's content) show up there too, which is why it is a warning. `bluetemberg sync --check` is the exact test.
 - The generated README lists the pack versions the bundles were built from. The command can't see the remote repo, so make sure the tag you pass to `--ref` points at the commit you published from this output.
 - Claude Code takes a branch or tag only. A full commit SHA is refused unless `--host copilot`; tag the commit instead.
@@ -73,7 +73,7 @@ To keep that in step with `llm/packages-lock.json`:
 
 `strictKnownMarketplaces` blocks every marketplace it does not list, on add, install, update and auto-update, including marketplaces users added before the policy. Before you deploy it:
 
-- Add every marketplace your users still need with `--allow-marketplace owner/repo`, including `anthropics/claude-plugins-official` for Claude Code's official marketplace.
+- Add every marketplace your users still need with `--allow-marketplace owner/repo`, including `anthropics/claude-plugins-official` for Claude Code's official marketplace. The command warns about each marketplace the project's `.claude/settings.json` registers that the list would block, and about the official one; a non-GitHub source has to be added to the file by hand.
 - Matching is exact and includes `ref`: an entry pinned to `v1.4.0` does not match the same repo added without a ref. The command always writes the allowlist entry with the same `ref` as the marketplace it registers, so the policy never blocks its own marketplace. Users who added it by hand without a ref may need to remove it once (`claude plugin marketplace remove <name>`).
 - An empty allowlist blocks everything; the command never writes one.
 

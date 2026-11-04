@@ -122,7 +122,7 @@ Without `--yes`, the command prints the dry-run plan and asks before changing an
 
 ## `bluetemberg managed-settings [directory]`
 
-Writes org policy files that install the project's marketplace for everyone in an organization: `claude-code/managed-settings.json` for Claude Code, `github-copilot/managed-settings.json` for GitHub Copilot, and a `README.md` that says where an admin deploys each one. The command only writes files under `--out`; it never installs anything on the machine it runs on, and `sync` never writes these files. See [Org rollout](Org-Rollout) for the host formats and the rollout steps.
+Writes org policy files that install the project's marketplace for everyone in an organization: `claude-code/managed-settings.json` for Claude Code, `github-copilot/managed-settings.json` for GitHub Copilot, and a `README.md` that says where an admin deploys each one. The command only writes files under `--out`, and refuses an `--out` that would put a file at a host's live policy path, inside `~/.claude`, through a symlink, or over a file it did not generate (such as the project's own `README.md`). It never installs anything on the machine it runs on, and `sync` never writes these files. See [Org rollout](Org-Rollout) for the host formats and the rollout steps.
 
 It needs `marketplace.remote` (an `owner/repo`) and the `.claude-plugin/marketplace.json` that `sync` generates, and refuses to run without either. Each file registers the marketplace under `extraKnownMarketplaces` and force-enables its plugins under `enabledPlugins`.
 
@@ -132,15 +132,15 @@ It needs `marketplace.remote` (an `owner/repo`) and the `.claude-plugin/marketpl
 | `--out <dir>` | Output directory, relative to the current directory (default `managed-settings`) |
 | `--ref <ref>` | Pin the marketplace source to a git tag or branch. Copilot also takes a commit SHA; Claude Code does not, so a SHA is refused unless `--host copilot` |
 | `--auto-update` | Set `autoUpdate: true` on the marketplace so clients refresh it in the background |
-| `--plugin <name>` | Force-enable only this plugin (repeatable). Default: every plugin in the index |
-| `--strict` | Also write `strictKnownMarketplaces`, which blocks every marketplace not listed. The entry for your marketplace carries the same `ref` as the one registered |
+| `--plugin <name>` | Force-enable only this plugin (repeatable). Default: every plugin in the index. Each host only gets plugins that have a bundle in its format, so a plugin whose name isn't a valid Agent Plugins name is left out of the Copilot file (and refused there with `--plugin`) |
+| `--strict` | Also write `strictKnownMarketplaces`, which blocks every marketplace not listed. The entry for your marketplace carries the same `ref` as the one registered. Warns about each marketplace the project's `.claude/settings.json` registers that it would block, and about Claude Code's official marketplace |
 | `--allow-marketplace <owner/repo>` | With `--strict`, keep another GitHub marketplace allowed (repeatable) |
 | `--mcp-allowlist` | Also write `allowedMcpServers` with exactly the servers in `llm/mcp.json` and the root `.mcp.json`. Refused when there are none, since an empty list blocks every server |
 | `--dry-run` | Print the files instead of writing them |
 | `--json` | Print the plan (marketplace, plugins, pack versions, warnings, files) as JSON |
-| `--silent` | Suppress progress output; errors still go to stderr |
+| `--silent` | Suppress progress output; errors and warnings still go to stderr |
 
-The command also refuses when a plugin bundle's lock records a pack version that `llm/packages-lock.json` no longer has, or when the index lists different plugins than `marketplace.plugins`. Run `sync` and publish first. No `deniedMcpServers` list is ever generated.
+The command also refuses when an Agent Plugins bundle lock records a pack version or integrity that `llm/packages-lock.json` no longer has, or when the index lists different plugins than `marketplace.plugins` (it names the reason when sync could not build a plugin). Only Agent Plugins bundles carry a lock: with `claude-marketplace` alone, nothing is checked, and the command warns `Drift NOT checked`; run `bluetemberg sync --check` instead. No `deniedMcpServers` list is ever generated.
 
 ## `bluetemberg preview [profile]`
 

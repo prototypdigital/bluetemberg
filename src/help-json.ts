@@ -352,6 +352,13 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         'Write org policy files for Claude Code and GitHub Copilot that register the configured marketplace (marketplace.remote) and force-enable its plugins. Admins deploy them; sync never writes them.',
       requires: 'marketplace.remote, plus a synced .claude-plugin/marketplace.json',
       outputs: ['claude-code/managed-settings.json', 'github-copilot/managed-settings.json', 'README.md'],
+      refusesToWrite: [
+        'outside --out',
+        'a live host policy path',
+        '~/.claude',
+        'through a symlink',
+        'over a file it did not generate',
+      ],
       options: [
         {
           long: '--host <claude|copilot|all>',
@@ -380,11 +387,14 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         {
           long: '--mcp-allowlist',
           description:
-            'Also write allowedMcpServers listing exactly the servers in llm/mcp.json and the root .mcp.json.',
+            'Also write allowedMcpServers listing exactly the servers in <source>/mcp.json (llm/ by default) and the root .mcp.json.',
         },
         { long: '--dry-run', description: 'Print the files instead of writing them.' },
         { long: '--json', description: 'Emit the plan, files included, as JSON.' },
-        { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
+        {
+          long: '--silent',
+          description: 'Suppress progress output; errors and warnings still go to stderr.',
+        },
       ],
     },
     source: {

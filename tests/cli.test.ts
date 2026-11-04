@@ -415,6 +415,13 @@ cliSuite('cli managed-settings', () => {
     expect(existsSync(join(root, 'policy', 'github-copilot'))).toBe(false);
   });
 
+  it('--silent still prints warnings to stderr', () => {
+    const r = runCli(['managed-settings', '--silent', '--out', 'policy', root], root);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toContain('Drift NOT checked');
+  });
+
   it('rejects an unknown --host', () => {
     const r = runCli(['managed-settings', '--host', 'cursor', root], root);
     expect(r.status).not.toBe(0);

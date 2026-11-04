@@ -524,7 +524,6 @@ function printManagedSettingsPlan(plan, written) {
   console.log(`  plugins: ${plan.plugins.join(', ')}`);
   if (plan.strict) console.log(`  strictKnownMarketplaces: on (blocks every marketplace not listed)`);
   if (plan.mcpServers.length > 0) console.log(`  allowedMcpServers: ${plan.mcpServers.join(', ')}`);
-  for (const warning of plan.warnings) console.warn(`Warning: ${warning}`);
   if (written) {
     for (const path of written) console.log(`  -> ${path}`);
     console.log(
@@ -571,7 +570,7 @@ program
   )
   .option('--dry-run', 'Print the files instead of writing them')
   .option('--json', 'Emit the plan (files included) as JSON')
-  .option('--silent', 'Suppress progress output (errors still go to stderr)')
+  .option('--silent', 'Suppress progress output (errors and warnings still go to stderr)')
   .action(async (directory, options) => {
     const { planManagedSettings, writeManagedSettings } = await import('../dist/managed-settings/index.js');
     try {
@@ -590,9 +589,10 @@ program
         console.log(JSON.stringify({ ...plan, outDir: out, written: written ?? [] }, null, 2));
         return;
       }
+      // Warnings (unchecked drift, blocked marketplaces) go to stderr even with --silent.
+      for (const warning of plan.warnings) console.warn(`Warning: ${warning}`);
       if (options.dryRun) {
         for (const file of plan.files) console.log(`--- ${file.path}\n${file.content}`);
-        for (const warning of plan.warnings) console.warn(`Warning: ${warning}`);
         return;
       }
       if (!options.silent) printManagedSettingsPlan(plan, written);
