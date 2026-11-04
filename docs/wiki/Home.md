@@ -24,6 +24,7 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Writing Hooks](Writing-Hooks) — Cursor `hooks.json` and Claude Code `hooks.claude.json` in `llm/`
 - [Marketplace](Marketplace) — Claude Code plugin output for zero-install onboarding
 - [Org Rollout](Org-Rollout) — managed-settings files that install the marketplace org-wide (Claude Code, Copilot)
+- [Telemetry](Telemetry) — opt-in OpenTelemetry export to your own collector, with pack attribution
 - [Guardrails](Guardrails) — declarative checks enforced as platform-native hooks
 - [Writing Commands](Writing-Commands) — slash commands in `llm/commands/`, synced as skills
 - [Writing Prompts](Writing-Prompts) — prompt files in `llm/prompts/`, synced as skills

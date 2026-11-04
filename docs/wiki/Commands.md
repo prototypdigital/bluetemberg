@@ -136,8 +136,11 @@ It needs `marketplace.remote` (an `owner/repo`) and the `.claude-plugin/marketpl
 | `--strict` | Also write `strictKnownMarketplaces`, which blocks every marketplace not listed. The entry for your marketplace carries the same `ref` as the one registered. Warns about each marketplace the project's `.claude/settings.json` registers that it would block, and about Claude Code's official marketplace |
 | `--allow-marketplace <owner/repo>` | With `--strict`, keep another GitHub marketplace allowed (repeatable) |
 | `--mcp-allowlist` | Also write `allowedMcpServers` with exactly the servers in `llm/mcp.json` and the root `.mcp.json`. Refused when there are none, since an empty list blocks every server |
+| `--telemetry-endpoint <url>` | Opt in to OpenTelemetry export: point Claude Code (`env`) and Copilot (`telemetry`) at this OTLP collector, with every content-capture switch written off and resource attributes that name the marketplace and pack set. A URL with credentials or a query string is refused. See [Telemetry](Telemetry) |
+| `--telemetry-protocol <protocol>` | `http/protobuf` (default), `http/json`, or `grpc` (Claude Code only; refused when the Copilot file is written) |
+| `--telemetry-attribute <key=value>` | With `--telemetry-endpoint`, add a resource attribute such as `team.id=platform` (repeatable). Keys under `bluetemberg.` or that look like credentials are refused |
 | `--dry-run` | Print the files instead of writing them |
-| `--json` | Print the plan (marketplace, plugins, pack versions, warnings, files) as JSON |
+| `--json` | Print the plan (marketplace, plugins, pack versions, telemetry, warnings, files) as JSON |
 | `--silent` | Suppress progress output; errors and warnings still go to stderr |
 
 The command also refuses when an Agent Plugins bundle lock records a pack version or integrity that `llm/packages-lock.json` no longer has, or when the index lists different plugins than `marketplace.plugins` (it names the reason when sync could not build a plugin). Only Agent Plugins bundles carry a lock: with `claude-marketplace` alone, nothing is checked, and the command warns `Drift NOT checked`; run `bluetemberg sync --check` instead. No `deniedMcpServers` list is ever generated.

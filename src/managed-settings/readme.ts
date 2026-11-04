@@ -28,6 +28,7 @@ function summary(base: Base): string[] {
     `- **Plugins force-enabled:** ${pluginLine(base)}.`,
     `- **Marketplace allowlist (\`strictKnownMarketplaces\`):** ${base.strict ? 'on' : 'off'}.`,
     `- **MCP allowlist (\`allowedMcpServers\`):** ${base.mcpServers.length > 0 ? base.mcpServers.map((s) => `\`${s}\``).join(', ') : 'off'}.`,
+    `- **Telemetry export:** ${base.telemetry ? `on, to \`${base.telemetry.endpoint}\` (see "What is sent, and where")` : 'off (pass `--telemetry-endpoint` to turn it on)'}.`,
   ];
 }
 
@@ -154,6 +155,74 @@ function mcpSection(base: Base, source: string): string[] {
   ];
 }
 
+function telemetryHostRows(base: Base): string[] {
+  const rows: string[] = [];
+  if (base.hosts.includes('claude')) {
+    rows.push(
+      '- **Claude Code** (`env`): metrics (sessions, tokens, cost, lines changed, commits, pull requests,',
+      '  active time, edit accept/reject) and events (prompt *length*, tool name/success/duration, API',
+      '  request model/tokens/cost/errors). Traces are off (`OTEL_TRACES_EXPORTER=none`). Prompts,',
+      '  responses, tool input and output, Bash commands and custom skill/plugin/MCP names stay redacted:',
+      '  `OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_ASSISTANT_RESPONSES`, `OTEL_LOG_TOOL_DETAILS` and',
+      '  `OTEL_LOG_TOOL_CONTENT` are set to `0` in policy, which no user or project setting overrides.',
+      '  **Identity:** Claude Code always attaches `user.email`, `user.account_uuid` and `organization.id`',
+      '  when the user is signed in; no setting removes them. Drop them in your collector if you must',
+      '  (an `attributes` processor with `action: delete`).',
+    );
+  }
+  if (base.hosts.includes('copilot')) {
+    rows.push(
+      '- **GitHub Copilot** (`telemetry`): traces, metrics and events about sessions, model calls and tool',
+      '  use. Every `capture` class is `false` (identity, prompts, responses, tool arguments, tool output,',
+      '  policy detail) and `lockCaptureContent` stops local settings from turning content on. Copilot',
+      '  applies managed `telemetry` in the CLI, VS Code, the Copilot app and JetBrains IDEs, not in',
+      '  cloud sessions.',
+    );
+  }
+  return rows;
+}
+
+function telemetrySection(base: Base): string[] {
+  const t = base.telemetry;
+  if (!t) return [];
+  const attrs = Object.entries(t.attributes).map(([k, v]) => `| \`${k}\` | \`${v}\` |`);
+  return [
+    '## What is sent, and where',
+    '',
+    `Each host's own exporter sends OTLP (\`${t.protocol}\`) to **\`${t.endpoint}\`**, your collector, and`,
+    'nowhere else. bluetemberg sends nothing, runs nothing and stores nothing; these keys only configure',
+    'the hosts.',
+    '',
+    ...telemetryHostRows(base),
+    '',
+    'Every metric and event carries these resource attributes:',
+    '',
+    '| Attribute | Value |',
+    '| - | - |',
+    ...attrs,
+    '',
+    ...(t.packsDigest
+      ? [
+          `\`bluetemberg.packs.digest\` identifies the pack set in "Pack versions" above. It changes exactly when a`,
+          'pack version changes, so a dashboard can split cost, tool errors or edit rejections by rule version.',
+          '',
+        ]
+      : []),
+    '### Before you deploy telemetry',
+    '',
+    '- **No credentials are written.** Authenticate with a header helper the host runs: Claude Code',
+    '  `otelHeadersHelper` (a command that prints a JSON object of headers) and Copilot',
+    '  `telemetry.headersProvider`. Static headers in a policy file are readable by every user.',
+    '- **One attribute list per host.** Claude Code merges managed `env` per variable, so another source',
+    '  that sets `OTEL_RESOURCE_ATTRIBUTES` replaces this one, or this one replaces it. Copilot takes the',
+    '  whole `telemetry` object from the highest-precedence managed source. Carry your own keys here with',
+    '  `--telemetry-attribute key=value` instead of setting them elsewhere.',
+    '- **Endpoint lock.** In Claude Code a managed `OTEL_EXPORTER_OTLP_ENDPOINT` removes endpoints users',
+    '  set per signal, so all metrics and events go to the endpoint above.',
+    '',
+  ];
+}
+
 function docsSection(base: Base): string[] {
   return [
     '## Host documentation',
@@ -187,6 +256,7 @@ export function renderReadme(base: Base, files: ManagedSettingsFile[], source: s
     ...hostSections,
     ...strictSection(base),
     ...mcpSection(base, source),
+    ...telemetrySection(base),
     ...warnings,
     ...docsSection(base),
   ].join('\n');

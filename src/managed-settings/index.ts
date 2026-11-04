@@ -12,8 +12,16 @@ import {
 } from './hosts.js';
 import { OWNER_REPO_RE, readProjectInputs, type PackPin, type ProjectInputs } from './inputs.js';
 import { README_MARKER, renderReadme } from './readme.js';
+import {
+  claudeTelemetryEnv,
+  copilotTelemetry,
+  planTelemetry,
+  type TelemetryOptions,
+  type TelemetryPlan,
+} from './telemetry.js';
 
 export { HOST_FACTS, MANAGED_SETTINGS_HOSTS, type ManagedSettingsHost } from './hosts.js';
+export { TELEMETRY_PROTOCOLS, type TelemetryOptions, type TelemetryPlan } from './telemetry.js';
 
 /**
  * `bluetemberg managed-settings`: org policy files for Claude Code and GitHub Copilot, derived from
@@ -37,6 +45,11 @@ export interface ManagedSettingsOptions {
   plugins?: string[];
   /** Also write `allowedMcpServers` listing exactly the project's MCP servers. */
   mcpAllowlist?: boolean;
+  /**
+   * Opt-in OpenTelemetry export to the org's own collector. Omitted, the files carry no telemetry
+   * keys at all. Content capture is always written off.
+   */
+  telemetry?: TelemetryOptions;
 }
 
 export interface ManagedSettingsFile {
@@ -62,6 +75,8 @@ export interface ManagedSettingsPlan {
   packs: Record<string, PackPin>;
   /** Whether the bundles were checked against `packages-lock.json` (needs Agent Plugins bundle locks). */
   driftChecked: boolean;
+  /** The telemetry export written, or null when `telemetry` was not requested. */
+  telemetry: TelemetryPlan | null;
   files: ManagedSettingsFile[];
   warnings: string[];
 }
@@ -89,6 +104,17 @@ export function planManagedSettings(root: string, options: ManagedSettingsOption
   const pluginsByHost = selectPlugins(options.plugins, hosts, inputs);
   checkBundlesMatchLockfile(inputs);
 
+  const packs = packsFor(inputs);
+  const telemetry = options.telemetry
+    ? planTelemetry(options.telemetry, {
+        hosts,
+        marketplace: inputs.marketplace.name,
+        ref: options.ref,
+        packs,
+        hostLabel: (h) => HOST_FACTS[h].label,
+      })
+    : null;
+
   const mcp: McpAllowlist = options.mcpAllowlist
     ? mcpAllowlist(inputs)
     : { ids: [], matchers: [], warnings: [] };
@@ -97,6 +123,7 @@ export function planManagedSettings(root: string, options: ManagedSettingsOption
     ...driftWarnings(inputs),
     ...nameWarnings(root, inputs),
     ...(options.strict ? strictWarnings(hosts, inputs, allowedMarketplaces) : []),
+    ...(telemetry?.warnings ?? []),
   ];
 
   const base: Base = {
@@ -112,8 +139,9 @@ export function planManagedSettings(root: string, options: ManagedSettingsOption
     strict: options.strict === true,
     allowedMarketplaces,
     mcpServers: mcp.ids,
-    packs: packsFor(inputs),
+    packs,
     driftChecked: inputs.bundleLocks.length > 0,
+    telemetry: telemetry?.telemetry ?? null,
     warnings,
   };
 
@@ -541,7 +569,15 @@ function buildHostSettings(
     enabledPlugins: Object.fromEntries(plugins.map((p) => [`${p}@${name}`, true])),
     ...(base.strict ? { strictKnownMarketplaces: strictList(host, base) } : {}),
     ...(mcp.length > 0 ? { allowedMcpServers: mcp } : {}),
+    ...telemetryKeys(host, base.telemetry),
   };
+}
+
+/** Claude Code takes telemetry as `env` variables; Copilot as one `telemetry` object. */
+function telemetryKeys(host: ManagedSettingsHost, telemetry: TelemetryPlan | null): Record<string, unknown> {
+  if (!telemetry) return {};
+  if (host === 'claude') return { env: claudeTelemetryEnv(telemetry) };
+  return { telemetry: copilotTelemetry(telemetry) };
 }
 
 export { CLAUDE_OFFICIAL_MARKETPLACE };
