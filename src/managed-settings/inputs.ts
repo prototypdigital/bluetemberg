@@ -6,7 +6,8 @@ import { pluginDefinitionsFor } from '../sync/marketplace.js';
 import { loadMcpManifest, ROOT_MCP_FILE } from '../sync/mcp.js';
 import { readLockfile } from '../registry/manifest.js';
 import type { McpServerConfig } from '../mcp/registry.js';
-import type { BlueprintConfig, PackageLock } from '../types.js';
+import { AGENT_PLUGINS_PLATFORM } from '../types.js';
+import type { BlueprintConfig, MarketplacePluginDefinition, PackageLock } from '../types.js';
 
 /** `owner/repo`, the only form both hosts accept for a `github` marketplace source. */
 export const OWNER_REPO_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
@@ -34,13 +35,17 @@ export interface ProjectInputs {
   config: BlueprintConfig;
   remote: string;
   marketplace: PublishedMarketplace;
-  /** Plugin names `marketplace.plugins` (or the default single plugin) defines. */
-  configuredPlugins: string[];
+  /** `marketplace.plugins`, or the default single plugin sync builds. */
+  pluginDefs: MarketplacePluginDefinition[];
+  /** The config `source` dir (`llm` by default), for messages. */
+  source: string;
   lock: PackageLock;
   bundleLocks: BundleLockPacks[];
   mcp: { configs: Record<string, McpServerConfig>; errors: string[] } | null;
   /** Servers in the root `.mcp.json`, including ones people added there by hand. */
   rootMcp: { configs: Record<string, McpServerConfig>; error?: string };
+  /** Marketplaces the project's `.claude/settings.json` registers, by name. */
+  projectMarketplaces: Record<string, unknown>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -110,10 +115,19 @@ function readMcp(sourceBase: string): ProjectInputs['mcp'] {
   return { configs: manifest.configs, errors: manifest.errors };
 }
 
-function toServerConfig(value: Record<string, unknown>): McpServerConfig {
+/**
+ * A `.mcp.json` entry as an allowlist source. Arguments that aren't strings can't be matched
+ * exactly, and dropping them would allowlist a different command than the one that runs.
+ */
+function toServerConfig(id: string, value: Record<string, unknown>): McpServerConfig {
   const config: McpServerConfig = { type: typeof value.type === 'string' ? value.type : 'stdio' };
   if (typeof value.command === 'string') config.command = value.command;
-  if (Array.isArray(value.args) && value.args.every((a) => typeof a === 'string')) config.args = value.args;
+  if (value.args !== undefined) {
+    if (!Array.isArray(value.args) || !value.args.every((a) => typeof a === 'string')) {
+      throw new Error(`${ROOT_MCP_FILE} server "${id}" has "args" that are not all strings.`);
+    }
+    config.args = value.args;
+  }
   if (typeof value.url === 'string') config.url = value.url;
   return config;
 }
@@ -133,10 +147,25 @@ function readRootMcp(root: string): ProjectInputs['rootMcp'] {
   }
   const servers = isRecord(raw) && isRecord(raw.mcpServers) ? raw.mcpServers : {};
   const configs: Record<string, McpServerConfig> = {};
-  for (const [id, value] of Object.entries(servers)) {
-    if (isRecord(value)) configs[id] = toServerConfig(value);
+  try {
+    for (const [id, value] of Object.entries(servers)) {
+      if (isRecord(value)) configs[id] = toServerConfig(id, value);
+    }
+  } catch (err) {
+    return { configs: {}, error: err instanceof Error ? err.message : String(err) };
   }
   return { configs };
+}
+
+function readProjectMarketplaces(root: string): Record<string, unknown> {
+  const path = join(root, '.claude', 'settings.json');
+  if (!existsSync(path)) return {};
+  try {
+    const raw: unknown = JSON.parse(readFileSync(path, 'utf8'));
+    return isRecord(raw) && isRecord(raw.extraKnownMarketplaces) ? raw.extraKnownMarketplaces : {};
+  } catch {
+    return {};
+  }
 }
 
 export function readProjectInputs(root: string): ProjectInputs {
@@ -147,14 +176,18 @@ export function readProjectInputs(root: string): ProjectInputs {
   const remote = requireRemote(config);
   const marketplace = readPublishedMarketplace(root);
   const source = config.source || 'llm';
+  // A lock left behind after `agent-plugins` was turned off describes no bundle sync still builds.
+  const locksCurrent = config.platforms.includes(AGENT_PLUGINS_PLATFORM);
   return {
     config,
     remote,
     marketplace,
-    configuredPlugins: pluginDefinitionsFor(config, root).map((p) => p.name),
+    pluginDefs: pluginDefinitionsFor(config, root),
+    source,
     lock: readLockfile(root, source),
-    bundleLocks: marketplace.plugins.flatMap((p) => readBundleLock(root, p) ?? []),
+    bundleLocks: locksCurrent ? marketplace.plugins.flatMap((p) => readBundleLock(root, p) ?? []) : [],
     mcp: readMcp(join(root, source)),
     rootMcp: readRootMcp(root),
+    projectMarketplaces: readProjectMarketplaces(root),
   };
 }

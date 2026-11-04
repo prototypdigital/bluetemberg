@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -148,7 +149,7 @@ describe('planManagedSettings', () => {
 
   it('refuses when the index is stale against marketplace.plugins', () => {
     fixture({ indexPlugins: ['frontend'] });
-    expect(() => planManagedSettings(root)).toThrow(/out of date.*backend/);
+    expect(() => planManagedSettings(root)).toThrow(/does not match marketplace.plugins.*backend/);
   });
 
   it('pins the same ref in extraKnownMarketplaces and strictKnownMarketplaces', () => {
@@ -220,7 +221,9 @@ describe('planManagedSettings', () => {
     fixture();
     const plan = planManagedSettings(root, { plugins: ['backend'] });
     expect(settingsFor(plan, 'claude').enabledPlugins).toEqual({ 'backend@proj': true });
-    expect(() => planManagedSettings(root, { plugins: ['nope'] })).toThrow(/--plugin nope is not in/);
+    expect(() => planManagedSettings(root, { plugins: ['nope'] })).toThrow(
+      /--plugin nope has no Claude Code bundle/,
+    );
   });
 
   it('refuses when a bundle was built from a pack version the lockfile no longer has', () => {
@@ -388,5 +391,119 @@ describe('marketplace name', () => {
     fixture();
     const plan = planManagedSettings(root);
     expect(plan.warnings.join('\n')).toMatch(/index is named "proj"/);
+  });
+});
+
+describe('review fixes', () => {
+  it('force-enables a plugin only for the hosts that have a bundle in their format', () => {
+    fixture({ plugins: ['frontend', 'Team_Tools'] });
+    const plan = planManagedSettings(root);
+    expect(plan.pluginsByHost).toEqual({ claude: ['frontend', 'Team_Tools'], copilot: ['frontend'] });
+    expect(settingsFor(plan, 'copilot').enabledPlugins).toEqual({ 'frontend@proj': true });
+    expect(() => planManagedSettings(root, { plugins: ['Team_Tools'], host: 'copilot' })).toThrow(
+      /Team_Tools has no GitHub Copilot bundle/,
+    );
+  });
+
+  it('names the real cause when sync could not build a configured plugin', () => {
+    fixture({
+      platforms: ['claude', 'agent-plugins'],
+      plugins: ['frontend', 'Bad_Name'],
+      indexPlugins: ['frontend'],
+    });
+    expect(() => planManagedSettings(root)).toThrow(/"Bad_Name" is not a valid Agent Plugins name/);
+  });
+
+  it('says plainly when drift was not checked (Claude bundles only)', () => {
+    fixture({ platforms: ['claude', 'claude-marketplace'], bundlePack: null });
+    const plan = planManagedSettings(root);
+    expect(plan.driftChecked).toBe(false);
+    expect(plan.warnings.join('\n')).toMatch(/Drift NOT checked/);
+    expect(plan.files.find((f) => f.path === 'README.md')?.content).toMatch(/NOT checked against/);
+  });
+
+  it('ignores a bundle lock left behind after agent-plugins was turned off', () => {
+    fixture({
+      platforms: ['claude', 'claude-marketplace'],
+      bundlePack: { version: '0.0.1', integrity: 'x' },
+    });
+    expect(() => planManagedSettings(root)).not.toThrow();
+  });
+
+  it('reports an integrity-only drift as such', () => {
+    fixture({ bundlePack: { version: '1.2.0', integrity: 'sha512-other' } });
+    expect(() => planManagedSettings(root)).toThrow(
+      /@1.2.0 was bundled from a build with a different integrity/,
+    );
+  });
+
+  it('warns about marketplaces --strict would block', () => {
+    fixture();
+    write('.claude/settings.json', {
+      extraKnownMarketplaces: {
+        proj: { source: { source: 'github', repo: 'acme/ai-marketplace' } },
+        shared: { source: { source: 'github', repo: 'acme/shared-plugins' } },
+        local: { source: { source: 'directory', path: '/opt/plugins' } },
+      },
+    });
+    const warnings = planManagedSettings(root, { strict: true }).warnings.join('\n');
+    expect(warnings).toMatch(/shared \(--allow-marketplace acme\/shared-plugins\)/);
+    expect(warnings).toMatch(/local \(not a GitHub source/);
+    expect(warnings).toMatch(/official marketplace/);
+    const allowed = planManagedSettings(root, {
+      strict: true,
+      allowMarketplaces: ['acme/shared-plugins', 'anthropics/claude-plugins-official'],
+    }).warnings.join('\n');
+    expect(allowed).not.toMatch(/acme\/shared-plugins|official marketplace/);
+  });
+
+  it('refuses a .mcp.json server whose args are not all strings', () => {
+    fixture();
+    write('.mcp.json', { mcpServers: { odd: { command: 'node', args: ['srv.js', 8080] } } });
+    expect(() => planManagedSettings(root, { mcpAllowlist: true })).toThrow(
+      /"odd" has "args" that are not all strings/,
+    );
+  });
+
+  it('rejects refs git check-ref-format rejects', () => {
+    fixture();
+    for (const ref of ['v1/', 'x.lock', 'a.', 'a//b', 'a/.b', '@{u}']) {
+      expect(() => planManagedSettings(root, { ref }), ref).toThrow(/not a valid git/);
+    }
+    expect(planManagedSettings(root, { ref: 'release/v1.2' }).marketplace.ref).toBe('release/v1.2');
+  });
+
+  describe('writeManagedSettings safety', () => {
+    it('refuses to overwrite a file it did not generate, and writes nothing', () => {
+      fixture();
+      const plan = planManagedSettings(root);
+      write('README.md', '# My project\n');
+      expect(() => writeManagedSettings(plan, root)).toThrow(/Refusing to overwrite .*README.md/);
+      expect(readFileSync(join(root, 'README.md'), 'utf8')).toBe('# My project\n');
+      expect(existsSync(join(root, 'claude-code'))).toBe(false);
+    });
+
+    it('regenerates over its own output', () => {
+      fixture();
+      const out = join(root, 'out');
+      writeManagedSettings(planManagedSettings(root), out);
+      expect(() => writeManagedSettings(planManagedSettings(root, { strict: true }), out)).not.toThrow();
+    });
+
+    it('refuses a symlinked host directory under --out', () => {
+      fixture();
+      const out = join(root, 'out');
+      const elsewhere = join(root, 'elsewhere');
+      mkdirSync(out);
+      mkdirSync(elsewhere);
+      symlinkSync(elsewhere, join(out, 'claude-code'));
+      expect(() => writeManagedSettings(planManagedSettings(root), out)).toThrow(/symlink/);
+      expect(readdirSync(elsewhere)).toEqual([]);
+    });
+
+    it('refuses a live host policy path', () => {
+      fixture();
+      expect(() => writeManagedSettings(planManagedSettings(root), '/etc')).toThrow(/live host policy path/);
+    });
   });
 });
