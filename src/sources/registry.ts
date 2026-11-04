@@ -2,12 +2,14 @@ import { loadConfig } from '../sync/index.js';
 import { resolveGithubToken } from '../stacks/github.js';
 import { ensureGitignore } from '../utils/fs.js';
 import { getAdapter, hasAdapter } from './adapters/index.js';
-import { isSourceCached, removeSourceRef, resolveSourceContentDir } from './cache.js';
+import { isSourceCached, removeSourceRef, resolveSourceContentDir, sourceContentDir } from './cache.js';
 import { readSourceLock, readSourceManifest, writeSourceLock, writeSourceManifest } from './manifest.js';
 import { installResolvedSource } from './pipeline.js';
 import { formatFindings } from '../registry/scanner.js';
 import { rescanCached, staleScanWarning } from '../registry/scan-cache.js';
 import type { ScanGateOptions } from '../registry/scan-cache.js';
+import { capabilityReport, collectCapabilities } from '../registry/capabilities.js';
+import type { PackCapabilities } from '../registry/capabilities.js';
 import { parseSourceSpec, sourceKey } from './spec.js';
 import { SOURCE_TYPES } from './types.js';
 import type {
@@ -98,6 +100,7 @@ export async function addSource(
   ensureGitignore(root);
 
   log(`Added ${key} (${shortRef(entry.ref)})`);
+  for (const line of capabilityReport(key, null, sourceContentDir(root, key, entry.ref))) log(line);
   log(`Run "bluetemberg sync" to apply the new rules.`);
 
   return installedFromEntry(root, key, entry);
@@ -205,6 +208,7 @@ export async function installSources(
       ...sourceScanOptions(key, options.skipScan, log),
     });
     lock.sources[key] = entry;
+    for (const line of capabilityReport(key, null, sourceContentDir(root, key, entry.ref))) log(line);
     installed.push(installedFromEntry(root, key, entry));
   }
 
@@ -264,11 +268,16 @@ export async function updateSources(
 
     const arrow = previous ? ` ${shortRef(previous)} →` : '';
     log(`  ${k}${arrow} ${shortRef(resolved.ref)} (downloading...)`);
+    const before: PackCapabilities | null =
+      previous && isSourceCached(root, k, previous)
+        ? collectCapabilities(sourceContentDir(root, k, previous))
+        : null;
     const entry = await installResolvedSource(root, resolved, {
       net,
       ...sourceScanOptions(k, options.skipScan, log),
     });
 
+    for (const line of capabilityReport(k, before, sourceContentDir(root, k, entry.ref))) log(line);
     if (previous && previous !== resolved.ref) {
       removeSourceRef(root, k, previous);
     }

@@ -76,7 +76,18 @@ export const SCANNER_VERSION = 2;
 const SCAN_WINDOW_CHARS = 8 * 1024;
 const SCAN_WINDOW_OVERLAP = 512;
 /** Code a hook can execute; checked for secret reads and uploads anywhere in the file. */
-const SCRIPT_EXTENSIONS = new Set(['sh', 'bash', 'zsh', 'js', 'mjs', 'cjs', 'ts', 'py', 'ps1', 'rb']);
+export const SCRIPT_EXTENSIONS: ReadonlySet<string> = new Set([
+  'sh',
+  'bash',
+  'zsh',
+  'js',
+  'mjs',
+  'cjs',
+  'ts',
+  'py',
+  'ps1',
+  'rb',
+]);
 /** base64 runs at least this long are decoded and re-scanned. */
 const MIN_BASE64_CHARS = 24;
 const EXCERPT_CHARS = 160;

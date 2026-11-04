@@ -28,6 +28,8 @@ import {
 } from './installer.js';
 import { formatFindings } from './scanner.js';
 import { rescanCached, staleScanWarning } from './scan-cache.js';
+import { capabilityReport, collectCapabilities } from './capabilities.js';
+import type { PackCapabilities } from './capabilities.js';
 import type { ScanResult } from './scanner.js';
 import type {
   InstalledPackage,
@@ -65,6 +67,26 @@ function scanOptions(
       for (const line of formatFindings(result.findings, '    ')) log(line);
     },
   };
+}
+
+/** Log the capability report for a newly installed version (see {@link capabilityReport}). */
+function reportCapabilities(
+  label: string,
+  before: PackCapabilities | null,
+  afterDir: string,
+  log: (msg: string) => void,
+): void {
+  for (const line of capabilityReport(label, before, afterDir)) log(line);
+}
+
+/** Capabilities of a cached version, or `null` when it is not cached (nothing to compare against). */
+function cachedCapabilities(
+  root: string,
+  name: string,
+  version: string | undefined,
+): PackCapabilities | null {
+  if (!version || !isPackCached(root, name, version)) return null;
+  return collectCapabilities(packVersionDir(root, name, version));
 }
 
 /**
@@ -137,6 +159,7 @@ export async function add(
   const path = resolvePackSourceDir(root, name, version);
 
   log(`Added ${name}@${version}`);
+  reportCapabilities(`${name}@${version}`, null, packVersionDir(root, name, version), log);
   if (!path) {
     console.warn(
       `  Warning: ${name}@${version} has no llm/ directory (and no rules/, agents/, skills/ or guardrails/ at its root), so sync will take nothing from it. Is this a bluetemberg pack?`,
@@ -363,6 +386,7 @@ export async function install(
       });
 
       lock.packages[name] = lockEntry;
+      reportCapabilities(`${name}@${version}`, null, packVersionDir(root, name, version), log);
       installed.push({
         name,
         range,
@@ -486,6 +510,7 @@ export async function update(
 
       const arrow = previousVersion ? ` ${previousVersion} →` : '';
       log(`  ${name}${arrow} ${version} (downloading...)`);
+      const previousCapabilities = cachedCapabilities(root, name, previousVersion);
 
       const lockEntry = await installPackVersion(root, metadata, version, {
         registryUrl: manifest.registry,
@@ -495,6 +520,12 @@ export async function update(
       });
 
       lock.packages[name] = lockEntry;
+      reportCapabilities(
+        `${name}@${version}`,
+        previousCapabilities,
+        packVersionDir(root, name, version),
+        log,
+      );
 
       // Remove the old cached version after a successful install.
       if (previousVersion && previousVersion !== version) {
