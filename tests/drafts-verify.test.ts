@@ -105,7 +105,9 @@ describe('quote matching', () => {
   it('stays linear on hostile markup', () => {
     for (const unit of ['<script ', '<!-- ', '< ', '<style>x']) {
       const started = Date.now();
-      pageToText(unit.repeat(Math.floor((5 * 1024 * 1024) / unit.length)));
+      // 1 MiB: the old regex pass needed ~25 min here; a linear one takes milliseconds. Kept small so
+      // the suite's other CPU-bound tests are not starved.
+      pageToText(unit.repeat(Math.floor((1024 * 1024) / unit.length)));
       expect(Date.now() - started).toBeLessThan(3000);
     }
   });
