@@ -168,20 +168,24 @@ function workspacePath(resolution: string | undefined): string | null {
 
 /**
  * Apply the root manifest's `resolutions` to a direct dependency's descriptor, the way berry does
- * before locking: `react`, `**\/react` or `react@<range>` replace the descriptor. A parent-scoped
- * key (`some-lib/react`) only applies to transitive dependencies, so it is skipped here.
+ * before locking: `react@<range>` (most specific), else `react` / `**\/react`, replaces the
+ * descriptor. A parent-scoped key (`some-lib/react`) only applies to transitive dependencies, so
+ * it is skipped here.
  */
 function applyResolutions(pkg: string, descriptor: string, resolutions: Record<string, unknown>): string {
+  let byName: string | null = null;
   for (const [key, value] of Object.entries(resolutions)) {
     if (typeof value !== 'string') continue;
     const target = key.startsWith('**/') ? key.slice(3) : key;
     const name = leadingPackageName(target) ?? target;
     if (name !== pkg) continue;
-    const range = target.length > name.length ? target.slice(name.length + 1) : null;
-    if (range !== null && berryDescriptor(range) !== descriptor) continue;
-    return berryDescriptor(value);
+    if (target === name) {
+      byName ??= berryDescriptor(value);
+      continue;
+    }
+    if (berryDescriptor(target.slice(name.length + 1)) === descriptor) return berryDescriptor(value);
   }
-  return descriptor;
+  return byName ?? descriptor;
 }
 
 /** The range a `catalog:` / `catalog:<name>` descriptor names in `.yarnrc.yml`, or null. */

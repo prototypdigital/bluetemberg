@@ -148,36 +148,68 @@ function readYarnrc(dir: string): Record<string, unknown> | null {
   }
 }
 
-/** Read and parse one lockfile from disk, or null (warned once) when it cannot be used. */
-function readLockfile(dir: string, file: LockfileName, warn: (error: string) => void): Lockfile | null {
-  const path = join(dir, file);
+/** A lockfile read from disk: the reader, or why it can't be used (one line). */
+interface LockfileRead {
+  lock: Lockfile | null;
+  error?: string;
+}
+
+/**
+ * Parsed lockfiles kept across {@link detectStacks} calls. A recursive sync or `why` over a
+ * monorepo detects once per configured package, and every one of those reads the same root
+ * lockfile — parse it once. An entry is reused only while the lockfile and the files that shape
+ * its answers (`package.json` for `resolutions`, `.yarnrc.yml` for catalogs) are unchanged.
+ */
+const LOCKFILE_CACHE_SIZE = 4;
+const lockfileCache = new Map<string, { stamp: string; read: LockfileRead }>();
+
+function fileStamp(path: string): string {
   try {
-    const tooLarge = oversizeError(statSync(path).size);
-    if (tooLarge) {
-      warn(tooLarge);
-      return null;
-    }
-    const context = {
-      rootManifest: readJson(join(dir, 'package.json')),
-      yarnrc: null as Record<string, unknown> | null,
-    };
-    if (file === 'yarn.lock') context.yarnrc = readYarnrc(dir);
-    const parsed = parseLockfile(file, readFileSync(path, 'utf8'), context);
-    if (parsed.error !== undefined) warn(parsed.error);
-    return parsed.lock ?? null;
-  } catch (err) {
-    warn(`could not be read (${err instanceof Error ? err.message : String(err)})`);
-    return null;
+    const { size, mtimeMs } = statSync(path);
+    return `${size}:${mtimeMs}`;
+  } catch {
+    return '-';
   }
 }
 
+/** Read and parse one lockfile from disk. Never throws: a failure comes back as `error`. */
+function readLockfile(dir: string, file: LockfileName): LockfileRead {
+  const path = join(dir, file);
+  try {
+    const tooLarge = oversizeError(statSync(path).size);
+    if (tooLarge) return { lock: null, error: tooLarge };
+    const context = {
+      rootManifest: readJson(join(dir, 'package.json')),
+      yarnrc: file === 'yarn.lock' ? readYarnrc(dir) : null,
+    };
+    const parsed = parseLockfile(file, readFileSync(path, 'utf8'), context);
+    return { lock: parsed.lock ?? null, error: parsed.error };
+  } catch (err) {
+    return { lock: null, error: `could not be read (${err instanceof Error ? err.message : String(err)})` };
+  }
+}
+
+function cachedLockfile(dir: string, file: LockfileName): LockfileRead {
+  const path = join(dir, file);
+  const stamp = [path, join(dir, 'package.json'), join(dir, '.yarnrc.yml')].map(fileStamp).join('|');
+  const hit = lockfileCache.get(path);
+  if (hit?.stamp === stamp) return hit.read;
+  const read = readLockfile(dir, file);
+  lockfileCache.delete(path);
+  lockfileCache.set(path, { stamp, read });
+  if (lockfileCache.size > LOCKFILE_CACHE_SIZE) lockfileCache.delete(lockfileCache.keys().next().value ?? '');
+  return read;
+}
+
+/** The lockfile for this call, warning (once per call) when it can't be used. */
 function sessionLockfile(session: DetectSession, dir: string, file: LockfileName): Lockfile | null {
   const path = join(dir, file);
   if (session.locks.has(path)) return session.locks.get(path) ?? null;
-  const label = sourceLabel(session.root, dir, file);
-  const lock = readLockfile(dir, file, (error) =>
-    session.warn(`${label} ${error} — using package.json ranges for stack versions`),
-  );
+  const { lock, error } = cachedLockfile(dir, file);
+  if (error !== undefined) {
+    const label = sourceLabel(session.root, dir, file);
+    session.warn(`${label} ${error} — using package.json ranges for stack versions`);
+  }
   session.locks.set(path, lock);
   return lock;
 }

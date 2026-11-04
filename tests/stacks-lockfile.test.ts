@@ -140,6 +140,20 @@ describe('yarn.lock berry', () => {
     });
   });
 
+  it('a range-specific resolution wins over a name-only one, whatever their order', () => {
+    const text = readFileSync(fixture('yarn-berry-workspace', 'yarn.lock'), 'utf8');
+    const legacy = [{ path: 'packages/legacy', range: '^17.0.2' }];
+    for (const resolutions of [
+      { react: '^18.2.0', 'react@npm:^17.0.2': '17.0.1' },
+      { 'react@^17.0.2': '17.0.1', react: '^18.2.0' },
+    ]) {
+      const { lock } = parseLockfile('yarn.lock', text, { rootManifest: { resolutions } });
+      expect(lock?.versionOf('react', legacy)).toBe('17.0.1');
+      // web's react@npm:^18.2.0 has no specific entry, so the name-only resolution applies
+      expect(lock?.versionOf('react', [{ path: 'packages/web', range: '^18.2.0' }])).toBe('18.3.1');
+    }
+  });
+
   it('without .yarnrc.yml (remote), catalog: resolves only when the lockfile has one version', () => {
     const text = readFileSync(fixture('yarn-berry-workspace', 'yarn.lock'), 'utf8');
     const lock = parseLockfile('yarn.lock', text).lock;
@@ -208,6 +222,25 @@ describe('lockfile fallbacks', () => {
     expect(warnings[0]).toMatch(
       new RegExp(`^${file.replace('.', '\\.')} could not be parsed \\(.+\\) — using package.json ranges`),
     );
+  });
+
+  it('a lockfile parsed by an earlier call is re-read once it changes, and still warns when broken', () => {
+    copyFixture('yarn-v1-workspace');
+    const web = join(root, 'packages', 'web');
+    expect(detect(web).get('react')?.version).toBe('18.3.1');
+    const lockPath = join(root, 'yarn.lock');
+    writeFileSync(
+      lockPath,
+      `${readFileSync(lockPath, 'utf8').replace('version "18.3.1"', 'version "18.2.0"')}\n# edited\n`,
+    );
+    expect(detect(web).get('react')?.version).toBe('18.2.0');
+
+    writeFileSync(lockPath, '# yarn lockfile v1\n\n<<<<<<< HEAD\n');
+    for (let call = 0; call < 2; call++) {
+      const warnings: string[] = [];
+      expect(detect(web, (w) => warnings.push(w)).get('react')?.confidence).toBe('coerced');
+      expect(warnings).toEqual([expect.stringMatching(/^\.\.\/\.\.\/yarn\.lock could not be parsed/)]);
+    }
   });
 
   it('an unrecognised yarn.lock is reported, not guessed at', () => {
