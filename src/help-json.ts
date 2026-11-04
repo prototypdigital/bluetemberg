@@ -364,6 +364,17 @@ export function getMachineReadableHelp(): Record<string, unknown> {
             ...PACK_INSTALL_OPTIONS,
           ],
         },
+        {
+          name: 'scan',
+          args: '<dirs...>',
+          description:
+            'Run the content scan on local pack or source directories (e.g. a packs repo in CI). Exits 1 on a blocking finding.',
+          options: [
+            { long: '--json', description: 'Emit machine-readable JSON.' },
+            { long: '--strict', description: 'Exit 1 on warnings too.' },
+            { long: '--silent', description: 'Suppress output; the exit code still reports the result.' },
+          ],
+        },
       ],
       contentScan: {
         description:

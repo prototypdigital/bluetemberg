@@ -317,6 +317,8 @@ Error: Security scan blocked "some-pack@1.2.0": 1 blocking finding(s). The pack 
 If you trust this pack's source (e.g. a private registry you control), re-run with --skip-scan.
 ```
 
+To run the same scan where packs are authored (for example in CI before publishing), use [`bluetemberg scan <dirs...>`](Commands#bluetemberg-scan-dirs).
+
 Pass `--skip-scan` to `add`, `install`, or `update` only for a registry you control. Every fresh download that skips it logs `Content scan skipped for <pack> (--skip-scan).` Content installed with `--skip-scan` is marked as skipped: `sync` does not warn about it, and the next install without the flag scans it. With `--silent`, `install` and `update` still put each refused pack's findings in the error printed to stderr.
 
 The scan is a heuristic pre-flight, not a guarantee. Cross-script homoglyphs, shell obfuscation (`c''url`, `${x}url`, `eval`), and secrets passed between lines through variables in markdown are out of reach for regex matching.

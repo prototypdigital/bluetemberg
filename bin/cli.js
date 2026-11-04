@@ -1063,6 +1063,32 @@ program
     }
   });
 
+program
+  .command('scan')
+  .description(
+    'Run the pack content security scan on local pack or source directories (e.g. in a packs repo CI)',
+  )
+  .argument('<dirs...>', 'Pack or source directories to scan (e.g. packages/*)')
+  .option('--json', 'Emit machine-readable JSON (entries with findings, block and warning counts)')
+  .option('--strict', 'Exit 1 on warnings too, not only on blocking findings')
+  .option('--silent', 'Suppress output (the exit code still reports the result)')
+  .action(async (dirs, options) => {
+    const { buildContentScanReport, formatContentScanReport } =
+      await import('../dist/registry/scan-report.js');
+    try {
+      const report = buildContentScanReport(dirs.map((d) => resolve(d)));
+      if (!options.silent) {
+        console.log(
+          options.json ? JSON.stringify(report, null, 2) : formatContentScanReport(report).join('\n'),
+        );
+      }
+      if (report.blocks > 0 || (options.strict && report.warnings > 0)) process.exitCode = 1;
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
 /** `payload@4.0.1` → { stack, version }; the version is required for the draft commands. */
 function parseGapSpec(spec) {
   const atIdx = String(spec).indexOf('@');
