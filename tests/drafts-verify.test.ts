@@ -16,6 +16,7 @@ import {
   checkDraftWithCitations,
   docSourcesFromManifest,
   foldForQuote,
+  pageToText,
   isPrimarySource,
   quoteAppears,
   verifyCitations,
@@ -101,6 +102,21 @@ describe('quote matching', () => {
     expect(quoteAppears('Jobs live in the payload-jobs collection.', `<p>${QUOTE}</p>`)).toBe(false);
   });
 
+  it('stays linear on hostile markup', () => {
+    for (const unit of ['<script ', '<!-- ', '< ', '<style>x']) {
+      const started = Date.now();
+      pageToText(unit.repeat(Math.floor((5 * 1024 * 1024) / unit.length)));
+      expect(Date.now() - started).toBeLessThan(3000);
+    }
+  });
+
+  it('drops hidden elements and keeps the text around them', () => {
+    expect(pageToText('a<SCRIPT type="x">b</script >c<scripted>d</scripted>e').replace(/\s+/g, '')).toBe(
+      'acde',
+    );
+    expect(pageToText('visible <script>never closed').trim()).toBe('visible');
+  });
+
   it('folds whitespace and case', () => {
     expect(foldForQuote('  A\n\tB  ')).toBe('a b');
   });
@@ -134,6 +150,12 @@ describe('primary documentation sources', () => {
     expect(isPrimarySource('https://docs.payloadcms.com/x', PAYLOAD_SOURCES)).toBe(true);
     expect(isPrimarySource('https://evilpayloadcms.com/docs', PAYLOAD_SOURCES)).toBe(false);
     expect(isPrimarySource('https://medium.com/payload-tips', PAYLOAD_SOURCES)).toBe(false);
+    expect(
+      isPrimarySource(
+        'https://raw.githubusercontent.com/payloadcms/payload/main/docs/jobs.mdx',
+        PAYLOAD_SOURCES,
+      ),
+    ).toBe(true);
   });
 });
 
@@ -172,8 +194,14 @@ describe('verifyCitations', () => {
       fetchPage: pageWith(QUOTE),
       fetchDocSources: sources,
     });
-    expect(result.errors).toEqual([]);
+    expect(result.errors.map((e) => e.code)).toEqual(['citations-no-primary']);
     expect(result.warnings.map((w) => w.code)).toEqual(['citation-not-primary']);
+
+    const mixed = await verifyCitations([citation, blog], 'payload', {
+      fetchPage: pageWith(QUOTE),
+      fetchDocSources: sources,
+    });
+    expect(mixed.errors).toEqual([]);
 
     const unknown = await verifyCitations([citation], 'payload', {
       fetchPage: pageWith(QUOTE),
@@ -210,6 +238,8 @@ describe('the guarded fetcher', () => {
     ['fd12::1', true],
     ['fe80::1', true],
     ['::ffff:127.0.0.1', true],
+    ['::ffff:7f00:1', true],
+    ['::127.0.0.1', true],
     ['not-an-ip', true],
     ['8.8.8.8', false],
     ['2606:4700:4700::1111', false],
@@ -228,6 +258,7 @@ describe('the guarded fetcher', () => {
     await expect(fetchPublicPage('http://payloadcms.com/docs')).rejects.toThrow(/https/);
     await expect(fetchPublicPage('https://169.254.169.254/latest/meta-data')).rejects.toThrow(/IP address/);
     await expect(fetchPublicPage('https://localhost/x')).rejects.toThrow(/public documentation host/);
+    await expect(fetchPublicPage('https://payloadcms.com:8443/docs')).rejects.toThrow(/default https port/);
   });
 });
 

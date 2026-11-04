@@ -100,14 +100,14 @@ draft:
 `draft check --verify-citations` checks that each citation is *true*, not just well-formed:
 
 - **The quote must be on the page.** Each cited page is fetched and its visible text searched for the quote. Matching ignores tags, entities, typographic quotes and dashes, markdown code and emphasis marks, whitespace and case. Text that exists only inside `<script>`, `<style>` or HTML comments does not count. An invented URL or a paraphrase fails with `citation-quote-not-found`; a page that cannot be loaded fails with `citation-unreachable`.
-- **Primary sources are flagged.** The stack's npm package lists a `homepage` and a `repository`. A citation from anywhere else, such as a blog or a mirror, gets a `citation-not-primary` warning for the reviewer. When npm cannot be reached, a `doc-sources-unknown` warning says the source was not checked.
+- **At least one citation must be primary.** The stack's npm package lists a `homepage` and a `repository`, and `raw.githubusercontent.com` counts as the repository. A citation from anywhere else, such as a blog or a mirror, gets a `citation-not-primary` warning for the reviewer. When none of the citations is primary, the check fails with `citations-no-primary`. When npm cannot be reached, a `doc-sources-unknown` warning says the source was not checked.
 
 The fetch is the only network read in the loop, and it treats the URL as hostile:
 
-- **https only.** The host must be a public name, and every redirect hop is checked the same way (at most 5).
+- **https only.** The default port and a public host name are required, and every redirect hop is checked the same way (at most 5).
 - **Public addresses only.** The host must resolve to public addresses only. The check runs inside the connection's own DNS lookup, so a name cannot pass and then rebind to `127.0.0.1` or a cloud metadata address.
 - **No credentials.** No cookies, credentials or proxy are sent.
-- **Bounded.** Each fetch times out after 15 seconds and reads at most 5 MiB.
+- **Bounded.** Each fetch, redirects included, has a hard 15-second limit, even against a server that drips one byte at a time, and reads at most 5 MiB. Text extraction is a single linear pass, so hostile markup cannot stall it.
 
 The page is only searched for the quote. It is never stored, logged, or passed to a model.
 

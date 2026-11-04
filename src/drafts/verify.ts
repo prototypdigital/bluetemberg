@@ -56,7 +56,7 @@ const MAX_MANIFEST_BYTES = 1024 * 1024;
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
 function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, code: string) => {
+  return text.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z]{1,10});/gi, (whole, code: string) => {
     if (code[0] !== '#') return ENTITIES[code.toLowerCase()] ?? whole;
     const point =
       code[1] === 'x' || code[1] === 'X' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
@@ -64,14 +64,56 @@ function decodeEntities(text: string): string {
   });
 }
 
-/** Visible text of an HTML (or plain/markdown) page. */
+const HIDDEN_ELEMENTS = ['script', 'style', 'noscript', 'template'];
+
+/** The hidden element a tag at `i` opens (`<script …`), if any. `lower` is the page lower-cased. */
+function hiddenElementAt(lower: string, i: number): string | null {
+  for (const name of HIDDEN_ELEMENTS) {
+    if (!lower.startsWith(name, i + 1)) continue;
+    const next = lower[i + 1 + name.length];
+    if (next === undefined || next === '>' || next === '/' || /\s/.test(next)) return name;
+  }
+  return null;
+}
+
+/** Where markup starting at `i` ends (exclusive), or -1 when it never closes. */
+function markupEnd(lower: string, i: number): number {
+  if (lower.startsWith('<!--', i)) {
+    const close = lower.indexOf('-->', i + 4);
+    return close === -1 ? -1 : close + 3;
+  }
+  const hidden = hiddenElementAt(lower, i);
+  if (hidden) {
+    const close = lower.indexOf(`</${hidden}`, i + 1);
+    if (close === -1) return -1;
+    const gt = lower.indexOf('>', close);
+    return gt === -1 ? -1 : gt + 1;
+  }
+  const gt = lower.indexOf('>', i + 1);
+  return gt === -1 ? -1 : gt + 1;
+}
+
+/**
+ * Visible text of an HTML (or plain/markdown) page. A single forward pass — every search starts
+ * where the last one ended and an unclosed construct ends the scan — so a hostile page cannot make
+ * it quadratic (a regex pass over 5 MiB of unclosed `<script` runs for hours).
+ */
 export function pageToText(page: string): string {
-  return decodeEntities(
-    page
-      .replace(/<(script|style|noscript|template)\b[\s\S]*?<\/\1\s*>/gi, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-      .replace(/<[^>]+>/g, ' '),
-  );
+  const lower = page.toLowerCase();
+  const parts: string[] = [];
+  let i = 0;
+  while (i < page.length) {
+    const lt = page.indexOf('<', i);
+    if (lt === -1) {
+      parts.push(page.slice(i));
+      break;
+    }
+    parts.push(page.slice(i, lt), ' ');
+    const end = markupEnd(lower, lt);
+    if (end === -1) break;
+    i = end;
+  }
+  return decodeEntities(parts.join(''));
 }
 
 /**
@@ -149,7 +191,9 @@ export function isPrimarySource(url: string, sources: DocSources): boolean {
   }
   const host = bareHost(parsed.hostname);
   if (sources.hosts.some((h) => host === h || host.endsWith(`.${h}`))) return true;
-  const path = `${host}${parsed.pathname}`.toLowerCase();
+  // raw.githubusercontent.com/<owner>/<repo>/… serves the same repository's files.
+  const repoHost = host === 'raw.githubusercontent.com' ? 'github.com' : host;
+  const path = `${repoHost}${parsed.pathname}`.toLowerCase();
   return sources.repoPrefixes.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
@@ -179,6 +223,10 @@ function shortReason(err: unknown): string {
   const message = err instanceof Error ? err.message : String(err);
   const line = sanitizeForTerminal(message.split('\n')[0]);
   return line.length > 160 ? `${line.slice(0, 160)}…` : line;
+}
+
+function describeSources(sources: DocSources | null): string {
+  return [...(sources?.hosts ?? []), ...(sources?.repoPrefixes ?? [])].join(', ');
 }
 
 async function loadDocSources(
@@ -257,9 +305,15 @@ export async function verifyCitations(
     if (primarySource === false) {
       warnings.push({
         code: 'citation-not-primary',
-        message: `${label}: ${url} is not ${pkg}'s own documentation (${[...(sources?.hosts ?? []), ...(sources?.repoPrefixes ?? [])].join(', ')})`,
+        message: `${label}: ${url} is not ${pkg}'s own documentation (${describeSources(sources)})`,
       });
     }
+  }
+  if (sources && checks.length > 0 && !checks.some((c) => c.primarySource)) {
+    errors.push({
+      code: 'citations-no-primary',
+      message: `no citation is from ${pkg}'s own documentation — cite at least one page from ${describeSources(sources)}`,
+    });
   }
   return { checks, errors, warnings };
 }

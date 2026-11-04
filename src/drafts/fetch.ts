@@ -71,8 +71,13 @@ export function isNonPublicAddress(address: string): boolean {
   const family = isIP(address);
   if (family === 4) return NON_PUBLIC.check(address, 'ipv4');
   if (family !== 6) return true;
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
-  if (mapped) return NON_PUBLIC.check(mapped[1], 'ipv4');
+  // IPv4-mapped (::ffff:a.b.c.d) and the deprecated IPv4-compatible (::a.b.c.d) forms embed an
+  // IPv4 address: judge that address. (BlockList already maps the hex form ::ffff:7f00:1, and
+  // an IPv6 /96 rule over :: would match every IPv4 address, so these are handled here.)
+  const embedded = /^::(?:ffff:)?(\d+\.\d+\.\d+\.\d+)$/i.exec(address);
+  if (embedded) return NON_PUBLIC.check(embedded[1], 'ipv4');
+  // Hex IPv4-compatible (::7f00:1): never a public host.
+  if (/^::[0-9a-f]{1,4}:[0-9a-f]{1,4}$/i.test(address)) return true;
   return NON_PUBLIC.check(address, 'ipv6');
 }
 
@@ -115,12 +120,18 @@ function readCapped(stream: Readable, res: IncomingMessage): Promise<string> {
     });
     stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     stream.on('error', reject);
+    // A response destroyed mid-body (the deadline above) does not forward its error through a
+    // decompression pipe — without these the read would wait forever.
+    res.on('error', reject);
+    res.on('close', () => {
+      if (!res.complete) reject(new Error('connection closed before the page ended'));
+    });
   });
 }
 
 type Hop = { redirect: string } | { page: FetchedPage };
 
-function requestOnce(url: string): Promise<Hop> {
+function requestOnce(url: string, deadline: number): Promise<Hop> {
   const options: RequestOptions = {
     lookup: publicOnlyLookup,
     agent: false,
@@ -153,6 +164,13 @@ function requestOnce(url: string): Promise<Hop> {
         .then((text) => resolve({ page: { finalUrl: url, text } }))
         .catch(reject);
     });
+    // `timeout` above only fires on an idle socket; a server dripping one byte at a time never
+    // idles. This is the hard limit for the whole fetch, redirects included.
+    const timer = setTimeout(
+      () => req.destroy(new Error(`timed out after ${FETCH_TIMEOUT_MS / 1000}s`)),
+      Math.max(0, deadline - Date.now()),
+    );
+    req.on('close', () => clearTimeout(timer));
     req.on('timeout', () => req.destroy(new Error(`timed out after ${FETCH_TIMEOUT_MS / 1000}s`)));
     req.on('error', reject);
   });
@@ -161,10 +179,11 @@ function requestOnce(url: string): Promise<Hop> {
 /** Fetch a public documentation page as text. Rejects with a short reason on any refusal or failure. */
 export const fetchPublicPage: PageFetcher = async (start) => {
   let url = start;
+  const deadline = Date.now() + FETCH_TIMEOUT_MS;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const issue = urlIssue(url);
     if (issue) throw new Error(hop === 0 ? `url ${issue}` : `redirect target ${issue}`);
-    const result = await requestOnce(url);
+    const result = await requestOnce(url, deadline);
     if ('page' in result) return result.page;
     url = result.redirect;
   }

@@ -205,6 +205,7 @@ export function urlIssue(raw: string): string | null {
   }
   if (url.protocol !== 'https:') return 'must use https';
   if (url.username || url.password) return 'must not carry credentials';
+  if (url.port !== '') return 'must use the default https port';
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (isIP(host) !== 0) return 'must name a host, not an IP address';
   if (host === 'localhost' || !host.includes('.') || LOCAL_HOST_SUFFIXES.some((s) => host.endsWith(s))) {
