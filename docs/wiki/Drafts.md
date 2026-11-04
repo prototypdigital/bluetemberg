@@ -24,6 +24,7 @@ npx bluetemberg draft brief payload@4.0.1               # grounding for the agen
 npx bluetemberg draft new payload@4.0.1 --name payload-4-jobs-queue
 # … an agent fills .bluetemberg/drafts/payload-4-jobs-queue.md …
 npx bluetemberg draft check payload-4-jobs-queue        # repeat until it reports OK
+npx bluetemberg draft check payload-4-jobs-queue --verify-citations   # fetch the cited pages
 npx bluetemberg draft promote payload-4-jobs-queue --reviewed-by jravas   # human only
 npx bluetemberg sync
 ```
@@ -86,7 +87,7 @@ draft:
 | Placeholders | Any `TODO(draft)` marker is left |
 | Hidden characters | The draft contains characters a reviewer cannot see but a model reads: zero-width, bidi, Unicode tag characters, private-use characters or variation selectors |
 | Range | The gap stack has no range, the range is open-ended or a wildcard, or it does not satisfy the gap version |
-| Citations | There are none. A URL is not `https`, carries credentials, or names an IP, `localhost` or a private host. A quote is empty or longer than 500 characters. A `retrieved` date is not a date, or is in the future |
+| Citations | There are none. A URL is not `https`, carries credentials, or names an IP, `localhost` or a private host. A quote is shorter than 20 or longer than 500 characters. A `retrieved` date is not a date, or is in the future |
 | Review marker | `draft.reviewedBy` is set. Only `promote` records a reviewer |
 | Body | It is empty, or larger than 16 KiB |
 | Security scan | The [pack content scanner](Registry) blocks it. Prompt-override, safety-bypass, dangerous agent flags and exfiltration are always errors in a draft, even inside a fence labelled as a BAD example |
@@ -94,12 +95,28 @@ draft:
 
 **No citation means no promotion.** A draft grounded only in project code stays a draft.
 
+### `--verify-citations`
+
+`draft check --verify-citations` checks that each citation is *true*, not just well-formed:
+
+- **The quote must be on the page.** Each cited page is fetched and its visible text searched for the quote. Matching ignores tags, entities, typographic quotes and dashes, markdown code and emphasis marks, whitespace and case. Text that exists only inside `<script>`, `<style>` or HTML comments does not count. An invented URL or a paraphrase fails with `citation-quote-not-found`; a page that cannot be loaded fails with `citation-unreachable`.
+- **Primary sources are flagged.** The stack's npm package lists a `homepage` and a `repository`. A citation from anywhere else, such as a blog or a mirror, gets a `citation-not-primary` warning for the reviewer. When npm cannot be reached, a `doc-sources-unknown` warning says the source was not checked.
+
+The fetch is the only network read in the loop, and it treats the URL as hostile:
+
+- **https only.** The host must be a public name, and every redirect hop is checked the same way (at most 5).
+- **Public addresses only.** The host must resolve to public addresses only. The check runs inside the connection's own DNS lookup, so a name cannot pass and then rebind to `127.0.0.1` or a cloud metadata address.
+- **No credentials.** No cookies, credentials or proxy are sent.
+- **Bounded.** Each fetch times out after 15 seconds and reads at most 5 MiB.
+
+The page is only searched for the quote. It is never stored, logged, or passed to a model.
+
 ## `draft promote` — the human gate
 
 `draft promote <name> --reviewed-by <who>`:
 
 1. Refuses without an interactive terminal. It also refuses inside an agent session: when `CLAUDECODE`, `CURSOR_AGENT`, `GEMINI_CLI` or `CODEX_SANDBOX` is set, because an agent can wrap the command in a pseudo-terminal. It has no `--yes`, and there is no MCP equivalent.
-2. Re-runs every check, and refuses on any error.
+2. Re-runs every check, **verifies every citation against its page** (as `--verify-citations` does), and refuses on any error. Offline, a human can pass `--skip-citation-verification`; the review then warns that the quotes were not checked, and the archive records `citationsVerified: false`.
 3. Prints the exact rule file it will write. Control and bidi characters are neutralised before display. It also prints the citations and any warnings.
 4. Asks you to **type the rule name**. Anything else cancels.
 5. Re-reads the draft and compares its SHA-256 with what you reviewed. If one byte changed, nothing is written.
@@ -121,7 +138,7 @@ Everything in the loop that touches a model is treated as untrusted. That covers
 `bluetemberg mcp serve` adds two **read-only** tools:
 
 - `bluetemberg_draft_brief` (`stack`, `version`)
-- `bluetemberg_draft_check` (`name`)
+- `bluetemberg_draft_check` (`name`, optional `verifyCitations`)
 
 No MCP tool writes or promotes a draft.
 
@@ -129,7 +146,6 @@ No MCP tool writes or promotes a draft.
 
 These are planned in [#197](https://github.com/prototypdigital/bluetemberg/issues/197):
 
-- Verifying that each citation's quote really appears on its page.
 - Skill and agent drafts.
 - An optional contribution PR into bluetemberg-packs that a human runs.
 - An eval gate (M8): promotion requires a passing promptfoo eval when the rule ships one.

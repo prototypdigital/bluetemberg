@@ -15,6 +15,7 @@ import { promotionTarget } from './draft.js';
 import { renderFrontmatter } from './frontmatter.js';
 import { DRAFT_KEY } from './marker.js';
 import { assertNoSymlinks, displayPath, promotedDir, promotedPath } from './paths.js';
+import { packageForGap, verifyCitations, type CitationCheck, type VerifyOptions } from './verify.js';
 
 /**
  * `bluetemberg draft promote` — the human gate. The library does the checks and the writes; the
@@ -35,6 +36,8 @@ export interface PromotionReview {
   sha256: string;
   gap: { stack: string; version: string };
   citations: Citation[];
+  /** Per-citation verification, in citation order; null when the reviewer skipped it. */
+  citationChecks: CitationCheck[] | null;
   warnings: DraftIssue[];
 }
 
@@ -45,6 +48,11 @@ export interface PromoteOptions {
   now?: Date;
   /** The environment checked for agent-session markers. Defaults to `process.env`. */
   env?: Record<string, string | undefined>;
+  /**
+   * Citation verification (fetch each cited page, find its quote). On by default; `false` skips
+   * it — a choice only the human at the prompt makes, recorded in the archive.
+   */
+  verifyCitations?: VerifyOptions | false;
 }
 
 export interface PromoteResult {
@@ -94,20 +102,23 @@ export function renderPromotedRule(valid: ValidDraft): string {
   );
 }
 
-function renderArchive(
-  valid: ValidDraft,
-  reviewedBy: string,
-  hash: string,
-  destination: string,
-  now: Date,
-): string {
+interface ArchiveRecord {
+  reviewedBy: string;
+  hash: string;
+  destination: string;
+  now: Date;
+  citationsVerified: boolean;
+}
+
+function renderArchive(valid: ValidDraft, record: ArchiveRecord): string {
   const draft = {
     ...valid.draft,
     status: 'promoted',
-    reviewedBy,
-    reviewedAt: now.toISOString(),
-    sha256: hash,
-    promotedTo: destination,
+    reviewedBy: record.reviewedBy,
+    reviewedAt: record.now.toISOString(),
+    sha256: record.hash,
+    promotedTo: record.destination,
+    citationsVerified: record.citationsVerified,
   };
   // The archive keeps the draft key on purpose: if it is ever copied into a source dir, the
   // marker still withholds it.
@@ -122,6 +133,28 @@ function refuse(name: string, errors: DraftIssue[]): never {
   throw new Error(
     [`draft "${name}" cannot be promoted — run \`bluetemberg draft check ${name}\`:`, ...lines].join('\n'),
   );
+}
+
+async function verifyForPromotion(
+  root: string,
+  name: string,
+  valid: ValidDraft,
+  options: VerifyOptions | false | undefined,
+): Promise<{ checks: CitationCheck[] | null; warnings: DraftIssue[] }> {
+  if (options === false) {
+    return {
+      checks: null,
+      warnings: [
+        {
+          code: 'citations-not-verified',
+          message: 'citation verification was skipped — the quotes were not checked against their pages',
+        },
+      ],
+    };
+  }
+  const result = await verifyCitations(valid.citations, packageForGap(root, valid.gap.stack), options ?? {});
+  if (result.errors.length > 0) refuse(name, result.errors);
+  return { checks: result.checks, warnings: result.warnings };
 }
 
 export async function promoteDraft(root: string, name: string, opts: PromoteOptions): Promise<PromoteResult> {
@@ -150,6 +183,8 @@ export async function promoteDraft(root: string, name: string, opts: PromoteOpti
   if (existsSync(archive))
     throw new Error(`${displayPath(root, archive)} already exists — remove the old archive first`);
 
+  const verification = await verifyForPromotion(root, name, valid, opts.verifyCitations);
+
   const output = renderPromotedRule(valid);
   const destination = displayPath(root, target);
   const approved = await opts.confirm({
@@ -163,7 +198,8 @@ export async function promoteDraft(root: string, name: string, opts: PromoteOpti
       url: sanitizeForTerminal(c.url),
       quote: sanitizeForTerminal(c.quote),
     })),
-    warnings: checked.warnings,
+    citationChecks: verification.checks,
+    warnings: [...checked.warnings, ...verification.warnings],
   });
   if (!approved) return { name, promoted: false, destination, archived: null, sha256: hash };
 
@@ -178,7 +214,17 @@ export async function promoteDraft(root: string, name: string, opts: PromoteOpti
   writeFileSync(target, output, { flag: 'wx' });
   mkdirSync(promotedDir(root), { recursive: true });
   assertNoSymlinks(root, archive);
-  writeFileSync(archive, renderArchive(valid, reviewedBy, hash, destination, now), { flag: 'wx' });
+  writeFileSync(
+    archive,
+    renderArchive(valid, {
+      reviewedBy,
+      hash,
+      destination,
+      now,
+      citationsVerified: verification.checks !== null,
+    }),
+    { flag: 'wx' },
+  );
   unlinkSync(path);
   return { name, promoted: true, destination, archived: displayPath(root, archive), sha256: hash };
 }
