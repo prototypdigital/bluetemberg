@@ -3,6 +3,7 @@ import type { DraftCheckReport } from './check.js';
 import type { DraftListEntry, NewDraftResult } from './draft.js';
 import type { PromotionReview, PromoteResult } from './promote.js';
 import type { CitationCheck } from './verify.js';
+import { WRITE_TOOLS } from './kinds.js';
 
 const CITATION_MARK: Record<CitationCheck['status'], string> = {
   verified: '✔ quote found',
@@ -59,7 +60,7 @@ export function formatList(entries: DraftListEntry[]): string[] {
   return entries.map((e) => {
     const gap = e.gap ? `${e.gap.stack}@${e.gap.version}` : '(no gap recorded)';
     const reviewed = e.reviewedBy ? `, reviewed by ${e.reviewedBy}` : '';
-    return `  ${e.status.padEnd(10)} ${e.name}  ${gap}  ${e.citations} citation(s)${reviewed}`;
+    return `  ${e.status.padEnd(10)} ${(e.kind ?? '?').padEnd(5)} ${e.name}  ${gap}  ${e.citations} citation(s)${reviewed}`;
   });
 }
 
@@ -75,11 +76,19 @@ export function formatCheck(report: DraftCheckReport & { citationChecks?: Citati
   return lines;
 }
 
+function describeTools(review: PromotionReview): string[] {
+  if (review.kind !== 'agent') return [];
+  const writes = review.tools.filter((t) => WRITE_TOOLS.has(t));
+  const note = writes.length > 0 ? `  ← can ${writes.join(', ')}` : '  (read-only)';
+  return [`  grants tools: ${review.tools.join(', ')}${note}`];
+}
+
 export function formatReview(review: PromotionReview): string[] {
   const rule = '─'.repeat(72);
   const lines = [
-    `Promote draft "${review.name}" for ${review.gap.stack}@${review.gap.version}`,
+    `Promote ${review.kind} draft "${review.name}" for ${review.gap.stack}@${review.gap.version}`,
     `  will write: ${review.destination}`,
+    ...describeTools(review),
     `  sha256 of the reviewed draft: ${review.sha256}`,
     '  citations:',
     ...review.citations.map((c, i) => {
@@ -90,7 +99,7 @@ export function formatReview(review: PromotionReview): string[] {
   ];
   for (const w of review.warnings) lines.push(`  ! [${w.code}] ${w.message}`);
   lines.push(rule, review.output.trimEnd(), rule);
-  lines.push('Read the whole rule above. It will be loaded into every AI session that matches its scope.');
+  lines.push('Read the whole file above. Once synced, every AI session that matches it will follow it.');
   return lines;
 }
 

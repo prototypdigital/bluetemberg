@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { buildGapBrief } from '../drafts/brief.js';
 import { checkDraft } from '../drafts/check.js';
+import { parseDraftKind } from '../drafts/kinds.js';
 import { checkDraftWithCitations } from '../drafts/verify.js';
 import { buildCoverageReport, buildDetectReport, buildStacksList } from '../stacks/report.js';
 import { resolveGithubToken } from '../stacks/github.js';
@@ -125,16 +126,21 @@ export const STACKS_MCP_TOOLS: ToolDefinition[] = [
   {
     name: 'bluetemberg_draft_brief',
     description:
-      'Gap brief for drafting a rule that fills a (stack, version) coverage gap. Returns { gap, ' +
+      'Gap brief for drafting a rule, skill or agent that fills a (stack, version) coverage gap. Returns { gap, ' +
       'fillable, refusal, proposedRange, package, coverage, nearestGuidance, evidence, ' +
       'citationContract, authoring, warnings } — `evidence.files` are paths of project files that ' +
       'import the stack package (read them yourself). Read-only. To open a draft, run ' +
-      '`bluetemberg draft new <stack>@<version> --name <rule>`; only a human can promote it.',
+      '`bluetemberg draft new <stack>@<version> --name <name> [--kind skill|agent]`; only a human can promote it.',
     inputSchema: {
       type: 'object',
       properties: {
         stack: { type: 'string', description: 'Stack name, e.g. "payload".' },
         version: { type: 'string', description: 'Concrete version of the gap, e.g. "4.0.1".' },
+        kind: {
+          type: 'string',
+          enum: ['rule', 'skill', 'agent'],
+          description: 'What will be drafted (default rule); selects the authoring skill and steps.',
+        },
       },
       required: ['stack', 'version'],
       additionalProperties: false,
@@ -221,7 +227,12 @@ export async function callStacksTool(
       });
     }
     case 'bluetemberg_draft_brief':
-      return buildGapBrief(root, requiredString(args, 'stack', name), requiredString(args, 'version', name));
+      return buildGapBrief(
+        root,
+        requiredString(args, 'stack', name),
+        requiredString(args, 'version', name),
+        parseDraftKind(args.kind),
+      );
     case 'bluetemberg_draft_check': {
       const draft = requiredString(args, 'name', name);
       return args.verifyCitations === true ? checkDraftWithCitations(root, draft) : checkDraft(root, draft);

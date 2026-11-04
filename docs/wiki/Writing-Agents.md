@@ -44,6 +44,10 @@ Array of tool capabilities the agent should have access to. Common values: `read
 
 The platforms the agent works on, e.g. `[claude]` for one that drives Claude Code hooks. Sync skips its output for the project's other platforms (Codex's `.codex/agents/` included). Absent or `[]` means every platform; the field overrides the pack's catalog `platforms`. See [Profiles → Platforms](Profiles#platforms).
 
+### `draft` (reserved)
+
+Marks an unvetted draft from the [create-loop](Drafts). A file carrying a `draft` key is withheld from every platform, whatever its value, until a human promotes it with `bluetemberg draft promote`.
+
 ## How agents are synced
 
 Unlike rules, agents keep their body and frontmatter. Sync adds the generated-file banner after the frontmatter, changes the file extension, and for Claude Code maps abstract `tools` names to Claude's tool names:
