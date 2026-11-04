@@ -434,6 +434,20 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           description:
             'Also write allowedMcpServers listing exactly the servers in <source>/mcp.json (llm/ by default) and the root .mcp.json.',
         },
+        {
+          long: '--telemetry-endpoint <url>',
+          description:
+            "Opt in to OpenTelemetry export: point each host's own exporter at this OTLP collector (Claude Code env, Copilot telemetry). Content capture is written off; bluetemberg sends nothing itself. Refuses URLs with credentials or a query string.",
+        },
+        {
+          long: '--telemetry-protocol <http/protobuf|http/json|grpc>',
+          description: 'OTLP protocol (default http/protobuf). grpc is Claude Code only.',
+        },
+        {
+          long: '--telemetry-attribute <key=value>',
+          description:
+            'Extra resource attribute next to bluetemberg.marketplace and bluetemberg.packs.digest (repeatable). Keys under bluetemberg. or that look like credentials are refused.',
+        },
         { long: '--dry-run', description: 'Print the files instead of writing them.' },
         { long: '--json', description: 'Emit the plan, files included, as JSON.' },
         {

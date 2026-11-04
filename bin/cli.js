@@ -524,6 +524,9 @@ function printManagedSettingsPlan(plan, written) {
   console.log(`  plugins: ${plan.plugins.join(', ')}`);
   if (plan.strict) console.log(`  strictKnownMarketplaces: on (blocks every marketplace not listed)`);
   if (plan.mcpServers.length > 0) console.log(`  allowedMcpServers: ${plan.mcpServers.join(', ')}`);
+  if (plan.telemetry) {
+    console.log(`  telemetry: ${plan.telemetry.endpoint} (${plan.telemetry.protocol}), content capture off`);
+  }
   if (written) {
     for (const path of written) console.log(`  -> ${path}`);
     console.log(
@@ -568,11 +571,29 @@ program
     '--mcp-allowlist',
     'Also write allowedMcpServers: only the llm/mcp.json and .mcp.json servers may run',
   )
+  .option(
+    '--telemetry-endpoint <url>',
+    'Opt in to OpenTelemetry export to your own OTLP collector (content capture stays off)',
+  )
+  .option('--telemetry-protocol <protocol>', 'http/protobuf (default) | http/json | grpc (Claude Code only)')
+  .option(
+    '--telemetry-attribute <key=value>',
+    'With --telemetry-endpoint, add a resource attribute such as team.id=platform (repeatable)',
+    (attr, attrs) => [...attrs, attr],
+    [],
+  )
   .option('--dry-run', 'Print the files instead of writing them')
   .option('--json', 'Emit the plan (files included) as JSON')
   .option('--silent', 'Suppress progress output (errors and warnings still go to stderr)')
   .action(async (directory, options) => {
     const { planManagedSettings, writeManagedSettings } = await import('../dist/managed-settings/index.js');
+    const telemetryRequested = options.telemetryEndpoint !== undefined;
+    if (!telemetryRequested && (options.telemetryProtocol || options.telemetryAttribute.length > 0)) {
+      console.error(
+        'Error: --telemetry-protocol and --telemetry-attribute only apply with --telemetry-endpoint.',
+      );
+      process.exit(1);
+    }
     try {
       const plan = planManagedSettings(resolve(directory), {
         host: options.host,
@@ -582,6 +603,13 @@ program
         autoUpdate: options.autoUpdate,
         plugins: options.plugin,
         mcpAllowlist: options.mcpAllowlist,
+        telemetry: telemetryRequested
+          ? {
+              endpoint: options.telemetryEndpoint,
+              protocol: options.telemetryProtocol,
+              attributes: options.telemetryAttribute,
+            }
+          : undefined,
       });
       const out = resolve(options.out);
       const written = options.dryRun ? null : writeManagedSettings(plan, out);

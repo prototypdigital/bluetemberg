@@ -427,6 +427,8 @@ npx bluetemberg managed-settings --ref v1.4.0 --out managed-settings
 
 This writes `claude-code/managed-settings.json` (Claude Code), `github-copilot/managed-settings.json` (GitHub Copilot) and a `README.md` that says where each one goes on macOS, Linux and Windows. Each file registers the marketplace from `marketplace.remote` and force-enables its plugins. Add `--strict` to block every other marketplace and `--mcp-allowlist` to allow only the project's MCP servers (`llm/mcp.json` and `.mcp.json`). `sync` never writes these files, and the command refuses to run without a configured marketplace. Neither host pins plugin versions, so the marketplace `ref` is the pin; with `agent-plugins` on, the command refuses when the bundle locks have drifted from `packages-lock.json` (with Claude bundles alone it warns that it could not check). It refuses an `--out` that would write to a host's live policy path, `~/.claude`, through a symlink, or over a file it did not generate. See [Org rollout](https://github.com/prototypdigital/bluetemberg/wiki/Org-Rollout).
 
+Add `--telemetry-endpoint https://otel.example.com` to also point each host's own OpenTelemetry exporter at your collector. It's opt-in. Prompts, responses and tool content stay off, and are locked off by policy. Every metric and event gets labels naming the marketplace and pack set, so dashboards can compare agent behaviour across rule versions. bluetemberg sends nothing itself and writes no credentials. See [Telemetry](https://github.com/prototypdigital/bluetemberg/wiki/Telemetry).
+
 ## Uninstall
 
 ```bash
