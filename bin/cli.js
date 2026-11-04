@@ -587,7 +587,8 @@ program
   .option('--silent', 'Suppress progress output (errors and warnings still go to stderr)')
   .action(async (directory, options) => {
     const { planManagedSettings, writeManagedSettings } = await import('../dist/managed-settings/index.js');
-    if (!options.telemetryEndpoint && (options.telemetryProtocol || options.telemetryAttribute.length > 0)) {
+    const telemetryRequested = options.telemetryEndpoint !== undefined;
+    if (!telemetryRequested && (options.telemetryProtocol || options.telemetryAttribute.length > 0)) {
       console.error(
         'Error: --telemetry-protocol and --telemetry-attribute only apply with --telemetry-endpoint.',
       );
@@ -602,7 +603,7 @@ program
         autoUpdate: options.autoUpdate,
         plugins: options.plugin,
         mcpAllowlist: options.mcpAllowlist,
-        telemetry: options.telemetryEndpoint
+        telemetry: telemetryRequested
           ? {
               endpoint: options.telemetryEndpoint,
               protocol: options.telemetryProtocol,

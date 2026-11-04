@@ -33,9 +33,9 @@ npx bluetemberg managed-settings --ref v1.4.0 \
 
 | Flag | Notes |
 | - | - |
-| `--telemetry-endpoint <url>` | Collector base URL. The hosts add `/v1/metrics` and `/v1/logs`. A URL with a user, password, query string or fragment is refused, so a token can't end up in the policy file. Plain `http://` to a non-local host prints a warning |
+| `--telemetry-endpoint <url>` | Collector base URL. The hosts add `/v1/metrics` and `/v1/logs` themselves, so a URL already ending in `/v1/<signal>` is refused. A URL with a user, password, query string or fragment is refused, so a token can't end up in the policy file. It warns on plain `http://` to a non-local host, and on a path segment that looks like an ingest key |
 | `--telemetry-protocol <protocol>` | `http/protobuf` (default), `http/json`, or `grpc`. Copilot exports over HTTP only, so `grpc` is refused unless `--host claude` |
-| `--telemetry-attribute <key=value>` | Extra resource attribute (repeatable). Keys under `bluetemberg.` are reserved. Keys that look like credentials (`token`, `secret`, `api_key`, ...) are refused |
+| `--telemetry-attribute <key=value>` | Extra resource attribute (repeatable). Keys under `bluetemberg.` are reserved. Keys that look like credentials (`token`, `secret`, `api_key`, ...) and values shaped like known tokens (`ghp_`, `sk-`, `eyJ`, `AKIA`, ...) are refused |
 
 The generated `README.md` gets a **What is sent, and where** section that lists the endpoint, the signals and every attribute.
 
@@ -81,6 +81,10 @@ Each host takes one value per managed source:
 - Copilot takes the **whole** `telemetry` object from the highest-precedence managed source.
 
 If you already label telemetry, for example with `department` or `team.id`, pass those keys with `--telemetry-attribute` so they all end up in one list.
+
+The same goes for the rest of the block. Deployed as a Claude Code drop-in, the generated `env` replaces the same variables in your main managed file: the endpoint, the protocol, and the content switches. If your org deliberately captures prompts or tool details today, this policy turns that off.
+
+The digest is computed from the Agent Plugins bundle locks when they exist. Otherwise it comes from `packages-lock.json`, and the command warns that it only labels what users run if the published marketplace was built from that lockfile.
 
 ## Authentication
 

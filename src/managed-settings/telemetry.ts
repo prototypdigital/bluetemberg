@@ -33,6 +33,15 @@ const SECRET_KEY_RE = /secret|token|passw|authorization|api[_.-]?key|credential|
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
+/** Well-known token shapes (GitHub, OpenAI/Anthropic, Slack, AWS, GitLab, JWT, Grafana Cloud). */
+const TOKEN_VALUE_RE = /^(gh[pousr]_|github_pat_|sk-|xox[abpors]-|AKIA|ASIA|glpat-|eyJ|glc_)/;
+
+/** A long unbroken run of key-like characters in a URL path, as some vendors embed ingest keys. */
+const KEY_LIKE_SEGMENT_RE = /^[A-Za-z0-9_-]{24,}$/;
+
+/** The hosts append these themselves, so a URL that already ends in one would double the path. */
+const SIGNAL_PATH_RE = /\/v1\/(metrics|logs|traces)\/?$/;
+
 export interface TelemetryOptions {
   /** OTLP collector base URL. Setting it is the opt-in. */
   endpoint: string;
@@ -98,12 +107,22 @@ function validateEndpoint(raw: string): { endpoint: string; warnings: string[] }
   if (url.search || url.hash || trimmed.includes('?') || trimmed.includes('#')) {
     throw new Error('--telemetry-endpoint must not have a query string or fragment.');
   }
-  const warnings =
-    url.protocol === 'http:' && !LOOPBACK_HOSTS.has(url.hostname)
-      ? [
-          `--telemetry-endpoint ${url.origin} is plain http: telemetry crosses the network unencrypted. Use https outside a local collector.`,
-        ]
-      : [];
+  if (SIGNAL_PATH_RE.test(url.pathname)) {
+    throw new Error(
+      `--telemetry-endpoint must be the collector base URL: the hosts append ${url.pathname.match(SIGNAL_PATH_RE)?.[0] ?? '/v1/<signal>'} themselves. Drop it.`,
+    );
+  }
+  const warnings: string[] = [];
+  if (url.protocol === 'http:' && !LOOPBACK_HOSTS.has(url.hostname)) {
+    warnings.push(
+      `--telemetry-endpoint ${url.origin} is plain http: telemetry crosses the network unencrypted. Use https outside a local collector.`,
+    );
+  }
+  if (url.pathname.split('/').some((seg) => KEY_LIKE_SEGMENT_RE.test(seg) || TOKEN_VALUE_RE.test(seg))) {
+    warnings.push(
+      '--telemetry-endpoint has a path segment that looks like a key. The policy file is readable by every user; if it is a credential, use a header helper instead (see the generated README).',
+    );
+  }
   // The hosts append `/v1/<signal>` themselves, so drop a trailing slash to avoid `//v1/...`.
   return { endpoint: trimmed.replace(/\/+$/, ''), warnings };
 }
@@ -134,6 +153,11 @@ function parseAttribute(spec: string): [string, string] {
   }
   if (key.toLowerCase().startsWith(ATTRIBUTE_PREFIX)) {
     throw new Error(`--telemetry-attribute key "${key}" uses the reserved "${ATTRIBUTE_PREFIX}" prefix.`);
+  }
+  if (TOKEN_VALUE_RE.test(value)) {
+    throw new Error(
+      `--telemetry-attribute "${key}" has a value that looks like a token. Resource attributes are labels on every datapoint and sit in a policy file every user can read.`,
+    );
   }
   if (SECRET_KEY_RE.test(key)) {
     throw new Error(

@@ -219,6 +219,10 @@ function telemetrySection(base: Base): string[] {
     '  `--telemetry-attribute key=value` instead of setting them elsewhere.',
     '- **Endpoint lock.** In Claude Code a managed `OTEL_EXPORTER_OTLP_ENDPOINT` removes endpoints users',
     '  set per signal, so all metrics and events go to the endpoint above.',
+    '- **Existing org telemetry.** Deployed as a Claude Code drop-in, these `env` variables replace the same',
+    '  variables in your main `managed-settings.json`: the endpoint, the protocol, and the four content',
+    '  switches (set to `0`). If you deliberately capture prompts or tool details today, this file turns',
+    '  that off; edit the generated file only if that is a decision you have made.',
     '',
   ];
 }

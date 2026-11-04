@@ -158,6 +158,9 @@ describe('managed-settings telemetry', () => {
       'https://otel.example.com/#x',
       'ftp://otel.example.com',
       'otel.example.com',
+      'https://otel.example.com/v1/metrics',
+      'https://otel.example.com/otlp/v1/logs/',
+      '',
     ];
     for (const endpoint of bad) {
       expect(() => planManagedSettings(root, { telemetry: { endpoint } }), endpoint).toThrow(
@@ -172,6 +175,20 @@ describe('managed-settings telemetry', () => {
     expect(remote.warnings.join('\n')).toMatch(/plain http/);
     const local = planManagedSettings(root, { telemetry: { endpoint: 'http://localhost:4318' } });
     expect(local.warnings.join('\n')).not.toMatch(/plain http/);
+  });
+
+  it('warns on a key-like endpoint path and on an unverified pack digest', () => {
+    fixture();
+    const keyed = planManagedSettings(root, {
+      telemetry: { endpoint: 'https://otlp.example.com/ingest/AbCdEf0123456789AbCdEf0123' },
+    });
+    expect(keyed.warnings.join('\n')).toMatch(/looks like a key/);
+    expect(keyed.warnings.join('\n')).not.toMatch(/not from verified bundle locks/);
+    const plain = planManagedSettings(root, { telemetry: { endpoint: 'https://otlp.example.com/otlp' } });
+    expect(plain.warnings.join('\n')).not.toMatch(/looks like a key/);
+    rmSync(join(root, 'plugins'), { recursive: true, force: true });
+    const unverified = planManagedSettings(root, { telemetry: { endpoint: ENDPOINT } });
+    expect(unverified.warnings.join('\n')).toMatch(/not from verified bundle locks/);
   });
 
   it('refuses grpc for Copilot but allows it for Claude Code alone', () => {
@@ -202,6 +219,8 @@ describe('managed-settings telemetry', () => {
       [['team.id=a', 'team.id=b'], /given twice/],
       [['api_key=abc'], /looks like a credential/],
       [['otlp.token=abc'], /looks like a credential/],
+      [['team.id=ghp_abcdef1234567890'], /looks like a token/],
+      [['owner=eyJhbGciOiJIUzI1NiJ9'], /looks like a token/],
     ];
     for (const [attributes, error] of cases) {
       expect(() => planManagedSettings(root, { telemetry: { endpoint: ENDPOINT, attributes } })).toThrow(

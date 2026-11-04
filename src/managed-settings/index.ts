@@ -124,6 +124,11 @@ export function planManagedSettings(root: string, options: ManagedSettingsOption
     ...nameWarnings(root, inputs),
     ...(options.strict ? strictWarnings(hosts, inputs, allowedMarketplaces) : []),
     ...(telemetry?.warnings ?? []),
+    ...(telemetry && telemetry.telemetry.packsDigest && inputs.bundleLocks.length === 0
+      ? [
+          'bluetemberg.packs.digest is computed from packages-lock.json, not from verified bundle locks; it only labels what users run if the published marketplace was built from this lockfile.',
+        ]
+      : []),
   ];
 
   const base: Base = {

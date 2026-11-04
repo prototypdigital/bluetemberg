@@ -436,6 +436,12 @@ cliSuite('cli managed-settings', () => {
     expect(written.env.OTEL_LOG_USER_PROMPTS).toBe('0');
   });
 
+  it('refuses an empty --telemetry-endpoint instead of ignoring it', () => {
+    const r = runCli(['managed-settings', '--telemetry-endpoint', '', '--dry-run', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('is not a URL');
+  });
+
   it('refuses telemetry options without --telemetry-endpoint', () => {
     const r = runCli(['managed-settings', '--telemetry-attribute', 'team.id=x', '--dry-run', root], root);
     expect(r.status).toBe(1);
