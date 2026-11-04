@@ -225,3 +225,21 @@ describe('guardrail adversarial corpus', () => {
     });
   });
 });
+
+describe('scalar fields are read as their JSON text', () => {
+  it('reads false as "false", and only a missing or null field as empty', async () => {
+    const { buildGuardrailCommand } = await import('../src/sync/guardrails.js');
+    const command = buildGuardrailCommand({
+      trigger: 'Bash',
+      message: 'ONLY_FALSE',
+      check: { field: 'flag', matches: '^false$' },
+    });
+    const run = (toolInput: unknown) =>
+      spawnSync('sh', ['-c', command], { input: JSON.stringify({ tool_input: toolInput }) }).status;
+    expect(run({ flag: false })).toBe(0);
+    expect(run({ flag: 'false' })).toBe(0);
+    expect(run({ flag: null })).toBe(2);
+    expect(run({})).toBe(2);
+    expect(run({ flag: 0 })).toBe(2);
+  });
+});

@@ -145,7 +145,7 @@ const ONE_PAYLOAD = 'if length == 1 then .[0] else error("expected one JSON payl
  * as "continue".
  */
 const READ_STEPS = [
-  `v=$(jq -rs --arg f "$1" '${ONE_PAYLOAD} | ($f / ".") as $p | .tool_input | if type == "object" then . else error("tool_input is not an object") end | getpath($p) // empty | if type == "array" or type == "object" then error("not a string, number or boolean") else . end' 2>/dev/null)`,
+  `v=$(jq -rs --arg f "$1" '${ONE_PAYLOAD} | ($f / ".") as $p | .tool_input | if type == "object" then . else error("tool_input is not an object") end | getpath($p) | if . == null then empty else . end | if type == "array" or type == "object" then error("not a string, number or boolean") else . end' 2>/dev/null)`,
   'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read field .%s from the hook payload (is jq installed? It must be one JSON object with an object tool_input, and the field a string, number or boolean), so the condition cannot be evaluated. Blocking.\\n" "$1" >&2; exit 2; fi',
 ];
 
@@ -238,11 +238,21 @@ const CURSOR_HOOK_SCRIPT = cursorScript(CLAUDE_HOOK_SCRIPT);
  * The `tool_name` read slurps stdin like the shared steps ({@link ONE_PAYLOAD}): empty stdin used to
  * read as an empty name, which the gate took for "another tool" and let through.
  */
-const copilotScript = (toolNameRead: string, checkSteps: readonly string[]): string =>
+/** The current wording; the v0.16.0–v0.19.0 one is kept verbatim so orphan cleanup still matches. */
+const TOOL_NAME_READ_ERROR =
+  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read tool_name from the hook payload (is jq installed? It must be one JSON object with a string tool_name), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi';
+const V16_TOOL_NAME_READ_ERROR =
+  'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read tool_name from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi';
+
+const copilotScript = (
+  toolNameRead: string,
+  checkSteps: readonly string[],
+  toolNameError = TOOL_NAME_READ_ERROR,
+): string =>
   [
     'in=$(cat)',
     toolNameRead,
-    'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read tool_name from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi',
+    toolNameError,
     '[[ "$t" =~ $6 ]]; s=$?; if [ "$s" -eq 2 ]; then printf "bluetemberg guardrail: invalid tool-name pattern. Blocking.\\n" >&2; exit 2; elif [ "$s" -ne 0 ]; then exit 0; fi',
     'exec <<<"$in"',
     ...checkSteps,
@@ -257,6 +267,7 @@ const COPILOT_HOOK_SCRIPT = copilotScript(
 const V16_COPILOT_HOOK_SCRIPT = copilotScript(
   `t=$(printf "%s" "$in" | jq -r '${TOOL_NAME_FILTER}' 2>/dev/null)`,
   V16_CHECK_STEPS,
+  V16_TOOL_NAME_READ_ERROR,
 );
 
 /** The fixed prefix every generated guardrail command starts with; `$0` is literally `bluetemberg`. */

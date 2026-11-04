@@ -41,7 +41,7 @@ Human-readable explanation of what this guardrail does.
 | ----- | -------- | ----------- |
 | `trigger` | Yes | Tool name the hook matches (e.g. `EnterWorktree`) |
 | `hook_type` | No | `PreToolUse` (default) or `PostToolUse` |
-| `check.field` | Yes | Dotted path into the tool's arguments (`tool_input` in the hook payload), e.g. `name`, `command` or `file-path`. Only `tool_input` is read; a leading `tool_input.` is accepted and ignored, so `tool_input.name` means `name`. If the payload cannot be read, the hook blocks: no `jq`, stdin that is not exactly one JSON object with an object `tool_input`, a path that runs through a non-object, or a field that holds a list or an object. A missing or `null` field reads as empty |
+| `check.field` | Yes | Dotted path into the tool's arguments (`tool_input` in the hook payload), e.g. `name`, `command` or `file-path`. Only `tool_input` is read; a leading `tool_input.` is accepted and ignored, so `tool_input.name` means `name`. If the payload cannot be read, the hook blocks: no `jq`, stdin that is not exactly one JSON object with an object `tool_input`, a path that runs through a non-object, or a field that holds a list or an object. A missing or `null` field reads as empty; `false`, numbers and `true` read as their JSON text (`false`, `0`, `true`) |
 | `check.not_empty` | No | Fail when the field is empty |
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |

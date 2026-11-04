@@ -114,7 +114,8 @@ describe('guardrails for Cursor', () => {
     const text = readFileSync(hooksPath(), 'utf8');
     expect(text).not.toMatch(/\/[/*]/);
     expect(parseLikeCursor(text)).toEqual(readHooks());
-    expect(readHooks().hooks.preToolUse?.[0]?.command).toContain('getpath($p) // empty');
+    // The `//` and `/*` in the guardrail message survive the round trip decoded.
+    expect(readHooks().hooks.preToolUse?.[0]?.command).toContain('https://x.test/a/*/b');
     expect(readHooks().hooks.stop).toEqual([{ command: 'rm -f /tmp/x/*' }]);
   });
 
