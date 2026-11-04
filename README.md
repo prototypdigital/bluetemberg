@@ -241,6 +241,14 @@ npx bluetemberg stacks lint                  # open-ended ranges, ranges past th
 npx bluetemberg stacks list payload@3        # every rule declaring a range that admits Payload 3
 ```
 
+Found a gap? An agent can draft a rule for it, grounded in your code and cited primary docs. The draft stays in the gitignored `.bluetemberg/drafts/` and is never synced. Only a human at a terminal can promote it into `llm/rules/`:
+
+```bash
+npx bluetemberg draft new payload@4.0.1 --name payload-4-jobs-queue   # skeleton + gap brief
+npx bluetemberg draft check payload-4-jobs-queue                      # agent loops until OK
+npx bluetemberg draft promote payload-4-jobs-queue --reviewed-by you  # human only: review, type the name
+```
+
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
 
 ## Guardrails
@@ -466,6 +474,7 @@ See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full doc
 - [Architecture](https://github.com/prototypdigital/bluetemberg/wiki/Architecture)
 - [Consumer Setup](https://github.com/prototypdigital/bluetemberg/wiki/Consumer-Setup)
 - [Stacks & Versioning](https://github.com/prototypdigital/bluetemberg/wiki/Stacks)
+- [Drafts (create-loop)](https://github.com/prototypdigital/bluetemberg/wiki/Drafts)
 - [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails)
 - [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry)
 - [External Sources](https://github.com/prototypdigital/bluetemberg/wiki/Sources)

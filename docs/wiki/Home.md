@@ -18,6 +18,7 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Configuration](Configuration) — `bluetemberg.config.json` schema
 - [Profiles](Profiles) — team profiles and what each one includes
 - [Stacks & Versioning](Stacks) — version-aware routing, detection, and the versioning strategy
+- [Drafts](Drafts) — the human-gated create-loop: gap → grounded draft → check → human promote
 - [Writing Rules](Writing-Rules) — how to write vendor-neutral rules
 - [Writing Agents](Writing-Agents) — agent definition format
 - [Writing Skills](Writing-Skills) — SKILL.md format

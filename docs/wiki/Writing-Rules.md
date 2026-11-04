@@ -75,6 +75,10 @@ The same field works on agents and skills. See [Profiles → Platforms](Profiles
 
 Run [`bluetemberg detect`](Commands#bluetemberg-detect-directory) to see the detected versions your ranges are matched against, and declare versions in the [`stacks` config field](Configuration#stacks). For the full version-aware model — detection, the gate, and the versioning strategy — see [Stacks & Versioning](Stacks).
 
+### `draft` (reserved)
+
+Marks an unvetted draft from the [create-loop](Drafts). A file carrying a `draft` key is withheld from every platform, whatever the key's value, until a human promotes it with `bluetemberg draft promote`. Do not use the key for anything else.
+
 ## How scope is transformed
 
 The sync engine converts `scope` into platform-specific frontmatter:

@@ -1063,6 +1063,142 @@ program
     }
   });
 
+/** `payload@4.0.1` → { stack, version }; the version is required for the draft commands. */
+function parseGapSpec(spec) {
+  const atIdx = String(spec).indexOf('@');
+  if (atIdx <= 0 || atIdx === spec.length - 1) {
+    throw new InvalidArgumentError(
+      `Expected <stack>@<version> (e.g. payload@4.0.1), got: ${JSON.stringify(spec)}`,
+    );
+  }
+  return { stack: spec.slice(0, atIdx), version: spec.slice(atIdx + 1) };
+}
+
+function failWith(err) {
+  console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+}
+
+const draftCmd = program
+  .command('draft')
+  .description('Human-gated create-loop: open a grounded draft rule for a stack gap, check it, promote it');
+
+draftCmd
+  .command('brief')
+  .description(
+    'Gap brief for an agent: coverage, nearest guidance, evidence paths, citation contract (read-only)',
+  )
+  .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (gap, directory, options) => {
+    const { buildGapBrief } = await import('../dist/drafts/brief.js');
+    const { formatBrief } = await import('../dist/drafts/format.js');
+    try {
+      const brief = buildGapBrief(resolve(directory), gap.stack, gap.version);
+      console.log(options.json ? JSON.stringify(brief, null, 2) : formatBrief(brief).join('\n'));
+      if (!brief.fillable) process.exitCode = 1;
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('new')
+  .description(
+    'Open a draft rule for a gap in .bluetemberg/drafts/ (refuses when the stack version is covered)',
+  )
+  .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
+  .argument('[directory]', 'Project root directory', '.')
+  .requiredOption('--name <rule-name>', 'Kebab-case id of the future rule (e.g. payload-4-jobs-queue)')
+  .option('--scope <glob>', 'The rule scope glob (default "**")')
+  .option('--json', 'Emit machine-readable JSON (name, path, brief)')
+  .action(async (gap, directory, options) => {
+    const { createDraft } = await import('../dist/drafts/draft.js');
+    const { formatNewDraft } = await import('../dist/drafts/format.js');
+    try {
+      const result = createDraft(resolve(directory), gap.stack, gap.version, {
+        name: options.name,
+        scope: options.scope,
+        engine: `bluetemberg@${pkg.version}`,
+      });
+      console.log(options.json ? JSON.stringify(result, null, 2) : formatNewDraft(result).join('\n'));
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('list')
+  .description('List pending and promoted drafts (read-only)')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (directory, options) => {
+    const { listDrafts } = await import('../dist/drafts/draft.js');
+    const { formatList } = await import('../dist/drafts/format.js');
+    try {
+      const entries = listDrafts(resolve(directory));
+      console.log(options.json ? JSON.stringify(entries, null, 2) : formatList(entries).join('\n'));
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('check')
+  .description(
+    'Validate a draft: strict frontmatter, range covers the gap, citations, security scan. Exits 1 on errors',
+  )
+  .argument('<name>', 'Draft name')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (name, directory, options) => {
+    const { checkDraft } = await import('../dist/drafts/check.js');
+    const { formatCheck } = await import('../dist/drafts/format.js');
+    try {
+      const report = checkDraft(resolve(directory), name);
+      console.log(options.json ? JSON.stringify(report, null, 2) : formatCheck(report).join('\n'));
+      if (!report.ok) process.exitCode = 1;
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('promote')
+  .description(
+    '[human only] Review a checked draft and write it to <source>/rules/ (interactive TTY required)',
+  )
+  .argument('<name>', 'Draft name')
+  .argument('[directory]', 'Project root directory', '.')
+  .requiredOption('--reviewed-by <who>', 'Your name or handle, recorded in the draft archive')
+  .action(async (name, directory, options) => {
+    // The gate: an agent's tool calls run without a terminal, so they stop here. There is
+    // deliberately no --yes and no MCP equivalent.
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      failWith(new Error('draft promote is a human review step and needs an interactive terminal'));
+    }
+    const { promoteDraft } = await import('../dist/drafts/promote.js');
+    const { formatReview, formatPromoted } = await import('../dist/drafts/format.js');
+    const { input } = await import('@inquirer/prompts');
+    try {
+      const result = await promoteDraft(resolve(directory), name, {
+        reviewedBy: options.reviewedBy,
+        confirm: async (review) => {
+          console.log(formatReview(review).join('\n'));
+          const typed = await input({
+            message: `Type the rule name (${review.name}) to promote it, or anything else to cancel:`,
+          });
+          return typed.trim() === review.name;
+        },
+      });
+      console.log(formatPromoted(result).join('\n'));
+      if (!result.promoted) process.exitCode = 1;
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
 const mcpCmd = program.command('mcp').description('Run Bluetemberg itself as an MCP server for agents');
 
 mcpCmd
