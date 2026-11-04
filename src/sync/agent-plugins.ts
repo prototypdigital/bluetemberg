@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join, posix, sep } from 'node:path';
-import matter from 'gray-matter';
+import { parseFrontmatter } from '../utils/frontmatter.js';
 import { commitPlannedCopy, commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { listSkillSupportingFiles } from './skill-files.js';
 import type { MarketplaceOwner, PackageLock, PackageLockEntry, Stack, TeamProfile } from '../types.js';
@@ -48,7 +48,7 @@ const SKILL_DESCRIPTION_MAX_LENGTH = 1024;
 export function agentSkillIssue(skillDir: string, content: string): string | null {
   let data: Record<string, unknown>;
   try {
-    data = matter(content).data as Record<string, unknown>;
+    data = parseFrontmatter(content).data as Record<string, unknown>;
   } catch {
     return 'its frontmatter is not valid YAML';
   }
