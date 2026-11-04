@@ -254,8 +254,6 @@ During sync, source directories are resolved in this priority (highest first):
 
 When the same rule filename appears in multiple sources, the higher-priority source wins. This means local rules always override pack rules, and you can selectively override individual rules from a pack.
 
-Overrides from local `llm/` or `extends` are how a project customises packs, so they are silent. When a **pack or external source** replaces a same-named rule, agent, skill, guardrail or `claude-hooks.json` from a lower-priority source, `sync` warns: `guardrails/no-push.md from pack-a@1.0.0 overrides the one from pack-b@2.0.0`. Without the warning, a pack could swap a first-party guardrail for a no-op of the same name unnoticed.
-
 ## Security
 
 Every pack install goes through three layers of verification:
@@ -328,21 +326,31 @@ Above all, a pack's instructions are the instructions: a hostile pack does not n
 
 ### Capability report
 
-The content scan cannot tell whether a pack's prose is benign. What a pack can make the host *do* is easier to judge, so `add`, `install` and `update` list it after each download:
+The content scan cannot tell whether a pack's prose is benign. What a pack can make the host *do* is easier to judge. So `add`, `install` and `update` list it whenever a pack is new or changes version, reading exactly what sync takes from the pack's source dir:
 
-- guardrails, with the tool each gates;
-- hook configs (`claude-hooks.json`, `hooks.json`) and the commands they register;
-- scripts (any script extension or executable bit), by content hash;
-- MCP servers declared in `mcp.json`.
+- guardrails (`guardrails/*.md`), with the tool each gates;
+- `claude-hooks.json`, per event, which marketplace plugin bundles carry;
+- every file a skill ships besides its `SKILL.md`: the scripts it tells the agent to run, in any language.
 
 ```
   some-pack@1.3.0 changes what it can run or gate:
-    + hook: llm/claude-hooks.json: PreToolUse
-    ~ script: llm/skills/review/scripts/post.sh
-    Review these before syncing: hooks and guardrails run on tool calls automatically.
+    ~ guardrail: no-push (gates Bash)
+    + skill file: skills/review/scripts/post.sh
+    Review these before syncing: guardrails and hooks run on tool calls automatically.
 ```
 
-`update` compares against the version it replaces: `+` added, `~` changed (a script's bytes differ), `-` removed. A first install lists everything as added. A pack with only rules, agents and skill prose prints nothing. `source add`, `source install` and `source update` report external sources the same way.
+Items are compared by a hash of their full content, so any edit counts. That includes a guardrail whose condition was loosened, or a hook whose matcher changed. `+` means added, `~` changed, `-` removed.
+
+What each command compares against:
+
+| Situation | Report |
+| --------- | ------ |
+| Pack new to the lockfile | Lists everything it can run or gate |
+| Version changes, old version still cached | Diff against the old version |
+| Version changes, old version not cached (fresh clone, CI) | Lists everything, and says the old version was not available |
+| Locked version re-downloaded | Nothing |
+
+A pack with only rules, agents and skill prose prints nothing. `source add`, `source install` and `source update` report external sources the same way.
 
 ## Cache directory
 

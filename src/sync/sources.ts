@@ -94,46 +94,8 @@ export function resolveSyncSources(root: string, config: BlueprintConfig): Resol
       ...deadScopeWarnings(extended.entries, configured),
       ...packs.warnings,
       ...external.warnings,
-      ...shadowWarnings(sources),
     ],
   };
-}
-
-/** Marketplace hook config: the first source dir that has one wins (see `readHooksContent`). */
-const PLUGIN_HOOKS_FILE = 'claude-hooks.json';
-/** Origins a person configured locally; their overrides are intended and need no warning. */
-const OVERRIDES_EXPECTED: ReadonlySet<SyncSource['origin']> = new Set(['local', 'extends']);
-
-/**
- * A pack or external source that replaces a same-named rule, agent, skill, guardrail or plugin hook
- * config from a lower-priority source. Merging is by name, so without this a pack could swap a
- * first-party guardrail for a no-op of the same name and nothing would say so. Local and `extends`
- * overrides are how a project customises packs, so they stay quiet.
- */
-export function shadowWarnings(sources: readonly SyncSource[]): string[] {
-  const warnings: string[] = [];
-  const report = (what: string, owners: readonly SyncSource[]): void => {
-    const [winner, ...shadowed] = owners;
-    if (shadowed.length === 0 || OVERRIDES_EXPECTED.has(winner.origin)) return;
-    warnings.push(
-      `${what} from ${winner.label} overrides the one from ${shadowed.map((s) => s.label).join(', ')}. ` +
-        'Check that this replacement is intended; a local copy in llm/ wins over both.',
-    );
-  };
-  for (const kind of CONTENT_KINDS) {
-    const owners = new Map<string, SyncSource[]>();
-    for (const source of sources) {
-      for (const name of mergeContentKind([source.dir], kind).keys()) {
-        owners.set(name, [...(owners.get(name) ?? []), source]);
-      }
-    }
-    for (const [name, list] of owners) report(`${kind}/${name}`, list);
-  }
-  report(
-    PLUGIN_HOOKS_FILE,
-    sources.filter((s) => existsSync(join(s.dir, PLUGIN_HOOKS_FILE))),
-  );
-  return warnings;
 }
 
 function extendsLabel(entry: ResolvedExtendsEntry): string {

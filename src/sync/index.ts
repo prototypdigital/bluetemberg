@@ -22,6 +22,7 @@ import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { pluginDefinitionsFor, syncPluginBundles } from './marketplace.js';
 import { readLockfile } from '../registry/manifest.js';
+import { sanitizeForTerminal } from '../registry/scanner.js';
 import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails, type GuardrailHooks } from './guardrails.js';
 import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
@@ -600,7 +601,9 @@ const SHADOWABLE_KINDS: ReadonlyArray<{ subdir: string; list: (subPath: string) 
 function reportShadowedContent(ctx: SyncContext): void {
   const label = (i: number): string => sourceLabel(ctx, ctx.sourceDirs[i]);
   for (const { subdir, list } of SHADOWABLE_KINDS) {
-    for (const { name, winner, losers } of findShadowedEntries(ctx.sourceDirs, subdir, list)) {
+    for (const { name: rawName, winner, losers } of findShadowedEntries(ctx.sourceDirs, subdir, list)) {
+      // A pack picks its own file names; never echo terminal control sequences from one.
+      const name = sanitizeForTerminal(rawName);
       const ignored = losers.map(label).join(', ');
       if (winner === 0) {
         verboseLog(ctx, `  ${subdir}/${name}: local copy overrides ${ignored}`);

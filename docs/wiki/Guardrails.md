@@ -10,7 +10,7 @@ Guardrails are Markdown files with structured frontmatter in `guardrails/` under
 - `extends` source dirs
 - installed packs (e.g. [`bluetemberg-guardrails-git`](https://github.com/prototypdigital/bluetemberg-packs))
 
-Sources merge with the same precedence as rules — a local file with the same name overrides a pack's. A pack or external source that overrides another pack's guardrail of the same name makes `sync` warn, so a no-op replacement cannot slip in unnoticed. `add`/`update` also list each pack's guardrails in the [capability report](Registry#capability-report).
+Sources merge with the same precedence as rules — a local file with the same name overrides a pack's. When a pack or external source wins a name collision, `sync` warns. `add` and `update` also show a guardrail that is new or edited in the [capability report](Registry#capability-report), so a loosened condition does not slip in unnoticed.
 
 `init --non-interactive` adds the default guardrail pack to `llm/packages.json`; the interactive wizard doesn't ask about guardrails yet, so add it with `bluetemberg add bluetemberg-guardrails-git`. Run `bluetemberg install` and `bluetemberg sync` to activate it.
 

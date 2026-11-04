@@ -1,26 +1,30 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, join, relative, sep } from 'node:path';
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import matter from 'gray-matter';
-import { ENGINE_MARKER_FILES, SCRIPT_EXTENSIONS, sanitizeForTerminal } from './scanner.js';
+import { sanitizeForTerminal } from './scanner.js';
 
 /**
  * What a pack (or external source) can make an agent's host *do*, as opposed to what it tells the
- * agent: guardrail hooks, hook configs, executable scripts, and MCP server declarations.
+ * agent: the guardrails sync compiles into hooks, the `claude-hooks.json` marketplace bundles carry,
+ * and the files a skill ships next to its `SKILL.md` (scripts the skill tells the agent to run).
  *
  * The content scan cannot judge whether prose instructions are benign. This summary moves the review
- * to something a person can judge: "this update adds a hook and two scripts". Pure: it reads the
- * cached dir and returns data; the command module decides how to print it.
+ * to something a person can judge: "this update changes a guardrail and adds two skill files".
+ * It reads only what sync reads from a source dir, and compares full content hashes, so any edit to
+ * one of these files shows up. Pure: it returns data; the command module decides how to print it.
  */
+export interface Capability {
+  /** SHA-256 of the full content; what the diff compares. */
+  hash: string;
+  /** What to print: sanitised and truncated, never compared. */
+  label: string;
+}
+
 export interface PackCapabilities {
-  /** Guardrail id → its trigger (the tool it gates). */
-  guardrails: Map<string, string>;
-  /** `<file>: <event>` → the commands registered for it, joined. */
-  hooks: Map<string, string>;
-  /** Script path → SHA-256 of its bytes (any script extension, or an executable bit). */
-  scripts: Map<string, string>;
-  /** `<file>: <server>` → its command line or URL. */
-  mcpServers: Map<string, string>;
+  guardrails: Map<string, Capability>;
+  hooks: Map<string, Capability>;
+  skillFiles: Map<string, Capability>;
 }
 
 export type CapabilityKind = keyof PackCapabilities;
@@ -28,23 +32,20 @@ export type CapabilityChangeType = 'added' | 'removed' | 'changed';
 
 export interface CapabilityChange {
   kind: CapabilityKind;
-  item: string;
   change: CapabilityChangeType;
+  label: string;
 }
 
 const KIND_LABELS: Record<CapabilityKind, string> = {
   guardrails: 'guardrail',
   hooks: 'hook',
-  scripts: 'script',
-  mcpServers: 'MCP server',
+  skillFiles: 'skill file',
 };
 const CAPABILITY_KINDS = Object.keys(KIND_LABELS) as CapabilityKind[];
-const HOOK_FILES = new Set(['hooks.json', 'claude-hooks.json', 'hooks.claude.json']);
-const MCP_FILES = new Set(['mcp.json', '.mcp.json']);
-/** Top-level files every npm tarball carries; never synced, never run. */
-const PACKAGE_FILES = new Set(['package.json', 'README.md', 'CHANGELOG.md', 'LICENSE']);
-const EXECUTABLE_BITS = 0o111;
-const MAX_DESCRIPTION_CHARS = 120;
+/** The hook config marketplace bundles take from a source dir (see `readHooksContent`). */
+const PLUGIN_HOOKS_FILE = 'claude-hooks.json';
+const SKILL_ENTRY = 'SKILL.md';
+const MAX_LABEL_CHARS = 120;
 
 type JsonObject = Record<string, unknown>;
 
@@ -52,42 +53,50 @@ function isObject(value: unknown): value is JsonObject {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function readJson(path: string): unknown {
-  try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
-    return undefined;
-  }
+function sha256(data: string | Buffer): string {
+  return createHash('sha256').update(data).digest('hex');
 }
 
-function describe(text: string): string {
-  const clean = sanitizeForTerminal(text.replace(/\s+/g, ' ').trim());
-  return clean.length > MAX_DESCRIPTION_CHARS ? `${clean.slice(0, MAX_DESCRIPTION_CHARS)}…` : clean;
+function label(text: string): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const cut = clean.length > MAX_LABEL_CHARS ? `${clean.slice(0, MAX_LABEL_CHARS)}…` : clean;
+  return sanitizeForTerminal(cut);
 }
 
-function listFiles(dir: string, atRoot = true): string[] {
+function isPlainFile(path: string): boolean {
+  return lstatSync(path).isFile();
+}
+
+function listDir(dir: string): string[] {
+  return existsSync(dir) ? readdirSync(dir) : [];
+}
+
+/** Files under `dir`, recursively; symlinks are skipped (extraction rejects them anyway). */
+function walk(dir: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) files.push(...listFiles(full, false));
-    else if (
-      entry.isFile() &&
-      !(atRoot && (ENGINE_MARKER_FILES.has(entry.name) || PACKAGE_FILES.has(entry.name)))
-    )
-      files.push(full);
+    if (entry.isDirectory()) files.push(...walk(full));
+    else if (entry.isFile()) files.push(full);
   }
   return files;
 }
 
-function extensionOf(file: string): string {
-  const name = basename(file);
-  const dot = name.lastIndexOf('.');
-  return dot > 0 ? name.slice(dot + 1).toLowerCase() : '';
-}
-
-function isScript(full: string): boolean {
-  if (SCRIPT_EXTENSIONS.has(extensionOf(full))) return true;
-  return (statSync(full).mode & EXECUTABLE_BITS) !== 0;
+function collectGuardrails(dir: string, into: Map<string, Capability>): void {
+  const guardrailsDir = join(dir, 'guardrails');
+  for (const name of listDir(guardrailsDir)) {
+    const full = join(guardrailsDir, name);
+    if (!name.endsWith('.md') || !isPlainFile(full)) continue;
+    const content = readFileSync(full, 'utf8');
+    let trigger = '?';
+    try {
+      const { data } = matter(content);
+      if (typeof data.trigger === 'string') trigger = data.trigger;
+    } catch {
+      trigger = 'unparsable frontmatter';
+    }
+    into.set(name, { hash: sha256(content), label: label(`${name.slice(0, -3)} (gates ${trigger})`) });
+  }
 }
 
 /** Every `command` string under a value (Claude nests them as `hooks[].hooks[].command`). */
@@ -98,55 +107,55 @@ function commandsIn(value: unknown): string[] {
   return [...own, ...Object.values(value).flatMap(commandsIn)];
 }
 
-function collectHooks(rel: string, json: unknown, into: Map<string, string>): void {
-  if (!isObject(json) || !isObject(json.hooks)) return;
-  for (const [event, entries] of Object.entries(json.hooks)) {
-    const commands = commandsIn(entries);
-    if (commands.length > 0) into.set(`${rel}: ${describe(event)}`, describe(commands.join(' ; ')));
-  }
-}
-
-function collectMcpServers(rel: string, json: unknown, into: Map<string, string>): void {
-  if (!isObject(json)) return;
-  const servers = isObject(json.mcpServers) ? json.mcpServers : isObject(json.servers) ? json.servers : null;
-  if (!servers) return;
-  for (const [name, config] of Object.entries(servers)) {
-    if (!isObject(config)) continue;
-    const args = Array.isArray(config.args) ? config.args.filter((a) => typeof a === 'string') : [];
-    const target = typeof config.url === 'string' ? config.url : [config.command, ...args].join(' ');
-    into.set(`${rel}: ${describe(name)}`, describe(String(target)));
-  }
-}
-
-function collectGuardrail(rel: string, full: string, into: Map<string, string>): void {
+/** One entry per event, hashed over the whole event config (matchers, commands, timeouts). */
+function collectHooks(dir: string, into: Map<string, Capability>): void {
+  const full = join(dir, PLUGIN_HOOKS_FILE);
+  if (!existsSync(full) || !isPlainFile(full)) return;
+  const raw = readFileSync(full, 'utf8');
+  let json: unknown;
   try {
-    const { data } = matter(readFileSync(full, 'utf8'));
-    const trigger = typeof data.trigger === 'string' ? data.trigger : '?';
-    into.set(describe(basename(rel, '.md')), describe(trigger));
+    json = JSON.parse(raw);
   } catch {
-    into.set(describe(basename(rel, '.md')), '(unparsable frontmatter)');
+    into.set(PLUGIN_HOOKS_FILE, { hash: sha256(raw), label: label(`${PLUGIN_HOOKS_FILE} (not valid JSON)`) });
+    return;
+  }
+  if (!isObject(json) || !isObject(json.hooks)) {
+    into.set(PLUGIN_HOOKS_FILE, { hash: sha256(raw), label: PLUGIN_HOOKS_FILE });
+    return;
+  }
+  for (const [event, config] of Object.entries(json.hooks)) {
+    const commands = commandsIn(config).join(' ; ');
+    into.set(`${PLUGIN_HOOKS_FILE}#${event}`, {
+      hash: sha256(JSON.stringify(config)),
+      label: label(`${PLUGIN_HOOKS_FILE}: ${event}${commands ? ` → ${commands}` : ''}`),
+    });
   }
 }
 
-/** The capabilities a cached pack or source dir carries. A missing dir has none. */
-export function collectCapabilities(dir: string): PackCapabilities {
-  const caps: PackCapabilities = {
-    guardrails: new Map(),
-    hooks: new Map(),
-    scripts: new Map(),
-    mcpServers: new Map(),
-  };
-  if (!existsSync(dir)) return caps;
-
-  for (const full of listFiles(dir)) {
-    const rel = sanitizeForTerminal(relative(dir, full).split(sep).join('/'));
-    const name = basename(full);
-    if (rel.split('/').at(-2) === 'guardrails' && name.endsWith('.md'))
-      collectGuardrail(rel, full, caps.guardrails);
-    if (HOOK_FILES.has(name)) collectHooks(rel, readJson(full), caps.hooks);
-    if (MCP_FILES.has(name)) collectMcpServers(rel, readJson(full), caps.mcpServers);
-    if (isScript(full)) caps.scripts.set(rel, createHash('sha256').update(readFileSync(full)).digest('hex'));
+/** Everything a skill ships besides its `SKILL.md`: scripts of any language, binaries, data. */
+function collectSkillFiles(dir: string, into: Map<string, Capability>): void {
+  const skillsDir = join(dir, 'skills');
+  for (const skill of listDir(skillsDir)) {
+    const skillDir = join(skillsDir, skill);
+    if (!lstatSync(skillDir).isDirectory() || !existsSync(join(skillDir, SKILL_ENTRY))) continue;
+    for (const full of walk(skillDir)) {
+      const rel = relative(dir, full).split(sep).join('/');
+      if (rel === `skills/${skill}/${SKILL_ENTRY}`) continue;
+      into.set(rel, { hash: sha256(readFileSync(full)), label: label(rel) });
+    }
   }
+}
+
+/**
+ * The capabilities in a source dir as sync reads it: a pack's `llm/` dir (or its root when it has
+ * none, see `resolvePackSourceDir`), or an external source's cache dir. `null` has none.
+ */
+export function collectCapabilities(dir: string | null): PackCapabilities {
+  const caps: PackCapabilities = { guardrails: new Map(), hooks: new Map(), skillFiles: new Map() };
+  if (!dir || !existsSync(dir)) return caps;
+  collectGuardrails(dir, caps.guardrails);
+  collectHooks(dir, caps.hooks);
+  collectSkillFiles(dir, caps.skillFiles);
   return caps;
 }
 
@@ -157,13 +166,15 @@ export function diffCapabilities(
 ): CapabilityChange[] {
   const changes: CapabilityChange[] = [];
   for (const kind of CAPABILITY_KINDS) {
-    const old = before?.[kind] ?? new Map<string, string>();
+    const old = before?.[kind] ?? new Map<string, Capability>();
     const next = after[kind];
-    for (const [item, value] of next) {
-      if (!old.has(item)) changes.push({ kind, item, change: 'added' });
-      else if (old.get(item) !== value) changes.push({ kind, item, change: 'changed' });
+    for (const [key, cap] of next) {
+      const previous = old.get(key);
+      if (!previous) changes.push({ kind, change: 'added', label: cap.label });
+      else if (previous.hash !== cap.hash) changes.push({ kind, change: 'changed', label: cap.label });
     }
-    for (const item of old.keys()) if (!next.has(item)) changes.push({ kind, item, change: 'removed' });
+    for (const [key, cap] of old)
+      if (!next.has(key)) changes.push({ kind, change: 'removed', label: cap.label });
   }
   return changes;
 }
@@ -177,27 +188,51 @@ const CHANGE_SIGNS: Record<CapabilityChangeType, string> = { added: '+', removed
 /** Most items listed per summary; the rest are counted. */
 const MAX_LISTED = 15;
 
-/** One line per change (`+ hook  claude-hooks.json: PreToolUse`), capped for a hostile pack. */
+/** One line per change (`~ guardrail: no-push (gates Bash)`), capped for a hostile pack. */
 export function formatCapabilityChanges(changes: readonly CapabilityChange[], indent = '    '): string[] {
   const lines = changes
     .slice(0, MAX_LISTED)
-    .map((c) => `${indent}${CHANGE_SIGNS[c.change]} ${KIND_LABELS[c.kind]}: ${c.item}`);
+    .map((c) => `${indent}${CHANGE_SIGNS[c.change]} ${KIND_LABELS[c.kind]}: ${c.label}`);
   if (changes.length > MAX_LISTED) lines.push(`${indent}…and ${changes.length - MAX_LISTED} more`);
   return lines;
 }
 
+/** How a version compares to the one it replaces. */
+export type CapabilityBaseline =
+  /** First install of this pack or source: list everything. */
+  | { kind: 'new' }
+  /** Replacing a version still in the cache: diff against it. */
+  | { kind: 'previous'; capabilities: PackCapabilities }
+  /** Replacing a version that is not cached (fresh clone, CI): nothing to diff against. */
+  | { kind: 'uncached'; version: string };
+
 /**
  * The lines a command logs after installing a version: what it can run or gate, against the version
- * it replaces (`before = null` for a first install). Empty when nothing changed. The content scan
- * cannot tell whether prose is benign; a capability change is something a reviewer can judge.
+ * it replaces. Empty when nothing changed. Never throws: an unreadable dir is reported, not fatal,
+ * since the install itself already succeeded.
  */
-export function capabilityReport(label: string, before: PackCapabilities | null, afterDir: string): string[] {
-  const changes = diffCapabilities(before, collectCapabilities(afterDir));
+export function capabilityReport(
+  name: string,
+  baseline: CapabilityBaseline,
+  afterDir: string | null,
+): string[] {
+  let changes: CapabilityChange[];
+  try {
+    const before = baseline.kind === 'previous' ? baseline.capabilities : null;
+    changes = diffCapabilities(before, collectCapabilities(afterDir));
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return [`  Warning: could not list what ${name} can run or gate: ${sanitizeForTerminal(reason)}`];
+  }
   if (changes.length === 0) return [];
-  const lines = [`  ${label} ${before ? 'changes what it can run or gate' : 'can run or gate'}:`];
-  lines.push(...formatCapabilityChanges(changes));
-  if (before && growsCapabilities(changes)) {
-    lines.push('    Review these before syncing: hooks and guardrails run on tool calls automatically.');
+  const heading: Record<CapabilityBaseline['kind'], string> = {
+    new: 'can run or gate',
+    previous: 'changes what it can run or gate',
+    uncached: `can run or gate (the replaced ${baseline.kind === 'uncached' ? baseline.version : ''} is not cached, so this lists everything)`,
+  };
+  const lines = [`  ${name} ${heading[baseline.kind]}:`, ...formatCapabilityChanges(changes)];
+  if (baseline.kind !== 'new' && growsCapabilities(changes)) {
+    lines.push('    Review these before syncing: guardrails and hooks run on tool calls automatically.');
   }
   return lines;
 }
