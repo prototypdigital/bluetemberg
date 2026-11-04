@@ -33,6 +33,48 @@ const PACK_INSTALL_OPTIONS = [
   { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
 ];
 
+/** The human-gated create-loop (M7, #197): gap → grounded draft → check → human promote. */
+const DRAFT_COMMANDS = [
+  {
+    name: 'draft brief',
+    args: '<stack@version> [directory]',
+    description:
+      'Gap brief for an agent: coverage, nearest guidance, paths of files importing the package, citation contract (read-only). Exits 1 when the version is already covered.',
+    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+  },
+  {
+    name: 'draft new',
+    args: '<stack@version> [directory]',
+    description:
+      'Open a draft rule for a gap in .bluetemberg/drafts/ (never synced). Refuses a version-covered stack and an existing name.',
+    options: [
+      { long: '--name <rule-name>', description: 'Kebab-case id of the future rule (required).' },
+      { long: '--scope <glob>', description: 'The rule scope glob (default "**").' },
+      { long: '--json', description: 'Emit machine-readable JSON (name, path, brief).' },
+    ],
+  },
+  {
+    name: 'draft list',
+    args: '[directory]',
+    description: 'List pending and promoted drafts (read-only).',
+    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+  },
+  {
+    name: 'draft check',
+    args: '<name> [directory]',
+    description:
+      'Validate a draft: strict YAML frontmatter, a bounded range covering the gap, at least one primary-doc citation, no TODO(draft) markers, the pack security scan, and that the gap is still open. Exits 1 on errors.',
+    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+  },
+  {
+    name: 'draft promote',
+    args: '<name> [directory]',
+    description:
+      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md (never overwrites). Needs an interactive terminal; no --yes, no MCP equivalent.',
+    options: [{ long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' }],
+  },
+];
+
 function readCliVersion(): string {
   try {
     const pkgPath = join(__dirname, '..', 'package.json');
@@ -277,6 +319,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           args: '[directory]',
           description: 'Serve the stack model as MCP tools over stdio (read-only).',
         },
+        ...DRAFT_COMMANDS,
       ],
       mcp: {
         transport: 'stdio',
@@ -286,8 +329,10 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'bluetemberg_list_stacks',
           'bluetemberg_why',
           'bluetemberg_org_histogram',
+          'bluetemberg_draft_brief',
+          'bluetemberg_draft_check',
         ],
-        note: 'Read-only. The gated scaffold_from_gap tool (M7 create-loop) is intentionally absent.',
+        note: 'Read-only. No tool writes or promotes a draft: drafts are opened with `draft new`, and only a human at a terminal runs `draft promote`.',
       },
     },
     packs: {

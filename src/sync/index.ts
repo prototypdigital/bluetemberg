@@ -636,6 +636,7 @@ function gateByVersion(
   label: string,
 ): VersionGate {
   const gate = evaluateStackGate(id, kindDir, frontmatter, stackMap, ctx.detectedStacks);
+  if (gate.draft) recordWarning(ctx, `${label}: ${gate.reason}`);
   if (gate.issues.length > 0) {
     recordWarning(
       ctx,

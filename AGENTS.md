@@ -33,6 +33,7 @@ Run `npm run sync:llm-config` to generate tool-specific files in `.cursor/rules/
 - `src/registry/` — Pack install/update/verify against the npm registry (auth, signatures, lockfile)
 - `src/catalog/` — Catalog loader + committed snapshot (single source for pack ids/profiles)
 - `src/stacks/` — Stack detection, version matching, coverage, org scanning
+- `src/drafts/` — Human-gated create-loop: gap brief, draft skeletons, `draft check`, the `draft promote` gate, the `draft:` marker
 - `src/sources/` — External rule sources (GitHub, PRPM, cursor.directory) and their translators
 - `src/mcp/` — MCP server exposing detection/coverage tools, plus the MCP preset registry
 - `src/preview/` — `bluetemberg preview`: what a profile would install

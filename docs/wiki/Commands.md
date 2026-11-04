@@ -376,6 +376,20 @@ npx bluetemberg stacks list "payload@>=3 <5" ../bluetemberg-packs --json
 npx bluetemberg stacks list nextjs
 ```
 
+## `bluetemberg draft <subcommand>`
+
+The human-gated create-loop: open a draft rule for a stack gap, let an agent fill it in, check it, and let a human promote it. See [Drafts](Drafts) for the full flow and the checks.
+
+| Subcommand | Writes | Notes |
+| ---------- | ------ | ----- |
+| `draft brief <stack@version> [directory] [--json]` | nothing | Gap brief for an agent: gap reason, proposed range, npm package, nearest guidance, paths of files importing the package, citation contract. Exits 1 when the version is already covered |
+| `draft new <stack@version> [directory] --name <rule> [--scope <glob>] [--json]` | `.bluetemberg/drafts/<rule>.md` | Refuses a covered version, an existing draft or rule of that name, and a symlinked drafts dir |
+| `draft list [directory] [--json]` | nothing | Pending and promoted drafts |
+| `draft check <name> [directory] [--json]` | nothing | Strict frontmatter, a bounded range that covers the gap, at least one citation, no `TODO(draft)`, the security scan, and that the gap is still open. Exits 1 on errors |
+| `draft promote <name> [directory] --reviewed-by <who>` | `<source>/rules/<name>.md` | **Human only.** Needs an interactive terminal. Shows the rule; you type its name to confirm; aborts if the draft changed during review; never overwrites |
+
+A file carrying a `draft:` frontmatter key is withheld by sync, guardrails, `why` and the marketplace, even inside `llm/rules/`.
+
 ## `bluetemberg mcp serve [directory]`
 
 Run Bluetemberg itself as an [MCP](https://modelcontextprotocol.io) server over **stdio**, exposing the stack model as tools so an agent gets structured coverage without shelling out. It is the same machinery behind the `--json` flags — one implementation, two surfaces — and is **read-only** (it never writes files).
@@ -389,6 +403,10 @@ Tools:
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
 | `bluetemberg_why` | `file` (source path, generated path or id), or `diff` (array of `stack@version`) | The [`why`](#bluetemberg-why-file-directory) report for one item, or the upgrade diff |
 | `bluetemberg_org_histogram` | `roots` (array of repo paths), `org`, `repos`, `since` — all optional; combine local roots with a remote org scan | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
+| `bluetemberg_draft_brief` | `stack`, `version` | The [`draft brief`](#bluetemberg-draft-subcommand) for a gap: grounding data for drafting a rule |
+| `bluetemberg_draft_check` | `name` | The [`draft check`](#bluetemberg-draft-subcommand) report for a draft in `.bluetemberg/drafts/` |
+
+No tool writes or promotes a draft: drafts are opened with `bluetemberg draft new`, and only a human at a terminal runs `draft promote`.
 
 Register it with an MCP client (example for Claude Code's `.mcp.json`):
 
