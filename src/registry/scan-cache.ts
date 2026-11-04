@@ -21,6 +21,14 @@ export interface ScanGateOptions {
   onScanSkipped?: () => void;
 }
 
+/** A scan found blocking patterns: the only failure that may remove cached content. */
+export class ScanBlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ScanBlockedError';
+  }
+}
+
 /** What the marker says about a cached dir. */
 export type ScanState = 'current' | 'stale' | 'skipped';
 
@@ -45,7 +53,7 @@ export function scanAndMark(dir: string, label: string, options: ScanGateOptions
     return;
   }
   const scan = scanPackContent(dir);
-  if (scan.blocked) throw new Error(formatBlockedScan(label, scan));
+  if (scan.blocked) throw new ScanBlockedError(formatBlockedScan(label, scan));
   if (scan.findings.length > 0) options.onScanFindings?.(scan);
   writeFileSync(marker, `${SCANNER_VERSION}\n`);
 }
@@ -53,14 +61,20 @@ export function scanAndMark(dir: string, label: string, options: ScanGateOptions
 /**
  * Re-scan a cache hit that an older scanner (or none) vetted. Content that a newer rule blocks is
  * removed from the cache before the error is thrown, so `sync` stops using it and reports it as
- * not cached. A no-op with `skipScan` or when the marker is current.
+ * not cached. Any other failure (an unreadable file, a full disk) is thrown with the cache left as
+ * it was. With `skipScan` an unvetted hit is marked skipped, so `sync` stops asking for a re-scan.
  */
 export function rescanCached(dir: string, label: string, options: ScanGateOptions): void {
-  if (options.skipScan || scanState(dir) === 'current') return;
+  const state = scanState(dir);
+  if (state === 'current') return;
+  if (options.skipScan) {
+    if (state === 'stale') scanAndMark(dir, label, options);
+    return;
+  }
   try {
     scanAndMark(dir, label, options);
   } catch (err) {
-    rmSync(dir, { recursive: true, force: true });
+    if (err instanceof ScanBlockedError) rmSync(dir, { recursive: true, force: true });
     throw err;
   }
 }
@@ -68,5 +82,5 @@ export function rescanCached(dir: string, label: string, options: ScanGateOption
 /** The `sync` warning for a cached dir the current scanner has not vetted, or `null`. */
 export function staleScanWarning(dir: string, label: string, installCommand: string): string | null {
   if (scanState(dir) !== 'stale') return null;
-  return `"${label}" was not scanned by this engine version's content scan. Run "${installCommand}" to re-scan it.`;
+  return `"${label}" has not been checked by this engine version's content scan rules. Run "${installCommand}" to re-scan it.`;
 }

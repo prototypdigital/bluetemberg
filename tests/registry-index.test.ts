@@ -160,7 +160,7 @@ describe('resolvePackSourceDirs', () => {
     // Still synced (sync is read-only), but the stale one is flagged; an opted-out one is not.
     expect(dirs).toEqual([oldDir, skippedDir]);
     expect(warnings).toEqual([
-      '"old-pack@1.0.0" was not scanned by this engine version\'s content scan. Run "bluetemberg install" to re-scan it.',
+      '"old-pack@1.0.0" has not been checked by this engine version\'s content scan rules. Run "bluetemberg install" to re-scan it.',
     ]);
   });
 

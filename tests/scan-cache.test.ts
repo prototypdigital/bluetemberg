@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -71,6 +71,28 @@ describe('scan cache markers', () => {
   it('upgrades a stale but clean cache hit to current', () => {
     rescanCached(dir, 'p@1', {});
     expect(scanState(dir)).toBe('current');
+  });
+
+  it('keeps the cache when a re-scan fails for a reason other than a block', () => {
+    if (process.getuid?.() === 0) return; // root reads anything
+    const locked = join(dir, 'llm', 'rules', 'locked.md');
+    writeFileSync(locked, '# x\n');
+    chmodSync(locked, 0o000);
+    try {
+      expect(() => rescanCached(dir, 'p@1', {})).toThrow(/EACCES/);
+      expect(existsSync(dir)).toBe(true);
+    } finally {
+      chmodSync(locked, 0o644);
+    }
+  });
+
+  it('marks an unvetted cache hit as skipped under skipScan, so sync stops asking', () => {
+    const onScanSkipped = vi.fn();
+    rescanCached(dir, 'p@1', { skipScan: true, onScanSkipped });
+    expect(scanState(dir)).toBe('skipped');
+    expect(onScanSkipped).toHaveBeenCalledOnce();
+    rescanCached(dir, 'p@1', { skipScan: true, onScanSkipped });
+    expect(onScanSkipped).toHaveBeenCalledOnce();
   });
 
   it('leaves a current or opted-out cache hit alone', () => {
