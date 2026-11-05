@@ -10,7 +10,20 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 **[prototypdigital.github.io/bluetemberg →](https://prototypdigital.github.io/bluetemberg/)** — install guide, pack browser, and docs.
 
-**Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction, and pack and external-source content is scanned for leaked credentials, secret exfiltration (HTTP, DNS, `gh`, `git push`, markdown beacons), hidden Unicode text, and instructions to disable hooks before it lands, then re-scanned when the scanner gains rules. See [SECURITY.md](SECURITY.md).
+**Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction, and pack and external-source content is scanned for leaked credentials, secret exfiltration (HTTP, DNS, `gh`, `git push`, markdown beacons), hidden Unicode text, and instructions to disable hooks before it lands, then re-scanned when the scanner gains rules. From 0.20.0, `add`, `install` and `update` also print a capability report: the guardrails, hook configs and skill scripts a pack brings, and what an update adds, changes or removes. See [SECURITY.md](SECURITY.md).
+
+## Try it in 5 minutes
+
+In an existing project with a `package.json` (Node.js 20+):
+
+```bash
+npx bluetemberg init --non-interactive --profile frontend --platforms claude,cursor --omit-github
+npx bluetemberg install   # download packs; refuse any whose SHA-512 or registry signature fails
+npx bluetemberg sync      # write .claude/ and .cursor/ for the stack versions in your lockfile
+npx bluetemberg detect    # which stacks and versions it found, and whether guidance covers them
+```
+
+Pick the profile closest to your role (`backend`, `fullstack`, `devops`, …). `init` writes `bluetemberg.config.json`, `llm/packages.json`, `AGENTS.md`, `CLAUDE.md` and two `package.json` scripts; `--omit-github` skips the optional GitHub repository files. Commit the generated files and run `npx bluetemberg sync --check` in CI. `npx bluetemberg why <rule>` explains why any rule is in or out, and `npx bluetemberg uninstall` removes everything again. Walked through on 0.19.0 with a Next.js 15 app; see [Quickstart](https://github.com/prototypdigital/bluetemberg/wiki/Quickstart) for the expected output.
 
 ## "But everything is converging on AGENTS.md."
 
@@ -79,7 +92,7 @@ The interactive wizard will ask you to pick:
 - **External rule sources** (optional) — pull rules from a GitHub repo, PRPM, or cursor.directory, translated to native format and pinned in `llm/rule-sources.json` (`--sources <csv>` in headless runs)
 - **GitHub repository files** (optional) — Dependabot, issue/PR templates, CODEOWNERS, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, SECURITY. Bluetemberg never writes CI/CD workflows, and never overwrites a file that already exists (`--force` to replace; `--omit-github` to skip them in headless runs)
 
-You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/hooks.claude.json`** (Claude Code hooks — honored from the project's own `llm/` only; packs cannot ship them), **`llm/commands/*.md`** (slash commands) and **`llm/prompts/*.md`** (prompt files), both synced as skills to every platform, with the legacy `.claude/commands/` and `.github/prompts/` outputs kept until 0.18.0, and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
+You can also add **`llm/hooks.json`** (Cursor hooks), **`llm/hooks.claude.json`** (Claude Code hooks — honored from the project's own `llm/` only; packs cannot ship them), **`llm/commands/*.md`** (slash commands) and **`llm/prompts/*.md`** (prompt files), both synced as skills to every platform, with the deprecated `.claude/commands/` and `.github/prompts/` outputs still written for now (a later release drops them), and optional **`adapters`** in `bluetemberg.config.json` for custom ESM emitters; see the wiki (_Writing Hooks_, _Writing Commands_, _Writing Prompts_, _Adapters_).
 
 It scaffolds `llm/` as the vendor-neutral source of truth, generates platform-specific files, and patches `.prettierignore` to protect your prose files from the formatter.
 
@@ -150,7 +163,7 @@ Rules, agents, skills and guardrails ship as versioned npm packs from [bluetembe
 
 Git, Security and Docs rules and the docs-maintainer agent are pre-selected for every profile except Custom.
 
-Packs that only work in one tool can name their platforms in the catalog (`["claude"]` for a pack that needs Claude Code hooks; the PR-review and session-audit packs are being tagged in [bluetemberg-packs#120](https://github.com/prototypdigital/bluetemberg-packs/issues/120)). `init` preselects such a pack only when one of its platforms is selected, and `sync` writes it only for those platforms (Claude Code and Cursor configured → `.claude/` only). Packs that name no platforms go everywhere. See [Profiles → Platforms](https://github.com/prototypdigital/bluetemberg/wiki/Profiles#platforms).
+Packs that only work in one tool can name their platforms in the catalog (`["claude"]` for a pack that needs Claude Code hooks, as `bluetemberg-skills-pr-review-loop`, `bluetemberg-skills-session-retrospective` and `bluetemberg-agents-session-auditor` do). `init` preselects such a pack only when one of its platforms is selected, and `sync` writes it only for those platforms (Claude Code and Cursor configured → `.claude/` only). Packs that name no platforms go everywhere. See [Profiles → Platforms](https://github.com/prototypdigital/bluetemberg/wiki/Profiles#platforms).
 
 After `init`, run `bluetemberg install` to download the packs listed in `llm/packages.json` into the local cache (`.bluetemberg/packs/`); `sync` merges them with your local `llm/` content. Use `bluetemberg install --dry-run` to preview what would be installed without writing anything to disk.
 
@@ -241,13 +254,16 @@ npx bluetemberg stacks lint                  # open-ended ranges, ranges past th
 npx bluetemberg stacks list payload@3        # every rule declaring a range that admits Payload 3
 ```
 
-Found a gap? An agent can draft a rule for it, grounded in your code and cited primary docs. The draft stays in the gitignored `.bluetemberg/drafts/` and is never synced. Only a human at a terminal can promote it into `llm/rules/`:
+Found a gap? From 0.20.0 an agent can draft a rule, skill or agent for it, grounded in your code and cited primary docs. The draft stays in the gitignored `.bluetemberg/drafts/` and is never synced. Only a human at a terminal can promote it into `llm/`, and `draft pr` stages a promoted draft as a contribution branch in a local bluetemberg-packs checkout (it never commits or pushes):
 
 ```bash
+npx bluetemberg draft brief payload@4.0.1                             # read-only gap brief for the agent
 npx bluetemberg draft new payload@4.0.1 --name payload-4-jobs-queue   # skeleton + gap brief
 npx bluetemberg draft check payload-4-jobs-queue                      # agent loops until OK
 npx bluetemberg draft promote payload-4-jobs-queue --reviewed-by you  # human only: review, type the name
 ```
+
+From 0.20.0, pack maintainers can run the same content scan `install` uses on local directories, for example in the packs repo's CI: `npx bluetemberg scan packages/*` (`--strict` fails on warnings too).
 
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
 
@@ -349,7 +365,7 @@ rule into a `rule-{id}` skill — see [Marketplace](https://github.com/prototypd
 
 ² `.windsurf/rules/` is a transitional mirror for Devin builds that still read the legacy path; it will be dropped in a later release.
 
-⁴ Every host has moved commands and prompt files into skills, so each `llm/commands/` and `llm/prompts/` file is also written as a generated `<name>/SKILL.md` to the platform's skills dir, with `disable-model-invocation: true` so it stays a `/name` the user runs (plus `triggers: [user]` for Devin and `agents/openai.yaml` for Codex, which ignore that field; Antigravity has no equivalent). The `.claude/commands/` and `.github/prompts/` outputs are deprecated: sync warns, and stops writing them in 0.18.0. A real skill of the same name wins. See [Migrating commands and prompts](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills#migrating-commands-and-prompts).
+⁴ Every host has moved commands and prompt files into skills, so each `llm/commands/` and `llm/prompts/` file is also written as a generated `<name>/SKILL.md` to the platform's skills dir, with `disable-model-invocation: true` so it stays a `/name` the user runs (plus `triggers: [user]` for Devin and `agents/openai.yaml` for Codex, which ignore that field; Antigravity has no equivalent). The `.claude/commands/` and `.github/prompts/` outputs are deprecated: sync warns, and a later release stops writing them (they are still written as of 0.20.0, although the warning names 0.18.0). A real skill of the same name wins. See [Migrating commands and prompts](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills#migrating-commands-and-prompts).
 
 ⁵ Skills are written to as few dirs as cover every host: `.claude/skills/` (Claude Code reads nothing else), `.github/skills/` (the only dir Copilot code review reads) and the vendor-neutral `.agents/skills/` for everyone else, written once. Cursor reads `.claude/skills/` and `.agents/skills/` and lists a name once, so it gets no dir of its own when Claude is enabled. VS Code and Copilot CLI read all three dirs, so with Copilot plus any other platform they list a skill twice. That is the price of keeping skills in Copilot code review. A skill limited to Cursor (pack or frontmatter `platforms`) goes to `.cursor/skills/` instead, the one dir no other host reads, so it never reaches Claude Code or Codex. Earlier versions also wrote `.cursor/skills/`; a `targets.skills.cursor` entry still pointing there means the default. Run `bluetemberg sync --prune` once to remove the old generated copies (sync prints a note while they are left; hand-written skills there are kept). A skill from a registry pack carries its pack name, version and integrity in `SKILL.md` `metadata`. See [Adapters](https://github.com/prototypdigital/bluetemberg/wiki/Adapters#skills-dirs-per-host).
 
@@ -419,7 +435,7 @@ See [docs/wiki/Marketplace.md](docs/wiki/Marketplace.md) for the full setup guid
 
 ### Org rollout (managed settings)
 
-To install the marketplace for a whole organization rather than per repository, generate org policy files and have an admin deploy them:
+From 0.20.0, to install the marketplace for a whole organization rather than per repository, generate org policy files and have an admin deploy them:
 
 ```bash
 npx bluetemberg managed-settings --ref v1.4.0 --out managed-settings
@@ -458,12 +474,14 @@ Managed JSON entries stay as ordinary config: MCP servers in `.mcp.json`, hooks 
 See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full documentation:
 
 - [Why Bluetemberg](https://github.com/prototypdigital/bluetemberg/wiki/Why)
+- [Quickstart](https://github.com/prototypdigital/bluetemberg/wiki/Quickstart)
 - [Installation](https://github.com/prototypdigital/bluetemberg/wiki/Installation)
 - [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands)
 - [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration)
 - [Profiles](https://github.com/prototypdigital/bluetemberg/wiki/Profiles)
 - [Marketplace](https://github.com/prototypdigital/bluetemberg/wiki/Marketplace)
 - [Org Rollout](https://github.com/prototypdigital/bluetemberg/wiki/Org-Rollout)
+- [Telemetry](https://github.com/prototypdigital/bluetemberg/wiki/Telemetry)
 - [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules)
 - [Writing Agents](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Agents)
 - [Writing Skills](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Skills)

@@ -1,6 +1,6 @@
 # Writing Skills
 
-Skills live in `llm/skills/<skill-name>/SKILL.md`. Each skill is a directory containing a single `SKILL.md` file.
+Skills live in `llm/skills/<skill-name>/SKILL.md`. Each skill is a directory containing a `SKILL.md` file, plus any supporting files (scripts, references) it needs; sync copies the whole directory.
 
 ## Rules vs Skills
 
@@ -75,7 +75,13 @@ One-line description of the skill's purpose.
 
 ### `platforms` (optional)
 
-The platforms the skill works on, e.g. `[claude]`. Sync skips its output for the project's other platforms. A skills dir several platforms read (`.agents/skills/` for Codex, Devin and Antigravity) gets the skill when any of them is listed. Absent or `[]` means every platform; the field overrides the pack's catalog `platforms`. See [Profiles → Platforms](Profiles#platforms).
+The platforms the skill works on, e.g. `[claude]`. Sync skips its output for the project's other platforms. A skills dir several platforms read (`.agents/skills/` for Codex, Devin, Antigravity, Gemini CLI, and Cursor when Claude Code is off) gets the skill when any of them is listed. Absent or `[]` means every platform; the field overrides the pack's catalog `platforms`. See [Profiles → Platforms](Profiles#platforms).
+
+### `stacks` (optional)
+
+A version range per stack, as for rules (`stacks: { nextjs: '>=15' }`). Sync writes the skill only where every named stack is present and its version satisfies the range. See [Writing Rules](Writing-Rules) and [Stacks](Stacks).
+
+Frontmatter is YAML between `---` fences. Any other fence (`---js`, `---toml`, …) is refused with an error, so frontmatter can never run code.
 
 ### `draft` (reserved)
 
@@ -121,7 +127,7 @@ The body is copied as written. The frontmatter changes like this:
 
 `$ARGUMENTS` and `$1`-style placeholders are substituted by Claude Code only. Other hosts pass the text after the command to the model as context.
 
-Invocation keeps working where the host supports `/name` for skills: Claude Code, Copilot in VS Code, Cursor, and Antigravity. Codex mentions skills as `$name`. Devin Cloud uses `@skills:name`. Gemini CLI gets no skills from sync.
+Invocation keeps working where the host supports `/name` for skills: Claude Code, Copilot in VS Code, Cursor, and Antigravity. Codex mentions skills as `$name`. Devin Cloud uses `@skills:name`. Gemini CLI reads the generated skills from `.agents/skills/`.
 
 ### Name collisions
 
@@ -138,7 +144,8 @@ Generated skills carry the banner, so `sync --check`, `sync --prune` and `bluete
 | Release   | `.claude/commands/` and `.github/prompts/`                                                                 | Generated skills |
 | --------- | ---------------------------------------------------------------------------------------------------------- | ---------------- |
 | 0.17      | Still written. Each sync warns once that they are deprecated.                                              | Written          |
-| 0.18.0    | No longer written. `bluetemberg sync --prune` removes the old generated files.                             | Written          |
+| 0.18–0.20 | Still written. Sync's warning says they stop in 0.18.0; that removal has not shipped yet.                   | Written          |
+| Later     | No longer written. `bluetemberg sync --prune` removes the old generated files.                             | Written          |
 
 To migrate a command or prompt for good, move it into `llm/skills/` and give it skill frontmatter:
 
@@ -160,22 +167,14 @@ The skill is then a real skill: it can ship supporting files, packs can carry it
 
 Official skills ship as `bluetemberg-skills-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes the `llm/packages.json` manifest; run `bluetemberg install` to download them.
 
-| Package | Tags | Description |
-| ------- | ---- | ----------- |
-| `bluetemberg-skills-patterns` | frontend, backend, fullstack | Apply reusable architecture and coding patterns |
-| `bluetemberg-skills-docs-upkeep` | all | Keep docs aligned with implementation changes |
-| `bluetemberg-skills-workspace-hygiene` | all | On-demand workspace audit — review change scope, clean temp artifacts |
-| `bluetemberg-skills-react-patterns` | frontend, fullstack | Component composition, hook extraction, and state co-location for React projects |
-| `bluetemberg-skills-code-review` | frontend, backend, fullstack | Structured review checklist for PRs |
-| `bluetemberg-skills-api-design` | backend, fullstack | RESTful conventions, pagination, versioning |
-| `bluetemberg-skills-security-audit` | backend, fullstack, devops | Dependency audit, secrets scan, OWASP patterns |
-| `bluetemberg-skills-ci-cd-best-practices` | devops | Pipeline optimization, caching strategies |
-| `bluetemberg-skills-migration-safety` | backend, fullstack | Database migration review, rollback plans |
-| `bluetemberg-skills-stack-change-review` | devops | High-blast-radius infrastructure change review |
-| `bluetemberg-skills-infrastructure-drift-check` | devops | Verify declared IaC state matches deployed state before merge |
-| `bluetemberg-skills-rollback-plan` | devops | Require tested rollback steps for every production change |
+The catalog currently has more than 30 skill packs. Browse them, with their profiles and stacks, in the [pack browser](https://prototypdigital.github.io/bluetemberg-packs/); `npx bluetemberg preview <profile>` lists the ones a profile preselects. A few common ones:
 
-You can also write custom local skills directly in `llm/skills/` — local files always take priority over package content.
+| Package | Description |
+| ------- | ----------- |
+| `bluetemberg-skills-patterns` | Apply reusable architecture and coding patterns |
+| `bluetemberg-skills-docs-upkeep` | Keep docs aligned with implementation changes |
+| `bluetemberg-skills-code-review` | Structured review checklist for PRs |
+| `bluetemberg-skills-create-rule`, `bluetemberg-skills-create-skill`, `bluetemberg-skills-create-agent`, `bluetemberg-skills-create-pack` | Teach an agent bluetemberg's authoring format |
 
 ## Writing a good skill
 

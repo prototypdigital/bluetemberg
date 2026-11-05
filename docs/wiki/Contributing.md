@@ -46,6 +46,11 @@ Both call scripts under `.claude/skills/<skill>/scripts/` and stay silent until 
 | `npm run typecheck`    | TypeScript type check         |
 | `npm run sync:catalog` | Refresh the committed catalog snapshot (`src/catalog/catalog.json`) from the packs repo |
 | `npm run check:catalog` | Fail when the committed snapshot differs from packs `main` (writes nothing) |
+| `npm run check:overlays` | Check the curated preset overlays in `src/init/presets.ts` against the catalog |
+| `npm run sync:llm-config` | Sync this repo's own `llm/` into the generated tool dirs |
+| `npm run sync:llm-config:check` | Fail when this repo's generated tool dirs have drifted |
+| `npm run build:site` | Copy `site/` into `_site/` (the GitHub Pages landing page) |
+| `npm run bench:scanner` | Benchmark the pack content scanner |
 
 **TypeScript versions:** `tsc` (build, typecheck) is TypeScript 7, installed under the alias `@typescript/native`. The `typescript` package name is aliased to `@typescript/typescript6`, the TypeScript 6 API, because typescript-eslint does not support TypeScript 7 yet ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)). Your editor's workspace TypeScript also resolves to 6.0. The TypeScript 6 compiler is available as `npx tsc6`. Drop the alias once typescript-eslint supports TypeScript 7.
 
@@ -59,30 +64,26 @@ When documenting or integrating `bluetemberg sync`: the process **exit code** is
 
 ```
 src/
-├── index.ts              # Public API exports
-├── types.ts              # Shared TypeScript interfaces
-├── utils/
-│   └── fs.ts             # File system helpers
-├── sync/
-│   ├── index.ts           # Sync engine orchestration (async; optional adapters)
-│   ├── transform.ts       # Rule frontmatter transform
-│   ├── pipeline.ts        # commitPlannedWrite / check-mode counting
-│   ├── mcp.ts             # llm/mcp.json → merged root .mcp.json + .agents/mcp_config.json, .cursor/mcp.json
-│   ├── gemini.ts          # .gemini/settings.json context.fileName merge (Gemini CLI)
-│   ├── antigravity.ts     # Antigravity MCP entry shape (merged by mcp.ts)
-│   ├── hooks.ts           # llm/hooks.json → Cursor
-│   ├── commands.ts        # llm/commands → Claude
-│   ├── prompts.ts         # llm/prompts → Copilot *.prompt.md
-│   ├── adapters-runner.ts # Optional config.adapters dynamic import
-│   └── adapter-contract.ts# AdapterContext types
-├── mcp/
-│   └── registry.ts        # Built-in MCP server presets
-└── init/
-    ├── index.ts           # Init wizard orchestrator
-    ├── init-catalog.ts    # Allowed profile/platform/package-manager values (CLI + `--config` validation)
-    ├── prompts.ts         # Inquirer prompt definitions
-    ├── presets.ts         # Available rule/agent/skill presets
-    └── scaffold.ts        # File generation logic
+├── index.ts              # Public API exports (unstable before 1.0)
+├── types.ts              # Shared TypeScript types (BlueprintConfig, InitAnswers, …)
+├── help-json.ts          # `--help --json` payload
+├── cli-guards.ts         # CLI flag validation
+├── init/                 # Interactive wizard, presets, scaffold, switch-profile
+├── sync/                 # Sync engine: config, frontmatter transforms, per-platform emitters,
+│                         #   guardrails, hooks, MCP, legacy commands/prompts as skills, bundles, prune
+├── registry/             # Pack install/update/verify: auth, signatures, lockfile, content scan,
+│                         #   capability report
+├── catalog/              # Catalog loader + committed snapshot (catalog.json)
+├── stacks/               # Stack detection (npm, pnpm, yarn lockfiles), version matching,
+│                         #   coverage, why, stacks lint/list, org scanning
+├── drafts/               # The human-gated create-loop (draft brief/new/check/promote/pr)
+├── sources/              # External rule sources (GitHub, PRPM, cursor.directory) and translators
+├── managed-settings/     # Org policy files and opt-in OTel telemetry keys
+├── uninstall/            # bluetemberg uninstall
+├── eject/                # bluetemberg eject
+├── preview/              # bluetemberg preview
+├── mcp/                  # `mcp serve` tools and the MCP preset registry
+└── utils/                # Shared filesystem and frontmatter helpers (YAML-only)
 ```
 
 ## Commit conventions
@@ -107,7 +108,7 @@ Breaking changes: add `!` after the type, e.g. `feat!: remove sync v1 API`. This
 
 1. Create a feature branch from `main`
 2. Make your changes
-3. Ensure all checks pass: `npm run build && npm test && npm run lint && npm run format:check`. CI also runs `npm audit --audit-level=high`, so a newly published high or critical advisory in any dependency fails the PR until the lockfile is refreshed
+3. Ensure all checks pass: `npm run build && npm run typecheck && npm test && npm run lint && npm run format:check && npm run check:overlays`. CI also runs `npm audit --audit-level=high`, so a newly published high or critical advisory in any dependency fails the PR until the lockfile is refreshed
 4. Open a PR with a conventional commit title
 5. CODEOWNERS will be auto-requested for review
 6. After merge, Release Please will open/update a release PR
@@ -242,7 +243,8 @@ Profiles set smart defaults for the init wizard. Adding a new one is a code chan
 In `src/types.ts`:
 
 ```ts
-export type TeamProfile = 'frontend' | 'backend' | 'fullstack' | 'devops' | 'my-profile' | 'custom';
+export type TeamProfile =
+  'frontend' | 'backend' | 'fullstack' | 'devops' | 'pure-infra' | 'agentic' | 'design-engineer' | 'my-profile' | 'custom';
 ```
 
 ### 2. Add the profile entry
@@ -253,9 +255,11 @@ In `src/init/presets.ts`, add to `TEAM_PROFILES`:
 { id: 'my-profile', name: 'My Profile', description: 'Short description of the team type' },
 ```
 
-### 3. Tag existing presets
+Also add the id to `INIT_TEAM_PROFILES` in `src/init/init-catalog.ts`, which validates `--profile` and `--config`.
 
-Add `'my-profile'` to the `tags` array of every rule, agent, and skill that should be pre-checked for this profile.
+### 3. Tag the packs
+
+Profile tags come from each pack's `profiles` in the catalog, not from the engine. Add `my-profile` to the packs that should be pre-checked for it in [bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs), then run `npm run sync:catalog` here to refresh the snapshot.
 
 ### 4. Update docs
 
@@ -267,7 +271,7 @@ PR title: `feat: add <name> team profile`
 
 ## How tags work
 
-Every collection, agent, and skill preset has a `tags` array listing which profiles consider it a default:
+Every collection, agent, and skill preset has a `tags` array listing which profiles consider it a default. The tags are read from the pack's `profiles` in the catalog:
 
 ```ts
 tags: ['frontend', 'backend', 'fullstack']

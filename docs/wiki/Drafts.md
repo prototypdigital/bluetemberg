@@ -1,5 +1,7 @@
 # Drafts: the human-gated create-loop
 
+> **Since 0.20.0.** Not in the npm release until 0.20.0 is published (0.19.0 is the latest there as of this writing).
+
 When detection finds a stack version that no rule covers (a **gap**), Bluetemberg can help an agent draft a rule for it. The engine never writes the rule itself, and it never calls a model. It hands the agent structured grounding, checks what comes back, and leaves the final decision to a human at a terminal.
 
 A wrong rule is worse than a gap: it misleads every AI session that loads it. So the loop is built around one rule. **Nothing a model wrote reaches `llm/` until a human has read it and typed its name.**
@@ -86,7 +88,7 @@ draft:
   kind: rule
   gap: { stack: payload, version: 4.0.1, reason: no-coverage, confidence: exact }
   createdAt: 2026-11-04T10:00:00.000Z
-  engine: bluetemberg@0.19.0
+  engine: bluetemberg@0.20.0
   reviewedBy: null
   citations:
     - url: https://payloadcms.com/docs/jobs-queue/overview
@@ -103,13 +105,13 @@ draft:
 
 | Check | Fails when |
 | ----- | ---------- |
-| Strict frontmatter | The fence is not exactly `---`, the YAML has aliases or duplicate keys, or a key other than `description`, `scope`, `stacks` or `draft` is present |
+| Strict frontmatter | The fence is not exactly `---`, the YAML has aliases or duplicate keys, or a key outside the kind's allowed set (see the table above) or `draft` is present |
 | Placeholders | Any `TODO(draft)` marker is left |
 | Hidden characters | The draft contains characters a reviewer cannot see but a model reads: zero-width, bidi, Unicode tag characters, private-use characters or variation selectors |
 | Range | The gap stack has no range, the range is open-ended or a wildcard, or it does not satisfy the gap version |
 | Citations | There are none. A URL is not `https`, carries credentials, or names an IP, `localhost` or a private host. A quote is shorter than 20 or longer than 500 characters. A `retrieved` date is not a date, or is in the future |
 | Review marker | `draft.reviewedBy` is set. Only `promote` records a reviewer |
-| Body | It is empty, or larger than 16 KiB |
+| Body | It is empty, or larger than its kind's cap (16 KiB for a rule, 32 KiB for a skill or agent) |
 | Security scan | The [pack content scanner](Registry) blocks it. Prompt-override, safety-bypass, dangerous agent flags and exfiltration are always errors in a draft, even inside a fence labelled as a BAD example |
 | Gap still open | Version-specific guidance has appeared since the draft was opened |
 
@@ -157,7 +159,7 @@ Everything in the loop that touches a model is treated as untrusted. That covers
 
 `bluetemberg mcp serve` adds two **read-only** tools:
 
-- `bluetemberg_draft_brief` (`stack`, `version`)
+- `bluetemberg_draft_brief` (`stack`, `version`, optional `kind`)
 - `bluetemberg_draft_check` (`name`, optional `verifyCitations`)
 
 No MCP tool writes or promotes a draft.

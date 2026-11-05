@@ -1,6 +1,6 @@
 # Writing Rules
 
-Rules live in `llm/rules/` as Markdown files with YAML frontmatter. They are the always-on, passive context that AI assistants see on every interaction.
+Rules live in `llm/rules/` as Markdown files with YAML frontmatter between `---` fences (any other fence, such as `---js`, is refused with an error). They are the always-on, passive context that AI assistants see on every interaction.
 
 ## Format
 
@@ -83,15 +83,17 @@ Marks an unvetted draft from the [create-loop](Drafts). A file carrying a `draft
 
 The sync engine converts `scope` into platform-specific frontmatter:
 
-| Source scope       | Cursor                    | Claude                    | Copilot                |
-| ------------------ | ------------------------- | ------------------------- | ---------------------- |
-| `'**'`             | `alwaysApply: true`       | `paths: ['**']`           | `applyTo: '**'`        |
-| `'src/**'`         | `globs: ['src/**']`       | `paths: ['src/**']`       | `applyTo: 'src/**'`    |
-| `['a/**', 'b/**']` | `globs: ['a/**', 'b/**']` | `paths: ['a/**', 'b/**']` | `applyTo: 'a/**,b/**'` |
+| Source scope       | Cursor                    | Claude                    | Copilot                | Devin Desktop / Antigravity        |
+| ------------------ | ------------------------- | ------------------------- | ---------------------- | ---------------------------------- |
+| `'**'`             | `alwaysApply: true`       | `paths: ['**']`           | `applyTo: '**'`        | `trigger: always_on`               |
+| `'src/**'`         | `globs: ['src/**']`       | `paths: ['src/**']`       | `applyTo: 'src/**'`    | `trigger: glob`, `globs: 'src/**'` |
+| `['a/**', 'b/**']` | `globs: ['a/**', 'b/**']` | `paths: ['a/**', 'b/**']` | `applyTo: 'a/**,b/**'` | `trigger: glob`, `globs: 'a/**,b/**'` |
+
+Codex and Gemini CLI have no per-file rules: sync folds every rule into a managed block in `AGENTS.md`.
 
 ## Rule tiers
 
-Not all rules are equal. Bluetemberg has three intent levels:
+Not all rules are equal. Each collection has one of two intent levels per profile, and a stack-specific collection is pre-checked only when its stack is in the project:
 
 Rules ship inside `bluetemberg-rules-*` npm packages, not as local templates. The wizard lets users select which **collections** (packages) to install; individual rule selection is not supported.
 
@@ -109,16 +111,16 @@ Every rules pack in the catalog is offered as a collection; `RULE_COLLECTION_OVE
 
 ## Available rule collections
 
-Rules are grouped into collections. For the full list of individual rules inside each pack, see the [Catalog](https://github.com/prototypdigital/bluetemberg-packs/wiki/Catalog) in the bluetemberg-packs wiki.
+Rules are grouped into collections. The table shows a selection of the 19 collections in the current catalog snapshot; the [pack browser](https://prototypdigital.github.io/bluetemberg-packs/) lists all of them, and the [Catalog](https://github.com/prototypdigital/bluetemberg-packs/wiki/Catalog) in the bluetemberg-packs wiki lists the rules inside each pack.
 
 | Collection | Package | Profiles | Contents |
 | ---------- | ------- | -------- | -------- |
 | TypeScript | `bluetemberg-rules-typescript` | Frontend, Backend, Full-stack | `type-safety`, `coding-standards`, `early-returns`, `no-console-log`, `design-system-reuse` |
 | Git | `bluetemberg-rules-git` | All except Custom | `git-workflow`, `git-move`, `pre-commit-checks` |
-| Security | `bluetemberg-rules-security` | All except Custom | `never-read-env`, `security-secrets`, `api-error-handling` |
+| Security | `bluetemberg-rules-security` | All except Custom | `never-read-env`, `security-secrets`, `api-error-handling`, `llm-package-hallucination` |
 | Docs | `bluetemberg-rules-docs` | All except Custom | `docs-parity`, `post-edit-diagnostics`, `mermaid-diagrams` |
 | DevOps | `bluetemberg-rules-devops` | DevOps, Pure Infra | Docker, Ansible, K8s, Terraform, CI/CD, idempotency, runbooks |
-| Next.js | `bluetemberg-rules-nextjs` | Frontend, Full-stack | `nextjs-public-env-vars` |
+| Next.js | `bluetemberg-rules-nextjs` | Frontend, Full-stack (when Next.js is detected) | `nextjs-server-components`, `nextjs-data-fetching`, `nextjs-public-env-vars`, `nextjs-metadata` and more |
 
 ## Writing a good rule
 

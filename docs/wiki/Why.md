@@ -11,9 +11,9 @@ That is a distribution problem, and the fix is the one every other kind of share
 ## What you get
 
 - **Versioning.** Rules, agents, skills and guardrails are npm packages. `llm/packages.json` holds semver ranges; `llm/packages-lock.json` holds the exact versions. `bluetemberg update` moves them on purpose, never by accident.
-- **Integrity.** Every pack is checked against its SHA-512 hash on download, and the registry's ECDSA signature is verified against the registry's published keys. Tarballs are size-capped and path-traversal-filtered. The lockfile records the signing key id.
+- **Integrity.** Every pack is checked against its SHA-512 hash on download, and the registry's ECDSA signature is verified against the registry's published keys. Tarballs are size-capped and path-traversal-filtered. Pack and external-source content is scanned for credential leaks, exfiltration and hook-disabling instructions before it lands, and from 0.20.0 `add`, `install` and `update` print a capability report: the guardrails, hook configs and skill scripts a pack brings, and what an update changes. The lockfile records the signing key id.
 - **Routing by role.** A profile (frontend, backend, devops, …) preselects the packs that fit the role. Those are defaults, not bundles: add or remove anything.
-- **Routing by stack version.** A rule tagged `stacks: { payload: '>=3 <4' }` is delivered only where the detected version satisfies it. This one is a hard exclusion, and sync lists every file it withheld so you can audit it.
+- **Routing by stack version.** A rule tagged `stacks: { payload: '>=3 <4' }` is delivered only where the detected version satisfies it. This one is a hard exclusion, and sync lists every file it withheld so you can audit it; `bluetemberg why <rule>` explains any single decision.
 - **Routing by tool.** A pack that only works in one tool (a reviewer driven by Claude Code hooks) says so, and is neither preselected nor synced for the platforms it can't run on.
 - **Guardrails.** Declarative checks compiled into hooks the tool enforces, for the rules an assistant must not be able to skip.
 - **Native output for every tool.** The same source lands as `.cursor/rules`, `.claude/rules`, `.github/instructions`, `AGENTS.md` and the rest, each in the format that tool reads. This is a capability, not the point: as tools converge on `AGENTS.md`, the format matters less and the guarantees above matter more.
@@ -38,6 +38,6 @@ External sources (`bluetemberg source add`) follow the same discipline: a commun
 
 - It does not run or evaluate your rules. It distributes and transforms them.
 - It does not touch your CI/CD pipeline. `init` scaffolds repository files such as Dependabot and templates, never workflows.
-- It does not phone home. `sync` works offline; only `install`, `update` and `search` talk to the registry.
-- It does not lock you in. The source and the output are Markdown you own.
+- It does not phone home. `sync`, `why`, `detect`, `stacks` and `uninstall` work offline. Commands that fetch packs, keys or catalogs go online: `add`, `install`, `update`, `search`, `verify`, `preview`, `source`, `draft brief`/`new`, `scan-org`, and `stacks lint` unless `--offline`. bluetemberg sends no telemetry itself; [managed-settings](Telemetry) can point your tools' own exporters at your collector, opt-in.
+- It does not lock you in. The source and the output are Markdown you own, and `bluetemberg eject` keeps the generated files as plain files without the engine (`uninstall` removes them instead).
 - It does not decide what good rules are. The official packs are a starting point; replace any of them.

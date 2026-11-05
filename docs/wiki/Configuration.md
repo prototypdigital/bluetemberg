@@ -53,7 +53,7 @@ Only selected platforms get generated output during sync. Packs can also be limi
 
 Directory name containing vendor-neutral sources. Default: `"llm"`.
 
-The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skills/`, and optionally `<source>/mcp.json`, `<source>/hooks.json`, `<source>/hooks.claude.json`, `<source>/commands/`, and `<source>/prompts/` (see [Adapters](Adapters)).
+The sync engine reads from `<source>/rules/`, `<source>/agents/`, `<source>/skills/`, and optionally `<source>/guardrails/` (see [Guardrails](Guardrails)), `<source>/mcp.json`, `<source>/hooks.json`, `<source>/hooks.claude.json`, `<source>/claude-hooks.json` (plugin bundles only, see [Marketplace](Marketplace)), `<source>/commands/`, and `<source>/prompts/` (see [Adapters](Adapters)).
 
 ### `profile`
 
@@ -173,7 +173,7 @@ Optional. Used when `"claude-marketplace"` or `"agent-plugins"` is in `platforms
 ```
 
 - `remote` — `owner/repo` of the dedicated marketplace repo. When set, `bluetemberg sync` merges `extraKnownMarketplaces` (keyed by marketplace name) and `enabledPlugins` into `.claude/settings.json`, so Claude Code prompts teammates to install the plugins.
-- `plugins` — when omitted, a single plugin named after the project directory is emitted. With `"agent-plugins"`, each `name` must be a valid Agent Plugins name (1-64 lowercase letters, digits, `-` or `.`, alphanumeric at both ends, no `--` or `..`). For one that isn't, sync skips that plugin's Agent Plugins files and suggests a name; the Claude bundle is still written. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks matches; stack-agnostic files are always included).
+- `plugins` — when omitted, a single plugin named after the project directory is emitted. With `"agent-plugins"`, each `name` must be a valid Agent Plugins name (1-64 lowercase letters, digits, `-` or `.`, alphanumeric at both ends, no `--` or `..`). For one that isn't, sync skips that plugin's Agent Plugins files and suggests a name; the Claude bundle is still written. Each plugin takes `name`, `displayName`, `description`, `profiles` (include only files tagged with one of these profiles; untagged files are included everywhere) and `stacks` (include a stack-specific file only when one of its stacks is listed; stack-agnostic files are always included, and a plugin without `stacks` leaves out every stack-specific file).
 - `owner` — `{ "name", "email"?, "url"? }`, written into `marketplace.json`, where Claude Code requires it. When omitted, the owner segment of `remote` is used, else the project directory name.
 
 See [Marketplace](Marketplace) for the full schema, profile filtering behavior, and publishing setup.
@@ -341,6 +341,7 @@ When this file exists, sync writes platform-specific MCP config:
 | claude and copilot | `.mcp.json` (project root)   | Claude Code, VS Code, Copilot CLI  | Merged: only bluetemberg's servers change  |
 | cursor             | `.cursor/mcp.json`           | Cursor                             | Generated whole                            |
 | codex              | `.codex/config.toml`         | Codex                              | `[mcp_servers.*]` managed block            |
+| antigravity        | `.agents/mcp_config.json`    | Antigravity CLI                    | Merged: only bluetemberg's servers change  |
 
 All JSON outputs use the `{ "mcpServers": { ... } }` shape. Remote presets use the `http` (Streamable HTTP) transport; the older HTTP+SSE transport is deprecated.
 

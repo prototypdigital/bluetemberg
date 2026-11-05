@@ -42,7 +42,7 @@ A pack that targets stacks in the catalog (Payload, Skeletor, React Native, Tail
 
 ### Platforms
 
-Some packs only work in one tool: the PR-review loop runs headless `claude -p` from a Claude Code hook, and the session audit reads Claude Code transcripts. Such a pack can name its platforms in the catalog (`"platforms": ["claude"]`; those two packs get the tag in [bluetemberg-packs#120](https://github.com/prototypdigital/bluetemberg-packs/issues/120), until then they are offered everywhere), and it is preselected only when one of them is among the platforms you pick in the wizard or pass with `--platforms`. A Cursor-only or Copilot-only team doesn't get it by default; it is still offered in the wizard. `claude-marketplace` counts as Claude Code, since the plugins it publishes run there.
+Some packs only work in one tool: the PR-review loop runs headless `claude -p` from a Claude Code hook, and the session audit reads Claude Code transcripts. Such a pack can name its platforms in the catalog (`"platforms": ["claude"]`, as `bluetemberg-skills-pr-review-loop`, `bluetemberg-skills-session-retrospective` and `bluetemberg-agents-session-auditor` do), and it is preselected only when one of them is among the platforms you pick in the wizard or pass with `--platforms`. A Cursor-only or Copilot-only team doesn't get it by default; it is still offered in the wizard. `claude-marketplace` counts as Claude Code, since the plugins it publishes run there.
 
 Sync applies the same list per platform: a Claude Code–only pack in a project that targets Claude Code and Cursor is written to `.claude/` and skipped for `.cursor/`. Packs that name no platforms (or an empty list) work everywhere, exactly as before.
 

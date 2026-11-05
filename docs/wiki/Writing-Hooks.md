@@ -7,6 +7,8 @@ Bluetemberg syncs two hook manifests, one per platform:
 | `llm/hooks.json` | Cursor | `.cursor/hooks.json` |
 | `llm/hooks.claude.json` | Claude Code | `hooks` key of `.claude/settings.json` |
 
+Both are read only from the project's own `llm/`; packs, `extends` and external sources cannot ship them. For checks that should reach every platform, write a [guardrail](Guardrails) instead: sync compiles it into hooks for Claude Code, Cursor (`.cursor/hooks.json`, with `failClosed: true`), GitHub Copilot (`.github/hooks/bluetemberg-guardrails.json`), Devin Desktop (`.devin/hooks.v1.json`) and Codex (`.codex/config.toml`). See [Guardrails → Platform output](Guardrails#platform-output).
+
 ## Cursor hooks (`llm/hooks.json`)
 
 Cursor **hooks** are configured with JSON at `llm/hooks.json`. Sync validates and normalizes the file, then writes `.cursor/hooks.json`. The format matches what [Cursor’s hooks documentation](https://cursor.com/docs/hooks) describes: a version number and a map of hook events to command entries.
