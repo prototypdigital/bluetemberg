@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.1](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.20.0...bluetemberg-v0.20.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **cli:** correct help-text drift found by the docs audit ([e0503f4](https://github.com/prototypdigital/bluetemberg/commit/e0503f42fd9d6967cb1ff0127933d15995b6e426))
+* **cli:** correct help-text drift found by the docs audit ([9ed8667](https://github.com/prototypdigital/bluetemberg/commit/9ed86675567dffaf7f68f35ab1c16d542da32894))
+
 ## [0.20.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.19.0...bluetemberg-v0.20.0) (2026-11-05)
 
 
