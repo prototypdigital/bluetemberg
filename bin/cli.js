@@ -1090,12 +1090,14 @@ draftCmd
   )
   .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
   .argument('[directory]', 'Project root directory', '.')
+  .option('--kind <kind>', 'What to draft: rule (default), skill or agent')
   .option('--json', 'Emit machine-readable JSON')
   .action(async (gap, directory, options) => {
     const { buildGapBrief } = await import('../dist/drafts/brief.js');
+    const { parseDraftKind } = await import('../dist/drafts/kinds.js');
     const { formatBrief } = await import('../dist/drafts/format.js');
     try {
-      const brief = buildGapBrief(resolve(directory), gap.stack, gap.version);
+      const brief = buildGapBrief(resolve(directory), gap.stack, gap.version, parseDraftKind(options.kind));
       console.log(options.json ? JSON.stringify(brief, null, 2) : formatBrief(brief).join('\n'));
       if (!brief.fillable) process.exitCode = 1;
     } catch (err) {
@@ -1106,19 +1108,25 @@ draftCmd
 draftCmd
   .command('new')
   .description(
-    'Open a draft rule for a gap in .bluetemberg/drafts/ (refuses when the stack version is covered)',
+    'Open a draft rule, skill or agent for a gap in .bluetemberg/drafts/ (refuses when the stack version is covered)',
   )
   .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
   .argument('[directory]', 'Project root directory', '.')
-  .requiredOption('--name <rule-name>', 'Kebab-case id of the future rule (e.g. payload-4-jobs-queue)')
-  .option('--scope <glob>', 'The rule scope glob (default "**")')
+  .requiredOption(
+    '--name <name>',
+    'Kebab-case id of the future rule, skill or agent (e.g. payload-4-jobs-queue)',
+  )
+  .option('--kind <kind>', 'What to draft: rule (default), skill or agent')
+  .option('--scope <glob>', 'The rule scope glob (rules only; default "**")')
   .option('--json', 'Emit machine-readable JSON (name, path, brief)')
   .action(async (gap, directory, options) => {
     const { createDraft } = await import('../dist/drafts/draft.js');
+    const { parseDraftKind } = await import('../dist/drafts/kinds.js');
     const { formatNewDraft } = await import('../dist/drafts/format.js');
     try {
       const result = createDraft(resolve(directory), gap.stack, gap.version, {
         name: options.name,
+        kind: parseDraftKind(options.kind),
         scope: options.scope,
         engine: `bluetemberg@${pkg.version}`,
       });
@@ -1172,7 +1180,7 @@ draftCmd
 draftCmd
   .command('promote')
   .description(
-    '[human only] Review a checked draft and write it to <source>/rules/ (interactive TTY required)',
+    '[human only] Review a checked draft and write it to <source>/rules|skills|agents/ (interactive TTY required)',
   )
   .argument('<name>', 'Draft name')
   .argument('[directory]', 'Project root directory', '.')

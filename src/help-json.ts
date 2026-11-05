@@ -40,16 +40,30 @@ const DRAFT_COMMANDS = [
     args: '<stack@version> [directory]',
     description:
       'Gap brief for an agent: coverage, nearest guidance, paths of files importing the package, citation contract (read-only). Exits 1 when the version is already covered.',
-    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+    options: [
+      {
+        long: '--kind <kind>',
+        description: 'rule (default), skill or agent: selects the authoring skill and steps.',
+      },
+      { long: '--json', description: 'Emit machine-readable JSON.' },
+    ],
   },
   {
     name: 'draft new',
     args: '<stack@version> [directory]',
     description:
-      'Open a draft rule for a gap in .bluetemberg/drafts/ (never synced). Refuses a version-covered stack and an existing name.',
+      'Open a draft rule, skill or agent for a gap in .bluetemberg/drafts/ (never synced). Refuses a version-covered stack and an existing name.',
     options: [
-      { long: '--name <rule-name>', description: 'Kebab-case id of the future rule (required).' },
-      { long: '--scope <glob>', description: 'The rule scope glob (default "**").' },
+      {
+        long: '--name <name>',
+        description: 'Kebab-case id of the future rule, skill or agent (required).',
+      },
+      {
+        long: '--kind <kind>',
+        description:
+          'rule (default), skill or agent. A skill draft is one SKILL.md; an agent draft must list its tools from read, search, edit, execute, agent.',
+      },
+      { long: '--scope <glob>', description: 'The rule scope glob (rules only; default "**").' },
       { long: '--json', description: 'Emit machine-readable JSON (name, path, brief).' },
     ],
   },
@@ -77,7 +91,7 @@ const DRAFT_COMMANDS = [
     name: 'draft promote',
     args: '<name> [directory]',
     description:
-      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md (never overwrites). Re-verifies every citation against its page first. Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
+      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md, skills/<name>/SKILL.md or agents/<name>.md (never overwrites). Re-verifies every citation against its page first. Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
     options: [
       { long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' },
       {

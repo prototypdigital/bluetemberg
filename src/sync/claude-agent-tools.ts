@@ -12,6 +12,8 @@ const CLAUDE_TOOLS_BY_CAPABILITY: Record<string, string[]> = {
 };
 
 const INLINE_TOOLS_LINE = /^tools:[ \t]*(?:\[([^\]\n]*)\]|([^\n[]*))[ \t]*$/m;
+/** `tools:` followed by a YAML block sequence (`  - read`), the form YAML serialisers emit. */
+const BLOCK_TOOLS = /^tools:[ \t]*\r?\n((?:[ \t]*-[ \t]+[^\n]*(?:\r?\n|$))+)/m;
 const FRONTMATTER = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
 
 /** Map one declared tool name; names that are not abstract capabilities pass through untouched. */
@@ -28,7 +30,8 @@ function parseToolNames(list: string): string[] {
 
 /**
  * Rewrite the frontmatter `tools:` line of an agent to Claude Code tool names.
- * Content without a single-line `tools:` declaration (or without frontmatter) is returned as-is,
+ * Both the inline (`tools: [read]`) and the block-sequence form are rewritten. Content without a
+ * `tools:` declaration, with a bare `tools:` (null), or without frontmatter is returned as-is,
  * so omitted `tools` still means "inherit everything" and other keys are never reformatted.
  */
 export function toClaudeAgentContent(content: string): string {
@@ -36,14 +39,33 @@ export function toClaudeAgentContent(content: string): string {
   if (!frontmatter) return content;
 
   const [whole, open, yaml, close] = frontmatter;
+  const block = yaml.match(BLOCK_TOOLS);
+  if (block) {
+    const items = block[1]
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^[ \t]*-[ \t]+/, ''))
+      .join(',');
+    const newline = block[0].endsWith('\n') ? '\n' : '';
+    return (
+      open +
+      yaml.replace(BLOCK_TOOLS, `${claudeToolsLine(items)}${newline}`) +
+      close +
+      content.slice(whole.length)
+    );
+  }
   const toolsLine = yaml.match(INLINE_TOOLS_LINE);
   if (!toolsLine) return content;
+  // A bare `tools:` is YAML null — "inherit every tool". Rewriting it to `[]` would strip them all.
+  if (toolsLine[1] === undefined && (toolsLine[2] ?? '').trim() === '') return content;
 
-  const declared = parseToolNames(toolsLine[1] ?? toolsLine[2] ?? '');
-  const resolved = [...new Set(declared.flatMap(toClaudeTools))];
-  const rewritten = `tools: [${resolved.map((name) => `"${name}"`).join(', ')}]`;
-  const newYaml = yaml.replace(INLINE_TOOLS_LINE, rewritten);
+  const newYaml = yaml.replace(INLINE_TOOLS_LINE, claudeToolsLine(toolsLine[1] ?? toolsLine[2] ?? ''));
   return open + newYaml + close + content.slice(whole.length);
+}
+
+/** The Claude `tools:` line for a comma-separated list of declared names. */
+function claudeToolsLine(list: string): string {
+  const resolved = [...new Set(parseToolNames(list).flatMap(toClaudeTools))];
+  return `tools: [${resolved.map((name) => `"${name}"`).join(', ')}]`;
 }
 
 const NAME_LINE = /^name:[ \t]*(.*?)[ \t]*$/m;

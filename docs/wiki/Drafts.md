@@ -44,6 +44,26 @@ An agent can drive every step up to `draft check`. `draft promote` needs an inte
 
 When the version is already covered by version-specific guidance, the brief says so and exits 1. `draft new` refuses outright. The loop never drafts without a gap.
 
+## Rules, skills and agents
+
+A gap can be filled by any of the three kinds that take a `stacks:` range. Pass `--kind` to `draft brief` and `draft new`; the default is `rule`.
+
+| Kind | Frontmatter it may carry | Body should have | Promoted to | Authoring skill |
+| ---- | ------------------------ | ---------------- | ----------- | --------------- |
+| `rule` | `description`, `scope`, `stacks` | `## Rules` | `<source>/rules/<name>.md` | `create-rule` |
+| `skill` | `name`, `description`, `stacks` | `## Protocol` | `<source>/skills/<name>/SKILL.md` | `create-skill` |
+| `agent` | `name`, `description`, `tools`, `stacks` | `## Constraints` | `<source>/agents/<name>.md` | `create-agent` |
+
+- **`name`** must equal the draft name. It becomes the skill directory or the agent id.
+- **A skill draft is one `SKILL.md`.** Scripts and other supporting files cannot be drafted. Add them by hand after promotion, where you review them like any other change.
+- **An agent draft must list its `tools`.** An agent without `tools` inherits every tool its host has, which no reviewer can read off the file. Only the abstract names `read`, `search`, `edit`, `execute` and `agent` are allowed: a host tool name such as `Bash`, a wildcard or an MCP tool is refused. The skeleton starts read-only (`[read, search]`). Granting `edit`, `execute` or `agent` raises a `tools-write-access` warning, and the promote review shows the tools on their own line.
+- **Size caps:** a rule body is capped at 16 KiB (it is always-on context). A skill or agent body is capped at 32 KiB.
+
+```bash
+npx bluetemberg draft new payload@4.0.1 --kind skill --name payload-4-jobs-setup
+npx bluetemberg draft new payload@4.0.1 --kind agent --name payload-4-jobs-reviewer
+```
+
 ## Where drafts live
 
 Drafts live in **`.bluetemberg/drafts/`**:
@@ -53,7 +73,7 @@ Drafts live in **`.bluetemberg/drafts/`**:
 - Promoted drafts are archived in `.bluetemberg/drafts/promoted/`, together with the reviewer, the time and the hash of what they approved.
 - `uninstall` and `eject` delete `.bluetemberg/`, drafts included.
 
-A draft is a rule file plus a `draft:` block:
+A draft is the file it will become plus a `draft:` block. For a rule:
 
 ```yaml
 ---
@@ -120,7 +140,7 @@ The page is only searched for the quote. It is never stored, logged, or passed t
 3. Prints the exact rule file it will write. Control and bidi characters are neutralised before display. It also prints the citations and any warnings.
 4. Asks you to **type the rule name**. Anything else cancels.
 5. Re-reads the draft and compares its SHA-256 with what you reviewed. If one byte changed, nothing is written.
-6. Writes `<source>/rules/<name>.md` with exclusive create, so it never overwrites. The target must be inside the project, with no symlink on the way. The written file has only `description`, `scope` and `stacks`, plus a `## Sources` section listing the citations.
+6. Writes the file for its kind (see the table above) with exclusive create, so it never overwrites; a skill's directory must not exist at all. The target must be inside the project, with no symlink on the way. The written file has only its kind's frontmatter keys, plus a `## Sources` section listing the citations.
 7. Archives the draft with `reviewedBy`, `reviewedAt` and the hash.
 
 The gate stops an agent from promoting through its normal tool use, whether by mistake or under a prompt injection. The agent-session check is best-effort: a host that sets none of those variables is not detected. It is not a sandbox against someone at your keyboard, who could edit `llm/rules/` directly anyway.
@@ -146,7 +166,6 @@ No MCP tool writes or promotes a draft.
 
 These are planned in [#197](https://github.com/prototypdigital/bluetemberg/issues/197):
 
-- Skill and agent drafts.
 - An optional contribution PR into bluetemberg-packs that a human runs.
 - An eval gate (M8): promotion requires a passing promptfoo eval when the rule ships one.
 
