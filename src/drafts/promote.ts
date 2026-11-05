@@ -11,10 +11,12 @@ import {
   type DraftIssue,
   type ValidDraft,
 } from './check.js';
-import { promotionTarget } from './draft.js';
+import { promotionTarget, type PromotionTarget } from './draft.js';
 import { renderFrontmatter } from './frontmatter.js';
+import type { DraftKind } from './kinds.js';
 import { DRAFT_KEY } from './marker.js';
 import { assertNoSymlinks, displayPath, promotedDir, promotedPath } from './paths.js';
+import { packageForGap, verifyCitations, type CitationCheck, type VerifyOptions } from './verify.js';
 
 /**
  * `bluetemberg draft promote` — the human gate. The library does the checks and the writes; the
@@ -28,13 +30,18 @@ import { assertNoSymlinks, displayPath, promotedDir, promotedPath } from './path
 
 export interface PromotionReview {
   name: string;
-  /** Where the rule will be written, relative to the project root. */
+  kind: DraftKind;
+  /** For an agent: the tools it will be granted. Empty for other kinds. */
+  tools: string[];
+  /** Where the file will be written, relative to the project root. */
   destination: string;
-  /** The exact rule file that will be written, sanitised for display. */
+  /** The exact file that will be written, sanitised for display. */
   output: string;
   sha256: string;
   gap: { stack: string; version: string };
   citations: Citation[];
+  /** Per-citation verification, in citation order; null when the reviewer skipped it. */
+  citationChecks: CitationCheck[] | null;
   warnings: DraftIssue[];
 }
 
@@ -45,6 +52,11 @@ export interface PromoteOptions {
   now?: Date;
   /** The environment checked for agent-session markers. Defaults to `process.env`. */
   env?: Record<string, string | undefined>;
+  /**
+   * Citation verification (fetch each cited page, find its quote). On by default; `false` skips
+   * it — a choice only the human at the prompt makes, recorded in the archive.
+   */
+  verifyCitations?: VerifyOptions | false;
 }
 
 export interface PromoteResult {
@@ -84,37 +96,34 @@ function assertReviewer(reviewedBy: string): string {
   return who;
 }
 
-/** The rule as it lands in the source dir: house frontmatter only, plus its sources. */
-export function renderPromotedRule(valid: ValidDraft): string {
+/** The file as it lands in the source dir: the kind's house frontmatter only, plus its sources. */
+export function renderPromoted(valid: Pick<ValidDraft, 'frontmatter' | 'body' | 'citations'>): string {
   const sources = valid.citations.map((c) => `- <${c.url}> — retrieved ${c.retrieved}`).join('\n');
   const body = `${valid.body.trim()}\n\n## Sources\n\n${sources}`;
-  return renderFrontmatter(
-    { description: valid.description, scope: valid.scope, stacks: valid.stacks },
-    body,
-  );
+  return renderFrontmatter(valid.frontmatter, body);
 }
 
-function renderArchive(
-  valid: ValidDraft,
-  reviewedBy: string,
-  hash: string,
-  destination: string,
-  now: Date,
-): string {
+interface ArchiveRecord {
+  reviewedBy: string;
+  hash: string;
+  destination: string;
+  now: Date;
+  citationsVerified: boolean;
+}
+
+function renderArchive(valid: ValidDraft, record: ArchiveRecord): string {
   const draft = {
     ...valid.draft,
     status: 'promoted',
-    reviewedBy,
-    reviewedAt: now.toISOString(),
-    sha256: hash,
-    promotedTo: destination,
+    reviewedBy: record.reviewedBy,
+    reviewedAt: record.now.toISOString(),
+    sha256: record.hash,
+    promotedTo: record.destination,
+    citationsVerified: record.citationsVerified,
   };
   // The archive keeps the draft key on purpose: if it is ever copied into a source dir, the
   // marker still withholds it.
-  return renderFrontmatter(
-    { description: valid.description, scope: valid.scope, stacks: valid.stacks, [DRAFT_KEY]: draft },
-    valid.body,
-  );
+  return renderFrontmatter({ ...valid.frontmatter, [DRAFT_KEY]: draft }, valid.body);
 }
 
 function refuse(name: string, errors: DraftIssue[]): never {
@@ -122,6 +131,42 @@ function refuse(name: string, errors: DraftIssue[]): never {
   throw new Error(
     [`draft "${name}" cannot be promoted — run \`bluetemberg draft check ${name}\`:`, ...lines].join('\n'),
   );
+}
+
+/**
+ * Write the promoted file. A skill's directory is created without `recursive`, so an existing
+ * one (created after the earlier check) fails instead of being written into; the file itself is
+ * exclusive-create either way.
+ */
+function writeTarget(root: string, target: PromotionTarget, output: string): void {
+  const parent = dirname(target.dir ?? target.file);
+  mkdirSync(parent, { recursive: true });
+  assertNoSymlinks(root, target.file);
+  if (target.dir) mkdirSync(target.dir);
+  assertNoSymlinks(root, target.file);
+  writeFileSync(target.file, output, { flag: 'wx' });
+}
+
+async function verifyForPromotion(
+  root: string,
+  name: string,
+  valid: ValidDraft,
+  options: VerifyOptions | false | undefined,
+): Promise<{ checks: CitationCheck[] | null; warnings: DraftIssue[] }> {
+  if (options === false) {
+    return {
+      checks: null,
+      warnings: [
+        {
+          code: 'citations-not-verified',
+          message: 'citation verification was skipped — the quotes were not checked against their pages',
+        },
+      ],
+    };
+  }
+  const result = await verifyCitations(valid.citations, packageForGap(root, valid.gap.stack), options ?? {});
+  if (result.errors.length > 0) refuse(name, result.errors);
+  return { checks: result.checks, warnings: result.warnings };
 }
 
 export async function promoteDraft(root: string, name: string, opts: PromoteOptions): Promise<PromoteResult> {
@@ -142,18 +187,22 @@ export async function promoteDraft(root: string, name: string, opts: PromoteOpti
   const closed = gapClosedReason(root, valid.gap);
   if (closed) refuse(name, [{ code: 'gap-closed', message: closed }]);
 
-  const target = promotionTarget(root, name);
+  const target = promotionTarget(root, name, valid.kind);
   const archive = promotedPath(root, name);
   assertNoSymlinks(root, archive);
-  if (existsSync(target))
-    throw new Error(`${displayPath(root, target)} already exists — promotion never overwrites`);
+  if (existsSync(target.taken))
+    throw new Error(`${displayPath(root, target.taken)} already exists — promotion never overwrites`);
   if (existsSync(archive))
     throw new Error(`${displayPath(root, archive)} already exists — remove the old archive first`);
 
-  const output = renderPromotedRule(valid);
-  const destination = displayPath(root, target);
+  const verification = await verifyForPromotion(root, name, valid, opts.verifyCitations);
+
+  const output = renderPromoted(valid);
+  const destination = displayPath(root, target.file);
   const approved = await opts.confirm({
     name,
+    kind: valid.kind,
+    tools: valid.tools,
     destination,
     output: sanitizeForTerminal(output),
     sha256: hash,
@@ -163,7 +212,8 @@ export async function promoteDraft(root: string, name: string, opts: PromoteOpti
       url: sanitizeForTerminal(c.url),
       quote: sanitizeForTerminal(c.quote),
     })),
-    warnings: checked.warnings,
+    citationChecks: verification.checks,
+    warnings: [...checked.warnings, ...verification.warnings],
   });
   if (!approved) return { name, promoted: false, destination, archived: null, sha256: hash };
 
@@ -173,12 +223,20 @@ export async function promoteDraft(root: string, name: string, opts: PromoteOpti
     );
   }
 
-  mkdirSync(dirname(target), { recursive: true });
-  assertNoSymlinks(root, target);
-  writeFileSync(target, output, { flag: 'wx' });
+  writeTarget(root, target, output);
   mkdirSync(promotedDir(root), { recursive: true });
   assertNoSymlinks(root, archive);
-  writeFileSync(archive, renderArchive(valid, reviewedBy, hash, destination, now), { flag: 'wx' });
+  writeFileSync(
+    archive,
+    renderArchive(valid, {
+      reviewedBy,
+      hash,
+      destination,
+      now,
+      citationsVerified: verification.checks !== null,
+    }),
+    { flag: 'wx' },
+  );
   unlinkSync(path);
   return { name, promoted: true, destination, archived: displayPath(root, archive), sha256: hash };
 }

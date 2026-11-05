@@ -6,6 +6,7 @@ import { loadConfig } from '../sync/index.js';
 import { buildGapBrief, type GapBrief } from './brief.js';
 import { DRAFT_STATUS_UNVETTED, MAX_DRAFT_BYTES, TODO_MARKER } from './check.js';
 import { parseStrictFrontmatter, renderFrontmatter } from './frontmatter.js';
+import { isDraftKind, kindTarget, type DraftKind } from './kinds.js';
 import { DRAFT_KEY } from './marker.js';
 import {
   assertDraftName,
@@ -21,6 +22,9 @@ import {
 
 export interface NewDraftOptions {
   name: string;
+  /** What to draft; default `rule`. */
+  kind?: DraftKind;
+  /** A rule's scope glob (rules only). */
   scope?: string;
   /** Recorded in the provenance block, e.g. `bluetemberg@0.4.0`. */
   engine?: string;
@@ -33,38 +37,32 @@ export interface NewDraftResult {
   brief: GapBrief;
 }
 
-/**
- * The rule file promotion would write for `name`. It must sit inside the project with no symlink
- * on the way: a symlinked `llm/rules` would land the write somewhere the reviewer never saw, while
- * the review shows the innocent-looking relative path.
- */
-export function promotionTarget(root: string, name: string): string {
-  assertDraftName(name);
-  const target = join(resolve(root), loadConfig(root).source, 'rules', `${name}.md`);
-  assertNoSymlinks(root, target);
-  return target;
+export interface PromotionTarget {
+  /** The file promotion writes. */
+  file: string;
+  /** For a skill, its directory — which must not exist yet. */
+  dir: string | null;
+  /** The path that must be free: the skill dir, or the file. */
+  taken: string;
 }
 
-function skeleton(brief: GapBrief, opts: NewDraftOptions, now: Date): string {
-  const { stack, version, kind, confidence, source } = brief.gap;
-  const data = {
-    description: `${TODO_MARKER}: one imperative sentence stating the rule`,
-    scope: opts.scope ?? '**',
-    stacks: { [stack]: brief.proposedRange },
-    [DRAFT_KEY]: {
-      status: DRAFT_STATUS_UNVETTED,
-      kind: 'rule',
-      gap: { stack, version, reason: kind, confidence, source },
-      createdAt: now.toISOString(),
-      engine: opts.engine ?? 'bluetemberg',
-      reviewedBy: null,
-      citations: [],
-    },
-  };
-  const body = [
+/**
+ * Where promotion would write `name` of `kind`. It must sit inside the project with no symlink on
+ * the way: a symlinked `llm/rules` would land the write somewhere the reviewer never saw, while
+ * the review shows the innocent-looking relative path.
+ */
+export function promotionTarget(root: string, name: string, kind: DraftKind = 'rule'): PromotionTarget {
+  assertDraftName(name);
+  const { file, dir } = kindTarget(join(resolve(root), loadConfig(root).source), kind, name);
+  assertNoSymlinks(root, file);
+  return { file, dir, taken: dir ?? file };
+}
+
+function ruleBody(stack: string, range: string): string[] {
+  return [
     `# ${TODO_MARKER}: rule title`,
     '',
-    `${TODO_MARKER}: why — the consequence this rule prevents in ${stack} ${brief.proposedRange}.`,
+    `${TODO_MARKER}: why — the consequence this rule prevents in ${stack} ${range}.`,
     '',
     '## Rules',
     '',
@@ -77,8 +75,90 @@ function skeleton(brief: GapBrief, opts: NewDraftOptions, now: Date): string {
     '## Gotchas',
     '',
     `- ${TODO_MARKER}: edge cases at the ${stack} version boundary, or delete this section.`,
-  ].join('\n');
-  return renderFrontmatter(data, body);
+  ];
+}
+
+function skillBody(name: string, stack: string, range: string): string[] {
+  return [
+    `# ${name}`,
+    '',
+    `Use this skill when ${TODO_MARKER}: the trigger context, for ${stack} ${range}.`,
+    '',
+    '## Triggers',
+    '',
+    `- ${TODO_MARKER}: a concrete trigger phrase or condition.`,
+    '',
+    '## Protocol',
+    '',
+    `### Step 1 — ${TODO_MARKER}: imperative action`,
+    '',
+    `${TODO_MARKER}: the step, with a BAD / GOOD pair grounded in the cited documentation.`,
+    '',
+    '## Completion checklist',
+    '',
+    `- [ ] ${TODO_MARKER}: a verifiable criterion.`,
+    '',
+    '## When NOT to use',
+    '',
+    `- ${TODO_MARKER}: where this skill is the wrong tool.`,
+  ];
+}
+
+function agentBody(stack: string, range: string): string[] {
+  return [
+    `# ${TODO_MARKER}: agent title`,
+    '',
+    `You are a ${TODO_MARKER}: role specialist for ${stack} ${range}. Your job is to ${TODO_MARKER}: responsibility.`,
+    '',
+    '## Responsibilities',
+    '',
+    `- ${TODO_MARKER}: a responsibility.`,
+    '',
+    '## Constraints',
+    '',
+    `- ${TODO_MARKER}: what this agent must NOT do, and where it defers.`,
+    '',
+    '## Output',
+    '',
+    `${TODO_MARKER}: the shape of the summary it reports back.`,
+  ];
+}
+
+function skeletonFrontmatter(
+  kind: DraftKind,
+  opts: NewDraftOptions,
+  stacks: Record<string, string>,
+): Record<string, unknown> {
+  const description = `${TODO_MARKER}: one sentence — what this ${kind} does${kind === 'rule' ? '' : ' and when to use it'}`;
+  if (kind === 'rule') return { description, scope: opts.scope ?? '**', stacks };
+  // An agent starts read-only; widening its tools is a choice the author makes and the reviewer sees.
+  if (kind === 'agent') return { name: opts.name, description, tools: ['read', 'search'], stacks };
+  return { name: opts.name, description, stacks };
+}
+
+function skeleton(brief: GapBrief, opts: NewDraftOptions, now: Date): string {
+  const { stack, version, kind: reason, confidence, source } = brief.gap;
+  const kind = opts.kind ?? 'rule';
+  const range = brief.proposedRange;
+  const data = {
+    ...skeletonFrontmatter(kind, opts, { [stack]: range }),
+    [DRAFT_KEY]: {
+      status: DRAFT_STATUS_UNVETTED,
+      kind,
+      gap: { stack, version, reason, confidence, source },
+      createdAt: now.toISOString(),
+      engine: opts.engine ?? 'bluetemberg',
+      reviewedBy: null,
+      citations: [],
+    },
+  };
+  const body =
+    kind === 'skill'
+      ? skillBody(opts.name, stack, range)
+      : kind === 'agent'
+        ? agentBody(stack, range)
+        : ruleBody(stack, range);
+  return renderFrontmatter(data, body.join('\n'));
 }
 
 /**
@@ -93,16 +173,18 @@ export function createDraft(
   opts: NewDraftOptions,
 ): NewDraftResult {
   assertDraftName(opts.name);
+  const kind = opts.kind ?? 'rule';
+  if (opts.scope !== undefined && kind !== 'rule') throw new Error('--scope applies to rules only');
   if (opts.scope !== undefined && (opts.scope.trim() === '' || /[\r\n]/.test(opts.scope))) {
     throw new Error('--scope must be a single-line glob');
   }
-  const brief = buildGapBrief(root, stack, version);
+  const brief = buildGapBrief(root, stack, version, kind);
   if (!brief.fillable) throw new Error(brief.refusal ?? 'not a gap');
 
-  const target = promotionTarget(root, opts.name);
-  if (existsSync(target)) {
+  const target = promotionTarget(root, opts.name, kind);
+  if (existsSync(target.taken)) {
     throw new Error(
-      `a rule named "${opts.name}" already exists (${displayPath(root, target)}) — pick another name`,
+      `a ${kind} named "${opts.name}" already exists (${displayPath(root, target.taken)}) — pick another name`,
     );
   }
   const path = draftPath(root, opts.name);
@@ -125,6 +207,7 @@ export function createDraft(
 
 export interface DraftListEntry {
   name: string;
+  kind: DraftKind | null;
   status: 'pending' | 'promoted' | 'unreadable';
   path: string;
   gap: { stack: string; version: string } | null;
@@ -141,6 +224,7 @@ function summarise(root: string, dir: string, file: string, status: 'pending' | 
   const path = join(dir, file);
   const entry: DraftListEntry = {
     name,
+    kind: null,
     status,
     path: displayPath(root, path),
     gap: null,
@@ -155,6 +239,7 @@ function summarise(root: string, dir: string, file: string, status: 'pending' | 
     const gap = isPlainObject(draft.gap) ? draft.gap : {};
     return {
       ...entry,
+      kind: isDraftKind(draft.kind) ? draft.kind : null,
       gap:
         typeof gap.stack === 'string' && typeof gap.version === 'string'
           ? { stack: sanitizeForTerminal(gap.stack), version: sanitizeForTerminal(gap.version) }

@@ -6,6 +6,7 @@ import { formatFinding, sanitizeForTerminal, scanText } from '../registry/scanne
 import { buildCoverageReport } from '../stacks/report.js';
 import { isValidStackRange, isWildcardRange, rangeHasUpperBound, versionSatisfies } from '../stacks/match.js';
 import { parseStrictFrontmatter } from './frontmatter.js';
+import { AGENT_TOOLS, isDraftKind, KIND_SPECS, WRITE_TOOLS, type DraftKind } from './kinds.js';
 import { DRAFT_KEY } from './marker.js';
 import { assertNoSymlinks, displayPath, draftPath } from './paths.js';
 
@@ -19,14 +20,13 @@ export const DRAFT_STATUS_UNVETTED = 'draft-unvetted';
 export const TODO_MARKER = 'TODO(draft)';
 /** The whole draft file. Always-on rules should be far smaller; this bounds every read. */
 export const MAX_DRAFT_BYTES = 64 * 1024;
-/** The rule body: always-on context costs every session, so a long body is refused. */
-export const MAX_BODY_BYTES = 16 * 1024;
 export const MAX_QUOTE_CHARS = 500;
+/** A shorter quote matches almost any page, so it proves nothing about the source. */
+export const MIN_QUOTE_CHARS = 20;
 const MAX_CITATIONS = 20;
 const MAX_URL_CHARS = 2000;
 const MAX_DESCRIPTION_CHARS = 300;
 const MAX_SCOPE_CHARS = 200;
-const ALLOWED_KEYS = new Set(['description', 'scope', 'stacks', DRAFT_KEY]);
 const LOCAL_HOST_SUFFIXES = ['.local', '.localhost', '.internal', '.lan', '.home.arpa'];
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -64,17 +64,22 @@ export interface DraftCheckReport {
   warnings: DraftIssue[];
   gap: DraftGap | null;
   citations: Citation[];
+  /** The draft's kind; null when it could not be read. */
+  kind: DraftKind | null;
 }
 
 /** The parts of a valid draft promotion needs. */
 export interface ValidDraft {
-  description: string;
-  scope: string;
+  kind: DraftKind;
+  /** The promoted file's frontmatter: exactly the kind's keys, in house order. */
+  frontmatter: Record<string, unknown>;
   stacks: Record<string, string>;
   body: string;
   gap: DraftGap;
   citations: Citation[];
   draft: Record<string, unknown>;
+  /** For an agent: the tools it declares. */
+  tools: string[];
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -140,8 +145,8 @@ function checkDraftBlock(issues: Issues, value: unknown): Record<string, unknown
       `"draft.status" must be "${DRAFT_STATUS_UNVETTED}", got ${quoteValue(value.status)}`,
     );
   }
-  if (value.kind !== 'rule') {
-    issues.error('draft-kind', `"draft.kind" must be "rule", got ${quoteValue(value.kind)}`);
+  if (!isDraftKind(value.kind)) {
+    issues.error('draft-kind', `"draft.kind" must be rule, skill or agent, got ${quoteValue(value.kind)}`);
   }
   // Review is recorded by `promote`, by a human. A draft that arrives already "reviewed" was
   // written by something trying to look approved.
@@ -192,7 +197,8 @@ function checkStacks(issues: Issues, value: unknown, gap: DraftGap | null): Reco
   return stacks;
 }
 
-function urlIssue(raw: string): string | null {
+/** Why `raw` is not an acceptable citation URL, or null. Also applied to every redirect hop. */
+export function urlIssue(raw: string): string | null {
   if (raw.length > MAX_URL_CHARS) return 'is too long';
   let url: URL;
   try {
@@ -202,6 +208,7 @@ function urlIssue(raw: string): string | null {
   }
   if (url.protocol !== 'https:') return 'must use https';
   if (url.username || url.password) return 'must not carry credentials';
+  if (url.port !== '') return 'must use the default https port';
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (isIP(host) !== 0) return 'must name a host, not an IP address';
   if (host === 'localhost' || !host.includes('.') || LOCAL_HOST_SUFFIXES.some((s) => host.endsWith(s))) {
@@ -229,7 +236,7 @@ function checkCitation(issues: Issues, raw: unknown, index: number, now: Date): 
   }
   const problems = [
     urlIssue(url) && `url ${urlIssue(url)}`,
-    quote.trim() === '' && 'quote is empty',
+    quote.trim().length < MIN_QUOTE_CHARS && `quote is shorter than ${MIN_QUOTE_CHARS} characters`,
     quote.length > MAX_QUOTE_CHARS && `quote is longer than ${MAX_QUOTE_CHARS} characters`,
     dateIssue(retrieved, now) && `retrieved ${dateIssue(retrieved, now)}`,
   ].filter((p): p is string => typeof p === 'string');
@@ -255,16 +262,73 @@ function checkCitations(issues: Issues, value: unknown, now: Date): Citation[] {
     .filter((c): c is Citation => c !== null);
 }
 
-function checkBody(issues: Issues, body: string): void {
-  if (body.trim() === '') issues.error('body-empty', 'the rule body is empty');
-  if (Buffer.byteLength(body, 'utf8') > MAX_BODY_BYTES) {
+function checkBody(issues: Issues, body: string, kind: DraftKind): void {
+  const spec = KIND_SPECS[kind];
+  if (body.trim() === '') issues.error('body-empty', `the ${kind} body is empty`);
+  if (Buffer.byteLength(body, 'utf8') > spec.maxBodyBytes) {
     issues.error(
       'body-too-long',
-      `the rule body is larger than ${MAX_BODY_BYTES / 1024} KiB — split it into smaller rules`,
+      `the ${kind} body is larger than ${spec.maxBodyBytes / 1024} KiB — split it up`,
     );
   }
-  if (!/^##\s+Rules\b/m.test(body))
-    issues.warn('body-no-rules', 'the body has no "## Rules" section (create-rule house structure)');
+  if (!spec.expectedSection.pattern.test(body)) {
+    issues.warn(
+      'body-missing-section',
+      `the body has no "${spec.expectedSection.label}" section (${spec.authoringSkill} house structure)`,
+    );
+  }
+}
+
+/** `name` must be the draft's own name: it becomes the skill dir or agent id. */
+function checkName(issues: Issues, value: unknown, name: string): void {
+  if (value !== name) {
+    issues.error(
+      'name-mismatch',
+      `"name" must be ${quoteValue(name)} (the draft name), got ${quoteValue(value)}`,
+    );
+  }
+}
+
+/**
+ * An agent's tools, from the abstract set only. Required: an agent with no `tools` inherits every
+ * tool its host has, which no reviewer can read off the file.
+ */
+function checkTools(issues: Issues, value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    issues.error(
+      'tools-missing',
+      `"tools" must list the agent's tools (from ${AGENT_TOOLS.join(', ')}) — an agent without it inherits every tool`,
+    );
+    return [];
+  }
+  const tools: string[] = [];
+  for (const tool of value) {
+    if (typeof tool !== 'string' || !(AGENT_TOOLS as readonly string[]).includes(tool)) {
+      issues.error('tools-unknown', `tool ${quoteValue(tool, 40)} is not one of ${AGENT_TOOLS.join(', ')}`);
+      continue;
+    }
+    if (!tools.includes(tool)) tools.push(tool);
+  }
+  const writes = tools.filter((t) => WRITE_TOOLS.has(t));
+  if (writes.length > 0) {
+    issues.warn(
+      'tools-write-access',
+      `the agent can ${writes.join(', ')} — confirm it needs more than read and search`,
+    );
+  }
+  return tools;
+}
+
+/** The kind-specific fields: `scope` for a rule, `name` for a skill or agent, `tools` for an agent. */
+function checkKindFields(
+  issues: Issues,
+  data: Record<string, unknown>,
+  kind: DraftKind,
+  name: string,
+): { scope: string | null; tools: string[] } {
+  if (kind === 'rule') return { scope: checkText(issues, 'scope', data.scope, MAX_SCOPE_CHARS), tools: [] };
+  checkName(issues, data.name, name);
+  return { scope: null, tools: kind === 'agent' ? checkTools(issues, data.tools) : [] };
 }
 
 /**
@@ -281,10 +345,15 @@ const DRAFT_BLOCKING_RULES = new Set([
   'decode-to-shell',
 ]);
 
-function checkScan(issues: Issues, text: string, name: string): void {
+function scanPath(kind: DraftKind, name: string): string {
+  if (kind === 'skill') return `skills/${name}/SKILL.md`;
+  return `${kind === 'rule' ? 'rules' : 'agents'}/${name}.md`;
+}
+
+function checkScan(issues: Issues, text: string, name: string, kind: DraftKind): void {
   // Scanned at the path it would occupy in a pack (`rules/…`): the scanner relaxes instruction
-  // rules for top-level files such as a README, which a rule is not.
-  for (const finding of scanText(text, `rules/${name}.md`)) {
+  // rules for top-level files such as a README, which no draft is.
+  for (const finding of scanText(text, scanPath(kind, name))) {
     const message = sanitizeForTerminal(formatFinding(finding));
     if (finding.severity === 'block' || DRAFT_BLOCKING_RULES.has(finding.rule)) {
       issues.error(`scan:${finding.rule}`, message);
@@ -306,13 +375,72 @@ function checkHiddenChars(issues: Issues, text: string): void {
   );
 }
 
+/**
+ * The safety subset of {@link checkDraftText} — hidden characters and blocking scan findings at
+ * the kind's pack path — for content that is no longer a draft (a promoted file being contributed).
+ */
+export function safetyIssues(text: string, name: string, kind: DraftKind): DraftIssue[] {
+  const issues = new Issues();
+  checkHiddenChars(issues, text);
+  checkScan(issues, text, name, kind);
+  return issues.errors;
+}
+
 export interface CheckedText {
   errors: DraftIssue[];
   warnings: DraftIssue[];
   gap: DraftGap | null;
   citations: Citation[];
+  kind: DraftKind | null;
   /** Present only when there are no errors. */
   valid: ValidDraft | null;
+}
+
+/** The kind a draft declares, read before full validation so the right key set applies. */
+function declaredKind(data: Record<string, unknown> | null): DraftKind {
+  const draft = data?.[DRAFT_KEY];
+  return isPlainObject(draft) && isDraftKind(draft.kind) ? draft.kind : 'rule';
+}
+
+function checkKeys(issues: Issues, data: Record<string, unknown>, kind: DraftKind): void {
+  const allowed = new Set([...KIND_SPECS[kind].keys, DRAFT_KEY]);
+  for (const key of Object.keys(data)) {
+    if (allowed.has(key)) continue;
+    issues.error(
+      'unknown-key',
+      `unknown frontmatter key ${quoteValue(key, 40)} for a ${kind} (allowed: ${[...allowed].join(', ')})`,
+    );
+  }
+}
+
+/** The promoted frontmatter, in the kind's key order. */
+function promotedFrontmatter(
+  kind: DraftKind,
+  fields: {
+    name: string;
+    description: string;
+    scope: string | null;
+    tools: string[];
+    stacks: Record<string, string>;
+  },
+): Record<string, unknown> {
+  const values: Record<string, unknown> = {
+    name: fields.name,
+    description: fields.description,
+    scope: fields.scope,
+    tools: fields.tools,
+    stacks: fields.stacks,
+  };
+  return Object.fromEntries(KIND_SPECS[kind].keys.map((key) => [key, values[key]]));
+}
+
+function parseOrReport(issues: Issues, text: string): { data: Record<string, unknown>; body: string } | null {
+  try {
+    return parseStrictFrontmatter(text);
+  } catch (err) {
+    issues.error('parse', err instanceof Error ? err.message : String(err));
+    return null;
+  }
 }
 
 /** Check one draft's text. Pure — exposed so `promote` checks exactly the bytes it displays. */
@@ -322,41 +450,44 @@ export function checkDraftText(text: string, name: string, now: Date = new Date(
   if (text.includes(TODO_MARKER)) {
     issues.error('todo', `the draft still contains ${TODO_MARKER} markers`);
   }
-  checkScan(issues, text, name);
+  const parsed = parseOrReport(issues, text);
+  const kind = declaredKind(parsed?.data ?? null);
+  checkScan(issues, text, name, kind);
+  if (!parsed) {
+    return {
+      errors: issues.errors,
+      warnings: issues.warnings,
+      gap: null,
+      citations: [],
+      kind: null,
+      valid: null,
+    };
+  }
 
-  let parsed;
-  try {
-    parsed = parseStrictFrontmatter(text);
-  } catch (err) {
-    issues.error('parse', err instanceof Error ? err.message : String(err));
-    return { errors: issues.errors, warnings: issues.warnings, gap: null, citations: [], valid: null };
-  }
   const { data, body } = parsed;
-  for (const key of Object.keys(data)) {
-    if (!ALLOWED_KEYS.has(key)) {
-      issues.error(
-        'unknown-key',
-        `unknown frontmatter key ${quoteValue(key, 40)} (allowed: ${[...ALLOWED_KEYS].join(', ')})`,
-      );
-    }
-  }
+  checkKeys(issues, data, kind);
   const description = checkText(issues, 'description', data.description, MAX_DESCRIPTION_CHARS);
-  const scope = checkText(issues, 'scope', data.scope, MAX_SCOPE_CHARS);
+  const { scope, tools } = checkKindFields(issues, data, kind, name);
   const draft = checkDraftBlock(issues, data[DRAFT_KEY]);
   const gap = draft ? checkGap(issues, draft) : null;
   const stacks = checkStacks(issues, data.stacks, gap);
   const citations = draft ? checkCitations(issues, draft.citations, now) : [];
-  checkBody(issues, body);
+  checkBody(issues, body, kind);
 
-  const ok =
-    issues.errors.length === 0 && description !== null && scope !== null && draft !== null && gap !== null;
-  return {
-    errors: issues.errors,
-    warnings: issues.warnings,
-    gap,
-    citations,
-    valid: ok ? { description, scope, stacks, body, gap, citations, draft } : null,
-  };
+  const ok = issues.errors.length === 0 && description !== null && draft !== null && gap !== null;
+  const valid: ValidDraft | null = ok
+    ? {
+        kind,
+        frontmatter: promotedFrontmatter(kind, { name, description, scope, tools, stacks }),
+        stacks,
+        body,
+        gap,
+        citations,
+        draft,
+        tools,
+      }
+    : null;
+  return { errors: issues.errors, warnings: issues.warnings, gap, citations, kind, valid };
 }
 
 /** Read a draft's bytes: name validated, no symlinks, size-capped. */
@@ -400,6 +531,7 @@ export function checkDraft(root: string, name: string, now: Date = new Date()): 
     errors: checked.errors,
     warnings: checked.warnings,
     gap: checked.gap,
+    kind: checked.kind,
     citations: checked.citations.map((c) => ({
       url: sanitizeForTerminal(c.url),
       quote: sanitizeForTerminal(c.quote),

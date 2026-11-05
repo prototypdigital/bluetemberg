@@ -349,6 +349,7 @@ describe('promoteDraft (the human gate)', () => {
     const result = await promoteDraft(root, 'payload-4-jobs', {
       reviewedBy: 'jr',
       env: {},
+      verifyCitations: false,
       confirm: async () => false,
       now: NOW,
     });
@@ -363,6 +364,7 @@ describe('promoteDraft (the human gate)', () => {
     const result = await promoteDraft(root, 'payload-4-jobs', {
       reviewedBy: 'jr',
       env: {},
+      verifyCitations: false,
       confirm: async (review) => {
         seen = review;
         return true;
@@ -392,6 +394,7 @@ describe('promoteDraft (the human gate)', () => {
       promoteDraft(root, 'payload-4-jobs', {
         reviewedBy: 'jr',
         env: {},
+        verifyCitations: false,
         confirm: async () => {
           writeFileSync(path, draftText({ body: `${GOOD_BODY}\n- An extra line slipped in.\n` }));
           return true;
@@ -406,7 +409,13 @@ describe('promoteDraft (the human gate)', () => {
     writeDraft(root, 'payload-4-jobs', draftText({ reviewedBy: 'agent' }));
     const confirm = vi.fn(async () => true);
     await expect(
-      promoteDraft(root, 'payload-4-jobs', { reviewedBy: 'jr', confirm, now: NOW, env: {} }),
+      promoteDraft(root, 'payload-4-jobs', {
+        reviewedBy: 'jr',
+        confirm,
+        now: NOW,
+        env: {},
+        verifyCitations: false,
+      }),
     ).rejects.toThrow(/cannot be promoted/);
     expect(confirm).not.toHaveBeenCalled();
   });
@@ -416,7 +425,13 @@ describe('promoteDraft (the human gate)', () => {
     writeRule(root, 'payload-4-jobs', 'description: mine');
     const confirm = vi.fn(async () => true);
     await expect(
-      promoteDraft(root, 'payload-4-jobs', { reviewedBy: 'jr', confirm, now: NOW, env: {} }),
+      promoteDraft(root, 'payload-4-jobs', {
+        reviewedBy: 'jr',
+        confirm,
+        now: NOW,
+        env: {},
+        verifyCitations: false,
+      }),
     ).rejects.toThrow();
     expect(confirm).not.toHaveBeenCalled();
     expect(readFileSync(target(), 'utf8')).toContain('description: mine');
@@ -439,7 +454,13 @@ describe('promoteDraft (the human gate)', () => {
     symlinkSync(elsewhere, join(root, 'llm', 'rules'));
     const confirm = vi.fn(async () => true);
     await expect(
-      promoteDraft(root, 'payload-4-jobs', { reviewedBy: 'jr', confirm, now: NOW, env: {} }),
+      promoteDraft(root, 'payload-4-jobs', {
+        reviewedBy: 'jr',
+        confirm,
+        now: NOW,
+        env: {},
+        verifyCitations: false,
+      }),
     ).rejects.toThrow(/symlink/);
     expect(confirm).not.toHaveBeenCalled();
     expect(existsSync(join(elsewhere, 'payload-4-jobs.md'))).toBe(false);
@@ -449,7 +470,12 @@ describe('promoteDraft (the human gate)', () => {
   it('rejects a reviewer name with control characters', async () => {
     writeDraft(root, 'payload-4-jobs', draftText());
     await expect(
-      promoteDraft(root, 'payload-4-jobs', { reviewedBy: 'jr\u001b[2J', confirm: async () => true, env: {} }),
+      promoteDraft(root, 'payload-4-jobs', {
+        reviewedBy: 'jr\u001b[2J',
+        confirm: async () => true,
+        env: {},
+        verifyCitations: false,
+      }),
     ).rejects.toThrow(/reviewed-by/);
   });
 });

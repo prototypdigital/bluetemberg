@@ -1,7 +1,22 @@
 import type { GapBrief } from './brief.js';
 import type { DraftCheckReport } from './check.js';
 import type { DraftListEntry, NewDraftResult } from './draft.js';
+import type { ContributionResult } from './contribute.js';
 import type { PromotionReview, PromoteResult } from './promote.js';
+import type { CitationCheck } from './verify.js';
+import { WRITE_TOOLS } from './kinds.js';
+
+const CITATION_MARK: Record<CitationCheck['status'], string> = {
+  verified: '✔ quote found',
+  'quote-not-found': '✗ quote NOT found',
+  unreachable: '✗ unreachable',
+};
+
+function describeCitationCheck(check: CitationCheck): string {
+  const source =
+    check.primarySource === null ? '' : check.primarySource ? ', primary docs' : ', NOT primary docs';
+  return `${CITATION_MARK[check.status]}${source}`;
+}
 
 /** Human-readable lines for the `draft` commands. Pure — the CLI prints them. */
 
@@ -46,14 +61,15 @@ export function formatList(entries: DraftListEntry[]): string[] {
   return entries.map((e) => {
     const gap = e.gap ? `${e.gap.stack}@${e.gap.version}` : '(no gap recorded)';
     const reviewed = e.reviewedBy ? `, reviewed by ${e.reviewedBy}` : '';
-    return `  ${e.status.padEnd(10)} ${e.name}  ${gap}  ${e.citations} citation(s)${reviewed}`;
+    return `  ${e.status.padEnd(10)} ${(e.kind ?? '?').padEnd(5)} ${e.name}  ${gap}  ${e.citations} citation(s)${reviewed}`;
   });
 }
 
-export function formatCheck(report: DraftCheckReport): string[] {
+export function formatCheck(report: DraftCheckReport & { citationChecks?: CitationCheck[] }): string[] {
   const lines = [
     `${report.path}: ${report.ok ? 'OK — ready for human review' : `${report.errors.length} error(s)`}`,
   ];
+  for (const c of report.citationChecks ?? []) lines.push(`  ${c.url}: ${describeCitationCheck(c)}`);
   for (const e of report.errors) lines.push(`  ✗ [${e.code}] ${e.message}`);
   for (const w of report.warnings) lines.push(`  ! [${w.code}] ${w.message}`);
   if (report.ok)
@@ -61,18 +77,30 @@ export function formatCheck(report: DraftCheckReport): string[] {
   return lines;
 }
 
+function describeTools(review: PromotionReview): string[] {
+  if (review.kind !== 'agent') return [];
+  const writes = review.tools.filter((t) => WRITE_TOOLS.has(t));
+  const note = writes.length > 0 ? `  ← can ${writes.join(', ')}` : '  (read-only)';
+  return [`  grants tools: ${review.tools.join(', ')}${note}`];
+}
+
 export function formatReview(review: PromotionReview): string[] {
   const rule = '─'.repeat(72);
   const lines = [
-    `Promote draft "${review.name}" for ${review.gap.stack}@${review.gap.version}`,
+    `Promote ${review.kind} draft "${review.name}" for ${review.gap.stack}@${review.gap.version}`,
     `  will write: ${review.destination}`,
+    ...describeTools(review),
     `  sha256 of the reviewed draft: ${review.sha256}`,
     '  citations:',
-    ...review.citations.map((c) => `    - ${c.url} (retrieved ${c.retrieved})\n      "${c.quote}"`),
+    ...review.citations.map((c, i) => {
+      const check = review.citationChecks?.[i];
+      const status = check ? ` — ${describeCitationCheck(check)}` : '';
+      return `    - ${c.url} (retrieved ${c.retrieved})${status}\n      "${c.quote}"`;
+    }),
   ];
   for (const w of review.warnings) lines.push(`  ! [${w.code}] ${w.message}`);
   lines.push(rule, review.output.trimEnd(), rule);
-  lines.push('Read the whole rule above. It will be loaded into every AI session that matches its scope.');
+  lines.push('Read the whole file above. Once synced, every AI session that matches it will follow it.');
   return lines;
 }
 
@@ -83,4 +111,18 @@ export function formatPromoted(result: PromoteResult): string[] {
     `  archived: ${result.archived}`,
     '  Run `bluetemberg sync` to apply it.',
   ];
+}
+
+export function formatContribution(result: ContributionResult): string[] {
+  const lines = [
+    `Prepared branch ${result.branch} in the packs repo`,
+    `  staged: ${result.file} (pack ${result.pack})`,
+    `  PR body: ${result.bodyFile}`,
+  ];
+  if (result.editedAfterReview) {
+    lines.push('  ! the promoted file was edited after review — the PR body says so');
+  }
+  lines.push('Nothing was committed or pushed. Review the staged file, then run:');
+  for (const step of result.nextSteps) lines.push(`  ${step}`);
+  return lines;
 }
