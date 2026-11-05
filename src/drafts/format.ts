@@ -2,6 +2,19 @@ import type { GapBrief } from './brief.js';
 import type { DraftCheckReport } from './check.js';
 import type { DraftListEntry, NewDraftResult } from './draft.js';
 import type { PromotionReview, PromoteResult } from './promote.js';
+import type { CitationCheck } from './verify.js';
+
+const CITATION_MARK: Record<CitationCheck['status'], string> = {
+  verified: '✔ quote found',
+  'quote-not-found': '✗ quote NOT found',
+  unreachable: '✗ unreachable',
+};
+
+function describeCitationCheck(check: CitationCheck): string {
+  const source =
+    check.primarySource === null ? '' : check.primarySource ? ', primary docs' : ', NOT primary docs';
+  return `${CITATION_MARK[check.status]}${source}`;
+}
 
 /** Human-readable lines for the `draft` commands. Pure — the CLI prints them. */
 
@@ -50,10 +63,11 @@ export function formatList(entries: DraftListEntry[]): string[] {
   });
 }
 
-export function formatCheck(report: DraftCheckReport): string[] {
+export function formatCheck(report: DraftCheckReport & { citationChecks?: CitationCheck[] }): string[] {
   const lines = [
     `${report.path}: ${report.ok ? 'OK — ready for human review' : `${report.errors.length} error(s)`}`,
   ];
+  for (const c of report.citationChecks ?? []) lines.push(`  ${c.url}: ${describeCitationCheck(c)}`);
   for (const e of report.errors) lines.push(`  ✗ [${e.code}] ${e.message}`);
   for (const w of report.warnings) lines.push(`  ! [${w.code}] ${w.message}`);
   if (report.ok)
@@ -68,7 +82,11 @@ export function formatReview(review: PromotionReview): string[] {
     `  will write: ${review.destination}`,
     `  sha256 of the reviewed draft: ${review.sha256}`,
     '  citations:',
-    ...review.citations.map((c) => `    - ${c.url} (retrieved ${c.retrieved})\n      "${c.quote}"`),
+    ...review.citations.map((c, i) => {
+      const check = review.citationChecks?.[i];
+      const status = check ? ` — ${describeCitationCheck(check)}` : '';
+      return `    - ${c.url} (retrieved ${c.retrieved})${status}\n      "${c.quote}"`;
+    }),
   ];
   for (const w of review.warnings) lines.push(`  ! [${w.code}] ${w.message}`);
   lines.push(rule, review.output.trimEnd(), rule);

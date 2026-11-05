@@ -22,6 +22,8 @@ export const MAX_DRAFT_BYTES = 64 * 1024;
 /** The rule body: always-on context costs every session, so a long body is refused. */
 export const MAX_BODY_BYTES = 16 * 1024;
 export const MAX_QUOTE_CHARS = 500;
+/** A shorter quote matches almost any page, so it proves nothing about the source. */
+export const MIN_QUOTE_CHARS = 20;
 const MAX_CITATIONS = 20;
 const MAX_URL_CHARS = 2000;
 const MAX_DESCRIPTION_CHARS = 300;
@@ -192,7 +194,8 @@ function checkStacks(issues: Issues, value: unknown, gap: DraftGap | null): Reco
   return stacks;
 }
 
-function urlIssue(raw: string): string | null {
+/** Why `raw` is not an acceptable citation URL, or null. Also applied to every redirect hop. */
+export function urlIssue(raw: string): string | null {
   if (raw.length > MAX_URL_CHARS) return 'is too long';
   let url: URL;
   try {
@@ -202,6 +205,7 @@ function urlIssue(raw: string): string | null {
   }
   if (url.protocol !== 'https:') return 'must use https';
   if (url.username || url.password) return 'must not carry credentials';
+  if (url.port !== '') return 'must use the default https port';
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (isIP(host) !== 0) return 'must name a host, not an IP address';
   if (host === 'localhost' || !host.includes('.') || LOCAL_HOST_SUFFIXES.some((s) => host.endsWith(s))) {
@@ -229,7 +233,7 @@ function checkCitation(issues: Issues, raw: unknown, index: number, now: Date): 
   }
   const problems = [
     urlIssue(url) && `url ${urlIssue(url)}`,
-    quote.trim() === '' && 'quote is empty',
+    quote.trim().length < MIN_QUOTE_CHARS && `quote is shorter than ${MIN_QUOTE_CHARS} characters`,
     quote.length > MAX_QUOTE_CHARS && `quote is longer than ${MAX_QUOTE_CHARS} characters`,
     dateIssue(retrieved, now) && `retrieved ${dateIssue(retrieved, now)}`,
   ].filter((p): p is string => typeof p === 'string');

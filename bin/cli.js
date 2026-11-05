@@ -1151,12 +1151,17 @@ draftCmd
   )
   .argument('<name>', 'Draft name')
   .argument('[directory]', 'Project root directory', '.')
+  .option('--verify-citations', 'Fetch each cited page and require its quote to appear on it (network)')
   .option('--json', 'Emit machine-readable JSON')
   .action(async (name, directory, options) => {
     const { checkDraft } = await import('../dist/drafts/check.js');
+    const { checkDraftWithCitations } = await import('../dist/drafts/verify.js');
     const { formatCheck } = await import('../dist/drafts/format.js');
     try {
-      const report = checkDraft(resolve(directory), name);
+      const root = resolve(directory);
+      const report = options.verifyCitations
+        ? await checkDraftWithCitations(root, name)
+        : checkDraft(root, name);
       console.log(options.json ? JSON.stringify(report, null, 2) : formatCheck(report).join('\n'));
       if (!report.ok) process.exitCode = 1;
     } catch (err) {
@@ -1172,6 +1177,10 @@ draftCmd
   .argument('<name>', 'Draft name')
   .argument('[directory]', 'Project root directory', '.')
   .requiredOption('--reviewed-by <who>', 'Your name or handle, recorded in the draft archive')
+  .option(
+    '--skip-citation-verification',
+    'Do not fetch the cited pages (offline); recorded in the archive as citationsVerified: false',
+  )
   .action(async (name, directory, options) => {
     // The gate: an agent's tool calls run without a terminal, so they stop here. There is
     // deliberately no --yes and no MCP equivalent.
@@ -1184,6 +1193,7 @@ draftCmd
     try {
       const result = await promoteDraft(resolve(directory), name, {
         reviewedBy: options.reviewedBy,
+        verifyCitations: options.skipCitationVerification ? false : {},
         confirm: async (review) => {
           console.log(formatReview(review).join('\n'));
           const typed = await input({

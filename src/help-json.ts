@@ -64,14 +64,28 @@ const DRAFT_COMMANDS = [
     args: '<name> [directory]',
     description:
       'Validate a draft: strict YAML frontmatter, a bounded range covering the gap, at least one primary-doc citation, no TODO(draft) markers, the pack security scan, and that the gap is still open. Exits 1 on errors.',
-    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+    options: [
+      {
+        long: '--verify-citations',
+        description:
+          'Fetch each cited page (https, public hosts only) and require its quote to appear on it; warn when a citation is not from the package homepage or repository.',
+      },
+      { long: '--json', description: 'Emit machine-readable JSON.' },
+    ],
   },
   {
     name: 'draft promote',
     args: '<name> [directory]',
     description:
-      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md (never overwrites). Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
-    options: [{ long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' }],
+      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md (never overwrites). Re-verifies every citation against its page first. Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
+    options: [
+      { long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' },
+      {
+        long: '--skip-citation-verification',
+        description:
+          'Do not fetch the cited pages (offline). Verification is on by default; skipping is recorded in the archive.',
+      },
+    ],
   },
 ];
 
