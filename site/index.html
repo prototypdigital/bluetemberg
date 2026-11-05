@@ -1038,8 +1038,8 @@
               <span class="step-num">01 / CHOOSE</span>
               <span class="step-title">Pick a profile</span>
               <span class="step-desc"
-                >A profile preselects the packs for a role. Stack-specific packs are offered only when their
-                stack is in the project.</span
+                >A profile preselects the packs for a role. Stack-specific packs are preselected only when
+                their stack is in the project.</span
               >
             </div>
             <div class="step">
@@ -1281,7 +1281,8 @@
                 >Rules are advice an assistant can skip. A guardrail compiles to a hook the tool runs before
                 the call, so a violating command is blocked.
                 <strong
-                  >A malformed payload or a crashed check blocks too — guardrails fail closed.</strong
+                  >A condition it cannot evaluate or a payload it cannot read blocks too — guardrails fail
+                  closed.</strong
                 ></span
               >
             </li>

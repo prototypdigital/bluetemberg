@@ -38,6 +38,6 @@ External sources (`bluetemberg source add`) follow the same discipline: a commun
 
 - It does not run or evaluate your rules. It distributes and transforms them.
 - It does not touch your CI/CD pipeline. `init` scaffolds repository files such as Dependabot and templates, never workflows.
-- It does not phone home. `sync`, `why`, `detect`, `stacks` and `uninstall` work offline. Commands that fetch packs, keys or catalogs go online: `add`, `install`, `update`, `search`, `verify`, `preview`, `source`, `draft brief`/`new`, `scan-org`, and `stacks lint` unless `--offline`. bluetemberg sends no telemetry itself; [managed-settings](Telemetry) can point your tools' own exporters at your collector, opt-in.
+- It does not phone home. `sync`, `why`, `detect`, `coverage`, `stacks list` and `uninstall` work offline. Commands that fetch packs, keys or catalogs go online: `add`, `install`, `update`, `search`, `verify`, `preview`, `source`, `draft brief`/`new`, `scan-org`, and `stacks lint` unless `--offline`. bluetemberg sends no telemetry itself; [managed-settings](Telemetry) can point your tools' own exporters at your collector, opt-in.
 - It does not lock you in. The source and the output are Markdown you own, and `bluetemberg eject` keeps the generated files as plain files without the engine (`uninstall` removes them instead).
 - It does not decide what good rules are. The official packs are a starting point; replace any of them.
