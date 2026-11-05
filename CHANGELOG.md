@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.20.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.19.0...bluetemberg-v0.20.0) (2026-11-05)
+
+
+### Features
+
+* **cli:** bluetemberg scan runs the content scan on local pack dirs ([d7d190c](https://github.com/prototypdigital/bluetemberg/commit/d7d190c00b99edb25147fbd5b466b6ec07395be7))
+* **drafts:** draft skills and agents, not just rules (create-loop phase 2b) ([8451940](https://github.com/prototypdigital/bluetemberg/commit/84519406777eb2b85a5f6afcef1421f881c0cecb))
+* **drafts:** draft skills and agents, not just rules (create-loop phase 2b) ([d902964](https://github.com/prototypdigital/bluetemberg/commit/d90296444a73bc8a713ce26ff8ba57587a5403cd)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **drafts:** human-gated create-loop phase 1 (draft brief/new/check/promote) ([89f8827](https://github.com/prototypdigital/bluetemberg/commit/89f88274340cca065ceb4b043c2bc604f97b3766))
+* **drafts:** human-gated create-loop phase 1 (draft brief/new/check/promote) ([fe2fbad](https://github.com/prototypdigital/bluetemberg/commit/fe2fbada79fe95ca08a92fbe5100bf97396ae582)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **drafts:** prepare a packs contribution branch from a promoted draft (create-loop phase 3) ([401bf01](https://github.com/prototypdigital/bluetemberg/commit/401bf015a9a8e5c5300b329c5a690f535889a1eb))
+* **drafts:** prepare a packs contribution branch from a promoted draft (create-loop phase 3) ([7e2c88f](https://github.com/prototypdigital/bluetemberg/commit/7e2c88ff91fccff210e56e17852e2e3bcfdedd96)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **drafts:** verify citations against their pages (create-loop phase 2) ([810629e](https://github.com/prototypdigital/bluetemberg/commit/810629ead21cd94b4c97b83274c15d227961ed58))
+* **drafts:** verify citations against their pages (create-loop phase 2) ([bb9cbeb](https://github.com/prototypdigital/bluetemberg/commit/bb9cbeb5b103adc999c786c4f71baacafa4646de)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **managed-settings:** generate org policy files for Claude Code and Copilot ([13538e0](https://github.com/prototypdigital/bluetemberg/commit/13538e006e57a5e3bb923faaf35b60628af8d21b))
+* **managed-settings:** generate org policy files for Claude Code and Copilot ([a04a586](https://github.com/prototypdigital/bluetemberg/commit/a04a5860566d30df2297d481442492d7f8124961)), closes [#287](https://github.com/prototypdigital/bluetemberg/issues/287)
+* **managed-settings:** opt-in OTel telemetry export with pack attribution ([b122d26](https://github.com/prototypdigital/bluetemberg/commit/b122d262b1feaa0e097755ff7ddea36c36b9aaef))
+* **managed-settings:** opt-in OTel telemetry export with pack attribution ([5992ea2](https://github.com/prototypdigital/bluetemberg/commit/5992ea2014feccfc08ab93dded13069fe2014659))
+* **security:** capability report on install/update and shadowing warnings ([2c9666c](https://github.com/prototypdigital/bluetemberg/commit/2c9666c36146d0b15112997248d4d0a8c2a2556e))
+* **security:** capability report on install/update and shadowing warnings ([68b74de](https://github.com/prototypdigital/bluetemberg/commit/68b74de90cb02b76bce8768eecf4f59bdc81cfeb))
+* **security:** scan external sources and close scanner exfiltration gaps ([8024bd9](https://github.com/prototypdigital/bluetemberg/commit/8024bd929dbe26c4c798adbf1c2347ece46261d8))
+* **security:** scan external sources and close scanner exfiltration gaps ([d770612](https://github.com/prototypdigital/bluetemberg/commit/d770612ffc8560564b6ecafc356b2283c165231d))
+* **stacks:** resolve stack versions from pnpm and yarn lockfiles ([d46e50b](https://github.com/prototypdigital/bluetemberg/commit/d46e50b740df94632acb7b0f4efd349146250e9f))
+* **stacks:** resolve stack versions from pnpm and yarn lockfiles ([038e7d8](https://github.com/prototypdigital/bluetemberg/commit/038e7d81a85f315d2408930b8736b6d2d378941d)), closes [#291](https://github.com/prototypdigital/bluetemberg/issues/291)
+
+
+### Bug Fixes
+
+* **catalog:** refresh snapshot to packs main for the 0.20.0 release ([d26d158](https://github.com/prototypdigital/bluetemberg/commit/d26d158ad6c5720bd181c6bc3d2eb958818311e2))
+* **catalog:** refresh snapshot to packs main for the 0.20.0 release ([a97389d](https://github.com/prototypdigital/bluetemberg/commit/a97389d1efe6328599b263cc680d7a270cd667a1))
+* **drafts:** close review-gate and grounding gaps from the adversarial review ([db4c961](https://github.com/prototypdigital/bluetemberg/commit/db4c961efcfda9761ddd084f71d5a0c4865ee494)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **drafts:** draft pr runs none of the packs repo's code ([0532527](https://github.com/prototypdigital/bluetemberg/commit/0532527f9af7b0f5d611475644677d41a84223d0)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **drafts:** harden citation verification from the adversarial review ([59b4b79](https://github.com/prototypdigital/bluetemberg/commit/59b4b795e391af1714e9bcc8e25933cf7a2c6285)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **drafts:** promoted agents keep their tools on Claude Code ([4cd42f0](https://github.com/prototypdigital/bluetemberg/commit/4cd42f04c391a27a753332af45d052636bf3d2b7)), closes [#197](https://github.com/prototypdigital/bluetemberg/issues/197)
+* **frontmatter:** harden frontmatter parsing and pack content scan ([d9a5d08](https://github.com/prototypdigital/bluetemberg/commit/d9a5d088b184532f82b27965943f686dbdfb4cb8))
+* **frontmatter:** harden frontmatter parsing and pack content scan ([bc98937](https://github.com/prototypdigital/bluetemberg/commit/bc9893708f281e308777b76266d56714ea16eeea))
+* **guardrails:** fail closed on malformed hook payloads, with an adversarial corpus ([29b5b45](https://github.com/prototypdigital/bluetemberg/commit/29b5b453a2f0484d30f059e87fd19996333605a9))
+* **guardrails:** fail closed on malformed hook payloads, with an adversarial corpus ([f8d1e55](https://github.com/prototypdigital/bluetemberg/commit/f8d1e558a747601258c597fb0b5652d02fa59f0b))
+* **guardrails:** read false as "false" and tighten self-review gaps ([03fe349](https://github.com/prototypdigital/bluetemberg/commit/03fe34952692b415b7814a97e9d60eec588ceced))
+* **managed-settings:** allow .mcp.json servers and warn on unbundled packs ([48a6239](https://github.com/prototypdigital/bluetemberg/commit/48a62399366da733a0a4176fe23abd816cacd782))
+* **managed-settings:** harden telemetry endpoint and attribute checks ([3e0b1f7](https://github.com/prototypdigital/bluetemberg/commit/3e0b1f7da10ee4aa311c6a0e992a6e13db169744))
+* **managed-settings:** refuse unsafe --out targets and per-host plugin mismatches ([4a9df54](https://github.com/prototypdigital/bluetemberg/commit/4a9df547e8c91781b712af901ef22fcdaee5c984))
+* **security:** capability report reads what sync uses and diffs full content ([e5984ea](https://github.com/prototypdigital/bluetemberg/commit/e5984ea0cdf0cfb37b8f2f7f698b0812c7a84c21))
+* **security:** close self-review bypasses and false positives in the scanner ([8284836](https://github.com/prototypdigital/bluetemberg/commit/8284836c428306b886b980a5fa78a0bb3fcb1bcb))
+* **security:** read guardrail frontmatter through the YAML-only parser in the capability report ([0a2c304](https://github.com/prototypdigital/bluetemberg/commit/0a2c304a96c228160e8a14f412e2e15953ec784a))
+* **stacks:** match yarn's resolution rules and never report another package's version ([707f3b1](https://github.com/prototypdigital/bluetemberg/commit/707f3b1f548cb913ca5db29d9d2e46356f8dad2e))
+* **stacks:** reuse parsed lockfiles across detections and prefer range-specific resolutions ([7461413](https://github.com/prototypdigital/bluetemberg/commit/7461413bf9c1514d42054feaf09ff224ec5a2468))
+
 ## [0.19.0](https://github.com/prototypdigital/bluetemberg/compare/bluetemberg-v0.18.0...bluetemberg-v0.19.0) (2026-11-03)
 
 
