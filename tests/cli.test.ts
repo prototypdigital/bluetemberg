@@ -422,6 +422,32 @@ cliSuite('cli managed-settings', () => {
     expect(r.stderr).toContain('Drift NOT checked');
   });
 
+  it('--telemetry-endpoint writes the Claude Code env block and reports it', () => {
+    const r = runCli(
+      ['managed-settings', '--telemetry-endpoint', 'https://otel.example.com', '--out', 'policy', root],
+      root,
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('telemetry: https://otel.example.com (http/protobuf), content capture off');
+    const written = JSON.parse(
+      readFileSync(join(root, 'policy', 'claude-code', 'managed-settings.json'), 'utf8'),
+    ) as { env: Record<string, string> };
+    expect(written.env.CLAUDE_CODE_ENABLE_TELEMETRY).toBe('1');
+    expect(written.env.OTEL_LOG_USER_PROMPTS).toBe('0');
+  });
+
+  it('refuses an empty --telemetry-endpoint instead of ignoring it', () => {
+    const r = runCli(['managed-settings', '--telemetry-endpoint', '', '--dry-run', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('is not a URL');
+  });
+
+  it('refuses telemetry options without --telemetry-endpoint', () => {
+    const r = runCli(['managed-settings', '--telemetry-attribute', 'team.id=x', '--dry-run', root], root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('only apply with --telemetry-endpoint');
+  });
+
   it('rejects an unknown --host', () => {
     const r = runCli(['managed-settings', '--host', 'cursor', root], root);
     expect(r.status).not.toBe(0);

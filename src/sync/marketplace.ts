@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, basename, dirname } from 'node:path';
-import matter from 'gray-matter';
+import { parseFrontmatter, readFrontmatter } from '../utils/frontmatter.js';
 import { toClaudeAgentContent } from './claude-agent-tools.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { withGeneratedBanner } from './banner.js';
@@ -27,6 +27,7 @@ import type {
   TeamProfile,
 } from '../types.js';
 import { buildStackMap, readFrontmatterStacks, resolveStacks, type StackMap } from '../stacks/resolve.js';
+import { carriesDraftMarker } from '../drafts/marker.js';
 import { buildPackItemMap, readSourcePackName, type PackItemMap } from '../catalog/ownership.js';
 import {
   allowsPlatform,
@@ -103,6 +104,8 @@ interface FileMeta {
   profiles: TeamProfile[];
   /** Stack constraint (name → range). Empty = stack-agnostic (included in all plugins). */
   stacks: StackConstraint;
+  /** Carries the `draft:` marker — never bundled (M7 create-loop). */
+  draft?: boolean;
 }
 
 /**
@@ -147,7 +150,7 @@ function readRuleMeta(ruleFile: string, sourceDir: string, maps: MetaMaps): File
   const rulePath = join(sourceDir, ruleFile);
   const id = basename(ruleFile, '.md');
   try {
-    const { data } = matter.read(rulePath);
+    const { data } = readFrontmatter(rulePath);
     const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || id,
@@ -155,6 +158,7 @@ function readRuleMeta(ruleFile: string, sourceDir: string, maps: MetaMaps): File
       profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), maps.profiles),
       stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), maps.stacks),
       platforms: resolvePlatformGate(id, sourceDir, record, maps.platforms).platforms,
+      draft: carriesDraftMarker(record),
     };
   } catch {
     return {
@@ -170,7 +174,7 @@ function readRuleMeta(ruleFile: string, sourceDir: string, maps: MetaMaps): File
 function readSkillMeta(skillDir: string, sourceParent: string, maps: MetaMaps): FileMeta {
   const skillPath = join(sourceParent, skillDir, 'SKILL.md');
   try {
-    const { data } = matter.read(skillPath);
+    const { data } = readFrontmatter(skillPath);
     const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || skillDir,
@@ -178,6 +182,7 @@ function readSkillMeta(skillDir: string, sourceParent: string, maps: MetaMaps): 
       profiles: resolveProfiles(skillDir, sourceParent, readFrontmatterProfiles(record), maps.profiles),
       stacks: resolveStacks(skillDir, sourceParent, readFrontmatterStacks(record), maps.stacks),
       platforms: resolvePlatformGate(skillDir, sourceParent, record, maps.platforms).platforms,
+      draft: carriesDraftMarker(record),
     };
   } catch {
     return {
@@ -194,7 +199,7 @@ function readAgentMeta(agentFile: string, sourceDir: string, maps: MetaMaps): Fi
   const agentPath = join(sourceDir, agentFile);
   const id = basename(agentFile, '.md');
   try {
-    const { data } = matter.read(agentPath);
+    const { data } = readFrontmatter(agentPath);
     const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || id,
@@ -202,6 +207,7 @@ function readAgentMeta(agentFile: string, sourceDir: string, maps: MetaMaps): Fi
       profiles: resolveProfiles(id, sourceDir, readFrontmatterProfiles(record), maps.profiles),
       stacks: resolveStacks(id, sourceDir, readFrontmatterStacks(record), maps.stacks),
       platforms: resolvePlatformGate(id, sourceDir, record, maps.platforms).platforms,
+      draft: carriesDraftMarker(record),
     };
   } catch {
     return {
@@ -216,6 +222,8 @@ function readAgentMeta(agentFile: string, sourceDir: string, maps: MetaMaps): Fi
 
 /** True when a file's PROFILE qualifies it for a plugin (universal = always). */
 function profileMatches(fileMeta: FileMeta, pluginProfiles: TeamProfile[] | undefined): boolean {
+  // Profile matching is the first test of every bundle decision, so an unvetted draft stops here.
+  if (fileMeta.draft) return false;
   if (!pluginProfiles || pluginProfiles.length === 0) return true;
   if (fileMeta.profiles.length === 0) return true;
   return fileMeta.profiles.some((p) => pluginProfiles.includes(p));
@@ -287,7 +295,7 @@ function ruleToSkillId(ruleFile: string): string {
 function yamlScalar(value: string): string {
   if (!value.includes('\n')) {
     try {
-      if (matter(`---\nv: ${value}\n---\n`).data.v === value) return value;
+      if (parseFrontmatter(`---\nv: ${value}\n---\n`).data.v === value) return value;
     } catch {
       // Not a valid plain scalar: quote it.
     }
@@ -301,7 +309,7 @@ function yamlScalar(value: string): string {
  * `name`/`description` block, keeping the rule body verbatim.
  */
 function ruleToSkillContent(name: string, meta: FileMeta, raw: string): string {
-  const { content: body } = matter(raw);
+  const { content: body } = parseFrontmatter(raw);
   const description = meta.description || `Guidance: ${meta.name}`;
   return `---\nname: ${yamlScalar(name)}\ndescription: ${yamlScalar(description)}\n---\n${body}`;
 }

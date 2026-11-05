@@ -38,6 +38,7 @@ The output directory holds one file per host and a README that says where each f
 | `enabledPlugins` | Always | Every plugin the index lists (`plugin@marketplace: true`), or the `--plugin` selection |
 | `strictKnownMarketplaces` | With `--strict` | Your marketplace with the same `ref`, plus each `--allow-marketplace`. The Claude Code file adds `{ "source": "skills-dir" }` |
 | `allowedMcpServers` | With `--mcp-allowlist` | The servers in `llm/mcp.json` (presets resolved) and the root `.mcp.json`, as exact `serverCommand` or `serverUrl` matchers |
+| `env` (Claude Code), `telemetry` (Copilot) | With `--telemetry-endpoint` | Your collector URL and protocol, the marketplace name and `ref`, a digest of the pack set, and each `--telemetry-attribute`. Content capture is always written off. See [Telemetry](Telemetry) |
 | `deniedMcpServers` | Never | Nothing in the project says what to deny |
 
 A managed `enabledPlugins` entry set to `true` force-enables the plugin: users can't turn it off. If your plugins split by profile (`frontend`, `backend`), use `--plugin` and deploy a different file to each group. Each host's file only lists plugins that have a bundle in that host's format: a plugin whose name isn't a valid Agent Plugins name has a Claude bundle but no Agent Plugins one, so it is left out of the Copilot file.

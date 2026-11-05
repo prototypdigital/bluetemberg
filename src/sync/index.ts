@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
-import matter from 'gray-matter';
+import { readFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
 import { claudeAgentNameProblem, toClaudeAgentContent } from './claude-agent-tools.js';
 import { withGeneratedBanner } from './banner.js';
@@ -22,6 +22,7 @@ import { stripManagedBlock, AGENTS_RULES_MARKERS } from './managed-block.js';
 import { runOptionalAdapters } from './adapters-runner.js';
 import { pluginDefinitionsFor, syncPluginBundles } from './marketplace.js';
 import { readLockfile } from '../registry/manifest.js';
+import { sanitizeForTerminal } from '../registry/scanner.js';
 import { syncClaudeSettings } from './settings.js';
 import { syncGuardrails, type GuardrailHooks } from './guardrails.js';
 import { syncCopilotGuardrailHooks } from './guardrails-copilot.js';
@@ -600,7 +601,9 @@ const SHADOWABLE_KINDS: ReadonlyArray<{ subdir: string; list: (subPath: string) 
 function reportShadowedContent(ctx: SyncContext): void {
   const label = (i: number): string => sourceLabel(ctx, ctx.sourceDirs[i]);
   for (const { subdir, list } of SHADOWABLE_KINDS) {
-    for (const { name, winner, losers } of findShadowedEntries(ctx.sourceDirs, subdir, list)) {
+    for (const { name: rawName, winner, losers } of findShadowedEntries(ctx.sourceDirs, subdir, list)) {
+      // A pack picks its own file names; never echo terminal control sequences from one.
+      const name = sanitizeForTerminal(rawName);
       const ignored = losers.map(label).join(', ');
       if (winner === 0) {
         verboseLog(ctx, `  ${subdir}/${name}: local copy overrides ${ignored}`);
@@ -636,6 +639,7 @@ function gateByVersion(
   label: string,
 ): VersionGate {
   const gate = evaluateStackGate(id, kindDir, frontmatter, stackMap, ctx.detectedStacks);
+  if (gate.draft) recordWarning(ctx, `${label}: ${gate.reason}`);
   if (gate.issues.length > 0) {
     recordWarning(
       ctx,
@@ -1110,7 +1114,7 @@ function resolveKindGates(
     const label = `${kind}/${key}`;
     let data: Record<string, unknown> = {};
     try {
-      data = matter.read(file).data as Record<string, unknown>;
+      data = readFrontmatter(file).data as Record<string, unknown>;
     } catch {
       // Unreadable frontmatter → treat as agnostic here; the write loop reports the read error.
     }
@@ -1207,9 +1211,12 @@ function syncRules(ctx: SyncContext): void {
       if (!allowsPlatform(gates.platforms.get(file), platform)) continue;
       written++;
       try {
-        const source = matter.read(join(sourceDir, file));
+        const source = readFrontmatter(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
-        const output = withGeneratedBanner(matter.stringify(source.content, transformed), `rules/${file}`);
+        const output = withGeneratedBanner(
+          stringifyFrontmatter(source.content, transformed),
+          `rules/${file}`,
+        );
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 

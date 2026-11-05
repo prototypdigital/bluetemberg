@@ -136,8 +136,11 @@ It needs `marketplace.remote` (an `owner/repo`) and the `.claude-plugin/marketpl
 | `--strict` | Also write `strictKnownMarketplaces`, which blocks every marketplace not listed. The entry for your marketplace carries the same `ref` as the one registered. Warns about each marketplace the project's `.claude/settings.json` registers that it would block, and about Claude Code's official marketplace |
 | `--allow-marketplace <owner/repo>` | With `--strict`, keep another GitHub marketplace allowed (repeatable) |
 | `--mcp-allowlist` | Also write `allowedMcpServers` with exactly the servers in `llm/mcp.json` and the root `.mcp.json`. Refused when there are none, since an empty list blocks every server |
+| `--telemetry-endpoint <url>` | Opt in to OpenTelemetry export: point Claude Code (`env`) and Copilot (`telemetry`) at this OTLP collector, with every content-capture switch written off and resource attributes that name the marketplace and pack set. A URL with credentials or a query string is refused. See [Telemetry](Telemetry) |
+| `--telemetry-protocol <protocol>` | `http/protobuf` (default), `http/json`, or `grpc` (Claude Code only; refused when the Copilot file is written) |
+| `--telemetry-attribute <key=value>` | With `--telemetry-endpoint`, add a resource attribute such as `team.id=platform` (repeatable). Keys under `bluetemberg.` or that look like credentials are refused |
 | `--dry-run` | Print the files instead of writing them |
-| `--json` | Print the plan (marketplace, plugins, pack versions, warnings, files) as JSON |
+| `--json` | Print the plan (marketplace, plugins, pack versions, telemetry, warnings, files) as JSON |
 | `--silent` | Suppress progress output; errors and warnings still go to stderr |
 
 The command also refuses when an Agent Plugins bundle lock records a pack version or integrity that `llm/packages-lock.json` no longer has, or when the index lists different plugins than `marketplace.plugins` (it names the reason when sync could not build a plugin). Only Agent Plugins bundles carry a lock: with `claude-marketplace` alone, nothing is checked, and the command warns `Drift NOT checked`; run `bluetemberg sync --check` instead. No `deniedMcpServers` list is ever generated.
@@ -376,6 +379,21 @@ npx bluetemberg stacks list "payload@>=3 <5" ../bluetemberg-packs --json
 npx bluetemberg stacks list nextjs
 ```
 
+## `bluetemberg draft <subcommand>`
+
+The human-gated create-loop: open a draft rule for a stack gap, let an agent fill it in, check it, and let a human promote it. See [Drafts](Drafts) for the full flow and the checks.
+
+| Subcommand | Writes | Notes |
+| ---------- | ------ | ----- |
+| `draft brief <stack@version> [directory] [--kind rule\|skill\|agent] [--json]` | nothing | Gap brief for an agent, naming the matching `create-*` authoring skill: gap reason, proposed range, npm package, nearest guidance, paths of files importing the package, citation contract. Exits 1 when the version is already covered |
+| `draft new <stack@version> [directory] --name <name> [--kind rule\|skill\|agent] [--scope <glob>] [--json]` | `.bluetemberg/drafts/<name>.md` | Default kind `rule`; `--scope` is for rules only. Refuses a covered version, an existing draft or rule/skill/agent of that name, and a symlinked drafts dir. An agent skeleton starts with `tools: [read, search]` |
+| `draft list [directory] [--json]` | nothing | Pending and promoted drafts |
+| `draft check <name> [directory] [--verify-citations] [--json]` | nothing | Strict frontmatter, a bounded range that covers the gap, at least one citation, no `TODO(draft)`, the security scan, and that the gap is still open. `--verify-citations` also fetches each cited page and requires its quote to be on it, and warns about citations from outside the package's own docs. Exits 1 on errors |
+| `draft promote <name> [directory] --reviewed-by <who> [--skip-citation-verification]` | `<source>/rules/<name>.md`, `<source>/skills/<name>/SKILL.md` or `<source>/agents/<name>.md` | **Human only.** Verifies every citation first (skip offline with `--skip-citation-verification`, recorded in the archive). Needs an interactive terminal, and refuses inside an agent session (`CLAUDECODE`, `CURSOR_AGENT`, `GEMINI_CLI`, `CODEX_SANDBOX`). Shows the rule; you type its name to confirm; aborts if the draft changed during review; never overwrites |
+| `draft pr <name> [directory] --packs-repo <dir> [--pack <name>] [--json]` | a new `feat/<kind>-<name>` branch in your packs checkout, with the file staged; `.bluetemberg/drafts/promoted/<name>.pr.md` | **Human only** (refuses inside an agent session). From a promoted draft: re-checks the file, picks the pack from `origin/main` by kind and gap stack, refuses a name taken in any pack. Never commits, pushes or runs the packs repo's scripts; prints `generate:catalog`, commit, push and `gh pr create --draft --label needs-review` |
+
+A file carrying a `draft:` frontmatter key is withheld by sync, guardrails, `why` and the marketplace, even inside `llm/rules/`.
+
 ## `bluetemberg mcp serve [directory]`
 
 Run Bluetemberg itself as an [MCP](https://modelcontextprotocol.io) server over **stdio**, exposing the stack model as tools so an agent gets structured coverage without shelling out. It is the same machinery behind the `--json` flags — one implementation, two surfaces — and is **read-only** (it never writes files).
@@ -389,6 +407,10 @@ Tools:
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
 | `bluetemberg_why` | `file` (source path, generated path or id), or `diff` (array of `stack@version`) | The [`why`](#bluetemberg-why-file-directory) report for one item, or the upgrade diff |
 | `bluetemberg_org_histogram` | `roots` (array of repo paths), `org`, `repos`, `since` — all optional; combine local roots with a remote org scan | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
+| `bluetemberg_draft_brief` | `stack`, `version`, optional `kind` | The [`draft brief`](#bluetemberg-draft-subcommand) for a gap: grounding data for drafting a rule, skill or agent |
+| `bluetemberg_draft_check` | `name`, optional `verifyCitations` | The [`draft check`](#bluetemberg-draft-subcommand) report for a draft in `.bluetemberg/drafts/` |
+
+No tool writes or promotes a draft: drafts are opened with `bluetemberg draft new`, and only a human at a terminal runs `draft promote`.
 
 Register it with an MCP client (example for Claude Code's `.mcp.json`):
 
@@ -488,6 +510,22 @@ Re-checks every pack in `.bluetemberg/packs/` against the registry: the tarball'
 | `--skip-signature-verification` | Skip the ECDSA check, for self-hosted registries that do not sign. Never needed for `registry.npmjs.org` |
 | `--silent` | Suppress output |
 
+## `bluetemberg scan <dirs...>`
+
+Runs the [content scan](Registry#content-scan) that `add`/`install` apply to downloads on local directories. Use it where packs are authored, for example in a packs repo's CI on every pull request, so a blocking pattern is caught before the pack is published rather than at a consumer's install:
+
+```bash
+npx bluetemberg scan packages/*
+```
+
+Prints each finding with its severity, file and line, then a totals line. Exits 1 when any finding blocks.
+
+| Option | Notes |
+| ------ | ----- |
+| `--json` | Machine-readable output: `{ entries: [{ path, filesScanned, findings }], blocks, warnings }` |
+| `--strict` | Exit 1 on warnings too |
+| `--silent` | Suppress output; the exit code still reports the result |
+
 ## `bluetemberg search <query>`
 
 Search for rule packs tagged with `bluetemberg-pack`, in the registry the project's manifest
@@ -505,12 +543,14 @@ Manage **external rule sources** — rules pulled from outside the npm pack regi
 
 | Subcommand | Description |
 | ---------- | ----------- |
-| `source add <spec>` | Resolve, fetch, translate, and pin a source. Spec: `github:owner/repo[#ref][:path]`, `prpm:name[@range]`, or `cursor-directory:slug`. |
+| `source add <spec>` | Resolve, fetch, translate, scan, and pin a source. Spec: `github:owner/repo[#ref][:path]`, `prpm:name[@range]`, or `cursor-directory:slug`. |
 | `source remove <key>` | Remove a source (key as shown by `source list`). |
 | `source list` | List configured sources with their pinned refs. |
-| `source install [--force]` | Restore all sources from `llm/rule-sources-lock.json` (like `npm ci`). Run after cloning. |
+| `source install [--force]` | Restore all sources from `llm/rule-sources-lock.json` (like `npm ci`). Run after cloning. Re-scans cached sources an older scanner vetted. |
 | `source update [key]` | Re-resolve the floating spec to the newest ref/version and reinstall if it changed. |
 | `source search <query>` | Search backends that support discovery (`--type`, `--limit`). GitHub repos are not searchable. |
+
+`source add`, `source install` and `source update` take `--skip-scan` to skip the [content scan](Registry#content-scan). Use it only for sources you control.
 
 ```bash
 # Pull the rules/ folder of awesome-cursorrules at its current default branch

@@ -2,9 +2,14 @@ import { loadConfig } from '../sync/index.js';
 import { resolveGithubToken } from '../stacks/github.js';
 import { ensureGitignore } from '../utils/fs.js';
 import { getAdapter, hasAdapter } from './adapters/index.js';
-import { isSourceCached, removeSourceRef, resolveSourceContentDir } from './cache.js';
+import { isSourceCached, removeSourceRef, resolveSourceContentDir, sourceContentDir } from './cache.js';
 import { readSourceLock, readSourceManifest, writeSourceLock, writeSourceManifest } from './manifest.js';
 import { installResolvedSource } from './pipeline.js';
+import { formatFindings } from '../registry/scanner.js';
+import { rescanCached, staleScanWarning } from '../registry/scan-cache.js';
+import type { ScanGateOptions } from '../registry/scan-cache.js';
+import { capabilityReport, collectCapabilities } from '../registry/capabilities.js';
+import type { CapabilityBaseline } from '../registry/capabilities.js';
 import { parseSourceSpec, sourceKey } from './spec.js';
 import { SOURCE_TYPES } from './types.js';
 import type {
@@ -35,6 +40,53 @@ function netOptions(): SourceNetOptions {
   return token ? { token } : {};
 }
 
+/**
+ * Content-scan options for one source: blocking findings throw from the pipeline; warnings and a
+ * skipped scan go through the command's `log`, so `--silent` and tests capture them.
+ */
+function sourceScanOptions(
+  label: string,
+  skipScan: boolean | undefined,
+  log: (msg: string) => void,
+): ScanGateOptions {
+  return {
+    skipScan,
+    onScanSkipped: () => log(`  Content scan skipped for ${label} (--skip-scan).`),
+    onScanFindings: (result) => {
+      log(`  Warning: content scan flagged ${result.findings.length} pattern(s) in ${label} (not blocking):`);
+      for (const line of formatFindings(result.findings, '    ')) log(line);
+    },
+  };
+}
+
+/**
+ * What a newly installed source ref is compared against: nothing for a new source, the cached
+ * previous ref when there is one, and `null` (no report) when the pinned ref is re-downloaded.
+ */
+function sourceBaseline(
+  root: string,
+  key: string,
+  previousRef: string | undefined,
+  ref: string,
+): CapabilityBaseline | null {
+  if (previousRef === ref) return null;
+  if (!previousRef) return { kind: 'new' };
+  if (!isSourceCached(root, key, previousRef)) return { kind: 'uncached', version: shortRef(previousRef) };
+  return { kind: 'previous', capabilities: collectCapabilities(sourceContentDir(root, key, previousRef)) };
+}
+
+/** Log what a newly installed source ref can run or gate (see {@link capabilityReport}). */
+function reportSourceCapabilities(
+  root: string,
+  key: string,
+  ref: string,
+  baseline: CapabilityBaseline | null,
+  log: (msg: string) => void,
+): void {
+  if (!baseline) return;
+  for (const line of capabilityReport(key, baseline, sourceContentDir(root, key, ref))) log(line);
+}
+
 // ---------------------------------------------------------------------------
 // add
 // ---------------------------------------------------------------------------
@@ -61,7 +113,11 @@ export async function addSource(
   const resolved = await adapter.resolve(spec, net);
 
   log(`Installing ${key}@${shortRef(resolved.ref)}...`);
-  const entry = await installResolvedSource(root, resolved, { net });
+  const baseline = sourceBaseline(root, key, readSourceLock(root, source).sources[key]?.ref, resolved.ref);
+  const entry = await installResolvedSource(root, resolved, {
+    net,
+    ...sourceScanOptions(key, options.skipScan, log),
+  });
 
   const manifest = readSourceManifest(root, source);
   const lock = readSourceLock(root, source);
@@ -73,6 +129,7 @@ export async function addSource(
   ensureGitignore(root);
 
   log(`Added ${key} (${shortRef(entry.ref)})`);
+  reportSourceCapabilities(root, key, entry.ref, baseline, log);
   log(`Run "bluetemberg sync" to apply the new rules.`);
 
   return installedFromEntry(root, key, entry);
@@ -161,6 +218,8 @@ export async function installSources(
     const existing = lock.sources[key];
 
     if (existing && !options.force && isSourceCached(root, key, existing.ref)) {
+      const dir = resolveSourceContentDir(root, key, existing.ref);
+      if (dir) rescanCached(dir, key, sourceScanOptions(key, options.skipScan, log));
       log(`  ${key}@${shortRef(existing.ref)} (cached)`);
       installed.push(installedFromEntry(root, key, existing));
       continue;
@@ -172,8 +231,14 @@ export async function installSources(
         ? resolvedFromLock(spec, key, existing)
         : await getAdapter(spec.type).resolve(spec, net);
     log(`  ${key}@${shortRef(resolved.ref)} (downloading...)`);
-    const entry = await installResolvedSource(root, resolved, { force: options.force, net });
+    const baseline = sourceBaseline(root, key, existing?.ref, resolved.ref);
+    const entry = await installResolvedSource(root, resolved, {
+      force: options.force,
+      net,
+      ...sourceScanOptions(key, options.skipScan, log),
+    });
     lock.sources[key] = entry;
+    reportSourceCapabilities(root, key, entry.ref, baseline, log);
     installed.push(installedFromEntry(root, key, entry));
   }
 
@@ -224,6 +289,8 @@ export async function updateSources(
     const resolved = await getAdapter(spec.type).resolve(spec, net);
 
     if (previous === resolved.ref && isSourceCached(root, k, resolved.ref)) {
+      const dir = resolveSourceContentDir(root, k, resolved.ref);
+      if (dir) rescanCached(dir, k, sourceScanOptions(k, options.skipScan, log));
       log(`  ${k}@${shortRef(resolved.ref)} (up to date)`);
       results.push(installedFromEntry(root, k, lock.sources[k]));
       continue;
@@ -231,8 +298,13 @@ export async function updateSources(
 
     const arrow = previous ? ` ${shortRef(previous)} →` : '';
     log(`  ${k}${arrow} ${shortRef(resolved.ref)} (downloading...)`);
-    const entry = await installResolvedSource(root, resolved, { net });
+    const baseline = sourceBaseline(root, k, previous, resolved.ref);
+    const entry = await installResolvedSource(root, resolved, {
+      net,
+      ...sourceScanOptions(k, options.skipScan, log),
+    });
 
+    reportSourceCapabilities(root, k, entry.ref, baseline, log);
     if (previous && previous !== resolved.ref) {
       removeSourceRef(root, k, previous);
     }
@@ -326,6 +398,8 @@ export function resolveExternalSourceDirs(
       );
       continue;
     }
+    const stale = staleScanWarning(dir, `${key}@${shortRef(entry.ref)}`, 'bluetemberg source install');
+    if (stale) warnings.push(stale);
     dirs.push(dir);
     labels.push(`${key}@${shortRef(entry.ref)}`);
   }

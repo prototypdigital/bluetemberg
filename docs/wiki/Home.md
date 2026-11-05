@@ -18,12 +18,14 @@ If you're wondering why this exists or how it's different from maintaining platf
 - [Configuration](Configuration) — `bluetemberg.config.json` schema
 - [Profiles](Profiles) — team profiles and what each one includes
 - [Stacks & Versioning](Stacks) — version-aware routing, detection, and the versioning strategy
+- [Drafts](Drafts) — the human-gated create-loop: gap → grounded draft → check → human promote
 - [Writing Rules](Writing-Rules) — how to write vendor-neutral rules
 - [Writing Agents](Writing-Agents) — agent definition format
 - [Writing Skills](Writing-Skills) — SKILL.md format
 - [Writing Hooks](Writing-Hooks) — Cursor `hooks.json` and Claude Code `hooks.claude.json` in `llm/`
 - [Marketplace](Marketplace) — Claude Code plugin output for zero-install onboarding
 - [Org Rollout](Org-Rollout) — managed-settings files that install the marketplace org-wide (Claude Code, Copilot)
+- [Telemetry](Telemetry) — opt-in OpenTelemetry export to your own collector, with pack attribution
 - [Guardrails](Guardrails) — declarative checks enforced as platform-native hooks
 - [Writing Commands](Writing-Commands) — slash commands in `llm/commands/`, synced as skills
 - [Writing Prompts](Writing-Prompts) — prompt files in `llm/prompts/`, synced as skills

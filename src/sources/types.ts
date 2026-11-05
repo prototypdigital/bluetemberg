@@ -151,7 +151,12 @@ export interface InstalledSource {
 // Command options (parallel to the registry's Registry*Options)
 // ---------------------------------------------------------------------------
 
-export interface SourceAddOptions {
+/** Content-scan opt-out shared by the commands that download a source. */
+export interface SourceScanOptions {
+  /** Skip the content scan (sources you control). Announced on every use. */
+  skipScan?: boolean;
+}
+export interface SourceAddOptions extends SourceScanOptions {
   silent?: boolean;
 }
 export interface SourceRemoveOptions {
@@ -160,12 +165,12 @@ export interface SourceRemoveOptions {
 export interface SourceListOptions {
   silent?: boolean;
 }
-export interface SourceInstallOptions {
+export interface SourceInstallOptions extends SourceScanOptions {
   silent?: boolean;
   /** Force re-download even if cached. */
   force?: boolean;
 }
-export interface SourceUpdateOptions {
+export interface SourceUpdateOptions extends SourceScanOptions {
   silent?: boolean;
 }
 export interface SourceSearchOptions {

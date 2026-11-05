@@ -5,6 +5,13 @@ import { tmpdir } from 'node:os';
 import { resolvePackSourceDirs, update } from '../src/registry/index.js';
 import { writeManifest, writeLockfile, readManifest, readLockfile } from '../src/registry/manifest.js';
 import { packVersionDir } from '../src/registry/installer.js';
+import { SCAN_MARKER } from '../src/registry/scan-cache.js';
+import { SCANNER_VERSION } from '../src/registry/scanner.js';
+
+/** Record that the current scanner vetted a cached pack dir, as a real install does. */
+function markScanned(packDir: string, version: string | number = SCANNER_VERSION): void {
+  writeFileSync(join(packDir, SCAN_MARKER), `${version}\n`);
+}
 
 function createTmpDir(): string {
   const dir = join(tmpdir(), `bt-registry-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -54,6 +61,7 @@ describe('resolvePackSourceDirs', () => {
     const packDir = packVersionDir(root, 'pack-a', '1.2.0');
     mkdirSync(join(packDir, 'llm', 'rules'), { recursive: true });
     writeFileSync(join(packDir, 'llm', 'rules', 'a.md'), '# rule a');
+    markScanned(packDir);
 
     const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toHaveLength(1);
@@ -105,6 +113,8 @@ describe('resolvePackSourceDirs', () => {
     const dirB = packVersionDir(root, 'pack-b', '2.0.0');
     mkdirSync(dirA, { recursive: true });
     mkdirSync(dirB, { recursive: true });
+    markScanned(dirA);
+    markScanned(dirB);
 
     const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toEqual([dirA, dirB]);
@@ -123,10 +133,35 @@ describe('resolvePackSourceDirs', () => {
     const packDir = packVersionDir(root, 'flat-pack', '1.0.0');
     mkdirSync(join(packDir, 'rules'), { recursive: true });
     writeFileSync(join(packDir, 'rules', 'a.md'), '# rule');
+    markScanned(packDir);
 
     const { dirs, warnings } = resolvePackSourceDirs(root);
     expect(dirs).toEqual([packDir]);
     expect(warnings).toEqual([]);
+  });
+
+  it('asks for a re-scan when an older scanner (or none) vetted the cached pack', () => {
+    writeManifest(root, { packages: { 'old-pack': '^1.0.0', 'skipped-pack': '^1.0.0' } });
+    writeLockfile(root, {
+      lockfileVersion: 1,
+      packages: {
+        'old-pack': { version: '1.0.0', resolved: 'x', integrity: 'y' },
+        'skipped-pack': { version: '1.0.0', resolved: 'x', integrity: 'y' },
+      },
+    });
+    const oldDir = packVersionDir(root, 'old-pack', '1.0.0');
+    const skippedDir = packVersionDir(root, 'skipped-pack', '1.0.0');
+    mkdirSync(oldDir, { recursive: true });
+    mkdirSync(skippedDir, { recursive: true });
+    markScanned(oldDir, SCANNER_VERSION - 1);
+    markScanned(skippedDir, 'skipped');
+
+    const { dirs, warnings } = resolvePackSourceDirs(root);
+    // Still synced (sync is read-only), but the stale one is flagged; an opted-out one is not.
+    expect(dirs).toEqual([oldDir, skippedDir]);
+    expect(warnings).toEqual([
+      '"old-pack@1.0.0" has not been checked by this engine version\'s content scan rules. Run "bluetemberg install" to re-scan it.',
+    ]);
   });
 
   it('warns about stale lockfile entries not present in manifest', () => {

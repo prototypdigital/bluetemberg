@@ -10,7 +10,7 @@ A platform team maintains packs in [bluetemberg-packs](https://github.com/protot
 
 **[prototypdigital.github.io/bluetemberg →](https://prototypdigital.github.io/bluetemberg/)** — install guide, pack browser, and docs.
 
-**Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction, and pack content is scanned for leaked credentials, secret exfiltration, and instructions to disable hooks before it lands. See [SECURITY.md](SECURITY.md).
+**Supply-chain controls:** SHA-512 integrity and ECDSA registry signatures verified on every install. Registry host is pinned — metadata cannot redirect downloads to an attacker-controlled host. Tarballs are size-capped and path-traversal-filtered on extraction, and pack and external-source content is scanned for leaked credentials, secret exfiltration (HTTP, DNS, `gh`, `git push`, markdown beacons), hidden Unicode text, and instructions to disable hooks before it lands, then re-scanned when the scanner gains rules. See [SECURITY.md](SECURITY.md).
 
 ## "But everything is converging on AGENTS.md."
 
@@ -241,6 +241,14 @@ npx bluetemberg stacks lint                  # open-ended ranges, ranges past th
 npx bluetemberg stacks list payload@3        # every rule declaring a range that admits Payload 3
 ```
 
+Found a gap? An agent can draft a rule for it, grounded in your code and cited primary docs. The draft stays in the gitignored `.bluetemberg/drafts/` and is never synced. Only a human at a terminal can promote it into `llm/rules/`:
+
+```bash
+npx bluetemberg draft new payload@4.0.1 --name payload-4-jobs-queue   # skeleton + gap brief
+npx bluetemberg draft check payload-4-jobs-queue                      # agent loops until OK
+npx bluetemberg draft promote payload-4-jobs-queue --reviewed-by you  # human only: review, type the name
+```
+
 See [Configuration](https://github.com/prototypdigital/bluetemberg/wiki/Configuration#stacks), [Writing Rules](https://github.com/prototypdigital/bluetemberg/wiki/Writing-Rules), and [Commands](https://github.com/prototypdigital/bluetemberg/wiki/Commands) for the full model.
 
 ## Guardrails
@@ -419,6 +427,8 @@ npx bluetemberg managed-settings --ref v1.4.0 --out managed-settings
 
 This writes `claude-code/managed-settings.json` (Claude Code), `github-copilot/managed-settings.json` (GitHub Copilot) and a `README.md` that says where each one goes on macOS, Linux and Windows. Each file registers the marketplace from `marketplace.remote` and force-enables its plugins. Add `--strict` to block every other marketplace and `--mcp-allowlist` to allow only the project's MCP servers (`llm/mcp.json` and `.mcp.json`). `sync` never writes these files, and the command refuses to run without a configured marketplace. Neither host pins plugin versions, so the marketplace `ref` is the pin; with `agent-plugins` on, the command refuses when the bundle locks have drifted from `packages-lock.json` (with Claude bundles alone it warns that it could not check). It refuses an `--out` that would write to a host's live policy path, `~/.claude`, through a symlink, or over a file it did not generate. See [Org rollout](https://github.com/prototypdigital/bluetemberg/wiki/Org-Rollout).
 
+Add `--telemetry-endpoint https://otel.example.com` to also point each host's own OpenTelemetry exporter at your collector. It's opt-in. Prompts, responses and tool content stay off, and are locked off by policy. Every metric and event gets labels naming the marketplace and pack set, so dashboards can compare agent behaviour across rule versions. bluetemberg sends nothing itself and writes no credentials. See [Telemetry](https://github.com/prototypdigital/bluetemberg/wiki/Telemetry).
+
 ## Uninstall
 
 ```bash
@@ -464,6 +474,7 @@ See the [Wiki](https://github.com/prototypdigital/bluetemberg/wiki) for full doc
 - [Architecture](https://github.com/prototypdigital/bluetemberg/wiki/Architecture)
 - [Consumer Setup](https://github.com/prototypdigital/bluetemberg/wiki/Consumer-Setup)
 - [Stacks & Versioning](https://github.com/prototypdigital/bluetemberg/wiki/Stacks)
+- [Drafts (create-loop)](https://github.com/prototypdigital/bluetemberg/wiki/Drafts)
 - [Guardrails](https://github.com/prototypdigital/bluetemberg/wiki/Guardrails)
 - [Registry](https://github.com/prototypdigital/bluetemberg/wiki/Registry)
 - [External Sources](https://github.com/prototypdigital/bluetemberg/wiki/Sources)

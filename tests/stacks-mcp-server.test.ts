@@ -41,7 +41,7 @@ function writeCatalog(root: string): void {
 }
 
 describe('STACKS_MCP_TOOLS', () => {
-  it('exposes the read-only tools with well-formed object schemas (no M7 scaffold)', () => {
+  it('exposes the read-only tools with well-formed object schemas (no M7 write tool)', () => {
     const names = STACKS_MCP_TOOLS.map((t) => t.name);
     expect(names).toEqual([
       'bluetemberg_detect_stacks',
@@ -49,8 +49,10 @@ describe('STACKS_MCP_TOOLS', () => {
       'bluetemberg_list_stacks',
       'bluetemberg_why',
       'bluetemberg_org_histogram',
+      'bluetemberg_draft_brief',
+      'bluetemberg_draft_check',
     ]);
-    expect(names).not.toContain('bluetemberg_scaffold_from_gap'); // parked (M7)
+    expect(names).not.toContain('bluetemberg_scaffold_from_gap'); // drafts are opened by the CLI only
     for (const tool of STACKS_MCP_TOOLS) {
       expect(tool.inputSchema.type).toBe('object');
       expect(tool.inputSchema.additionalProperties).toBe(false);

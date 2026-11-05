@@ -33,6 +33,96 @@ const PACK_INSTALL_OPTIONS = [
   { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
 ];
 
+/** The human-gated create-loop (M7, #197): gap → grounded draft → check → human promote. */
+const DRAFT_COMMANDS = [
+  {
+    name: 'draft brief',
+    args: '<stack@version> [directory]',
+    description:
+      'Gap brief for an agent: coverage, nearest guidance, paths of files importing the package, citation contract (read-only). Exits 1 when the version is already covered.',
+    options: [
+      {
+        long: '--kind <kind>',
+        description: 'rule (default), skill or agent: selects the authoring skill and steps.',
+      },
+      { long: '--json', description: 'Emit machine-readable JSON.' },
+    ],
+  },
+  {
+    name: 'draft new',
+    args: '<stack@version> [directory]',
+    description:
+      'Open a draft rule, skill or agent for a gap in .bluetemberg/drafts/ (never synced). Refuses a version-covered stack and an existing name.',
+    options: [
+      {
+        long: '--name <name>',
+        description: 'Kebab-case id of the future rule, skill or agent (required).',
+      },
+      {
+        long: '--kind <kind>',
+        description:
+          'rule (default), skill or agent. A skill draft is one SKILL.md; an agent draft must list its tools from read, search, edit, execute, agent.',
+      },
+      { long: '--scope <glob>', description: 'The rule scope glob (rules only; default "**").' },
+      { long: '--json', description: 'Emit machine-readable JSON (name, path, brief).' },
+    ],
+  },
+  {
+    name: 'draft list',
+    args: '[directory]',
+    description: 'List pending and promoted drafts (read-only).',
+    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+  },
+  {
+    name: 'draft check',
+    args: '<name> [directory]',
+    description:
+      'Validate a draft: strict YAML frontmatter, a bounded range covering the gap, at least one primary-doc citation, no TODO(draft) markers, the pack security scan, and that the gap is still open. Exits 1 on errors.',
+    options: [
+      {
+        long: '--verify-citations',
+        description:
+          'Fetch each cited page (https, public hosts only) and require its quote to appear on it; warn when a citation is not from the package homepage or repository.',
+      },
+      { long: '--json', description: 'Emit machine-readable JSON.' },
+    ],
+  },
+  {
+    name: 'draft promote',
+    args: '<name> [directory]',
+    description:
+      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md, skills/<name>/SKILL.md or agents/<name>.md (never overwrites). Re-verifies every citation against its page first. Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
+    options: [
+      { long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' },
+      {
+        long: '--skip-citation-verification',
+        description:
+          'Do not fetch the cited pages (offline). Verification is on by default; skipping is recorded in the archive.',
+      },
+    ],
+  },
+  {
+    name: 'draft pr',
+    args: '<name> [directory]',
+    description:
+      '[human only] From a promoted draft, prepare a branch (feat/<kind>-<name>, off origin/main) in a local bluetemberg-packs checkout: re-checks the promoted file, picks the pack by kind and gap stack, refuses a name taken in any pack, stages the file, and writes a provenance PR body. Never commits, pushes, runs the packs repo scripts, or opens the PR — it prints those steps (gh pr create --draft --label needs-review). Refuses inside an agent session.',
+    options: [
+      {
+        long: '--packs-repo <dir>',
+        description: 'Local bluetemberg-packs checkout with a clean working tree (required).',
+      },
+      {
+        long: '--pack <name>',
+        description: 'Pack to add to; default is the one pack of this kind that declares the gap stack.',
+      },
+      {
+        long: '--json',
+        description: 'Emit machine-readable JSON (pack, branch, file, bodyFile, title, nextSteps).',
+      },
+    ],
+  },
+];
+
 function readCliVersion(): string {
   try {
     const pkgPath = join(__dirname, '..', 'package.json');
@@ -277,6 +367,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           args: '[directory]',
           description: 'Serve the stack model as MCP tools over stdio (read-only).',
         },
+        ...DRAFT_COMMANDS,
       ],
       mcp: {
         transport: 'stdio',
@@ -286,8 +377,10 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'bluetemberg_list_stacks',
           'bluetemberg_why',
           'bluetemberg_org_histogram',
+          'bluetemberg_draft_brief',
+          'bluetemberg_draft_check',
         ],
-        note: 'Read-only. The gated scaffold_from_gap tool (M7 create-loop) is intentionally absent.',
+        note: 'Read-only. No tool writes or promotes a draft: drafts are opened with `draft new`, and only a human at a terminal runs `draft promote`.',
       },
     },
     packs: {
@@ -319,13 +412,27 @@ export function getMachineReadableHelp(): Record<string, unknown> {
             ...PACK_INSTALL_OPTIONS,
           ],
         },
+        {
+          name: 'scan',
+          args: '<dirs...>',
+          description:
+            'Run the content scan on local pack or source directories (e.g. a packs repo in CI). Exits 1 on a blocking finding.',
+          options: [
+            { long: '--json', description: 'Emit machine-readable JSON.' },
+            { long: '--strict', description: 'Exit 1 on warnings too.' },
+            { long: '--silent', description: 'Suppress output; the exit code still reports the result.' },
+          ],
+        },
       ],
       contentScan: {
         description:
-          'Every freshly downloaded pack is scanned before it lands in the cache. Blocking findings abort the install; warnings are reported.',
+          'Every freshly downloaded pack and external source is scanned before it lands in the cache; cached content an older scanner vetted is re-scanned on the next install. Blocking findings abort the install; warnings are reported.',
         blocks: [
           'real-looking credentials',
-          'secrets in the body of a request to a non-local host',
+          'secrets in the body of a request to a non-local host (URL hosts parsed, userinfo and numeric IPs resolved)',
+          'secrets sent over DNS lookups, gh publishing, or committed and pushed with git',
+          'markdown links/images whose URL carries a secret',
+          'invisible Unicode tag text and variation-selector payloads',
           'decode-to-shell pipelines',
           'instructions to disable hooks/guardrails/verification',
           'dangerous agent flags',
@@ -342,6 +449,10 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'mentions of verification-weakening switches',
           'scripts that read secrets and upload on separate lines',
           'blocking patterns quoted in BAD-labelled markdown examples',
+          'markdown image URLs with template slots',
+          'link text naming a different site than the link target',
+          'settings that widen agent permissions',
+          'unpinned npx -y packages',
         ],
       },
     },
@@ -388,6 +499,20 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           long: '--mcp-allowlist',
           description:
             'Also write allowedMcpServers listing exactly the servers in <source>/mcp.json (llm/ by default) and the root .mcp.json.',
+        },
+        {
+          long: '--telemetry-endpoint <url>',
+          description:
+            "Opt in to OpenTelemetry export: point each host's own exporter at this OTLP collector (Claude Code env, Copilot telemetry). Content capture is written off; bluetemberg sends nothing itself. Refuses URLs with credentials or a query string.",
+        },
+        {
+          long: '--telemetry-protocol <http/protobuf|http/json|grpc>',
+          description: 'OTLP protocol (default http/protobuf). grpc is Claude Code only.',
+        },
+        {
+          long: '--telemetry-attribute <key=value>',
+          description:
+            'Extra resource attribute next to bluetemberg.marketplace and bluetemberg.packs.digest (repeatable). Keys under bluetemberg. or that look like credentials are refused.',
         },
         { long: '--dry-run', description: 'Print the files instead of writing them.' },
         { long: '--json', description: 'Emit the plan, files included, as JSON.' },

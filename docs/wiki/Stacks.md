@@ -225,3 +225,4 @@ Version-aware routing is maturing. Tracked in [issue #212](https://github.com/pr
 - [Commands → `bluetemberg detect`](Commands#bluetemberg-detect-directory) — inspect resolved versions
 - [Commands → `bluetemberg stacks lint`](Commands#bluetemberg-stacks-lint-directory) — flag ranges nobody has checked
 - [Guardrails](Guardrails) — the same gate applies to guardrails
+- [Drafts](Drafts) — fill a gap: a grounded draft rule, checked, promoted by a human

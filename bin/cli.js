@@ -524,6 +524,9 @@ function printManagedSettingsPlan(plan, written) {
   console.log(`  plugins: ${plan.plugins.join(', ')}`);
   if (plan.strict) console.log(`  strictKnownMarketplaces: on (blocks every marketplace not listed)`);
   if (plan.mcpServers.length > 0) console.log(`  allowedMcpServers: ${plan.mcpServers.join(', ')}`);
+  if (plan.telemetry) {
+    console.log(`  telemetry: ${plan.telemetry.endpoint} (${plan.telemetry.protocol}), content capture off`);
+  }
   if (written) {
     for (const path of written) console.log(`  -> ${path}`);
     console.log(
@@ -568,11 +571,29 @@ program
     '--mcp-allowlist',
     'Also write allowedMcpServers: only the llm/mcp.json and .mcp.json servers may run',
   )
+  .option(
+    '--telemetry-endpoint <url>',
+    'Opt in to OpenTelemetry export to your own OTLP collector (content capture stays off)',
+  )
+  .option('--telemetry-protocol <protocol>', 'http/protobuf (default) | http/json | grpc (Claude Code only)')
+  .option(
+    '--telemetry-attribute <key=value>',
+    'With --telemetry-endpoint, add a resource attribute such as team.id=platform (repeatable)',
+    (attr, attrs) => [...attrs, attr],
+    [],
+  )
   .option('--dry-run', 'Print the files instead of writing them')
   .option('--json', 'Emit the plan (files included) as JSON')
   .option('--silent', 'Suppress progress output (errors and warnings still go to stderr)')
   .action(async (directory, options) => {
     const { planManagedSettings, writeManagedSettings } = await import('../dist/managed-settings/index.js');
+    const telemetryRequested = options.telemetryEndpoint !== undefined;
+    if (!telemetryRequested && (options.telemetryProtocol || options.telemetryAttribute.length > 0)) {
+      console.error(
+        'Error: --telemetry-protocol and --telemetry-attribute only apply with --telemetry-endpoint.',
+      );
+      process.exit(1);
+    }
     try {
       const plan = planManagedSettings(resolve(directory), {
         host: options.host,
@@ -582,6 +603,13 @@ program
         autoUpdate: options.autoUpdate,
         plugins: options.plugin,
         mcpAllowlist: options.mcpAllowlist,
+        telemetry: telemetryRequested
+          ? {
+              endpoint: options.telemetryEndpoint,
+              protocol: options.telemetryProtocol,
+              attributes: options.telemetryAttribute,
+            }
+          : undefined,
       });
       const out = resolve(options.out);
       const written = options.dryRun ? null : writeManagedSettings(plan, out);
@@ -1035,6 +1063,210 @@ program
     }
   });
 
+program
+  .command('scan')
+  .description(
+    'Run the pack content security scan on local pack or source directories (e.g. in a packs repo CI)',
+  )
+  .argument('<dirs...>', 'Pack or source directories to scan (e.g. packages/*)')
+  .option('--json', 'Emit machine-readable JSON (entries with findings, block and warning counts)')
+  .option('--strict', 'Exit 1 on warnings too, not only on blocking findings')
+  .option('--silent', 'Suppress output (the exit code still reports the result)')
+  .action(async (dirs, options) => {
+    const { buildContentScanReport, formatContentScanReport } =
+      await import('../dist/registry/scan-report.js');
+    try {
+      const report = buildContentScanReport(dirs.map((d) => resolve(d)));
+      if (!options.silent) {
+        console.log(
+          options.json ? JSON.stringify(report, null, 2) : formatContentScanReport(report).join('\n'),
+        );
+      }
+      if (report.blocks > 0 || (options.strict && report.warnings > 0)) process.exitCode = 1;
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
+/** `payload@4.0.1` → { stack, version }; the version is required for the draft commands. */
+function parseGapSpec(spec) {
+  const atIdx = String(spec).indexOf('@');
+  if (atIdx <= 0 || atIdx === spec.length - 1) {
+    throw new InvalidArgumentError(
+      `Expected <stack>@<version> (e.g. payload@4.0.1), got: ${JSON.stringify(spec)}`,
+    );
+  }
+  return { stack: spec.slice(0, atIdx), version: spec.slice(atIdx + 1) };
+}
+
+function failWith(err) {
+  console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+}
+
+const draftCmd = program
+  .command('draft')
+  .description('Human-gated create-loop: open a grounded draft rule for a stack gap, check it, promote it');
+
+draftCmd
+  .command('brief')
+  .description(
+    'Gap brief for an agent: coverage, nearest guidance, evidence paths, citation contract (read-only)',
+  )
+  .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--kind <kind>', 'What to draft: rule (default), skill or agent')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (gap, directory, options) => {
+    const { buildGapBrief } = await import('../dist/drafts/brief.js');
+    const { parseDraftKind } = await import('../dist/drafts/kinds.js');
+    const { formatBrief } = await import('../dist/drafts/format.js');
+    try {
+      const brief = buildGapBrief(resolve(directory), gap.stack, gap.version, parseDraftKind(options.kind));
+      console.log(options.json ? JSON.stringify(brief, null, 2) : formatBrief(brief).join('\n'));
+      if (!brief.fillable) process.exitCode = 1;
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('new')
+  .description(
+    'Open a draft rule, skill or agent for a gap in .bluetemberg/drafts/ (refuses when the stack version is covered)',
+  )
+  .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
+  .argument('[directory]', 'Project root directory', '.')
+  .requiredOption(
+    '--name <name>',
+    'Kebab-case id of the future rule, skill or agent (e.g. payload-4-jobs-queue)',
+  )
+  .option('--kind <kind>', 'What to draft: rule (default), skill or agent')
+  .option('--scope <glob>', 'The rule scope glob (rules only; default "**")')
+  .option('--json', 'Emit machine-readable JSON (name, path, brief)')
+  .action(async (gap, directory, options) => {
+    const { createDraft } = await import('../dist/drafts/draft.js');
+    const { parseDraftKind } = await import('../dist/drafts/kinds.js');
+    const { formatNewDraft } = await import('../dist/drafts/format.js');
+    try {
+      const result = createDraft(resolve(directory), gap.stack, gap.version, {
+        name: options.name,
+        kind: parseDraftKind(options.kind),
+        scope: options.scope,
+        engine: `bluetemberg@${pkg.version}`,
+      });
+      console.log(options.json ? JSON.stringify(result, null, 2) : formatNewDraft(result).join('\n'));
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('list')
+  .description('List pending and promoted drafts (read-only)')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (directory, options) => {
+    const { listDrafts } = await import('../dist/drafts/draft.js');
+    const { formatList } = await import('../dist/drafts/format.js');
+    try {
+      const entries = listDrafts(resolve(directory));
+      console.log(options.json ? JSON.stringify(entries, null, 2) : formatList(entries).join('\n'));
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('check')
+  .description(
+    'Validate a draft: strict frontmatter, range covers the gap, citations, security scan. Exits 1 on errors',
+  )
+  .argument('<name>', 'Draft name')
+  .argument('[directory]', 'Project root directory', '.')
+  .option('--verify-citations', 'Fetch each cited page and require its quote to appear on it (network)')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (name, directory, options) => {
+    const { checkDraft } = await import('../dist/drafts/check.js');
+    const { checkDraftWithCitations } = await import('../dist/drafts/verify.js');
+    const { formatCheck } = await import('../dist/drafts/format.js');
+    try {
+      const root = resolve(directory);
+      const report = options.verifyCitations
+        ? await checkDraftWithCitations(root, name)
+        : checkDraft(root, name);
+      console.log(options.json ? JSON.stringify(report, null, 2) : formatCheck(report).join('\n'));
+      if (!report.ok) process.exitCode = 1;
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('promote')
+  .description(
+    '[human only] Review a checked draft and write it to <source>/rules|skills|agents/ (interactive TTY required)',
+  )
+  .argument('<name>', 'Draft name')
+  .argument('[directory]', 'Project root directory', '.')
+  .requiredOption('--reviewed-by <who>', 'Your name or handle, recorded in the draft archive')
+  .option(
+    '--skip-citation-verification',
+    'Do not fetch the cited pages (offline); recorded in the archive as citationsVerified: false',
+  )
+  .action(async (name, directory, options) => {
+    // The gate: an agent's tool calls run without a terminal, so they stop here. There is
+    // deliberately no --yes and no MCP equivalent.
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      failWith(new Error('draft promote is a human review step and needs an interactive terminal'));
+    }
+    const { promoteDraft } = await import('../dist/drafts/promote.js');
+    const { formatReview, formatPromoted } = await import('../dist/drafts/format.js');
+    const { input } = await import('@inquirer/prompts');
+    try {
+      const result = await promoteDraft(resolve(directory), name, {
+        reviewedBy: options.reviewedBy,
+        verifyCitations: options.skipCitationVerification ? false : {},
+        confirm: async (review) => {
+          console.log(formatReview(review).join('\n'));
+          const typed = await input({
+            message: `Type the rule name (${review.name}) to promote it, or anything else to cancel:`,
+          });
+          return typed.trim() === review.name;
+        },
+      });
+      console.log(formatPromoted(result).join('\n'));
+      if (!result.promoted) process.exitCode = 1;
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('pr')
+  .description(
+    '[human only] Prepare a contribution branch in a local bluetemberg-packs checkout from a promoted draft (stages the file and writes a PR body; never commits or pushes)',
+  )
+  .argument('<name>', 'Promoted draft name')
+  .argument('[directory]', 'Project root directory', '.')
+  .requiredOption('--packs-repo <dir>', 'Path to your local bluetemberg-packs checkout (clean working tree)')
+  .option('--pack <name>', 'Pack to add to (default: the one pack of this kind declaring the gap stack)')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (name, directory, options) => {
+    const { prepareContribution } = await import('../dist/drafts/contribute.js');
+    const { formatContribution } = await import('../dist/drafts/format.js');
+    try {
+      const result = prepareContribution(resolve(directory), name, {
+        packsRepo: resolve(options.packsRepo),
+        pack: options.pack,
+      });
+      console.log(options.json ? JSON.stringify(result, null, 2) : formatContribution(result).join('\n'));
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
 const mcpCmd = program.command('mcp').description('Run Bluetemberg itself as an MCP server for agents');
 
 mcpCmd
@@ -1063,11 +1295,12 @@ sourceCmd
     '<spec>',
     'Source spec: github:owner/repo[#ref][:path] | prpm:name[@range] | cursor-directory:slug',
   )
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (spec, options) => {
     const { addSource } = await import('../dist/sources/registry.js');
     try {
-      await addSource(process.cwd(), spec, { silent: options.silent });
+      await addSource(process.cwd(), spec, { silent: options.silent, skipScan: options.skipScan });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -1107,11 +1340,16 @@ sourceCmd
   .command('install')
   .description('Install all external sources from the manifest (like npm ci)')
   .option('--force', 'Force re-download even if cached')
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (options) => {
     const { installSources } = await import('../dist/sources/registry.js');
     try {
-      await installSources(process.cwd(), { force: options.force, silent: options.silent });
+      await installSources(process.cwd(), {
+        force: options.force,
+        silent: options.silent,
+        skipScan: options.skipScan,
+      });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -1122,11 +1360,12 @@ sourceCmd
   .command('update')
   .description('Re-resolve external sources to the newest ref/version satisfying their spec')
   .argument('[key]', 'Source key to update (updates all when omitted)')
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (key, options) => {
     const { updateSources } = await import('../dist/sources/registry.js');
     try {
-      await updateSources(process.cwd(), key, { silent: options.silent });
+      await updateSources(process.cwd(), key, { silent: options.silent, skipScan: options.skipScan });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);

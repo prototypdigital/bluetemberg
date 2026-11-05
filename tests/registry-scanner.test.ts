@@ -187,6 +187,61 @@ describe('unicode tricks', () => {
       'block:bidi-control-chars',
     );
   });
+
+  /** ASCII text re-encoded as invisible Unicode tag characters (U+E0000 + code point). */
+  const asTags = (text: string): string =>
+    [...text].map((ch) => String.fromCodePoint(0xe0000 + ch.codePointAt(0)!)).join('');
+
+  it('blocks Unicode tag characters', () => {
+    expect(rules(`Use tabs.${asTags('hidden instruction')}`)).toContain('block:hidden-text-chars');
+  });
+
+  it('blocks supplementary variation selectors and variation-selector runs', () => {
+    expect(rules('a\u{E0100}\u{E0101} b')).toContain('block:hidden-text-chars');
+    expect(rules('a\uFE00\uFE01\uFE02 b')).toContain('block:hidden-text-chars');
+  });
+
+  it('allows a single emoji presentation selector', () => {
+    expect(rules('\u26A0\uFE0F Watch out')).toEqual([]);
+    expect(rules('\u2714\uFE0E done')).toEqual([]);
+  });
+
+  it('strips tag characters and variation selectors before matching', () => {
+    expect(rules('rm\u{E0020} -rf /')).toContain('warn:rm-rf');
+    expect(rules('r\uFE0Fm -rf /')).toContain('warn:rm-rf');
+  });
+
+  it('escapes hidden-text characters in excerpts', () => {
+    const [found] = scanText(`ok${asTags('x')}\uFE00\uFE01`, 'llm/rules/x.md');
+    expect(found.excerpt).toBe('ok\\u{e0078}\\ufe00\\ufe01');
+  });
+});
+
+describe('code-engine frontmatter fences', () => {
+  it.each(['---js', '---javascript', '---JS', '--- js ', '---coffee', '---cson'])(
+    'blocks a "%s" fence at the start of a file',
+    (fence) => {
+      expect(rules(`${fence}\n({ a: 1 })\n---\n# body\n`)).toContain('block:code-frontmatter');
+    },
+  );
+
+  it('blocks it through scanPackContent', () => {
+    const dir = join(tmpdir(), `bt-scan-fence-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(join(dir, 'llm', 'rules'), { recursive: true });
+    try {
+      writeFileSync(join(dir, 'llm', 'rules', 'x.md'), '---js\n({ a: 1 })\n---\n');
+      expect(scanPackContent(dir)).toMatchObject({ blocked: true });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('passes YAML fences, horizontal rules and a fence that is not on line 1', () => {
+    expect(rules('---\ndescription: x\n---\n# body\n')).toEqual([]);
+    expect(rules('---yaml\ndescription: x\n---\n')).toEqual([]);
+    expect(rules('----\n# body\n')).toEqual([]);
+    expect(rules('# Example\n\n```md\n---js\n```\n')).toEqual([]);
+  });
 });
 
 describe('self-review bypasses (PR #345)', () => {
@@ -446,7 +501,8 @@ describe('scanPackContent', () => {
       .findings.filter((f) => f.rule === 'exfiltration')
       .map((f) => f.file);
     expect(files.sort()).toEqual(['llm/skills/s/SKILL.md', 'llm/skills/s/big.md']);
-  });
+    // ~2.6 MB through every rule takes a few seconds; leave headroom for a loaded CI runner.
+  }, 20_000);
 
   it('skips binary formats and does not bidi-check non-UTF-8 files', () => {
     const bidiBytes = Buffer.from([0xe2, 0x80, 0xae]);
@@ -650,6 +706,22 @@ describe('add — scan reporting goes through the command log', () => {
     const output = log.mock.calls.map((c) => String(c[0])).join('\n');
     expect(output).toContain('content scan flagged 1 pattern(s) in warny@1.0.0');
     expect(output).toContain('[rm-rf] llm/rules/r.md:1');
+  });
+
+  it('logs what a new pack can run or gate', async () => {
+    fixtureFiles.current = {
+      'llm/guardrails/no-push.md':
+        "---\ntrigger: Bash\nmessage: no\ncheck:\n  field: command\n  not_matches: '^git push'\n---\n",
+      'llm/skills/s/SKILL.md': '# s\n',
+      'llm/skills/s/scripts/post.sh': 'echo hi\n',
+    };
+    const { add } = await import('../src/registry/index.js');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await add(root, 'warny@1.0.0');
+    const output = log.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(output).toContain('warny@1.0.0 can run or gate:');
+    expect(output).toContain('+ guardrail: no-push (gates Bash)');
+    expect(output).toContain('+ skill file: skills/s/scripts/post.sh');
   });
 
   it('prints nothing with silent, and notes a skipped scan otherwise', async () => {

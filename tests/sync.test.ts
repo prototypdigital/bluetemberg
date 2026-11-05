@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { parse as tomlParse } from 'smol-toml';
 import { sync, loadConfig, hasSyncConfig, shouldExitWithFailure } from '../src/sync/index.js';
 import { hasGeneratedBanner, stripGeneratedBanner, withGeneratedBanner } from '../src/sync/banner.js';
+import { isGuardrailHookCommand } from '../src/sync/guardrails.js';
 import type { BlueprintConfig } from '../src/types.js';
 
 function createTmpDir(): string {
@@ -1823,7 +1824,7 @@ message: "Branch name required"
     // not_empty branch, which prints the message verbatim to stderr and exits 2.
     let stderr = '';
     try {
-      execSync(command, { input: '{}', encoding: 'utf8', stdio: 'pipe' });
+      execSync(command, { input: '{"tool_input":{}}', encoding: 'utf8', stdio: 'pipe' });
     } catch (err) {
       stderr = String((err as { stderr?: string }).stderr ?? '');
     }
@@ -1991,6 +1992,17 @@ message: "Branch name required"
       'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
       'if [ -n "$fail" ]; then printf "%s\\n" "$4"; exit 2; fi',
     ],
+    'v0.16.0–v0.19.0': [
+      `v=$(jq -r --arg f "$1" '($f / ".") as $p | .tool_input | getpath($p) // empty' 2>/dev/null)`,
+      'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read field .%s from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" "$1" >&2; exit 2; fi',
+      'fail=',
+      'bad=',
+      'if [ -n "$5" ] && [ -z "$v" ]; then fail=1; fi',
+      'if [ -n "$2" ]; then [[ "$v" =~ $2 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -eq 0 ]; then fail=1; fi; fi',
+      'if [ -n "$3" ]; then [[ "$v" =~ $3 ]]; s=$?; if [ "$s" -eq 2 ]; then bad=1; elif [ "$s" -ne 0 ]; then fail=1; fi; fi',
+      'if [ -n "$bad" ]; then printf "bluetemberg guardrail: the condition regex for field .%s is not valid POSIX ERE, so the condition cannot be evaluated. Blocking; fix the guardrail regex.\\n" "$1" >&2; exit 2; fi',
+      'if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; exit 2; fi',
+    ],
   };
 
   it.each(Object.entries(LEGACY_SCRIPTS))(
@@ -2015,6 +2027,26 @@ message: "Branch name required"
       expect(readPreToolUseHooks()).toHaveLength(0);
     },
   );
+
+  it('still recognizes the v0.16.0–v0.19.0 Cursor and Copilot hooks, so orphan cleanup removes them', () => {
+    const quote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`;
+    const command = (lines: readonly string[]) =>
+      `bash -c ${quote(lines.join('; '))} bluetemberg 'command' '^git push' '' 'No push' ''`;
+    const v16 = LEGACY_SCRIPTS['v0.16.0–v0.19.0'];
+    const v16Checks = v16.slice(0, -1);
+    const cursor = [...v16, 'printf "{}\\n"'];
+    const copilot = [
+      'in=$(cat)',
+      `t=$(printf "%s" "$in" | jq -r 'if (.tool_name | type) == "string" then .tool_name else error("no tool_name") end' 2>/dev/null)`,
+      'if [ "$?" -ne 0 ]; then printf "bluetemberg guardrail: could not read tool_name from the hook payload (is jq installed?), so the condition cannot be evaluated. Blocking.\\n" >&2; exit 2; fi',
+      '[[ "$t" =~ $6 ]]; s=$?; if [ "$s" -eq 2 ]; then printf "bluetemberg guardrail: invalid tool-name pattern. Blocking.\\n" >&2; exit 2; elif [ "$s" -ne 0 ]; then exit 0; fi',
+      'exec <<<"$in"',
+      ...v16Checks,
+      `if [ -n "$fail" ]; then printf "%s\\n" "$4" >&2; jq -cn --arg r "$4" '{permissionDecision: "deny", permissionDecisionReason: $r}'; exit 2; fi`,
+    ];
+    expect(isGuardrailHookCommand(command(cursor))).toBe(true);
+    expect(isGuardrailHookCommand(command(copilot))).toBe(true);
+  });
 
   /** PreToolUse entries in the generated settings.json, or `[]` when none were written. */
   function readPreToolUseHooks(): { hooks: { command: string }[] }[] {

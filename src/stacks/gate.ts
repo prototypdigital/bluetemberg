@@ -1,3 +1,4 @@
+import { carriesDraftMarker, DRAFT_WITHHELD_REASON } from '../drafts/marker.js';
 import type { StackConstraint } from '../types.js';
 import {
   describeStackMismatch,
@@ -31,6 +32,8 @@ export interface StackGate {
   match: StackMatchResult;
   /** Malformed or unsatisfiable `stacks:` entries (`name: "range"`), see `frontmatterStackIssues`. */
   issues: string[];
+  /** The file carries the `draft:` marker — withheld whatever its stacks (M7 create-loop). */
+  draft: boolean;
 }
 
 /**
@@ -51,7 +54,21 @@ export function evaluateStackGate(
     stackMap,
   );
   const match = matchStackConstraint(constraint, detected);
+  // An unvetted draft is withheld before any version question: promotion is the only way in.
+  const draft = carriesDraftMarker(frontmatter);
+  if (draft) {
+    return {
+      matched: false,
+      reason: DRAFT_WITHHELD_REASON,
+      constraint,
+      constraintSource: source,
+      match,
+      issues: frontmatterStackIssues(frontmatter),
+      draft,
+    };
+  }
   return {
+    draft,
     matched: match.matched,
     reason: match.matched ? '' : describeStackMismatch(match),
     constraint,

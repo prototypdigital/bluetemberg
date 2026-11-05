@@ -10,7 +10,7 @@ Guardrails are Markdown files with structured frontmatter in `guardrails/` under
 - `extends` source dirs
 - installed packs (e.g. [`bluetemberg-guardrails-git`](https://github.com/prototypdigital/bluetemberg-packs))
 
-Sources merge with the same precedence as rules — a local file with the same name overrides a pack's.
+Sources merge with the same precedence as rules — a local file with the same name overrides a pack's. When a pack or external source wins a name collision, `sync` warns. `add` and `update` also show a guardrail that is new or edited in the [capability report](Registry#capability-report), so a loosened condition does not slip in unnoticed.
 
 `init --non-interactive` adds the default guardrail pack to `llm/packages.json`; the interactive wizard doesn't ask about guardrails yet, so add it with `bluetemberg add bluetemberg-guardrails-git`. Run `bluetemberg install` and `bluetemberg sync` to activate it.
 
@@ -41,7 +41,7 @@ Human-readable explanation of what this guardrail does.
 | ----- | -------- | ----------- |
 | `trigger` | Yes | Tool name the hook matches (e.g. `EnterWorktree`) |
 | `hook_type` | No | `PreToolUse` (default) or `PostToolUse` |
-| `check.field` | Yes | Dotted path into the tool's arguments (`tool_input` in the hook payload), e.g. `name`, `command` or `file-path`. Only `tool_input` is read; a leading `tool_input.` is accepted and ignored, so `tool_input.name` means `name`. If the payload cannot be read (no `jq`, or the path runs through a non-object), the hook blocks |
+| `check.field` | Yes | Dotted path into the tool's arguments (`tool_input` in the hook payload), e.g. `name`, `command` or `file-path`. Only `tool_input` is read; a leading `tool_input.` is accepted and ignored, so `tool_input.name` means `name`. If the payload cannot be read, the hook blocks: no `jq`, stdin that is not exactly one JSON object with an object `tool_input`, a path that runs through a non-object, or a field that holds a list or an object. A missing or `null` field reads as empty; `false`, numbers and `true` read as their JSON text (`false`, `0`, `true`) |
 | `check.not_empty` | No | Fail when the field is empty |
 | `check.matches` | No | Fail when the field does **not** match this POSIX ERE |
 | `check.not_matches` | No | Fail when the field **does** match this POSIX ERE |
@@ -72,6 +72,18 @@ At least one `check` condition is required — a guardrail with none is reported
 A condition that cannot be evaluated **blocks** the tool call. If a pattern still reaches the hook and fails to compile — a hand-edited `.claude/settings.json`, or one committed on a platform whose libc accepts the pattern and run on a platform whose libc rejects it — the hook exits non-zero and reports the broken regex, instead of reading the compile failure as "condition not met" and allowing the call.
 
 This is deliberate. A guardrail that cannot check its own condition is not evidence that the operation is safe (GHSA-grpx-fj8v-q8g9).
+
+The same goes for a payload the hook cannot read. Empty stdin, two JSON payloads back to back, a payload without an object `tool_input`, and a field that holds a list or an object (an argv-style `["git", "push"]`) all block, on every platform, instead of reading as an empty value that a `not_matches` check would let through.
+
+## Limits
+
+A guardrail is a single-field regex check on one tool's arguments. Know what it does not cover:
+
+- **One tool, not one action.** A guardrail on tool X never sees the same action taken through tool Y. A guardrail on `EnterWorktree`'s `name` does not see `git worktree add -b claude/x` run through `Bash`, and one on `Bash` does not see a file written with `Write`. Add a guardrail per tool that can perform the action.
+- **The regex sees the whole value as one string.** `^` and `$` anchor the start and end of the whole value, not of each line, so `not_matches: '^git push'` lets `echo ok` + newline + `git push` through, and lets ` git push` (leading space), `cd x && git push` and `sh -c "git push"` through too. Write the pattern for the commands you mean to catch (`(^|[;&|[:space:]])git[[:space:]]+push`), and treat a guardrail as a guard against the obvious call, not a sandbox.
+- **No Unicode normalization.** The value is matched as the tool received it, after JSON decoding (`git push` is `git push`). Fullwidth or look-alike letters (`ｇｉｔ`) are different characters and do not match an ASCII pattern; NUL bytes are dropped before the match.
+
+The adversarial corpus (`tests/fixtures/guardrail-adversarial.ts`) runs these cases against the hook each platform generates (Claude Code, Cursor, GitHub Copilot, Codex and Devin) and pins the verdict: JSON `\u` escapes, NUL bytes, CR/LF, shell and `printf` syntax in the value, values over 1 MB, a missing, `null`, number, boolean, list or object field, nested paths, malformed or empty stdin, and a missing `jq`. Every case where the payload cannot be evaluated blocks; every limit above is pinned as a known pass, so a change to it shows up as a test failure.
 
 ## Platform output
 
@@ -121,7 +133,7 @@ How the hook behaves:
 
 - **Violated check:** exits 2 and prints `{"permissionDecision":"deny","permissionDecisionReason":"<message>"}` on stdout, which is how the message reaches the agent; the message also goes to stderr.
 - **Passing check:** exits 0 with no output. Copilot reads empty output as no decision, so the call goes through its normal permission flow. The hook never returns `allow`, so it never auto-approves anything.
-- **Cannot evaluate:** `jq` missing, a payload that is not JSON, a payload with no string `tool_name` (such as the camelCase `toolName`/`toolArgs` shape), or a field it cannot read exits 2 and blocks. VS Code's Local harness runs the hook for every tool (see below), so there a missing `jq` blocks every tool call, not only shell commands. Copilot also treats a crash or any other non-zero exit from a `preToolUse` command hook as a deny.
+- **Cannot evaluate:** `jq` missing, stdin that is not exactly one JSON value (empty stdin included), a payload with no string `tool_name` (such as the camelCase `toolName`/`toolArgs` shape), or a field it cannot read exits 2 and blocks. VS Code's Local harness runs the hook for every tool (see below), so there a missing `jq` blocks every tool call, not only shell commands. Copilot also treats a crash or any other non-zero exit from a `preToolUse` command hook as a deny.
 - **Other tools:** the command checks `tool_name` itself and exits 0 for anything that is not `Bash`. VS Code's older Local harness loads `.github/hooks/*.json` too but ignores `matcher`, so without this check a guardrail would run against every tool.
 
 Limits to know about:
