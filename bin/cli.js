@@ -640,7 +640,7 @@ program
   .option('--force', 'Force re-fetch of the pack catalog')
   .option(
     '--platforms <csv>',
-    'Platforms to preview for (default: the project config, else every platform but claude-marketplace)',
+    'Platforms to preview for (default: the project config, else every platform but claude-marketplace and agent-plugins)',
   )
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (profile, options) => {
