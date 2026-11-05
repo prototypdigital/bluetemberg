@@ -2,10 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="color-scheme" content="dark" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="AI coding standards shipped like a dependency. Version-locked, integrity-verified, signed, and routed by role and stack version. Emits AGENTS.md, Cursor rules, and native config for six AI tools."
+      content="AI coding standards shipped like a dependency. Version-locked, integrity-verified, signed, and routed by role and stack version. Emits AGENTS.md plus native config for seven AI coding tools."
     />
     <meta property="og:title" content="Bluetemberg — AI coding standards, shipped like a dependency" />
     <meta
@@ -23,6 +24,7 @@
     />
     <style>
       :root {
+        color-scheme: dark;
         --bg: #272729;
         --bg-surface: #1e1e20;
         --bg-code: #1a1a1c;
@@ -208,11 +210,6 @@
         overflow-x: auto;
         white-space: nowrap;
       }
-      .install-cmd .prompt {
-        color: var(--accent-soft);
-        user-select: none;
-        margin-right: 10px;
-      }
       .copy-btn {
         background: none;
         border: none;
@@ -297,6 +294,73 @@
         font-size: 11px;
         color: var(--text-faint);
         margin-top: 10px;
+      }
+
+      /* Quickstart — a terminal transcript with a note under each command */
+      .qs {
+        background: var(--bg-code);
+        border: 1px solid var(--border);
+      }
+      .qs-head {
+        display: flex;
+        align-items: stretch;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--border);
+      }
+      .qs-path {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--text-muted);
+        padding: 12px 20px;
+        align-self: center;
+        min-width: 0;
+      }
+      .qs-path-note {
+        color: var(--text-faint);
+      }
+      .qs-steps {
+        list-style: none;
+        padding: 6px 0;
+      }
+      .qs-step {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 14px 20px;
+      }
+      .qs-cmd {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.6;
+        color: var(--text);
+        overflow-wrap: break-word;
+      }
+      /* Keep each flag and its value on one line: a hyphen is otherwise a break point */
+      .qs-cmd .nw {
+        white-space: nowrap;
+      }
+      .qs-cmd .prompt,
+      .install-cmd .prompt {
+        color: var(--accent-soft);
+        user-select: none;
+        margin-right: 10px;
+      }
+      .qs-note {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--text-muted);
+        padding-left: 20px;
+      }
+      .qs-note code,
+      .install-note code {
+        white-space: nowrap;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: var(--accent-soft);
+      }
+      .qs-alt {
+        margin-top: 40px;
       }
 
       /* How it works — steps */
@@ -422,6 +486,7 @@
         font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 0.06em;
+        white-space: nowrap;
       }
       .matrix .row-corner {
         background: var(--bg-surface);
@@ -432,6 +497,31 @@
       }
       .no {
         color: var(--text-faint);
+      }
+      .matrix .fn {
+        /* Out of flow, so the dot stays centred like the cells without a note */
+        position: absolute;
+        color: var(--text-faint);
+        font-size: 9px;
+        margin-left: 2px;
+      }
+      .matrix-note {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--text-muted);
+        margin-top: 16px;
+        max-width: 640px;
+      }
+      .matrix-note sup {
+        color: var(--text-faint);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 9px;
+        margin-right: 2px;
+      }
+      .matrix-note a {
+        color: var(--accent-soft);
+        text-decoration: underline;
+        text-underline-offset: 3px;
       }
       /* Security controls */
       .security {
@@ -654,10 +744,33 @@
           gap: 16px;
         }
 
-        /* Platform matrix: reduce padding on mobile */
+        /* Platform matrix: tighter cells, and tool names wrap so four columns fit at 320px */
         .matrix th,
         .matrix td {
-          padding: 12px 10px;
+          padding: 11px 3px;
+        }
+        .matrix thead th {
+          font-size: 10px;
+        }
+        .matrix tbody th {
+          white-space: normal;
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          padding-left: 10px;
+        }
+
+        /* Quickstart: notes sit under the command without the indent */
+        .qs-path-note {
+          display: none;
+        }
+        .qs-step {
+          padding: 12px 16px;
+        }
+        .qs-cmd {
+          font-size: 13px;
+        }
+        .qs-note {
+          padding-left: 0;
         }
 
         /* Comparison: hide table, show stacked list */
@@ -738,6 +851,7 @@
           bluetemberg
         </a>
         <ul class="nav-links">
+          <li class="nav-anchor"><a href="#quickstart">quickstart</a></li>
           <li class="nav-anchor"><a href="#how">how</a></li>
           <li class="nav-anchor"><a href="#routing">routing</a></li>
           <li class="nav-anchor"><a href="#security">security</a></li>
@@ -753,12 +867,13 @@
       <!-- HERO -->
       <section class="hero">
         <div class="container">
-          <p class="hero-eyebrow">Vendor-neutral AI tooling engine</p>
+          <p class="hero-eyebrow">Distribution for AI coding standards</p>
           <h1 class="hero-headline">AI coding standards,<br /><em>shipped like a dependency.</em></h1>
           <p class="hero-sub">
-            Version-locked, integrity-verified, and signed —
+            Rules, agents, skills and guardrails as versioned npm packs — integrity-checked and
+            signature-verified on install,
             <strong>routed to the right engineer and the right stack version.</strong>
-            Compiled into native config for six AI tools, installed with one command.
+            Written into native config for seven AI coding tools.
           </p>
           <div class="badges">
             <a href="https://www.npmjs.com/package/bluetemberg">
@@ -783,13 +898,76 @@
         </div>
       </section>
 
-      <!-- INSTALL -->
-      <section class="install">
+      <!-- QUICKSTART — the shortest working install, verified against the published package -->
+      <section class="install" id="quickstart">
         <div class="container">
-          <p class="section-label">Get started</p>
+          <p class="section-label">Try it in 5 minutes</p>
+          <h2 class="section-title">One existing project. <em>Four commands, nothing to write.</em></h2>
+          <div class="qs">
+            <div class="qs-head">
+              <span class="qs-path"
+                >~/my-app <span class="qs-path-note">— any repo with a package.json</span></span
+              >
+              <button
+                class="copy-btn"
+                data-copy="npx bluetemberg init --non-interactive --profile frontend --platforms claude,cursor --omit-github&#10;npx bluetemberg install&#10;npx bluetemberg sync&#10;npx bluetemberg detect"
+                aria-label="Copy the four quickstart commands"
+              >
+                Copy
+              </button>
+            </div>
+            <ol class="qs-steps">
+              <li class="qs-step">
+                <code class="qs-cmd"
+                  ><span class="prompt">$</span>npx bluetemberg init <span class="nw">--non-interactive</span>
+                  <span class="nw">--profile frontend</span> <span class="nw">--platforms claude,cursor</span>
+                  <span class="nw">--omit-github</span></code
+                >
+                <span class="qs-note"
+                  >Detects your stacks and writes <code>bluetemberg.config.json</code> plus
+                  <code>llm/packages.json</code>: the packs the profile preselects, with semver ranges. Pick
+                  the profile closest to your role — <code>backend</code>, <code>fullstack</code>,
+                  <code>devops</code>…</span
+                >
+              </li>
+              <li class="qs-step">
+                <code class="qs-cmd"><span class="prompt">$</span>npx bluetemberg install</code>
+                <span class="qs-note"
+                  >Downloads each pack and refuses it unless its SHA-512 and npm registry signature check out.
+                  Pins exact versions in <code>llm/packages-lock.json</code>.</span
+                >
+              </li>
+              <li class="qs-step">
+                <code class="qs-cmd"><span class="prompt">$</span>npx bluetemberg sync</code>
+                <span class="qs-note"
+                  >Writes <code>.claude/</code> and <code>.cursor/</code> in each tool's own format — only the
+                  rules whose stack range matches the versions in your lockfile.</span
+                >
+              </li>
+              <li class="qs-step">
+                <code class="qs-cmd"><span class="prompt">$</span>npx bluetemberg detect</code>
+                <span class="qs-note"
+                  >Shows the stacks and versions it found and whether guidance covers them. Ask about any rule
+                  with <code>npx bluetemberg why &lt;rule&gt;</code>.</span
+                >
+              </li>
+            </ol>
+          </div>
+          <p class="install-note">
+            Commit the generated files; run <code>npx bluetemberg sync --check</code> in CI to catch drift.
+            Remove it all with <code>npx bluetemberg uninstall</code>. Walked through on 0.20.0 with a
+            Next.js&nbsp;15 app. &nbsp;<a
+              href="https://github.com/prototypdigital/bluetemberg/wiki/Quickstart"
+              >Full walkthrough →</a
+            >
+          </p>
+
+          <p class="section-label qs-alt">Or pick with the wizard</p>
           <div class="install-block">
             <div class="install-cmd"><span class="prompt">$</span>npx bluetemberg init</div>
-            <button class="copy-btn" id="copyBtn" aria-label="Copy install command">Copy</button>
+            <button class="copy-btn" data-copy="npx bluetemberg init" aria-label="Copy the wizard command">
+              Copy
+            </button>
           </div>
           <div class="profile-picker">
             <p class="profile-prompt"><span class="pp-q">?</span>Team profile:</p>
@@ -846,9 +1024,7 @@
             <p class="profile-hint" aria-hidden="true">↑↓ navigate • ⏎ select</p>
           </div>
           <p class="install-note">
-            Requires Node.js 20+. &nbsp;Headless:
-            <code>--non-interactive --profile backend</code>. &nbsp;<a
-              href="https://github.com/prototypdigital/bluetemberg/wiki/Commands"
+            Requires Node.js 20+. &nbsp;<a href="https://github.com/prototypdigital/bluetemberg/wiki/Commands"
               >All commands &amp; flags →</a
             >
           </p>
@@ -859,31 +1035,32 @@
       <section class="steps" id="how">
         <div class="container">
           <p class="section-label">How it works</p>
-          <h2 class="section-title">One source of truth. <em>No copy-paste between tools.</em></h2>
+          <h2 class="section-title">
+            Standards install like dependencies. <em>Every tool reads them natively.</em>
+          </h2>
           <div class="steps-grid">
             <div class="step">
-              <span class="step-num">01 / AUTHOR</span>
-              <span class="step-title">Write once</span>
+              <span class="step-num">01 / CHOOSE</span>
+              <span class="step-title">Pick a profile</span>
               <span class="step-desc"
-                >Rules, agents, and skills as plain Markdown in <code>llm/</code>. Vendor-neutral — no
-                tool-specific frontmatter.</span
+                >A profile preselects the packs for a role. Stack-specific packs are preselected only when
+                their stack is in the project.</span
               >
             </div>
             <div class="step">
-              <span class="step-num">02 / SYNC</span>
-              <span class="step-title">Compile everywhere</span>
+              <span class="step-num">02 / INSTALL</span>
+              <span class="step-title">Verified on arrival</span>
               <span class="step-desc"
-                ><code>bluetemberg sync</code> emits native config for every tool — correct frontmatter,
-                correct paths, per platform.</span
+                >Packs come from npm with semver ranges and a lockfile. <code>install</code> checks SHA-512,
+                registry signatures and content before anything lands.</span
               >
             </div>
             <div class="step">
-              <span class="step-num">03 / SHIP</span>
-              <span class="step-title">Onboard instantly</span>
+              <span class="step-num">03 / SYNC</span>
+              <span class="step-title">Native in every tool</span>
               <span class="step-desc"
-                >Publish packs to npm with semver, SHA-512, and registry signatures. Teammates
-                <code>install</code> — verified on arrival — or get them zero-setup via a Claude Code
-                plugin.</span
+                ><code>sync</code> writes each tool's own format and paths, version-gated per stack.
+                <code>sync --check</code> fails CI on drift. Teammates can also get a zero-setup plugin.</span
               >
             </div>
           </div>
@@ -918,9 +1095,10 @@
             <li class="lane">
               <span class="lane-key">Queryable</span>
               <span class="lane-val"
-                ><code>bluetemberg detect</code> reports the stacks and versions it found;
-                <code>coverage</code> checks whether version-correct guidance exists. Both have
-                <code>--json</code> twins — and <code>bluetemberg mcp serve</code> exposes them to any agent
+                ><code>detect</code> reports the stacks and versions it found; <code>coverage</code> checks
+                whether version-correct guidance exists; <code>why</code> explains why a rule is in or out,
+                and <code>why --diff</code> shows what a stack upgrade would change. All have
+                <code>--json</code> twins, and <code>bluetemberg mcp serve</code> exposes them to any agent
                 over MCP. <strong>Read-only — it answers, it never writes.</strong></span
               >
             </li>
@@ -953,9 +1131,10 @@
             <li class="lane">
               <span class="lane-key">Agents author too</span>
               <span class="lane-val"
-                >Skills like <code>create-rule</code>, <code>create-skill</code>, and
-                <code>create-pack</code> teach your AI to write new standards in the exact format — then
-                <code>sync</code> ships them to every tool. <strong>AI config, authored by AI.</strong></span
+                >The <code>create-rule</code>, <code>create-skill</code> and <code>create-pack</code> skills
+                teach an agent the format. From 0.20.0, <code>bluetemberg draft</code> opens a draft for a
+                stack gap and checks its frontmatter, range and cited sources.
+                <strong>Only a human at a terminal can promote it.</strong></span
               >
             </li>
           </ul>
@@ -966,7 +1145,7 @@
       <section class="platforms">
         <div class="container">
           <p class="section-label">Tool coverage</p>
-          <h2 class="section-title">Six tools, native formats.</h2>
+          <h2 class="section-title">Seven tools, native formats.</h2>
           <!-- Desktop: feature matrix table -->
           <table class="matrix">
             <thead>
@@ -975,6 +1154,7 @@
                 <th>Rules</th>
                 <th>Agents</th>
                 <th>Skills</th>
+                <th>Guardrails</th>
               </tr>
             </thead>
             <tbody>
@@ -983,9 +1163,11 @@
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span><sup class="fn">1</sup></td>
               </tr>
               <tr>
-                <th>Claude&nbsp;Code</th>
+                <th>Claude Code</th>
+                <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
@@ -995,10 +1177,12 @@
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span><sup class="fn">1</sup></td>
               </tr>
               <tr>
-                <th>Gemini&nbsp;CLI&nbsp;(Enterprise)</th>
+                <th>Gemini CLI (Enterprise)</th>
                 <td><span class="yes">●</span></td>
+                <td><span class="no">–</span></td>
                 <td><span class="no">–</span></td>
                 <td><span class="no">–</span></td>
               </tr>
@@ -1007,21 +1191,30 @@
                 <td><span class="yes">●</span></td>
                 <td><span class="no">–</span></td>
                 <td><span class="yes">●</span></td>
+                <td><span class="no">–</span></td>
               </tr>
               <tr>
-                <th>Devin&nbsp;Desktop</th>
+                <th>Devin Desktop</th>
                 <td><span class="yes">●</span></td>
                 <td><span class="no">–</span></td>
                 <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span><sup class="fn">1</sup></td>
               </tr>
               <tr>
-                <th>OpenAI&nbsp;Codex</th>
+                <th>OpenAI Codex</th>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
                 <td><span class="yes">●</span></td>
+                <td><span class="yes">●</span><sup class="fn">1</sup></td>
               </tr>
             </tbody>
           </table>
+          <p class="matrix-note">
+            <sup>1</sup> Cursor, Copilot, Devin and Codex run guardrails that check shell commands; Claude
+            Code runs every trigger. Two more targets publish plugin bundles instead of configuring a tool:
+            Claude Code Marketplace and <a href="https://agent-plugins.org">Agent Plugins 1.0</a>, so
+            teammates can install the same packs with no local bluetemberg.
+          </p>
         </div>
       </section>
 
@@ -1061,17 +1254,41 @@
               >
             </li>
             <li class="control">
-              <span class="control-key">Size caps</span>
+              <span class="control-key">Safe extraction</span>
               <span class="control-val"
-                >50&nbsp;MB compressed, 100&nbsp;MB uncompressed.
-                <strong>A malicious pack can't fill your disk or bomb the extractor.</strong></span
+                >Tarballs are capped at 50&nbsp;MB compressed and 100&nbsp;MB extracted, and every entry is
+                filtered for <code>..</code> segments, symlinks and hardlinks.
+                <strong>Nothing can fill your disk or write outside the pack's own directory.</strong></span
               >
             </li>
             <li class="control">
-              <span class="control-key">Path-traversal &amp; symlinks</span>
+              <span class="control-key">Content scan</span>
               <span class="control-val"
-                >Every tarball entry is filtered — <code>..</code> segments, symlinks, and hardlinks.
-                <strong>Nothing can write outside the pack's own directory.</strong></span
+                >Before a pack lands, its content is scanned for leaked credentials, secret exfiltration
+                (HTTP, DNS, <code>gh</code>, <code>git push</code>, markdown beacons), hidden Unicode and
+                instructions to disable hooks — and re-scanned when the scanner gains rules. From 0.20.0
+                external sources get the same scan.
+                <strong>A blocking finding stops the install; softer patterns print a warning.</strong></span
+              >
+            </li>
+            <li class="control">
+              <span class="control-key">Capability report</span>
+              <span class="control-val"
+                >From 0.20.0, <code>add</code>, <code>install</code> and <code>update</code> list what a pack
+                can make your tools <em>do</em> — guardrails, hook configs, the scripts a skill ships — and an
+                update shows what it adds, changes or removes.
+                <strong>You review behaviour, not just prose.</strong></span
+              >
+            </li>
+            <li class="control">
+              <span class="control-key">Enforced guardrails</span>
+              <span class="control-val"
+                >Rules are advice an assistant can skip. A guardrail compiles to a hook the tool runs before
+                the call, so a violating command is blocked.
+                <strong
+                  >A condition it cannot evaluate or a payload it cannot read blocks too — guardrails fail
+                  closed.</strong
+                ></span
               >
             </li>
             <li class="control">
@@ -1168,7 +1385,7 @@
               <tr>
                 <td class="row-label">Multi-tool</td>
                 <td class="dim">one file, one format</td>
-                <td class="win">6 tools, native formats</td>
+                <td class="win">7 tools, native formats</td>
               </tr>
               <tr>
                 <td class="row-label">Onboarding</td>
@@ -1207,7 +1424,7 @@
             <div class="compare-row">
               <span class="compare-label">Multi-tool</span>
               <span class="compare-old">one file, one format</span>
-              <span class="compare-new">6 tools, native formats</span>
+              <span class="compare-new">7 tools, native formats</span>
             </div>
             <div class="compare-row">
               <span class="compare-label">Onboarding</span>
@@ -1260,23 +1477,21 @@
     </footer>
 
     <script type="module">
-      const btn = document.getElementById('copyBtn');
-      btn.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText('npx bluetemberg init');
-          btn.textContent = 'Copied!';
-          btn.classList.add('copied');
+      for (const btn of document.querySelectorAll('.copy-btn[data-copy]')) {
+        btn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(btn.dataset.copy);
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+          } catch {
+            btn.textContent = 'Copy failed';
+          }
           setTimeout(() => {
             btn.textContent = 'Copy';
             btn.classList.remove('copied');
           }, 2000);
-        } catch {
-          btn.textContent = 'Copy failed';
-          setTimeout(() => {
-            btn.textContent = 'Copy';
-          }, 2000);
-        }
-      });
+        });
+      }
     </script>
   </body>
 </html>

@@ -6,15 +6,16 @@ AI coding standards, shipped like a dependency: version-locked, integrity-verifi
 
 Bluetemberg is an open-source CLI (published on npm as `bluetemberg`, MIT) that installs AI coding rules, agents, skills and guardrails from versioned npm packs into a project, verifies them on the way in, selects them by team profile and detected stack version, and writes them out in the format each tool reads. Your own content lives in `llm/` and always wins over a pack.
 
-Rules are self-contained Markdown files — the AI reads them directly, no cross-file dependencies. The sync engine only transforms frontmatter for each platform. `sync --check` in CI catches any drift before it ships.
+Rules are self-contained Markdown files — the AI reads them directly, no cross-file dependencies. Sync writes each rule in the platform's own format and adds the native config around it (MCP servers, guardrail hooks, Codex TOML agents, skill provenance). `sync --check` in CI catches any drift before it ships.
 
-If you're wondering why this exists or how it's different from maintaining platform configs by hand, start with [Why Bluetemberg](Why).
+If you're wondering why this exists or how it's different from maintaining platform configs by hand, start with [Why Bluetemberg](Why). To try it on a project, follow the [Quickstart](Quickstart): four commands, about five minutes.
 
 ## Quick links
 
 - [Why Bluetemberg](Why) — the distribution problem it solves and the guarantees it gives
+- [Quickstart](Quickstart) — the shortest working install on an existing project, with the expected output
 - [Installation](Installation) — install from public npm (no auth or registry config)
-- [Commands](Commands) — CLI reference for `init` and `sync`
+- [Commands](Commands) — full CLI reference
 - [Configuration](Configuration) — `bluetemberg.config.json` schema
 - [Profiles](Profiles) — team profiles and what each one includes
 - [Stacks & Versioning](Stacks) — version-aware routing, detection, and the versioning strategy

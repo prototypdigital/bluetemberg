@@ -44,6 +44,10 @@ Array of tool capabilities the agent should have access to. Common values: `read
 
 The platforms the agent works on, e.g. `[claude]` for one that drives Claude Code hooks. Sync skips its output for the project's other platforms (Codex's `.codex/agents/` included). Absent or `[]` means every platform; the field overrides the pack's catalog `platforms`. See [Profiles → Platforms](Profiles#platforms).
 
+### `stacks` (optional)
+
+A version range per stack, as for rules. Sync writes the agent only where every named stack is present and its version satisfies the range. Frontmatter is YAML between `---` fences; any other fence (`---js`, …) is refused.
+
 ### `draft` (reserved)
 
 Marks an unvetted draft from the [create-loop](Drafts). A file carrying a `draft` key is withheld from every platform, whatever its value, until a human promotes it with `bluetemberg draft promote`.
@@ -52,9 +56,11 @@ Marks an unvetted draft from the [create-loop](Drafts). A file carrying a `draft
 
 Unlike rules, agents keep their body and frontmatter. Sync adds the generated-file banner after the frontmatter, changes the file extension, and for Claude Code maps abstract `tools` names to Claude's tool names (`tools` may be an inline list or a YAML block list; a bare `tools:` with no value is left as is, so the agent keeps inheriting every tool):
 
-| Source                              | Cursor                                  | Claude                                  | Copilot                                       |
-| ----------------------------------- | --------------------------------------- | --------------------------------------- | --------------------------------------------- |
-| `llm/agents/frontend-specialist.md` | `.cursor/agents/frontend-specialist.md` | `.claude/agents/frontend-specialist.md` | `.github/agents/frontend-specialist.agent.md` |
+| Source                              | Cursor                                  | Claude                                  | Copilot                                       | Codex                                    |
+| ----------------------------------- | --------------------------------------- | --------------------------------------- | --------------------------------------------- | ---------------------------------------- |
+| `llm/agents/frontend-specialist.md` | `.cursor/agents/frontend-specialist.md` | `.claude/agents/frontend-specialist.md` | `.github/agents/frontend-specialist.agent.md` | `.codex/agents/frontend-specialist.toml` |
+
+Codex agents are TOML: the Markdown body becomes `developer_instructions`, and only `name` and `description` carry over.
 
 On Cursor, these files are **project subagents** (see Cursor documentation for subagents). Optional `tools:` in frontmatter is aimed at Claude Code; Cursor may ignore unknown keys.
 
@@ -67,7 +73,7 @@ On Cursor, these files are **project subagents** (see Cursor documentation for s
 
 ## Official agent packages
 
-Official agents ship as `bluetemberg-agents-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes the `llm/packages.json` manifest; run `bluetemberg install` to download them.
+Official agents ship as `bluetemberg-agents-*` packages from [prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs). The init wizard writes the `llm/packages.json` manifest; run `bluetemberg install` to download them. The table lists a selection; the [pack browser](https://prototypdigital.github.io/bluetemberg-packs/) has every agent pack (18 in the current catalog snapshot), including the agentic, design-engineer, Payload, PR-reviewer and session-auditor agents.
 
 | Package | Tags | Description |
 | ------- | ---- | ----------- |

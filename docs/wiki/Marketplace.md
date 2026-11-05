@@ -102,7 +102,7 @@ To install the marketplace for a whole organization instead of per repository, s
 
 ## The `marketplace` config key
 
-Defined under `blueprintconfig.marketplace`. Controls how `llm/` content maps to installable plugins.
+Defined under the `marketplace` key of `bluetemberg.config.json`. Controls how `llm/` content maps to installable plugins.
 
 ### `remote` field
 
@@ -125,8 +125,9 @@ Each entry in `plugins` becomes one installable plugin in the marketplace:
 | `displayName` | string | no | Human-readable name shown in Claude Desktop |
 | `description` | string | no | Short description shown in Claude Desktop |
 | `profiles` | `TeamProfile[]` | no | Filter content by team profile tags (see [Profile filtering](#profile-filtering)) |
+| `stacks` | `string[]` | no | Include a stack-specific file only when one of its stacks is listed. Stack-agnostic files are always included; a plugin without `stacks` leaves out every stack-specific file |
 
-When `plugins` is omitted entirely, bluetemberg emits a single plugin named after the project directory containing all `llm/` skills and agents.
+When `plugins` is omitted entirely, bluetemberg emits a single plugin named after the project directory containing all stack-agnostic `llm/` skills and agents.
 
 ### Full example
 
@@ -191,7 +192,7 @@ profiles:
 
 With the config above, `api-design` would appear in the `frontend` plugin only if `backend` or `fullstack` overlap with `["frontend", "fullstack"]` — which `fullstack` does, so it is included.
 
-A plugin with **no `profiles` field** always includes everything (no filtering).
+A plugin with **no `profiles` field** includes everything regardless of profile (stack-specific files still follow `stacks`).
 
 ## Platform filtering
 

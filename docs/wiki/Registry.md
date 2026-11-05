@@ -251,8 +251,9 @@ During sync, source directories are resolved in this priority (highest first):
 1. **Local** `llm/` directory
 2. **`extends`** entries (in array order)
 3. **Registry packs** (in manifest order)
+4. **External sources** (see [Sources](Sources))
 
-When the same rule filename appears in multiple sources, the higher-priority source wins. This means local rules always override pack rules, and you can selectively override individual rules from a pack.
+When the same rule filename appears in multiple sources, the higher-priority source wins. This means local rules always override pack rules, and you can selectively override individual rules from a pack. A local override is silent (listed with `--verbose`); when two non-local sources ship the same file, sync warns and names the winner.
 
 ## Security
 
@@ -326,7 +327,7 @@ Above all, a pack's instructions are the instructions: a hostile pack does not n
 
 ### Capability report
 
-The content scan cannot tell whether a pack's prose is benign. What a pack can make the host *do* is easier to judge. So `add`, `install` and `update` list it whenever a pack is new or changes version, reading exactly what sync takes from the pack's source dir:
+_Since 0.20.0._ The content scan cannot tell whether a pack's prose is benign. What a pack can make the host *do* is easier to judge. So `add`, `install` and `update` list it whenever a pack is new or changes version, reading exactly what sync takes from the pack's source dir:
 
 - guardrails (`guardrails/*.md`), with the tool each gates;
 - `claude-hooks.json`, per event, which marketplace plugin bundles carry;
@@ -362,7 +363,7 @@ Downloaded packs are extracted to `.bluetemberg/packs/<name>/<version>/`. This d
 
 ## Official packs
 
-Bluetemberg's official packs live in **[prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs)** and publish independently to npm. They cover rules, agents, and skills grouped by domain.
+Bluetemberg's official packs live in **[prototypdigital/bluetemberg-packs](https://github.com/prototypdigital/bluetemberg-packs)** and publish independently to npm. They cover rules, agents, skills and guardrails grouped by domain. The tables below are examples; the [pack browser](https://prototypdigital.github.io/bluetemberg-packs/) lists every published pack.
 
 ### Rule packs
 
@@ -440,7 +441,7 @@ To publish your own rule pack:
 1. Create a standard npm package with an `llm/` directory containing your rules, agents, and/or skills.
 2. Add `"bluetemberg-pack"` to the `keywords` array in `package.json` for discoverability.
 3. Publish to npm (or a private registry).
-4. If the pack only works in some tools (it relies on Claude Code hooks, say), add `platforms: [claude]` to the frontmatter of each rule, agent, skill or guardrail. Official packs in bluetemberg-packs will declare it once instead, as `bluetemberg.platforms` in `package.json`, once the catalog generator carries it ([bluetemberg-packs#120](https://github.com/prototypdigital/bluetemberg-packs/issues/120)). See [Profiles → Platforms](Profiles#platforms).
+4. If the pack only works in some tools (it relies on Claude Code hooks, say), add `platforms: [claude]` to the frontmatter of each rule, agent, skill or guardrail. Official packs in bluetemberg-packs declare it once instead, as `bluetemberg.platforms` in `package.json`, and the catalog carries it. See [Profiles → Platforms](Profiles#platforms).
 
 ```json
 {

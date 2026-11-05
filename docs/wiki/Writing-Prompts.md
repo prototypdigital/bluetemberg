@@ -1,6 +1,6 @@
 # Writing prompt files (GitHub Copilot)
 
-> **Deprecated output.** VS Code runs prompt files only in its Local harness and recommends migrating them to skills ([VS Code 1.129](https://code.visualstudio.com/updates/v1_129)). Sync now also writes every prompt as a generated skill to each skills target, and the `.github/prompts/` output is kept for a transition period only: it stops being written in 0.18.0. New work belongs in [`llm/skills/`](Writing-Skills). See [Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts).
+> **Deprecated output.** VS Code runs prompt files only in its Local harness and recommends migrating them to skills ([VS Code 1.129](https://code.visualstudio.com/updates/v1_129)). Sync now also writes every prompt as a generated skill to each skills target, and the `.github/prompts/` output is kept for a transition period only: a later release stops writing it (it is still written as of 0.20.0, although the deprecation warning names 0.18.0). New work belongs in [`llm/skills/`](Writing-Skills). See [Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts).
 
 VS Code–style **prompt files** (invoked from chat via `/`) can live under `llm/prompts/` as Markdown. Sync writes each one twice:
 

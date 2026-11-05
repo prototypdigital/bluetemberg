@@ -1,6 +1,6 @@
 # Writing commands (Claude Code)
 
-> **Deprecated output.** Claude Code has merged custom commands into skills. Sync now also writes every command as a generated skill to each skills target, and the `.claude/commands/` output is kept for a transition period only: it stops being written in 0.18.0. New work belongs in [`llm/skills/`](Writing-Skills). See [Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts).
+> **Deprecated output.** Claude Code has merged custom commands into skills. Sync now also writes every command as a generated skill to each skills target, and the `.claude/commands/` output is kept for a transition period only: a later release stops writing it (it is still written as of 0.20.0, although the deprecation warning names 0.18.0). New work belongs in [`llm/skills/`](Writing-Skills). See [Migrating commands and prompts](Writing-Skills#migrating-commands-and-prompts).
 
 Project-local **slash commands** live under `llm/commands/` as Markdown files. The file name (without `.md`) becomes the command name (e.g. `review.md` → `/review`). Sync writes each one twice:
 
