@@ -97,7 +97,7 @@ function assertReviewer(reviewedBy: string): string {
 }
 
 /** The file as it lands in the source dir: the kind's house frontmatter only, plus its sources. */
-export function renderPromoted(valid: ValidDraft): string {
+export function renderPromoted(valid: Pick<ValidDraft, 'frontmatter' | 'body' | 'citations'>): string {
   const sources = valid.citations.map((c) => `- <${c.url}> — retrieved ${c.retrieved}`).join('\n');
   const body = `${valid.body.trim()}\n\n## Sources\n\n${sources}`;
   return renderFrontmatter(valid.frontmatter, body);

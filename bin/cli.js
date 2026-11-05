@@ -1217,6 +1217,30 @@ draftCmd
     }
   });
 
+draftCmd
+  .command('pr')
+  .description(
+    '[human only] Prepare a contribution branch in a local bluetemberg-packs checkout from a promoted draft (stages the file and writes a PR body; never commits or pushes)',
+  )
+  .argument('<name>', 'Promoted draft name')
+  .argument('[directory]', 'Project root directory', '.')
+  .requiredOption('--packs-repo <dir>', 'Path to your local bluetemberg-packs checkout (clean working tree)')
+  .option('--pack <name>', 'Pack to add to (default: the one pack of this kind declaring the gap stack)')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (name, directory, options) => {
+    const { prepareContribution } = await import('../dist/drafts/contribute.js');
+    const { formatContribution } = await import('../dist/drafts/format.js');
+    try {
+      const result = prepareContribution(resolve(directory), name, {
+        packsRepo: resolve(options.packsRepo),
+        pack: options.pack,
+      });
+      console.log(options.json ? JSON.stringify(result, null, 2) : formatContribution(result).join('\n'));
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
 const mcpCmd = program.command('mcp').description('Run Bluetemberg itself as an MCP server for agents');
 
 mcpCmd
