@@ -75,12 +75,38 @@ const EXCERPT_CHARS = 160;
 /** Shannon entropy (bits/char) below which a credential-shaped token is a placeholder. */
 const MIN_SECRET_ENTROPY = 3.0;
 
-/** Invisible characters (and NULs) an attacker can use to split a keyword past a regex. */
-const INVISIBLE_CHARS = /[\u0000\u00AD\u180E\u200B-\u200F\u2060-\u2064\uFEFF]/g;
+/**
+ * Tag characters (U+E0000–E007F) and supplementary variation selectors (U+E0100–E01EF) as UTF-16
+ * surrogate pairs. Spelled without the `u` flag, which makes these per-line regexes markedly
+ * slower on large files.
+ */
+const ASTRAL_HIDDEN = '\\uDB40[\\uDC00-\\uDC7F\\uDD00-\\uDDEF]';
+/**
+ * Invisible characters (and NULs) an attacker can use to split a keyword past a regex: zero-width
+ * and format characters, variation selectors, and Unicode tag characters.
+ */
+const INVISIBLE_CHARS = new RegExp(
+  `[\\u0000\\u00AD\\u180E\\u200B-\\u200F\\u2060-\\u2064\\uFE00-\\uFE0F\\uFEFF]|${ASTRAL_HIDDEN}`,
+  'g',
+);
+/**
+ * Characters that carry hidden text: Unicode tag characters (invisible ASCII), supplementary
+ * variation selectors, and runs of basic variation selectors. A single U+FE0E/U+FE0F after an
+ * emoji is ordinary text presentation and passes; two or more in a row encode data.
+ */
+const HIDDEN_TEXT_CHARS = new RegExp(`${ASTRAL_HIDDEN}|[\\uFE00-\\uFE0F]{2,}`);
+/**
+ * A frontmatter fence naming a code engine (`---js`). Some frontmatter parsers execute such a
+ * block; no pack needs one.
+ */
+const CODE_FRONTMATTER_FENCE = /^---[ \t]*(?:js|javascript|coffee|coffeescript|cson)[ \t]*$/i;
 /** Bidirectional overrides ("Trojan Source"): render text in a different order than it is read. */
 const BIDI_CONTROL_CHARS = /[\u202A-\u202E\u2066-\u2069]/;
-/** Terminal control sequences and bidi controls, never echoed back in excerpts or paths. */
-const UNPRINTABLE_CHARS = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g;
+/** Terminal control sequences, bidi controls and hidden-text characters, never echoed back in excerpts or paths. */
+const UNPRINTABLE_CHARS = new RegExp(
+  `[\\u0000-\\u0008\\u000B-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069\\uFE00-\\uFE0F]|${ASTRAL_HIDDEN}`,
+  'g',
+);
 
 // ---------------------------------------------------------------------------
 // Credentials
@@ -410,6 +436,9 @@ export function isSafetyBypassInstruction(line: string): boolean {
 // ---------------------------------------------------------------------------
 
 const BIDI_MESSAGE = 'Contains bidirectional control characters (text renders differently than it reads)';
+const HIDDEN_TEXT_MESSAGE =
+  'Contains Unicode tag characters or variation-selector runs (invisible text an agent still reads)';
+const CODE_FENCE_MESSAGE = 'Frontmatter fence names a code engine (only YAML frontmatter is allowed)';
 
 const LINE_RULES: readonly LineRule[] = [
   {
@@ -496,7 +525,12 @@ function maskSecrets(line: string): string {
 
 /** Escape terminal control sequences so a finding cannot rewrite the user's terminal. */
 export function sanitizeForTerminal(text: string): string {
-  return text.replace(UNPRINTABLE_CHARS, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return text.replace(UNPRINTABLE_CHARS, escapeCodePoint);
+}
+
+function escapeCodePoint(ch: string): string {
+  const hex = (ch.codePointAt(0) ?? 0).toString(16);
+  return hex.length > 4 ? `\\u{${hex}}` : `\\u${hex.padStart(4, '0')}`;
 }
 
 function toExcerpt(line: string): string {
@@ -792,6 +826,21 @@ function scanBidi(rawLines: readonly string[], file: string): ScanFinding[] {
   );
 }
 
+function scanHiddenText(rawLines: readonly string[], file: string): ScanFinding[] {
+  return rawLines.flatMap((raw, i) =>
+    HIDDEN_TEXT_CHARS.test(raw)
+      ? [finding('hidden-text-chars', 'block', HIDDEN_TEXT_MESSAGE, file, i + 1, raw)]
+      : [],
+  );
+}
+
+/** Line 1 only: a frontmatter fence is recognised at the very start of the file. */
+function scanCodeFence(rawLines: readonly string[], file: string): ScanFinding[] {
+  const first = rawLines[0] ?? '';
+  if (!CODE_FRONTMATTER_FENCE.test(first)) return [];
+  return [finding('code-frontmatter', 'block', CODE_FENCE_MESSAGE, file, 1, first)];
+}
+
 function extensionOf(file: string): string {
   const base = file.slice(file.lastIndexOf('/') + 1);
   const dot = base.lastIndexOf('.');
@@ -841,7 +890,10 @@ function matchUnits(units: readonly ScanUnit[], file: string): ScanFinding[] {
 }
 
 export interface ScanTextOptions {
-  /** Check for bidi controls (off for non-UTF-8 files, where random bytes can form them). */
+  /**
+   * Check for bidi controls and hidden-text characters (off for non-UTF-8 files, where random
+   * bytes can form them).
+   */
   checkBidi?: boolean;
 }
 
@@ -863,6 +915,8 @@ export function scanText(text: string, file: string, options: ScanTextOptions = 
   ].map(atLine);
   const findings = [
     ...(options.checkBidi === false ? [] : scanBidi(rawLines, file)),
+    ...(options.checkBidi === false ? [] : scanHiddenText(rawLines, file)),
+    ...scanCodeFence(rawLines, file),
     ...matchUnits(units, file),
     ...scanPrivateKeys(lines, file),
   ];

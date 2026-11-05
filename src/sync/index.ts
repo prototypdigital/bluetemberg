@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, basename, dirname, resolve, relative } from 'node:path';
-import matter from 'gray-matter';
+import { readFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
 import { transformFrontmatter, DEFAULT_TARGETS } from './transform.js';
 import { claudeAgentNameProblem, toClaudeAgentContent } from './claude-agent-tools.js';
 import { withGeneratedBanner } from './banner.js';
@@ -1111,7 +1111,7 @@ function resolveKindGates(
     const label = `${kind}/${key}`;
     let data: Record<string, unknown> = {};
     try {
-      data = matter.read(file).data as Record<string, unknown>;
+      data = readFrontmatter(file).data as Record<string, unknown>;
     } catch {
       // Unreadable frontmatter → treat as agnostic here; the write loop reports the read error.
     }
@@ -1208,9 +1208,12 @@ function syncRules(ctx: SyncContext): void {
       if (!allowsPlatform(gates.platforms.get(file), platform)) continue;
       written++;
       try {
-        const source = matter.read(join(sourceDir, file));
+        const source = readFrontmatter(join(sourceDir, file));
         const transformed = transformFrontmatter(source.data, platform);
-        const output = withGeneratedBanner(matter.stringify(source.content, transformed), `rules/${file}`);
+        const output = withGeneratedBanner(
+          stringifyFrontmatter(source.content, transformed),
+          `rules/${file}`,
+        );
         const outName = file.replace(/\.md$/, targetConfig.ext);
         const outPath = join(outDir, outName);
 
