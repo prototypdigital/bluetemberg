@@ -336,6 +336,10 @@
         color: var(--text);
         overflow-wrap: break-word;
       }
+      /* Keep each flag and its value on one line: a hyphen is otherwise a break point */
+      .qs-cmd .nw {
+        white-space: nowrap;
+      }
       .qs-cmd .prompt,
       .install-cmd .prompt {
         color: var(--accent-soft);
@@ -743,7 +747,7 @@
         /* Platform matrix: tighter cells, and tool names wrap so four columns fit at 320px */
         .matrix th,
         .matrix td {
-          padding: 11px 5px;
+          padding: 11px 3px;
         }
         .matrix thead th {
           font-size: 10px;
@@ -915,8 +919,9 @@
             <ol class="qs-steps">
               <li class="qs-step">
                 <code class="qs-cmd"
-                  ><span class="prompt">$</span>npx bluetemberg init --non-interactive --profile frontend
-                  --platforms claude,cursor --omit-github</code
+                  ><span class="prompt">$</span>npx bluetemberg init <span class="nw">--non-interactive</span>
+                  <span class="nw">--profile frontend</span> <span class="nw">--platforms claude,cursor</span>
+                  <span class="nw">--omit-github</span></code
                 >
                 <span class="qs-note"
                   >Detects your stacks and writes <code>bluetemberg.config.json</code> plus
