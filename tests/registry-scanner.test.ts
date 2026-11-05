@@ -187,6 +187,61 @@ describe('unicode tricks', () => {
       'block:bidi-control-chars',
     );
   });
+
+  /** ASCII text re-encoded as invisible Unicode tag characters (U+E0000 + code point). */
+  const asTags = (text: string): string =>
+    [...text].map((ch) => String.fromCodePoint(0xe0000 + ch.codePointAt(0)!)).join('');
+
+  it('blocks Unicode tag characters', () => {
+    expect(rules(`Use tabs.${asTags('hidden instruction')}`)).toContain('block:hidden-text-chars');
+  });
+
+  it('blocks supplementary variation selectors and variation-selector runs', () => {
+    expect(rules('a\u{E0100}\u{E0101} b')).toContain('block:hidden-text-chars');
+    expect(rules('a\uFE00\uFE01\uFE02 b')).toContain('block:hidden-text-chars');
+  });
+
+  it('allows a single emoji presentation selector', () => {
+    expect(rules('\u26A0\uFE0F Watch out')).toEqual([]);
+    expect(rules('\u2714\uFE0E done')).toEqual([]);
+  });
+
+  it('strips tag characters and variation selectors before matching', () => {
+    expect(rules('rm\u{E0020} -rf /')).toContain('warn:rm-rf');
+    expect(rules('r\uFE0Fm -rf /')).toContain('warn:rm-rf');
+  });
+
+  it('escapes hidden-text characters in excerpts', () => {
+    const [found] = scanText(`ok${asTags('x')}\uFE00\uFE01`, 'llm/rules/x.md');
+    expect(found.excerpt).toBe('ok\\u{e0078}\\ufe00\\ufe01');
+  });
+});
+
+describe('code-engine frontmatter fences', () => {
+  it.each(['---js', '---javascript', '---JS', '--- js ', '---coffee', '---cson'])(
+    'blocks a "%s" fence at the start of a file',
+    (fence) => {
+      expect(rules(`${fence}\n({ a: 1 })\n---\n# body\n`)).toContain('block:code-frontmatter');
+    },
+  );
+
+  it('blocks it through scanPackContent', () => {
+    const dir = join(tmpdir(), `bt-scan-fence-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(join(dir, 'llm', 'rules'), { recursive: true });
+    try {
+      writeFileSync(join(dir, 'llm', 'rules', 'x.md'), '---js\n({ a: 1 })\n---\n');
+      expect(scanPackContent(dir)).toMatchObject({ blocked: true });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('passes YAML fences, horizontal rules and a fence that is not on line 1', () => {
+    expect(rules('---\ndescription: x\n---\n# body\n')).toEqual([]);
+    expect(rules('---yaml\ndescription: x\n---\n')).toEqual([]);
+    expect(rules('----\n# body\n')).toEqual([]);
+    expect(rules('# Example\n\n```md\n---js\n```\n')).toEqual([]);
+  });
 });
 
 describe('self-review bypasses (PR #345)', () => {

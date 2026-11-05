@@ -1,6 +1,6 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import matter from 'gray-matter';
+import { readFrontmatter } from '../utils/frontmatter.js';
 import { coerce, valid } from 'semver';
 import { loadCatalogSync } from '../catalog/index.js';
 import { readSourcePackName } from '../catalog/ownership.js';
@@ -272,7 +272,7 @@ function readItem(
 ): Pick<ResolvedItem, 'id' | 'frontmatter' | 'readError'> {
   const id = kind === 'skills' ? key : key.replace(/\.md$/, '');
   try {
-    const { data } = matter.read(itemFile(kind, kindDir, key));
+    const { data } = readFrontmatter(itemFile(kind, kindDir, key));
     return { id, frontmatter: data as Record<string, unknown>, readError: null };
   } catch (err) {
     // Sync gates an unreadable rule/agent/skill as stack-agnostic and rejects an unreadable guardrail.
