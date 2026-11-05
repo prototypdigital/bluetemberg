@@ -708,6 +708,22 @@ describe('add — scan reporting goes through the command log', () => {
     expect(output).toContain('[rm-rf] llm/rules/r.md:1');
   });
 
+  it('logs what a new pack can run or gate', async () => {
+    fixtureFiles.current = {
+      'llm/guardrails/no-push.md':
+        "---\ntrigger: Bash\nmessage: no\ncheck:\n  field: command\n  not_matches: '^git push'\n---\n",
+      'llm/skills/s/SKILL.md': '# s\n',
+      'llm/skills/s/scripts/post.sh': 'echo hi\n',
+    };
+    const { add } = await import('../src/registry/index.js');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await add(root, 'warny@1.0.0');
+    const output = log.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(output).toContain('warny@1.0.0 can run or gate:');
+    expect(output).toContain('+ guardrail: no-push (gates Bash)');
+    expect(output).toContain('+ skill file: skills/s/scripts/post.sh');
+  });
+
   it('prints nothing with silent, and notes a skipped scan otherwise', async () => {
     const { add } = await import('../src/registry/index.js');
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
