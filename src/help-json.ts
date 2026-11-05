@@ -40,16 +40,30 @@ const DRAFT_COMMANDS = [
     args: '<stack@version> [directory]',
     description:
       'Gap brief for an agent: coverage, nearest guidance, paths of files importing the package, citation contract (read-only). Exits 1 when the version is already covered.',
-    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+    options: [
+      {
+        long: '--kind <kind>',
+        description: 'rule (default), skill or agent: selects the authoring skill and steps.',
+      },
+      { long: '--json', description: 'Emit machine-readable JSON.' },
+    ],
   },
   {
     name: 'draft new',
     args: '<stack@version> [directory]',
     description:
-      'Open a draft rule for a gap in .bluetemberg/drafts/ (never synced). Refuses a version-covered stack and an existing name.',
+      'Open a draft rule, skill or agent for a gap in .bluetemberg/drafts/ (never synced). Refuses a version-covered stack and an existing name.',
     options: [
-      { long: '--name <rule-name>', description: 'Kebab-case id of the future rule (required).' },
-      { long: '--scope <glob>', description: 'The rule scope glob (default "**").' },
+      {
+        long: '--name <name>',
+        description: 'Kebab-case id of the future rule, skill or agent (required).',
+      },
+      {
+        long: '--kind <kind>',
+        description:
+          'rule (default), skill or agent. A skill draft is one SKILL.md; an agent draft must list its tools from read, search, edit, execute, agent.',
+      },
+      { long: '--scope <glob>', description: 'The rule scope glob (rules only; default "**").' },
       { long: '--json', description: 'Emit machine-readable JSON (name, path, brief).' },
     ],
   },
@@ -64,14 +78,48 @@ const DRAFT_COMMANDS = [
     args: '<name> [directory]',
     description:
       'Validate a draft: strict YAML frontmatter, a bounded range covering the gap, at least one primary-doc citation, no TODO(draft) markers, the pack security scan, and that the gap is still open. Exits 1 on errors.',
-    options: [{ long: '--json', description: 'Emit machine-readable JSON.' }],
+    options: [
+      {
+        long: '--verify-citations',
+        description:
+          'Fetch each cited page (https, public hosts only) and require its quote to appear on it; warn when a citation is not from the package homepage or repository.',
+      },
+      { long: '--json', description: 'Emit machine-readable JSON.' },
+    ],
   },
   {
     name: 'draft promote',
     args: '<name> [directory]',
     description:
-      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md (never overwrites). Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
-    options: [{ long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' }],
+      '[human only] Show the rule, require the reviewer to type its name, then write <source>/rules/<name>.md, skills/<name>/SKILL.md or agents/<name>.md (never overwrites). Re-verifies every citation against its page first. Needs an interactive terminal and refuses inside an agent session (CLAUDECODE, CURSOR_AGENT, GEMINI_CLI, CODEX_SANDBOX set); no --yes, no MCP equivalent.',
+    options: [
+      { long: '--reviewed-by <who>', description: 'Reviewer name or handle (required).' },
+      {
+        long: '--skip-citation-verification',
+        description:
+          'Do not fetch the cited pages (offline). Verification is on by default; skipping is recorded in the archive.',
+      },
+    ],
+  },
+  {
+    name: 'draft pr',
+    args: '<name> [directory]',
+    description:
+      '[human only] From a promoted draft, prepare a branch (feat/<kind>-<name>, off origin/main) in a local bluetemberg-packs checkout: re-checks the promoted file, picks the pack by kind and gap stack, refuses a name taken in any pack, stages the file, and writes a provenance PR body. Never commits, pushes, runs the packs repo scripts, or opens the PR — it prints those steps (gh pr create --draft --label needs-review). Refuses inside an agent session.',
+    options: [
+      {
+        long: '--packs-repo <dir>',
+        description: 'Local bluetemberg-packs checkout with a clean working tree (required).',
+      },
+      {
+        long: '--pack <name>',
+        description: 'Pack to add to; default is the one pack of this kind that declares the gap stack.',
+      },
+      {
+        long: '--json',
+        description: 'Emit machine-readable JSON (pack, branch, file, bodyFile, title, nextSteps).',
+      },
+    ],
   },
 ];
 

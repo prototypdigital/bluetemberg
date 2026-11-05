@@ -77,6 +77,10 @@ One-line description of the skill's purpose.
 
 The platforms the skill works on, e.g. `[claude]`. Sync skips its output for the project's other platforms. A skills dir several platforms read (`.agents/skills/` for Codex, Devin and Antigravity) gets the skill when any of them is listed. Absent or `[]` means every platform; the field overrides the pack's catalog `platforms`. See [Profiles → Platforms](Profiles#platforms).
 
+### `draft` (reserved)
+
+Marks an unvetted draft from the [create-loop](Drafts). A file carrying a `draft` key is withheld from every platform, whatever its value, until a human promotes it with `bluetemberg draft promote`.
+
 ## How skills are synced
 
 A skill is a directory, and the whole directory is synced. `SKILL.md` is copied with its content unchanged apart from the generated-file banner added after the frontmatter, and, for a skill from a registry pack, a `metadata` entry naming the pack (`bluetemberg-pack`, `bluetemberg-version`, `bluetemberg-integrity`). Every other file in the directory — the `scripts/`, `references/` and `assets/` the [Agent Skills](https://agentskills.io) layout allows, or anything else you put there — is copied byte for byte with its file mode kept, so a script that is executable in `llm/` is executable in the output. Supporting files get no banner. Dotfiles are skipped.

@@ -1090,12 +1090,14 @@ draftCmd
   )
   .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
   .argument('[directory]', 'Project root directory', '.')
+  .option('--kind <kind>', 'What to draft: rule (default), skill or agent')
   .option('--json', 'Emit machine-readable JSON')
   .action(async (gap, directory, options) => {
     const { buildGapBrief } = await import('../dist/drafts/brief.js');
+    const { parseDraftKind } = await import('../dist/drafts/kinds.js');
     const { formatBrief } = await import('../dist/drafts/format.js');
     try {
-      const brief = buildGapBrief(resolve(directory), gap.stack, gap.version);
+      const brief = buildGapBrief(resolve(directory), gap.stack, gap.version, parseDraftKind(options.kind));
       console.log(options.json ? JSON.stringify(brief, null, 2) : formatBrief(brief).join('\n'));
       if (!brief.fillable) process.exitCode = 1;
     } catch (err) {
@@ -1106,19 +1108,25 @@ draftCmd
 draftCmd
   .command('new')
   .description(
-    'Open a draft rule for a gap in .bluetemberg/drafts/ (refuses when the stack version is covered)',
+    'Open a draft rule, skill or agent for a gap in .bluetemberg/drafts/ (refuses when the stack version is covered)',
   )
   .argument('<stack@version>', 'The gap, e.g. payload@4.0.1', parseGapSpec)
   .argument('[directory]', 'Project root directory', '.')
-  .requiredOption('--name <rule-name>', 'Kebab-case id of the future rule (e.g. payload-4-jobs-queue)')
-  .option('--scope <glob>', 'The rule scope glob (default "**")')
+  .requiredOption(
+    '--name <name>',
+    'Kebab-case id of the future rule, skill or agent (e.g. payload-4-jobs-queue)',
+  )
+  .option('--kind <kind>', 'What to draft: rule (default), skill or agent')
+  .option('--scope <glob>', 'The rule scope glob (rules only; default "**")')
   .option('--json', 'Emit machine-readable JSON (name, path, brief)')
   .action(async (gap, directory, options) => {
     const { createDraft } = await import('../dist/drafts/draft.js');
+    const { parseDraftKind } = await import('../dist/drafts/kinds.js');
     const { formatNewDraft } = await import('../dist/drafts/format.js');
     try {
       const result = createDraft(resolve(directory), gap.stack, gap.version, {
         name: options.name,
+        kind: parseDraftKind(options.kind),
         scope: options.scope,
         engine: `bluetemberg@${pkg.version}`,
       });
@@ -1151,12 +1159,17 @@ draftCmd
   )
   .argument('<name>', 'Draft name')
   .argument('[directory]', 'Project root directory', '.')
+  .option('--verify-citations', 'Fetch each cited page and require its quote to appear on it (network)')
   .option('--json', 'Emit machine-readable JSON')
   .action(async (name, directory, options) => {
     const { checkDraft } = await import('../dist/drafts/check.js');
+    const { checkDraftWithCitations } = await import('../dist/drafts/verify.js');
     const { formatCheck } = await import('../dist/drafts/format.js');
     try {
-      const report = checkDraft(resolve(directory), name);
+      const root = resolve(directory);
+      const report = options.verifyCitations
+        ? await checkDraftWithCitations(root, name)
+        : checkDraft(root, name);
       console.log(options.json ? JSON.stringify(report, null, 2) : formatCheck(report).join('\n'));
       if (!report.ok) process.exitCode = 1;
     } catch (err) {
@@ -1167,11 +1180,15 @@ draftCmd
 draftCmd
   .command('promote')
   .description(
-    '[human only] Review a checked draft and write it to <source>/rules/ (interactive TTY required)',
+    '[human only] Review a checked draft and write it to <source>/rules|skills|agents/ (interactive TTY required)',
   )
   .argument('<name>', 'Draft name')
   .argument('[directory]', 'Project root directory', '.')
   .requiredOption('--reviewed-by <who>', 'Your name or handle, recorded in the draft archive')
+  .option(
+    '--skip-citation-verification',
+    'Do not fetch the cited pages (offline); recorded in the archive as citationsVerified: false',
+  )
   .action(async (name, directory, options) => {
     // The gate: an agent's tool calls run without a terminal, so they stop here. There is
     // deliberately no --yes and no MCP equivalent.
@@ -1184,6 +1201,7 @@ draftCmd
     try {
       const result = await promoteDraft(resolve(directory), name, {
         reviewedBy: options.reviewedBy,
+        verifyCitations: options.skipCitationVerification ? false : {},
         confirm: async (review) => {
           console.log(formatReview(review).join('\n'));
           const typed = await input({
@@ -1194,6 +1212,30 @@ draftCmd
       });
       console.log(formatPromoted(result).join('\n'));
       if (!result.promoted) process.exitCode = 1;
+    } catch (err) {
+      failWith(err);
+    }
+  });
+
+draftCmd
+  .command('pr')
+  .description(
+    '[human only] Prepare a contribution branch in a local bluetemberg-packs checkout from a promoted draft (stages the file and writes a PR body; never commits or pushes)',
+  )
+  .argument('<name>', 'Promoted draft name')
+  .argument('[directory]', 'Project root directory', '.')
+  .requiredOption('--packs-repo <dir>', 'Path to your local bluetemberg-packs checkout (clean working tree)')
+  .option('--pack <name>', 'Pack to add to (default: the one pack of this kind declaring the gap stack)')
+  .option('--json', 'Emit machine-readable JSON')
+  .action(async (name, directory, options) => {
+    const { prepareContribution } = await import('../dist/drafts/contribute.js');
+    const { formatContribution } = await import('../dist/drafts/format.js');
+    try {
+      const result = prepareContribution(resolve(directory), name, {
+        packsRepo: resolve(options.packsRepo),
+        pack: options.pack,
+      });
+      console.log(options.json ? JSON.stringify(result, null, 2) : formatContribution(result).join('\n'));
     } catch (err) {
       failWith(err);
     }
