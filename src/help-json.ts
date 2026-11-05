@@ -101,6 +101,26 @@ const DRAFT_COMMANDS = [
       },
     ],
   },
+  {
+    name: 'draft pr',
+    args: '<name> [directory]',
+    description:
+      '[human only] From a promoted draft, prepare a branch (feat/<kind>-<name>, off origin/main) in a local bluetemberg-packs checkout: re-checks the promoted file, picks the pack by kind and gap stack, refuses a name taken in any pack, stages the file, and writes a provenance PR body. Never commits, pushes, runs the packs repo scripts, or opens the PR — it prints those steps (gh pr create --draft --label needs-review). Refuses inside an agent session.',
+    options: [
+      {
+        long: '--packs-repo <dir>',
+        description: 'Local bluetemberg-packs checkout with a clean working tree (required).',
+      },
+      {
+        long: '--pack <name>',
+        description: 'Pack to add to; default is the one pack of this kind that declares the gap stack.',
+      },
+      {
+        long: '--json',
+        description: 'Emit machine-readable JSON (pack, branch, file, bodyFile, title, nextSteps).',
+      },
+    ],
+  },
 ];
 
 function readCliVersion(): string {

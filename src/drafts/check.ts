@@ -375,6 +375,17 @@ function checkHiddenChars(issues: Issues, text: string): void {
   );
 }
 
+/**
+ * The safety subset of {@link checkDraftText} — hidden characters and blocking scan findings at
+ * the kind's pack path — for content that is no longer a draft (a promoted file being contributed).
+ */
+export function safetyIssues(text: string, name: string, kind: DraftKind): DraftIssue[] {
+  const issues = new Issues();
+  checkHiddenChars(issues, text);
+  checkScan(issues, text, name, kind);
+  return issues.errors;
+}
+
 export interface CheckedText {
   errors: DraftIssue[];
   warnings: DraftIssue[];

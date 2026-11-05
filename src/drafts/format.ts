@@ -1,6 +1,7 @@
 import type { GapBrief } from './brief.js';
 import type { DraftCheckReport } from './check.js';
 import type { DraftListEntry, NewDraftResult } from './draft.js';
+import type { ContributionResult } from './contribute.js';
 import type { PromotionReview, PromoteResult } from './promote.js';
 import type { CitationCheck } from './verify.js';
 import { WRITE_TOOLS } from './kinds.js';
@@ -110,4 +111,18 @@ export function formatPromoted(result: PromoteResult): string[] {
     `  archived: ${result.archived}`,
     '  Run `bluetemberg sync` to apply it.',
   ];
+}
+
+export function formatContribution(result: ContributionResult): string[] {
+  const lines = [
+    `Prepared branch ${result.branch} in the packs repo`,
+    `  staged: ${result.file} (pack ${result.pack})`,
+    `  PR body: ${result.bodyFile}`,
+  ];
+  if (result.editedAfterReview) {
+    lines.push('  ! the promoted file was edited after review — the PR body says so');
+  }
+  lines.push('Nothing was committed or pushed. Review the staged file, then run:');
+  for (const step of result.nextSteps) lines.push(`  ${step}`);
+  return lines;
 }
