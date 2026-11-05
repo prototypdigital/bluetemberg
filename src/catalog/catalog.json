@@ -1,11 +1,12 @@
 {
-  "generated": "2026-11-04T17:59:20.384Z",
+  "generated": "2026-11-04T20:59:51.007Z",
   "stackPackages": {
     "schema": 1,
     "stacks": {
       "angular": { "packages": { "npm": "@angular/core" } },
       "astro": { "packages": { "npm": "astro" } },
       "drizzle": { "packages": { "npm": "drizzle-orm" } },
+      "nestjs": { "packages": { "npm": "@nestjs/core" } },
       "nextjs": { "packages": { "npm": "next" } },
       "payload": { "packages": { "npm": "payload" } },
       "react": { "packages": { "npm": "react" } },
@@ -188,7 +189,7 @@
     },
     {
       "name": "bluetemberg-agents-session-auditor",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "description": "Session auditor agent for Bluetemberg — token-spend and harness-usage retrospective over Claude Code session transcripts.",
       "profiles": [],
       "stacks": [],
@@ -200,7 +201,7 @@
     },
     {
       "name": "bluetemberg-agents-skeletor-specialist",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "description": "Skeletor specialist agent for Bluetemberg — covers both consuming the public API (Block/Screen/Text, SkeletorProvider, animation hooks, skeleform) and authoring library internals (style-prop pipeline, memoizeStyle, Biome, release-please).",
       "profiles": ["frontend", "fullstack"],
       "stacks": ["skeletor", "react-native"],
@@ -470,7 +471,15 @@
       "platforms": [],
       "universal": true,
       "kind": "rules",
-      "rules": ["api-error-handling", "llm-package-hallucination", "never-read-env", "security-secrets"],
+      "rules": [
+        "api-error-handling",
+        "drizzle-parameterized-sql",
+        "llm-package-hallucination",
+        "lockfile-discipline",
+        "nestjs-validation-pipe",
+        "never-read-env",
+        "security-secrets"
+      ],
       "preview": "Leaked stack traces, SQL, or file paths hand attackers a map of your schema, ORM, and directory layout — turning a 500 into reconnaissance for the next exploit. All API endpoints must return structured, consistent error responses and never expose internal details to clients. Always return errors wit"
     },
     {
@@ -669,7 +678,7 @@
     },
     {
       "name": "bluetemberg-skills-design-system",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Design-system reuse skill for Bluetemberg — reach for shadcn/Radix primitives, cn()/cva() composition, and asChild polymorphism before bespoke UI.",
       "profiles": ["frontend", "fullstack", "design-engineer"],
       "stacks": ["react"],
@@ -717,7 +726,7 @@
     },
     {
       "name": "bluetemberg-skills-integration-safety",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Third-party integration-safety skill for Bluetemberg — lazy init, getRequiredEnv, safeParse over parse, fire-and-forget analytics, and safe widget script injection.",
       "profiles": ["backend", "fullstack"],
       "stacks": [],
@@ -753,7 +762,7 @@
     },
     {
       "name": "bluetemberg-skills-nextjs-caching",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Next.js caching & ISR skill for Bluetemberg — unstable_cache keyParts vs tags discipline, revalidateTag call sites, and the ISR cache handler.",
       "profiles": ["frontend", "fullstack"],
       "stacks": ["nextjs"],
@@ -765,7 +774,7 @@
     },
     {
       "name": "bluetemberg-skills-orval-openapi",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Orval OpenAPI client-generation skill for Bluetemberg — the build:api pipeline, tags-split output, the custom fetch mutator, and never hand-editing generated files.",
       "profiles": ["backend", "fullstack"],
       "stacks": [],
@@ -789,7 +798,7 @@
     },
     {
       "name": "bluetemberg-skills-payload-blocks",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Payload CMS block-system skill for Bluetemberg — the co-located config.ts + Component.tsx pattern and the registry-dispatch RenderBlocks convention.",
       "profiles": ["frontend", "fullstack"],
       "stacks": ["payload"],
@@ -813,7 +822,7 @@
     },
     {
       "name": "bluetemberg-skills-payload-migrations",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "description": "Payload CMS migration workflow skill for Bluetemberg — generate-don't-handwrite, paired .ts/.json snapshots, and gated destructive changes.",
       "profiles": ["backend", "fullstack"],
       "stacks": ["payload"],
@@ -825,7 +834,7 @@
     },
     {
       "name": "bluetemberg-skills-pr-review-loop",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "description": "PR review loop skill for Bluetemberg — wire automated comment-only PR reviews via a local PostToolUse hook, with the hook scripts bundled under the skill, without touching CI/CD.",
       "profiles": ["frontend", "backend", "fullstack", "devops"],
       "stacks": [],
@@ -873,7 +882,7 @@
     },
     {
       "name": "bluetemberg-skills-session-retrospective",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "description": "Session retrospective skill for Bluetemberg — deterministic jq token/tool analysis of a Claude Code transcript plus a judged, severity-ordered process retrospective.",
       "profiles": [],
       "stacks": [],
