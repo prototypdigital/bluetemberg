@@ -1,5 +1,5 @@
 import { basename, join } from 'node:path';
-import matter from 'gray-matter';
+import { readFrontmatter } from '../utils/frontmatter.js';
 import type { GuardrailCheck, GuardrailFrontmatter, Platform } from '../types.js';
 import type { Catalog } from '../catalog/index.js';
 import type { SyncSink } from './pipeline.js';
@@ -311,7 +311,7 @@ export function syncGuardrails(
   const excluded = new Map<string, string>();
   for (const [file, sourceDir] of merged) {
     try {
-      const { data } = matter.read(join(sourceDir, file));
+      const { data } = readFrontmatter(join(sourceDir, file));
       // Capture the raw record before the type guard narrows `data` to GuardrailFrontmatter.
       const record = data as Record<string, unknown>;
       const invalid = guardrailValidationIssue(data);
