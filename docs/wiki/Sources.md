@@ -141,7 +141,7 @@ rather than being handed to the CDN.
 The endpoint is deliberately **not** chosen by whether a token happens to be set. GitHub's two
 archive endpoints return different bytes for the same commit, so doing that would make the recorded
 `integrity` depend on the environment — CI (where `GITHUB_TOKEN` is usually present) and a laptop
-would write different values to `llm/sources-lock.json` for the same public source, and each would
+would write different values to `llm/rule-sources-lock.json` for the same public source, and each would
 see a permanent cache miss for the other's.
 
 Registry credentials (`NPM_TOKEN`, `.npmrc`) are never sent to a source, and `GITHUB_TOKEN` is
@@ -151,6 +151,6 @@ never sent to a registry. See [Private registries](Registry#private-registries) 
 
 Repo tarballs are extracted through the same hardened path as npm packs — symlink/hardlink entries and `..` path-traversal segments are rejected (the extraction rejects cleanly rather than writing the offending entry). Downloads are size-capped and total extracted size is bounded, so a hostile or runaway archive can't fill the disk. Cache keys and filenames derived from remote input are sanitized to a single safe path segment.
 
-Every `source add`, `source install` and `source update` runs the same [content scan](Registry#content-scan) as npm packs on the translated content, including skill scripts, before it reaches the cache. A blocking finding aborts the command and leaves nothing cached. A cached source that an older scanner vetted is re-scanned on the next `source install`/`source update`; until then `sync` warns. Pass `--skip-scan` only for a repo or package you control. Each skipped scan is logged.
+Every `source add`, `source install` and `source update` runs the same [content scan](Registry#content-scan) as npm packs on the translated content, including skill scripts, before it reaches the cache. A blocking finding aborts the command and leaves nothing cached. A cached source that an older scanner vetted is re-scanned on the next `source install`/`source update`; until then `sync` warns. Pass `--skip-scan` only for a repo or package you control. Each skipped scan is logged. From 0.20.0 these commands also print the [capability report](Registry#capability-report): the guardrails, hook configs and skill scripts the source brings, and on update what changed.
 
 For PRPM (immutable published versions) the lockfile integrity hash is re-verified on every reinstall; a mismatch aborts with a clear error. GitHub-backed sources (including cursor.directory) pin the **commit SHA** as the source of truth, since codeload archive bytes are not guaranteed stable over time.

@@ -26,8 +26,9 @@ Interactive wizard that scaffolds AI tooling into a project. When you need repro
 | `--omit-agents`, `--omit-skills`, `--omit-mcp`, `--omit-github` | Shortcut booleans (`--non-interactive` only). `--omit-github` skips the GitHub/community files listed below. |
 | `--force` | Overwrite `AGENTS.md`, `CLAUDE.md`, and the GitHub/community files when they already exist. Without it, init keeps those files and lists what it kept. Works in every mode. |
 | `--silent` | Hide progress/success logs and forward silence to initial `sync` (still exit non-zero on failure). **Requires** `--non-interactive` **or** `--config`. |
+| `--rules <csv>` | Deprecated and ignored: template rules were retired. Use `--rule-collections`. |
 
-**Global discovery:** combine `--help --json` (any position with `--help`/`-h`) to dump team profiles, package managers, rules, collections, agents, skills, MCP presets, and CLI metadata as JSON (`writeSync`-safe for piping).
+**Global discovery:** combine `--help --json` (any position with `--help`/`-h`) to dump the CLI version, team profiles, package managers, platforms and aliases, rule sources and collections, agents, skills, MCP presets, and the `init`, `stacks`, `packs`, `managedSettings` and `source` command metadata as JSON (`writeSync`-safe for piping).
 
 From the repo root, `npm run build` must have produced `dist/` first — otherwise `bin/cli.js` cannot load catalogs or `--help --json`.
 
@@ -47,11 +48,11 @@ Then, for **every** run:
 6. Creates `AGENTS.md`, `CLAUDE.md` (if Claude is among selected platforms; it imports `@AGENTS.md` so Claude Code loads both, see [Architecture](Architecture#claude-code-and-agentsmd)), and, if Gemini CLI is selected, `.gemini/settings.json` pointing it at `AGENTS.md` (via the initial sync)
 7. Writes `llm/mcp.json` with chosen MCP preset ids when MCP is included; the initial sync merges those servers into the root `.mcp.json` (for Claude Code / Copilot, keeping any servers already there), writes `.cursor/mcp.json`, and/or merges them into `.agents/mcp_config.json` for Antigravity (per selected platforms)
 8. Adds `sync:llm-config` scripts to `package.json`
-9. Patches `.prettierignore` with `llm/` and `docs/wiki/` to protect prose from formatters
+9. Patches `.prettierignore` with `llm/` and `docs/wiki/` (and `plugins/` when `claude-marketplace` or `agent-plugins` is selected) to protect prose from formatters
 10. Writes the GitHub/community files the wizard selected (Dependabot, issue and PR templates, CODEOWNERS, CONTRIBUTING, LICENSE, CODE_OF_CONDUCT, SECURITY). Headless runs write all of them unless `--omit-github` is passed. Never CI/CD workflows.
+11. Runs an initial sync to generate the platform-specific files. Packs are not downloaded yet, so this sync warns once per pack that it has no lockfile entry: run `bluetemberg install`, then `bluetemberg sync`
 
 **Existing files are never overwritten.** `AGENTS.md`, `CLAUDE.md`, and the GitHub/community files are yours once they exist: re-running `init` keeps them and prints a "Kept N existing file(s)" list. Pass `--force` to replace them with the templates. The files bluetemberg owns (`bluetemberg.config.json`, `llm/packages.json`, `llm/mcp.json`, `llm/rule-sources.json`) are refreshed on every run.
-10. Runs an initial sync to generate all platform-specific files
 
 The wizard offers every rules, agents and skills pack in the catalog. Packs are pre-selected based on the chosen profile; a pack that targets a stack (Payload, Next.js, Tailwind, …) is pre-selected only when that stack is detected, kept in the stack prompt, or passed with `--stacks`. See [Profiles](Profiles) for what each team profile defaults to.
 
@@ -122,7 +123,7 @@ Without `--yes`, the command prints the dry-run plan and asks before changing an
 
 ## `bluetemberg managed-settings [directory]`
 
-Writes org policy files that install the project's marketplace for everyone in an organization: `claude-code/managed-settings.json` for Claude Code, `github-copilot/managed-settings.json` for GitHub Copilot, and a `README.md` that says where an admin deploys each one. The command only writes files under `--out`, and refuses an `--out` that would put a file at a host's live policy path, inside `~/.claude`, through a symlink, or over a file it did not generate (such as the project's own `README.md`). It never installs anything on the machine it runs on, and `sync` never writes these files. See [Org rollout](Org-Rollout) for the host formats and the rollout steps.
+_Since 0.20.0._ Writes org policy files that install the project's marketplace for everyone in an organization: `claude-code/managed-settings.json` for Claude Code, `github-copilot/managed-settings.json` for GitHub Copilot, and a `README.md` that says where an admin deploys each one. The command only writes files under `--out`, and refuses an `--out` that would put a file at a host's live policy path, inside `~/.claude`, through a symlink, or over a file it did not generate (such as the project's own `README.md`). It never installs anything on the machine it runs on, and `sync` never writes these files. See [Org rollout](Org-Rollout) for the host formats and the rollout steps.
 
 It needs `marketplace.remote` (an `owner/repo`) and the `.claude-plugin/marketplace.json` that `sync` generates, and refuses to run without either. Each file registers the marketplace under `extraKnownMarketplaces` and force-enables its plugins under `enabledPlugins`.
 
@@ -153,7 +154,7 @@ Prints the rule collections, guardrails, agents and skills a profile preselects,
 | ------ | ----- |
 | `--list` | List the available profile ids with their descriptions |
 | `--force` | Re-fetch the pack catalog instead of using the 24-hour cache |
-| `--platforms <csv>` | Platforms to preview for (same ids as `init`). Defaults to the `platforms` of the `bluetemberg.config.json` in the current directory, or with no config to `init`'s defaults (every platform but `claude-marketplace`) |
+| `--platforms <csv>` | Platforms to preview for (same ids as `init`). Defaults to the `platforms` of the `bluetemberg.config.json` in the current directory, or with no config to `init`'s defaults (every platform but `claude-marketplace` and `agent-plugins`) |
 | `--silent` | Suppress output |
 
 The listing comes from the live catalog (cached in `.bluetemberg/catalog.json`, the only file this command writes; the committed snapshot is the offline fallback). The wizard reads the committed snapshot, so until that snapshot is refreshed the two can differ slightly.
@@ -233,11 +234,11 @@ npx bluetemberg coverage payload@3.4.0
 npx bluetemberg coverage nextjs --json
 ```
 
-## `bluetemberg why <file> [directory]`
+## `bluetemberg why [file] [directory]`
 
 Explain why one rule, agent, skill or guardrail is **included** in or **excluded** from this project. It answers from the same source resolution and version gate sync uses, so it cannot disagree with what sync wrote.
 
-`<file>` can take any of three forms. The report says which one matched (tried in this order):
+`[file]` is required unless you pass `--diff`. It can take any of three forms. The report says which one matched (tried in this order):
 
 | Form | Example | Notes |
 | ---- | ------- | ----- |
@@ -381,7 +382,7 @@ npx bluetemberg stacks list nextjs
 
 ## `bluetemberg draft <subcommand>`
 
-The human-gated create-loop: open a draft rule for a stack gap, let an agent fill it in, check it, and let a human promote it. See [Drafts](Drafts) for the full flow and the checks.
+_Since 0.20.0._ The human-gated create-loop: open a draft rule for a stack gap, let an agent fill it in, check it, and let a human promote it. See [Drafts](Drafts) for the full flow and the checks.
 
 | Subcommand | Writes | Notes |
 | ---------- | ------ | ----- |
@@ -426,7 +427,7 @@ Register it with an MCP client (example for Claude Code's `.mcp.json`):
 
 ## `bluetemberg add <packages...>`
 
-Install one or more rule packs from the npm registry. See [Registry](Registry) for full details.
+Install one or more packs (rules, agents, skills, guardrails) from the npm registry. See [Registry](Registry) for full details.
 
 ```bash
 bluetemberg add @company/rules-frontend
@@ -445,19 +446,27 @@ bluetemberg add bluetemberg-rules-typescript bluetemberg-agents-code-reviewer
 
 ## `bluetemberg remove <package>`
 
-Remove a rule pack from the project.
+Remove a pack from the project.
 
 ```bash
 bluetemberg remove @company/rules-frontend
 ```
 
+| Option | Notes |
+| ------ | ----- |
+| `--silent` | Suppress progress output (errors still go to stderr) |
+
 ## `bluetemberg list`
 
-List installed rule packs with their resolved versions.
+List installed packs with their resolved versions.
 
 ```bash
 bluetemberg list
 ```
+
+| Option | Notes |
+| ------ | ----- |
+| `--silent` | Suppress progress output (errors still go to stderr) |
 
 ## `bluetemberg install`
 
@@ -485,7 +494,7 @@ Credentials for a private registry come from `.npmrc` or `NPM_TOKEN`/`NODE_AUTH_
 
 ## `bluetemberg update [package]`
 
-Re-resolve and upgrade rule packs to the best version satisfying their manifest range. See [Registry](Registry) for full details.
+Re-resolve and upgrade packs to the best version satisfying their manifest range. See [Registry](Registry) for full details.
 
 ```bash
 bluetemberg update
@@ -512,7 +521,7 @@ Re-checks every pack in `.bluetemberg/packs/` against the registry: the tarball'
 
 ## `bluetemberg scan <dirs...>`
 
-Runs the [content scan](Registry#content-scan) that `add`/`install` apply to downloads on local directories. Use it where packs are authored, for example in a packs repo's CI on every pull request, so a blocking pattern is caught before the pack is published rather than at a consumer's install:
+_Since 0.20.0._ Runs the [content scan](Registry#content-scan) that `add`/`install` apply to downloads on local directories. Use it where packs are authored, for example in a packs repo's CI on every pull request, so a blocking pattern is caught before the pack is published rather than at a consumer's install:
 
 ```bash
 npx bluetemberg scan packages/*
@@ -528,7 +537,7 @@ Prints each finding with its severity, file and line, then a totals line. Exits 
 
 ## `bluetemberg search <query>`
 
-Search for rule packs tagged with `bluetemberg-pack`, in the registry the project's manifest
+Search for packs tagged with `bluetemberg-pack`, in the registry the project's manifest
 configures — so a [private registry](Registry#private-registries) is searchable too, using the
 same credentials as `install`.
 
@@ -536,6 +545,11 @@ same credentials as `install`.
 bluetemberg search typescript
 bluetemberg search "frontend rules" --limit 10
 ```
+
+| Option | Notes |
+| ------ | ----- |
+| `--limit <n>` | Max results (default 20) |
+| `--silent` | Suppress progress output (errors still go to stderr) |
 
 ## `bluetemberg source <subcommand>`
 
@@ -578,7 +592,8 @@ Use `--silent` in CI only together with checking `$?` (or equivalent): failures 
 
 **When to run:**
 
-- After creating or editing any file in `llm/rules/`, `llm/agents/`, `llm/skills/`, `llm/mcp.json`, `llm/hooks.json`, `llm/commands/`, or `llm/prompts/`
+- After creating or editing any file in `llm/rules/`, `llm/agents/`, `llm/skills/`, `llm/guardrails/`, `llm/mcp.json`, `llm/hooks.json`, `llm/hooks.claude.json`, `llm/commands/`, or `llm/prompts/`
+- After `bluetemberg install`, `add`, `update` or `remove`, and after `source add` or `source update`
 - After changing `platforms`, `extends`, or `adapters` in `bluetemberg.config.json`
 - In CI to verify generated files haven't drifted (use `--check`)
 

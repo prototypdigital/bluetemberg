@@ -2,44 +2,78 @@
 
 ## Overview
 
-Bluetemberg has two main components: the **init wizard** and the **sync engine**.
+Bluetemberg has three main parts: the **registry** (`install`, `add`, `update`, `verify`, `scan`), which fetches packs from npm and verifies them; the **init wizard**, which writes the config and the pack list; and the **sync engine**, which writes each tool's files. Around them sit the read-only stack tools (`detect`, `coverage`, `why`, `stacks`, `mcp serve`), `uninstall`/`eject`, `managed-settings` and the `draft` create-loop (both from 0.20.0).
 
 ```mermaid
 flowchart TD
     subgraph init ["bluetemberg init"]
-        A[Prompts\ninquirer] --> B[Scaffold files\nllm/ + config + docs]
-        B --> B2[Patch .prettierignore\nprotect llm/ from formatters]
+        A[Prompts or flags
+profile · platforms · stacks] --> B[Scaffold
+config · llm/packages.json · AGENTS.md]
+        B --> B2[Patch .prettierignore
+protect llm/ from formatters]
         B2 --> C[Run sync engine]
     end
 
+    subgraph registry ["bluetemberg install / add / update"]
+        R1[Resolve semver range
+llm/packages.json] --> R2[Download tarball
+pinned registry host · size cap]
+        R2 --> R3[Verify SHA-512
++ registry signature]
+        R3 --> R4[Extract · path filter
+content scan]
+        R4 --> R5[Capability report
+lockfile + .bluetemberg/packs/]
+    end
+
     subgraph sync ["bluetemberg sync"]
-        D[Load config\nbluetemberg.config.json] --> E[Read llm/ sources\nrules · agents · skills · mcp · hooks · commands · prompts]
-        D --> L[Optional adapters\nimport from config]
-        E --> F{Type?}
-        F -->|rules| G[Transform\nfrontmatter]
-        F -->|agents| H[Copy + banner]
-        F -->|skills| H
-        F -->|commands| H
-        F -->|prompts| H
-        F -->|mcp.json| J[Resolve MCP entries\nmerge managed servers]
-        F -->|hooks.json| K[Validate\nCursor shape]
-        F -->|hooks.claude.json| K2[Validate events\nproject-local only]
+        D[Load config
+bluetemberg.config.json] --> E[Resolve sources
+local → extends → packs → external sources]
+        E --> V[Gate by stack version
+and platform]
+        D --> L[Optional adapters
+import from config]
+        V --> F{Type?}
+        F -->|rules| G[Transform frontmatter
+or AGENTS.md block]
+        F -->|agents| H[Banner · Claude tool names
+Codex TOML]
+        F -->|skills| H2[Banner · pack metadata
+fewest dirs per host]
+        F -->|guardrails| GR[Compile to hooks
+Claude · Cursor · Copilot · Devin · Codex]
+        F -->|commands · prompts| H3[Generated skills
++ deprecated legacy outputs]
+        F -->|mcp.json| J[Resolve MCP entries
+merge managed servers]
+        F -->|hooks.json · hooks.claude.json| K[Validate
+project-local only]
+        F -->|marketplace| P[Plugin bundles
+Claude Marketplace · Agent Plugins]
         G --> I[Write target files]
         H --> I
+        H2 --> I
+        GR --> I
+        H3 --> I
         J --> I
         K --> I
-        K2 --> I
+        P --> I
         L --> I
     end
 
     C --> D
+    R5 --> D
 ```
 
 ## Source directory structure
 
 ```
 llm/
-├── rules/              # Markdown with YAML frontmatter
+├── packages.json       # Packs to install, with semver ranges (commit)
+├── packages-lock.json  # Resolved versions + integrity hashes (commit)
+├── rules/              # Markdown with YAML frontmatter (a `---` fence only; `---js` and other engines are refused)
 │   ├── coding-standards.md
 │   └── no-console-log.md
 ├── agents/             # Body unchanged; banner added, Claude tool names mapped
@@ -47,6 +81,7 @@ llm/
 ├── skills/             # Directory per skill, each with SKILL.md
 │   └── patterns/
 │       └── SKILL.md
+├── guardrails/         # Optional: declarative checks → hooks per platform (see Guardrails)
 ├── mcp.json            # Optional: preset ids and/or inline servers → merged .mcp.json, .cursor/mcp.json, Codex
 ├── mcp-managed.json    # Generated: the .mcp.json / .agents/mcp_config.json servers sync owns (commit it)
 ├── hooks.json          # Optional: Cursor hooks → .cursor/hooks.json
@@ -59,7 +94,7 @@ For optional sync extensions, MCP/hooks details, and roadmap, see [Adapters](Ada
 
 ## Frontmatter transform
 
-The core of the sync engine. Rules get platform-specific frontmatter; agents and skills are copied as-is. (OpenAI Codex is the exception — its rules are folded into `AGENTS.md` as plain markdown with no transform; see [Special sync](#special-sync-agentsmd-openai-codex-gemini-cli-and-antigravity).)
+The core of the sync engine. Rules get platform-specific frontmatter. Agents and skills keep their body: sync adds the generated-file banner, maps agent `tools` to Claude Code's tool names, writes Codex agents as TOML, and stamps a pack's name, version and integrity into a skill's `SKILL.md` `metadata`. (OpenAI Codex is the exception — its rules are folded into `AGENTS.md` as plain markdown with no transform; see [Special sync](#special-sync-agentsmd-openai-codex-gemini-cli-and-antigravity).)
 
 ```mermaid
 flowchart LR
@@ -70,23 +105,25 @@ flowchart LR
     src --> copilot[".github/instructions/rule.instructions.md\n---\ndescription: ...\napplyTo: '**'\n---"]
 ```
 
-| Source field      | Cursor output       | Claude output       | Copilot output      |
-| ----------------- | ------------------- | ------------------- | ------------------- |
-| `description`     | `description`       | `description`       | `description`       |
-| `scope: '**'`     | `alwaysApply: true` | `paths: ['**']`     | `applyTo: '**'`     |
-| `scope: 'src/**'` | `globs: ['src/**']` | `paths: ['src/**']` | `applyTo: 'src/**'` |
+| Source field      | Cursor output       | Claude output       | Copilot output      | Devin Desktop / Antigravity output |
+| ----------------- | ------------------- | ------------------- | ------------------- | ---------------------------------- |
+| `description`     | `description`       | `description`       | `description`       | `description`                      |
+| `scope: '**'`     | `alwaysApply: true` | `paths: ['**']`     | `applyTo: '**'`     | `trigger: always_on`               |
+| `scope: 'src/**'` | `globs: ['src/**']` | `paths: ['src/**']` | `applyTo: 'src/**'` | `trigger: glob`, `globs: 'src/**'` |
+
+Codex and Gemini CLI get no per-rule files: rules are folded into a managed block in `AGENTS.md`.
 
 ## File extension mapping
 
-| Source     | Cursor     | Claude     | Copilot                |
-| ---------- | ---------- | ---------- | ---------------------- |
-| `rule.md`  | `rule.mdc` | `rule.md`  | `rule.instructions.md` |
-| `agent.md` | `agent.md` | `agent.md` | `agent.agent.md`       |
-| `SKILL.md` | `SKILL.md` | `SKILL.md` | `SKILL.md`             |
+| Source     | Cursor     | Claude     | Copilot                | Devin Desktop | Antigravity | Codex                  |
+| ---------- | ---------- | ---------- | ---------------------- | ------------- | ----------- | ---------------------- |
+| `rule.md`  | `rule.mdc` | `rule.md`  | `rule.instructions.md` | `rule.md`     | `rule.md`   | `AGENTS.md` block      |
+| `agent.md` | `agent.md` | `agent.md` | `agent.agent.md`       | —             | —           | `.codex/agents/agent.toml` |
+| `SKILL.md` | `SKILL.md` | `SKILL.md` | `SKILL.md`             | `SKILL.md`    | `SKILL.md`  | `SKILL.md`             |
 
 ## Rule tiers
 
-Rules have three intent levels, not just on/off:
+Rules have two intent levels per profile, and stack-specific packs are pre-checked only when their stack is in the project:
 
 | Tier | Behavior | Examples |
 | ---- | -------- | -------- |

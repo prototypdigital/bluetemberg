@@ -1,5 +1,7 @@
 # Org rollout with managed settings
 
+> **Since 0.20.0.**
+
 [Marketplace](Marketplace) output reaches a team through each repository's `.claude/settings.json`: a teammate who opens the project and trusts the folder is prompted to install the plugins. To install the same plugins for everyone in an organization, whatever repository they open, deploy them as **managed settings**: an org policy file that Claude Code and GitHub Copilot read above every user and project setting.
 
 `bluetemberg managed-settings` writes those files from the project's config and lockfile. It does not install them. An admin deploys them with MDM, a file push or the host's own admin console. `bluetemberg sync` never writes them, and the command adds nothing to `bluetemberg.config.json`.
