@@ -35,9 +35,6 @@ export interface LegacySkillsSyncContext extends SyncSink {
   platforms: readonly Platform[];
 }
 
-/** The release that stops writing `.claude/commands/` and `.github/prompts/`. */
-export const LEGACY_OUTPUTS_REMOVAL_VERSION = '0.18.0';
-
 /** Agent Skills `name`: lowercase letters, digits and single hyphens, at most 64 characters. */
 const SKILL_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const SKILL_NAME_MAX = 64;
@@ -234,7 +231,7 @@ function planLegacySkills(
     }
     if (dropped.length > 0) {
       recordWarning(
-        `${source.sourceId}: skill "${name}" leaves out ${dropped.join(', ')}, which skills have no field for. The prompt file keeps them until ${LEGACY_OUTPUTS_REMOVAL_VERSION}; for a fixed agent, model or tool set, write a custom agent instead.`,
+        `${source.sourceId}: skill "${name}" leaves out ${dropped.join(', ')}, which skills have no field for. The prompt file keeps them until a later release stops writing it; for a fixed agent, model or tool set, write a custom agent instead.`,
       );
     }
     claimed.set(name, source.sourceId);
@@ -260,7 +257,7 @@ function warnLegacyOutputs(ctx: LegacySkillsSyncContext, recordWarning: (message
   if (outputs.length === 0) return;
 
   recordWarning(
-    `Deprecated: ${outputs.join(' and ')}. Commands and prompts are now also synced as skills; the old outputs stop being written in ${LEGACY_OUTPUTS_REMOVAL_VERSION}. Move the files to llm/skills/<name>/SKILL.md, then run \`bluetemberg sync --prune\`. See the wiki: Writing Skills, "Migrating commands and prompts".`,
+    `Deprecated: ${outputs.join(' and ')}. Commands and prompts are now also synced as skills; a later release stops writing the old outputs. Move the files to llm/skills/<name>/SKILL.md, then run \`bluetemberg sync --prune\`. See the wiki: Writing Skills, "Migrating commands and prompts".`,
   );
 }
 
