@@ -14,7 +14,8 @@ import { downloadTarball, verifyIntegrity, fetchRegistryKeys, verifyRegistrySign
 import { DEFAULT_REGISTRY } from './constants.js';
 import { redactCredentials, registryAuthHeaders, transportAllowsCredentials } from './auth.js';
 import { extractTarball } from '../sources/tarball.js';
-import { ENGINE_MARKER_FILES, formatBlockedScan, scanPackContent } from './scanner.js';
+import { ENGINE_MARKER_FILES } from './scanner.js';
+import { rescanCached, scanAndMark } from './scan-cache.js';
 import type { ScanResult } from './scanner.js';
 import type { NpmPackageMetadata, PackageLockEntry } from '../types.js';
 
@@ -120,21 +121,6 @@ function assertNoShippedMarkers(dest: string, label: string): void {
   );
 }
 
-/** Scan before the integrity marker is written, so a blocked pack never becomes a cache hit. */
-function scanExtractedPack(
-  dest: string,
-  label: string,
-  options: { skipScan?: boolean; onScanFindings?: (result: ScanResult) => void; onScanSkipped?: () => void },
-): void {
-  if (options.skipScan) {
-    options.onScanSkipped?.();
-    return;
-  }
-  const scan = scanPackContent(dest);
-  if (scan.blocked) throw new Error(formatBlockedScan(label, scan));
-  if (scan.findings.length > 0) options.onScanFindings?.(scan);
-}
-
 /**
  * Download and extract a specific pack version into the local cache.
  *
@@ -229,6 +215,8 @@ export async function installPackVersion(
     if (existsSync(markerPath)) {
       const cachedIntegrity = readFileSync(markerPath, 'utf8').trim();
       if (cachedIntegrity === expectedIntegrity) {
+        // A newer scanner re-vets content an older one (or none) let into the cache.
+        rescanCached(dest, `${metadata.name}@${version}`, options);
         const keyidMarkerPath = join(dest, '.bluetemberg-keyid');
         const cachedKeyid = existsSync(keyidMarkerPath)
           ? readFileSync(keyidMarkerPath, 'utf8').trim()
@@ -326,7 +314,8 @@ export async function installPackVersion(
     // Extract tarball with security filtering (rejects symlinks + path traversal).
     await extractTarball(tmpFile, dest, metadata.name);
     assertNoShippedMarkers(dest, `${metadata.name}@${version}`);
-    scanExtractedPack(dest, `${metadata.name}@${version}`, options);
+    // Scan before the integrity marker is written, so a blocked pack never becomes a cache hit.
+    scanAndMark(dest, `${metadata.name}@${version}`, options);
 
     // Preserve tarball in cache so verify() can recompute integrity from disk
     // rather than trusting the marker file alone.

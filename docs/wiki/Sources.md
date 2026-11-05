@@ -151,4 +151,6 @@ never sent to a registry. See [Private registries](Registry#private-registries) 
 
 Repo tarballs are extracted through the same hardened path as npm packs — symlink/hardlink entries and `..` path-traversal segments are rejected (the extraction rejects cleanly rather than writing the offending entry). Downloads are size-capped and total extracted size is bounded, so a hostile or runaway archive can't fill the disk. Cache keys and filenames derived from remote input are sanitized to a single safe path segment.
 
+Every `source add`, `source install` and `source update` runs the same [content scan](Registry#content-scan) as npm packs on the translated content, including skill scripts, before it reaches the cache. A blocking finding aborts the command and leaves nothing cached. A cached source that an older scanner vetted is re-scanned on the next `source install`/`source update`; until then `sync` warns. Pass `--skip-scan` only for a repo or package you control. Each skipped scan is logged.
+
 For PRPM (immutable published versions) the lockfile integrity hash is re-verified on every reinstall; a mismatch aborts with a clear error. GitHub-backed sources (including cursor.directory) pin the **commit SHA** as the source of truth, since codeload archive bytes are not guaranteed stable over time.

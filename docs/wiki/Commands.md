@@ -510,6 +510,22 @@ Re-checks every pack in `.bluetemberg/packs/` against the registry: the tarball'
 | `--skip-signature-verification` | Skip the ECDSA check, for self-hosted registries that do not sign. Never needed for `registry.npmjs.org` |
 | `--silent` | Suppress output |
 
+## `bluetemberg scan <dirs...>`
+
+Runs the [content scan](Registry#content-scan) that `add`/`install` apply to downloads on local directories. Use it where packs are authored, for example in a packs repo's CI on every pull request, so a blocking pattern is caught before the pack is published rather than at a consumer's install:
+
+```bash
+npx bluetemberg scan packages/*
+```
+
+Prints each finding with its severity, file and line, then a totals line. Exits 1 when any finding blocks.
+
+| Option | Notes |
+| ------ | ----- |
+| `--json` | Machine-readable output: `{ entries: [{ path, filesScanned, findings }], blocks, warnings }` |
+| `--strict` | Exit 1 on warnings too |
+| `--silent` | Suppress output; the exit code still reports the result |
+
 ## `bluetemberg search <query>`
 
 Search for rule packs tagged with `bluetemberg-pack`, in the registry the project's manifest
@@ -527,12 +543,14 @@ Manage **external rule sources** — rules pulled from outside the npm pack regi
 
 | Subcommand | Description |
 | ---------- | ----------- |
-| `source add <spec>` | Resolve, fetch, translate, and pin a source. Spec: `github:owner/repo[#ref][:path]`, `prpm:name[@range]`, or `cursor-directory:slug`. |
+| `source add <spec>` | Resolve, fetch, translate, scan, and pin a source. Spec: `github:owner/repo[#ref][:path]`, `prpm:name[@range]`, or `cursor-directory:slug`. |
 | `source remove <key>` | Remove a source (key as shown by `source list`). |
 | `source list` | List configured sources with their pinned refs. |
-| `source install [--force]` | Restore all sources from `llm/rule-sources-lock.json` (like `npm ci`). Run after cloning. |
+| `source install [--force]` | Restore all sources from `llm/rule-sources-lock.json` (like `npm ci`). Run after cloning. Re-scans cached sources an older scanner vetted. |
 | `source update [key]` | Re-resolve the floating spec to the newest ref/version and reinstall if it changed. |
 | `source search <query>` | Search backends that support discovery (`--type`, `--limit`). GitHub repos are not searchable. |
+
+`source add`, `source install` and `source update` take `--skip-scan` to skip the [content scan](Registry#content-scan). Use it only for sources you control.
 
 ```bash
 # Pull the rules/ folder of awesome-cursorrules at its current default branch

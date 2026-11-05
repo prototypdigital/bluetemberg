@@ -412,13 +412,27 @@ export function getMachineReadableHelp(): Record<string, unknown> {
             ...PACK_INSTALL_OPTIONS,
           ],
         },
+        {
+          name: 'scan',
+          args: '<dirs...>',
+          description:
+            'Run the content scan on local pack or source directories (e.g. a packs repo in CI). Exits 1 on a blocking finding.',
+          options: [
+            { long: '--json', description: 'Emit machine-readable JSON.' },
+            { long: '--strict', description: 'Exit 1 on warnings too.' },
+            { long: '--silent', description: 'Suppress output; the exit code still reports the result.' },
+          ],
+        },
       ],
       contentScan: {
         description:
-          'Every freshly downloaded pack is scanned before it lands in the cache. Blocking findings abort the install; warnings are reported.',
+          'Every freshly downloaded pack and external source is scanned before it lands in the cache; cached content an older scanner vetted is re-scanned on the next install. Blocking findings abort the install; warnings are reported.',
         blocks: [
           'real-looking credentials',
-          'secrets in the body of a request to a non-local host',
+          'secrets in the body of a request to a non-local host (URL hosts parsed, userinfo and numeric IPs resolved)',
+          'secrets sent over DNS lookups, gh publishing, or committed and pushed with git',
+          'markdown links/images whose URL carries a secret',
+          'invisible Unicode tag text and variation-selector payloads',
           'decode-to-shell pipelines',
           'instructions to disable hooks/guardrails/verification',
           'dangerous agent flags',
@@ -435,6 +449,10 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           'mentions of verification-weakening switches',
           'scripts that read secrets and upload on separate lines',
           'blocking patterns quoted in BAD-labelled markdown examples',
+          'markdown image URLs with template slots',
+          'link text naming a different site than the link target',
+          'settings that widen agent permissions',
+          'unpinned npx -y packages',
         ],
       },
     },

@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { SCAN_MARKER } from '../../src/registry/scan-cache.js';
+import { SCANNER_VERSION } from '../../src/registry/scanner.js';
 
 function readJson(path: string): Record<string, unknown> {
   if (!existsSync(path)) return {};
@@ -31,5 +33,7 @@ export function installFakePack(root: string, name: string, version = '0.1.0', s
   const base = join(root, '.bluetemberg', 'packs', name, version);
   mkdirSync(join(base, 'llm'), { recursive: true });
   writeFileSync(join(base, 'package.json'), JSON.stringify({ name, version }));
+  // A real install records the scanner that vetted the pack; without it sync asks for a re-scan.
+  writeFileSync(join(base, SCAN_MARKER), `${SCANNER_VERSION}\n`);
   return join(base, 'llm');
 }

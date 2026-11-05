@@ -501,7 +501,8 @@ describe('scanPackContent', () => {
       .findings.filter((f) => f.rule === 'exfiltration')
       .map((f) => f.file);
     expect(files.sort()).toEqual(['llm/skills/s/SKILL.md', 'llm/skills/s/big.md']);
-  });
+    // ~2.6 MB through every rule takes a few seconds; leave headroom for a loaded CI runner.
+  }, 20_000);
 
   it('skips binary formats and does not bidi-check non-UTF-8 files', () => {
     const bidiBytes = Buffer.from([0xe2, 0x80, 0xae]);
@@ -705,6 +706,22 @@ describe('add — scan reporting goes through the command log', () => {
     const output = log.mock.calls.map((c) => String(c[0])).join('\n');
     expect(output).toContain('content scan flagged 1 pattern(s) in warny@1.0.0');
     expect(output).toContain('[rm-rf] llm/rules/r.md:1');
+  });
+
+  it('logs what a new pack can run or gate', async () => {
+    fixtureFiles.current = {
+      'llm/guardrails/no-push.md':
+        "---\ntrigger: Bash\nmessage: no\ncheck:\n  field: command\n  not_matches: '^git push'\n---\n",
+      'llm/skills/s/SKILL.md': '# s\n',
+      'llm/skills/s/scripts/post.sh': 'echo hi\n',
+    };
+    const { add } = await import('../src/registry/index.js');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await add(root, 'warny@1.0.0');
+    const output = log.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(output).toContain('warny@1.0.0 can run or gate:');
+    expect(output).toContain('+ guardrail: no-push (gates Bash)');
+    expect(output).toContain('+ skill file: skills/s/scripts/post.sh');
   });
 
   it('prints nothing with silent, and notes a skipped scan otherwise', async () => {

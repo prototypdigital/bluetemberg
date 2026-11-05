@@ -16,6 +16,8 @@ import {
   readSourceLock,
 } from '../src/sources/manifest.js';
 import { sourceContentDir } from '../src/sources/cache.js';
+import { SCAN_MARKER } from '../src/registry/scan-cache.js';
+import { SCANNER_VERSION } from '../src/registry/scanner.js';
 import type { ResolvedSource, SourceSpec } from '../src/sources/types.js';
 
 // A fake github adapter: resolve pins a fixed SHA, fetch writes a native rule into tmpDir.
@@ -78,6 +80,7 @@ function seedCachedSource(
     `---\ndescription: ${description}\nscope: "**"\n---\n\n# ${ruleName}\n`,
   );
   writeFileSync(join(dir, '.bluetemberg-integrity'), 'sha512-seed\n');
+  writeFileSync(join(dir, SCAN_MARKER), `${SCANNER_VERSION}\n`);
 }
 
 describe('resolveExternalSourceDirs', () => {
