@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import matter from 'gray-matter';
+import { parseFrontmatter, stringifyFrontmatter } from '../utils/frontmatter.js';
 import type { BlueprintConfig, Platform } from '../types.js';
 import { listFiles } from '../utils/fs.js';
 import { withGeneratedBanner, withGeneratedBannerToml } from './banner.js';
@@ -126,7 +126,7 @@ export function toLegacySkillContent(
   kind: LegacySkillKind,
   options: LegacySkillOptions = {},
 ): LegacySkillTranslation {
-  const parsed = matter(source);
+  const parsed = parseFrontmatter(source);
   const rest: Record<string, unknown> = { ...parsed.data };
   const name = resolveSkillName(rest, fileName, kind);
   const description = rest.description;
@@ -148,7 +148,7 @@ export function toLegacySkillContent(
   if (options.devinTriggers && data['disable-model-invocation'] === true && !('triggers' in data)) {
     data.triggers = ['user'];
   }
-  return { name, content: matter.stringify(parsed.content, data), dropped };
+  return { name, content: stringifyFrontmatter(parsed.content, data), dropped };
 }
 
 interface PlannedLegacySkill {
@@ -238,7 +238,7 @@ function planLegacySkills(
       );
     }
     claimed.set(name, source.sourceId);
-    const userOnly = matter(content).data['disable-model-invocation'] === true;
+    const userOnly = parseFrontmatter(content).data['disable-model-invocation'] === true;
     planned.push({ name, source, text, userOnly });
   }
   return planned;

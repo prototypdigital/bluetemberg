@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, basename, dirname } from 'node:path';
-import matter from 'gray-matter';
+import { parseFrontmatter, readFrontmatter } from '../utils/frontmatter.js';
 import { toClaudeAgentContent } from './claude-agent-tools.js';
 import { commitPlannedWrite, type SyncSink } from './pipeline.js';
 import { withGeneratedBanner } from './banner.js';
@@ -150,7 +150,7 @@ function readRuleMeta(ruleFile: string, sourceDir: string, maps: MetaMaps): File
   const rulePath = join(sourceDir, ruleFile);
   const id = basename(ruleFile, '.md');
   try {
-    const { data } = matter.read(rulePath);
+    const { data } = readFrontmatter(rulePath);
     const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || id,
@@ -174,7 +174,7 @@ function readRuleMeta(ruleFile: string, sourceDir: string, maps: MetaMaps): File
 function readSkillMeta(skillDir: string, sourceParent: string, maps: MetaMaps): FileMeta {
   const skillPath = join(sourceParent, skillDir, 'SKILL.md');
   try {
-    const { data } = matter.read(skillPath);
+    const { data } = readFrontmatter(skillPath);
     const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || skillDir,
@@ -199,7 +199,7 @@ function readAgentMeta(agentFile: string, sourceDir: string, maps: MetaMaps): Fi
   const agentPath = join(sourceDir, agentFile);
   const id = basename(agentFile, '.md');
   try {
-    const { data } = matter.read(agentPath);
+    const { data } = readFrontmatter(agentPath);
     const record = data as Record<string, unknown>;
     return {
       name: (data.name as string) || id,
@@ -295,7 +295,7 @@ function ruleToSkillId(ruleFile: string): string {
 function yamlScalar(value: string): string {
   if (!value.includes('\n')) {
     try {
-      if (matter(`---\nv: ${value}\n---\n`).data.v === value) return value;
+      if (parseFrontmatter(`---\nv: ${value}\n---\n`).data.v === value) return value;
     } catch {
       // Not a valid plain scalar: quote it.
     }
@@ -309,7 +309,7 @@ function yamlScalar(value: string): string {
  * `name`/`description` block, keeping the rule body verbatim.
  */
 function ruleToSkillContent(name: string, meta: FileMeta, raw: string): string {
-  const { content: body } = matter(raw);
+  const { content: body } = parseFrontmatter(raw);
   const description = meta.description || `Guidance: ${meta.name}`;
   return `---\nname: ${yamlScalar(name)}\ndescription: ${yamlScalar(description)}\n---\n${body}`;
 }

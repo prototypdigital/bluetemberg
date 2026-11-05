@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, basename, dirname, relative, resolve } from 'node:path';
-import matter from 'gray-matter';
+import { readFrontmatter } from '../utils/frontmatter.js';
 import { parse as tomlParse, stringify as tomlStringify } from 'smol-toml';
 import type { Platform } from '../types.js';
 import { readIfExists } from '../utils/fs.js';
@@ -87,7 +87,7 @@ function buildRulesBlock(ctx: CodexSyncContext): string {
   const sections: string[] = [AGENTS_RULES_BLOCK_NOTICE];
 
   for (const [file, sourceDir] of applied.sort(byFilename)) {
-    const parsed = matter.read(join(sourceDir, file));
+    const parsed = readFrontmatter(join(sourceDir, file));
     const scope = parsed.data.scope as string | string[] | undefined;
     const section = [scopeAnnotation(scope), parsed.content.trim()].filter(Boolean).join('\n\n');
     assertRuleQuotesNoMarker(file, section);
@@ -172,7 +172,7 @@ function processAgentFile(
   recordError: (message: string) => void,
 ): boolean {
   try {
-    const parsed = matter.read(join(sourceDir, file));
+    const parsed = readFrontmatter(join(sourceDir, file));
     const fallbackName = basename(file, '.md');
     const name =
       typeof parsed.data.name === 'string' && parsed.data.name.trim().length > 0

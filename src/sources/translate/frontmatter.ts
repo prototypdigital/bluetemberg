@@ -1,4 +1,4 @@
-import matter from 'gray-matter';
+import { parseFrontmatter, stringifyFrontmatter } from '../../utils/frontmatter.js';
 import type { RuleFrontmatter } from '../../types.js';
 
 export interface ParsedDoc {
@@ -17,11 +17,11 @@ export interface ParsedDoc {
  */
 export function parseDoc(content: string): ParsedDoc {
   try {
-    const parsed = matter(content);
+    const parsed = parseFrontmatter(content);
     return { data: parsed.data as Record<string, unknown>, body: parsed.content };
   } catch {
     try {
-      const parsed = matter(repairFrontmatter(content));
+      const parsed = parseFrontmatter(repairFrontmatter(content));
       return { data: parsed.data as Record<string, unknown>, body: parsed.content };
     } catch {
       return { data: {}, body: stripFrontmatter(content) };
@@ -61,15 +61,18 @@ function quoteIfNeeded(value: string): string {
   return value;
 }
 
-/** Drop a leading `--- ... ---` frontmatter block, returning the body. */
+/**
+ * Drop a leading `--- ... ---` frontmatter block, returning the body. A fence with a language
+ * (`---json`, or a refused `---js`) is dropped too, so its block never reaches the output.
+ */
 function stripFrontmatter(content: string): string {
-  const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/);
+  const match = content.match(/^---(?!-)[^\r\n]*\r?\n[\s\S]*?\r?\n---\r?\n?([\s\S]*)$/);
   return match ? match[1] : content;
 }
 
 /** Serialize body + frontmatter back to a markdown string. */
 export function stringifyDoc(body: string, data: Record<string, unknown>): string {
-  return matter.stringify(body, data);
+  return stringifyFrontmatter(body, data);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import matter from 'gray-matter';
 import { carriesDraftMarker } from '../drafts/marker.js';
+import { readFrontmatter } from '../utils/frontmatter.js';
 import type { Catalog } from '../catalog/index.js';
 import type { BlueprintConfig, Stack, StackConstraint } from '../types.js';
 import {
@@ -104,7 +104,7 @@ function coverageSourceDirs(
 /** Read a file's effective stack constraint (frontmatter wins, else the catalog pack-level tag). */
 function readConstraint(kindDir: string, file: string, id: string, stackMap: StackMap): StackConstraint {
   try {
-    const record = matter.read(join(kindDir, file)).data as Record<string, unknown>;
+    const record = readFrontmatter(join(kindDir, file)).data as Record<string, unknown>;
     // A draft is withheld by the sync gate, so it covers nothing: counting its range would report
     // a gap as filled by content no session ever receives.
     if (carriesDraftMarker(record)) return {};
