@@ -501,7 +501,8 @@ describe('scanPackContent', () => {
       .findings.filter((f) => f.rule === 'exfiltration')
       .map((f) => f.file);
     expect(files.sort()).toEqual(['llm/skills/s/SKILL.md', 'llm/skills/s/big.md']);
-  });
+    // ~2.6 MB through every rule takes a few seconds; leave headroom for a loaded CI runner.
+  }, 20_000);
 
   it('skips binary formats and does not bidi-check non-UTF-8 files', () => {
     const bidiBytes = Buffer.from([0xe2, 0x80, 0xae]);

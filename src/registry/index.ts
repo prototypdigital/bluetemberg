@@ -27,6 +27,7 @@ import {
   packVersionDir,
 } from './installer.js';
 import { formatFindings } from './scanner.js';
+import { rescanCached, staleScanWarning } from './scan-cache.js';
 import type { ScanResult } from './scanner.js';
 import type {
   InstalledPackage,
@@ -329,7 +330,11 @@ export async function install(
       if (existingLock && !options.force) {
         // Check if the cached version is still available.
         if (isPackCached(root, name, existingLock.version)) {
-          log(`  ${name}@${existingLock.version} (cached)`);
+          const label = `${name}@${existingLock.version}`;
+          rescanCached(packVersionDir(root, name, existingLock.version), label, {
+            ...scanOptions(label, options.skipScan, log),
+          });
+          log(`  ${label} (cached)`);
           installed.push({
             name,
             range,
@@ -465,7 +470,11 @@ export async function update(
       const version = resolveVersion(metadata, range);
 
       if (previousVersion === version && isPackCached(root, name, version)) {
-        log(`  ${name}@${version} (up to date)`);
+        const label = `${name}@${version}`;
+        rescanCached(packVersionDir(root, name, version), label, {
+          ...scanOptions(label, options.skipScan, log),
+        });
+        log(`  ${label} (up to date)`);
         results.push({
           name,
           range: manifest.packages[name],
@@ -883,6 +892,13 @@ export function resolvePackSources(
       continue;
     }
 
+    const label = `${name}@${lockEntry.version}`;
+    const stale = staleScanWarning(
+      packVersionDir(root, name, lockEntry.version),
+      label,
+      'bluetemberg install',
+    );
+    if (stale) warnings.push(stale);
     dirs.push(dir);
     labels.push(`${name}@${lockEntry.version}`);
     packs.push({ name, version: lockEntry.version, integrity: lockEntry.integrity });

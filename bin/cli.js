@@ -1063,6 +1063,32 @@ program
     }
   });
 
+program
+  .command('scan')
+  .description(
+    'Run the pack content security scan on local pack or source directories (e.g. in a packs repo CI)',
+  )
+  .argument('<dirs...>', 'Pack or source directories to scan (e.g. packages/*)')
+  .option('--json', 'Emit machine-readable JSON (entries with findings, block and warning counts)')
+  .option('--strict', 'Exit 1 on warnings too, not only on blocking findings')
+  .option('--silent', 'Suppress output (the exit code still reports the result)')
+  .action(async (dirs, options) => {
+    const { buildContentScanReport, formatContentScanReport } =
+      await import('../dist/registry/scan-report.js');
+    try {
+      const report = buildContentScanReport(dirs.map((d) => resolve(d)));
+      if (!options.silent) {
+        console.log(
+          options.json ? JSON.stringify(report, null, 2) : formatContentScanReport(report).join('\n'),
+        );
+      }
+      if (report.blocks > 0 || (options.strict && report.warnings > 0)) process.exitCode = 1;
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  });
+
 /** `payload@4.0.1` → { stack, version }; the version is required for the draft commands. */
 function parseGapSpec(spec) {
   const atIdx = String(spec).indexOf('@');
@@ -1269,11 +1295,12 @@ sourceCmd
     '<spec>',
     'Source spec: github:owner/repo[#ref][:path] | prpm:name[@range] | cursor-directory:slug',
   )
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (spec, options) => {
     const { addSource } = await import('../dist/sources/registry.js');
     try {
-      await addSource(process.cwd(), spec, { silent: options.silent });
+      await addSource(process.cwd(), spec, { silent: options.silent, skipScan: options.skipScan });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -1313,11 +1340,16 @@ sourceCmd
   .command('install')
   .description('Install all external sources from the manifest (like npm ci)')
   .option('--force', 'Force re-download even if cached')
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (options) => {
     const { installSources } = await import('../dist/sources/registry.js');
     try {
-      await installSources(process.cwd(), { force: options.force, silent: options.silent });
+      await installSources(process.cwd(), {
+        force: options.force,
+        silent: options.silent,
+        skipScan: options.skipScan,
+      });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -1328,11 +1360,12 @@ sourceCmd
   .command('update')
   .description('Re-resolve external sources to the newest ref/version satisfying their spec')
   .argument('[key]', 'Source key to update (updates all when omitted)')
+  .option('--skip-scan', 'Skip the content security scan (sources you control only)')
   .option('--silent', 'Suppress progress output (errors still go to stderr)')
   .action(async (key, options) => {
     const { updateSources } = await import('../dist/sources/registry.js');
     try {
-      await updateSources(process.cwd(), key, { silent: options.silent });
+      await updateSources(process.cwd(), key, { silent: options.silent, skipScan: options.skipScan });
     } catch (err) {
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
