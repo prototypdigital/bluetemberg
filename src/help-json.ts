@@ -33,6 +33,12 @@ const PACK_INSTALL_OPTIONS = [
   { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
 ];
 
+/** `--skip-scan` on the external-source commands (`source add`, `install`, `update`). */
+const SOURCE_SKIP_SCAN_OPTION = {
+  long: '--skip-scan',
+  description: 'Skip the content security scan (sources you control only).',
+};
+
 /** The human-gated create-loop (M7, #197): gap → grounded draft → check → human promote. */
 const DRAFT_COMMANDS = [
   {
@@ -271,7 +277,12 @@ export function getMachineReadableHelp(): Record<string, unknown> {
         note: 'A pinned version is matched directly; "auto" re-detects every sync. Drives RULE routing — `llm/` stays the source of truth.',
       },
       detection: {
-        layers: ['declared (config)', 'node_modules', 'package-lock.json', 'coerced package.json range'],
+        layers: [
+          'declared (config)',
+          'node_modules',
+          'lockfile (package-lock.json, pnpm-lock.yaml or yarn.lock)',
+          'coerced package.json range',
+        ],
         confidence: ['declared', 'exact', 'coerced', 'unknown'],
         semantics: [
           'hard-exclude on no match',
@@ -535,6 +546,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           args: '<spec>',
           description: 'Resolve, fetch, and pin an external source; writes manifest + lockfile.',
           options: [
+            SOURCE_SKIP_SCAN_OPTION,
             { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
         },
@@ -558,6 +570,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           description: 'Install all sources from the manifest (like npm ci).',
           options: [
             { long: '--force', description: 'Force re-download even if cached.' },
+            SOURCE_SKIP_SCAN_OPTION,
             { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
         },
@@ -567,6 +580,7 @@ export function getMachineReadableHelp(): Record<string, unknown> {
           description:
             'Re-resolve sources to the newest ref/version satisfying their spec. Updates all when key is omitted.',
           options: [
+            SOURCE_SKIP_SCAN_OPTION,
             { long: '--silent', description: 'Suppress progress output; errors still go to stderr.' },
           ],
         },

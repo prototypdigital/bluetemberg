@@ -145,7 +145,8 @@ describe('commands and prompts synced as skills', () => {
     expect(deprecations).toHaveLength(1);
     expect(deprecations[0]).toContain('.claude/commands/');
     expect(deprecations[0]).toContain('.github/prompts/');
-    expect(deprecations[0]).toContain('0.18.0');
+    expect(deprecations[0]).toContain('a later release');
+    expect(deprecations[0]).not.toMatch(/stop being written in \d/);
   });
 
   it('does not warn about an output no enabled platform produces', async () => {
