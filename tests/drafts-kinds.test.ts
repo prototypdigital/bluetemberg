@@ -253,11 +253,7 @@ describe('promote by kind', () => {
     const claude = readFileSync(join(root, '.claude', 'agents', 'payload-4-jobs.md'), 'utf8');
     // The Claude output must carry Claude's own tool names, parsed as a real list.
     expect(claude).toMatch(/^tools: \["Read", "Edit", "Write"\]$/m);
-    expect(parseStrictFrontmatter(claude.replace(/<!--[\s\S]*?-->\n?/, '')).data.tools).toEqual([
-      'Read',
-      'Edit',
-      'Write',
-    ]);
+    expect(parseStrictFrontmatter(claude).data.tools).toEqual(['Read', 'Edit', 'Write']);
   });
 
   it('never writes into an existing skill dir, even an empty one', async () => {
