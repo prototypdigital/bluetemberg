@@ -1,6 +1,6 @@
 # Drafts: the human-gated create-loop
 
-> **Since 0.20.0.** Not in the npm release until 0.20.0 is published (0.19.0 is the latest there as of this writing).
+> **Since 0.20.0.**
 
 When detection finds a stack version that no rule covers (a **gap**), Bluetemberg can help an agent draft a rule for it. The engine never writes the rule itself, and it never calls a model. It hands the agent structured grounding, checks what comes back, and leaves the final decision to a human at a terminal.
 

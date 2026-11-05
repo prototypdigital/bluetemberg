@@ -1,6 +1,6 @@
 # Quickstart
 
-The shortest working install: one existing project, four commands, nothing to write by hand. This walkthrough was run against the published **bluetemberg 0.19.0** (0.20.0 was not on npm yet) in a fresh directory with an empty npm cache, on a Next.js 15 app with a `package-lock.json`. It took under a minute.
+The shortest working install: one existing project, four commands, nothing to write by hand. This walkthrough was run against the published **bluetemberg 0.20.0** (and, with the same result, 0.19.0) in a fresh directory with an empty npm cache, on a Next.js 15 app with a `package-lock.json`. It took under a minute.
 
 You need Node.js 20+ and a project with a `package.json`. Commit or stash your work first so the diff is easy to read.
 
@@ -37,7 +37,17 @@ npx bluetemberg install
 
 Each pack is downloaded from npm into `.bluetemberg/packs/` (gitignored), and refused unless its SHA-512 integrity and its npm registry signature check out and the [content scan](Registry#content-scan) finds nothing blocking. The resolved versions and hashes go into `llm/packages-lock.json`. Commit `llm/packages.json` and the lockfile.
 
+From 0.20.0, `install` also prints a capability report: what each pack can make your tools run or block, so you review behaviour rather than prose:
+
 ```text
+Installing 28 pack(s)...
+
+  bluetemberg-skills-pr-review-loop@0.4.0 can run or gate:
+    + skill file: skills/pr-review-loop/scripts/post-review-comment.sh
+    …
+  bluetemberg-guardrails-git@0.2.2 can run or gate:
+    + guardrail: conventional-branch-names (gates EnterWorktree)
+
 Installed 28 pack(s).
 ```
 

@@ -1,6 +1,6 @@
 # Telemetry
 
-> **Since 0.20.0.** Not in the npm release until 0.20.0 is published (0.19.0 is the latest there as of this writing).
+> **Since 0.20.0.**
 
 `bluetemberg managed-settings --telemetry-endpoint <url>` adds OpenTelemetry export to the org policy files it generates. Each AI coding host then sends its own metrics and events to **your** OTLP collector. bluetemberg itself never sends, collects or stores anything. It has no telemetry of its own. These keys only configure the hosts.
 

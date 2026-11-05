@@ -23,7 +23,7 @@ npx bluetemberg sync      # write .claude/ and .cursor/ for the stack versions i
 npx bluetemberg detect    # which stacks and versions it found, and whether guidance covers them
 ```
 
-Pick the profile closest to your role (`backend`, `fullstack`, `devops`, …). `init` writes `bluetemberg.config.json`, `llm/packages.json`, `AGENTS.md`, `CLAUDE.md` and two `package.json` scripts; `--omit-github` skips the optional GitHub repository files. Commit the generated files and run `npx bluetemberg sync --check` in CI. `npx bluetemberg why <rule>` explains why any rule is in or out, and `npx bluetemberg uninstall` removes everything again. Walked through on 0.19.0 with a Next.js 15 app; see [Quickstart](https://github.com/prototypdigital/bluetemberg/wiki/Quickstart) for the expected output.
+Pick the profile closest to your role (`backend`, `fullstack`, `devops`, …). `init` writes `bluetemberg.config.json`, `llm/packages.json`, `AGENTS.md`, `CLAUDE.md` and two `package.json` scripts; `--omit-github` skips the optional GitHub repository files. Commit the generated files and run `npx bluetemberg sync --check` in CI. `npx bluetemberg why <rule>` explains why any rule is in or out, and `npx bluetemberg uninstall` removes everything again. Walked through on 0.20.0 (and 0.19.0) with a Next.js 15 app; see [Quickstart](https://github.com/prototypdigital/bluetemberg/wiki/Quickstart) for the expected output.
 
 ## "But everything is converging on AGENTS.md."
 

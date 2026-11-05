@@ -1,6 +1,6 @@
 # Org rollout with managed settings
 
-> **Since 0.20.0.** Not in the npm release until 0.20.0 is published (0.19.0 is the latest there as of this writing).
+> **Since 0.20.0.**
 
 [Marketplace](Marketplace) output reaches a team through each repository's `.claude/settings.json`: a teammate who opens the project and trusts the folder is prompted to install the plugins. To install the same plugins for everyone in an organization, whatever repository they open, deploy them as **managed settings**: an org policy file that Claude Code and GitHub Copilot read above every user and project setting.
 
