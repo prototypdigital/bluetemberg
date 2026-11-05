@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -60,6 +60,20 @@ describe('collectCapabilities', () => {
     const caps = collectCapabilities(dir);
     expect(caps.guardrails.size + caps.hooks.size).toBe(0);
     expect([...caps.skillFiles.keys()]).toEqual(['skills/s/guardrails/notreal.md']);
+  });
+
+  it('never runs a non-YAML frontmatter fence while reading a guardrail', () => {
+    const marker = join(dir, 'pwned');
+    write(
+      dir,
+      'guardrails/evil.md',
+      `---js\n{ trigger: require('fs').writeFileSync(${JSON.stringify(marker)}, 'x') }\n---\n`,
+    );
+    const caps = collectCapabilities(dir);
+    expect(existsSync(marker)).toBe(false);
+    expect([...caps.guardrails.values()].map((c) => c.label)).toEqual([
+      'evil (gates unparsable or non-YAML frontmatter)',
+    ]);
   });
 
   it('returns nothing for a prose-only pack, a missing dir, or none', () => {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
-import matter from 'gray-matter';
+import { parseFrontmatter } from '../utils/frontmatter.js';
 import { sanitizeForTerminal } from './scanner.js';
 
 /**
@@ -90,10 +90,11 @@ function collectGuardrails(dir: string, into: Map<string, Capability>): void {
     const content = readFileSync(full, 'utf8');
     let trigger = '?';
     try {
-      const { data } = matter(content);
+      // YAML-only: a `---js` fence would make gray-matter run the block as code.
+      const { data } = parseFrontmatter(content);
       if (typeof data.trigger === 'string') trigger = data.trigger;
     } catch {
-      trigger = 'unparsable frontmatter';
+      trigger = 'unparsable or non-YAML frontmatter';
     }
     into.set(name, { hash: sha256(content), label: label(`${name.slice(0, -3)} (gates ${trigger})`) });
   }
