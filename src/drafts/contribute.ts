@@ -1,11 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { devNull } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 
 import { sanitizeForTerminal } from '../registry/scanner.js';
 import { isValidStackRange, isWildcardRange } from '../stacks/match.js';
 import { loadConfig } from '../sync/index.js';
-import { MAX_DRAFT_BYTES, quoteValue, safetyIssues, type Citation } from './check.js';
+import { MAX_DRAFT_BYTES, quoteValue, safetyIssues, urlIssue, type Citation } from './check.js';
 import { parseStrictFrontmatter } from './frontmatter.js';
 import { isDraftKind, KIND_SPECS, kindTarget, type DraftKind } from './kinds.js';
 import { DRAFT_KEY } from './marker.js';
@@ -32,8 +33,20 @@ const STACK_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 /** Runs `git` with an argument array (never a shell) in `cwd`; returns stdout. Injectable for tests. */
 export type GitRunner = (args: string[], cwd: string) => string;
 
+/**
+ * Every git call the engine makes in the packs repo runs with that repo's hooks off and no
+ * filesystem monitor: `git switch` would otherwise run a `post-checkout` hook and `git status` a
+ * `core.fsmonitor` command — the packs repo's code, run by our command. Its own commit, which runs
+ * its hooks, is left to the human.
+ */
+const NO_REPO_CODE = ['-c', `core.hooksPath=${devNull}`, '-c', 'core.fsmonitor=false'];
+
 export const runGit: GitRunner = (args, cwd) =>
-  execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  execFileSync('git', [...NO_REPO_CODE, ...args], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
 export interface ContributeOptions {
   /** The local bluetemberg-packs checkout. */
@@ -88,15 +101,26 @@ function readCapped(path: string, label: string): string {
   return readFileSync(path, 'utf8');
 }
 
-function citationsOf(raw: unknown): Citation[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (c): c is Citation =>
-      isPlainObject(c) &&
-      typeof c.url === 'string' &&
-      typeof c.quote === 'string' &&
-      typeof c.retrieved === 'string',
+/** The archive's citations. The archive is local and editable, so each URL is re-validated. */
+function isCitation(value: unknown): value is Citation {
+  return (
+    isPlainObject(value) &&
+    typeof value.url === 'string' &&
+    typeof value.quote === 'string' &&
+    typeof value.retrieved === 'string'
   );
+}
+
+function citationsOf(raw: unknown, name: string): Citation[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new Error(`the archive for "${name}" records no citations`);
+  }
+  return raw.map((c: unknown, i) => {
+    if (!isCitation(c) || urlIssue(c.url) !== null) {
+      throw new Error(`the archive for "${name}" has an invalid citation (#${i + 1})`);
+    }
+    return { url: c.url, quote: c.quote, retrieved: c.retrieved };
+  });
 }
 
 /** Read the promoted-draft archive. It must record a human review: reviewer, time and hash. */
@@ -135,7 +159,7 @@ function readArchive(root: string, name: string): Archive {
     kind: draft.kind,
     frontmatter,
     body,
-    citations: citationsOf(draft.citations),
+    citations: citationsOf(draft.citations, name),
     gap: { stack, version, reason: str(gap.reason) ?? 'unknown' },
     range,
     reviewedBy,
@@ -359,6 +383,20 @@ function nextSteps(repo: string, branch: string, title: string, bodyFile: string
 // The command
 // ---------------------------------------------------------------------------
 
+/** Write the new item with exclusive create (a skill's dir must be new too) and stage it. */
+function writeStaged(git: GitRunner, repo: string, kind: DraftKind, file: string, text: string): void {
+  const target = join(repo, ...file.split('/'));
+  assertNoSymlinks(repo, target);
+  if (kind === 'skill') {
+    mkdirSync(dirname(dirname(target)), { recursive: true });
+    mkdirSync(dirname(target));
+  } else {
+    mkdirSync(dirname(target), { recursive: true });
+  }
+  writeFileSync(target, text, { flag: 'wx' });
+  git(['add', '--', file], repo);
+}
+
 /**
  * Prepare a contribution branch for promoted draft `name`. Every check runs before the first
  * write; the only writes are the branch switch, the one new file (exclusive create) staged in the
@@ -392,14 +430,17 @@ export function prepareContribution(root: string, name: string, opts: Contribute
   const bodyPath = join(promotedDir(root), `${name}.pr.md`);
   assertNoSymlinks(root, bodyPath);
 
+  const previous = git(['branch', '--show-current'], repo).trim();
   git(['switch', '-c', branch, BASE_REF], repo);
-  const target = join(repo, ...item.file.split('/'));
-  assertNoSymlinks(repo, target);
-  if (archive.kind === 'skill') mkdirSync(dirname(dirname(target)), { recursive: true });
-  if (archive.kind === 'skill') mkdirSync(dirname(target));
-  else mkdirSync(dirname(target), { recursive: true });
-  writeFileSync(target, promoted.text, { flag: 'wx' });
-  git(['add', '--', item.file], repo);
+  try {
+    writeStaged(git, repo, archive.kind, item.file, promoted.text);
+  } catch (err) {
+    const back = previous ? `git switch ${previous}` : 'git switch -';
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `${message}\nThe packs repo is now on ${branch} with nothing staged; \`${back}\` returns you.`,
+    );
+  }
 
   writeFileSync(bodyPath, prBody(archive, pack, promoted.edited, range));
   const bodyFile = displayPath(root, bodyPath);

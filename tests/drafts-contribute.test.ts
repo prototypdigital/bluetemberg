@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { codeSpan, prepareContribution } from '../src/drafts/contribute.js';
+import { codeSpan, prepareContribution, runGit } from '../src/drafts/contribute.js';
 import { promoteDraft } from '../src/drafts/promote.js';
 
 const NOW = new Date('2026-11-04T12:00:00.000Z');
@@ -221,6 +221,52 @@ describe('prepareContribution', () => {
     expect(
       existsSync(join(repo, 'packages', 'bluetemberg-rules-payload', 'llm', 'rules', `${NAME}.md`)),
     ).toBe(false);
+  });
+
+  it("never runs the packs repo's hooks or fsmonitor", async () => {
+    const repo = createPacksRepo(base);
+    const root = await createPromotedProject(base);
+    const marker = join(base, 'repo-code-ran');
+    const script = join(base, 'probe.sh');
+    writeFileSync(script, `#!/bin/sh\ntouch '${marker}'\n`);
+    chmodSync(script, 0o755);
+    writeFileSync(join(repo, '.git', 'hooks', 'post-checkout'), `#!/bin/sh\n'${script}'\n`);
+    chmodSync(join(repo, '.git', 'hooks', 'post-checkout'), 0o755);
+    git(['config', 'core.fsmonitor', script], repo);
+
+    // The probe works: plain git runs the hook.
+    git(['switch', '-q', '-c', 'probe'], repo);
+    expect(existsSync(marker)).toBe(true);
+    rmSync(marker);
+    git(['switch', '-q', 'main'], repo);
+    git(['branch', '-q', '-D', 'probe'], repo);
+    rmSync(marker, { force: true });
+
+    prepareContribution(root, NAME, { packsRepo: repo, env: {} });
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('refuses an archive citation that is not a valid https URL', async () => {
+    const repo = createPacksRepo(base);
+    const root = await createPromotedProject(base);
+    const archive = join(root, '.bluetemberg', 'drafts', 'promoted', `${NAME}.md`);
+    writeFileSync(
+      archive,
+      readFileSync(archive, 'utf8').replace('https://payloadcms.com', 'javascript://payloadcms.com'),
+    );
+    expect(() => prepareContribution(root, NAME, { packsRepo: repo, env: {} })).toThrow(/invalid citation/);
+  });
+
+  it('says how to get back when a step after the branch switch fails', async () => {
+    const repo = createPacksRepo(base);
+    const root = await createPromotedProject(base);
+    const failingAdd = (args: string[], cwd: string): string => {
+      if (args[0] === 'add') throw new Error('add failed');
+      return runGit(args, cwd);
+    };
+    expect(() => prepareContribution(root, NAME, { packsRepo: repo, env: {}, git: failingAdd })).toThrow(
+      /now on feat\/rule-payload-4-jobs.*git switch main/s,
+    );
   });
 
   it('refuses an archive whose stack range was tampered with', async () => {
