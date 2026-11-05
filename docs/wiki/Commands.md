@@ -385,11 +385,12 @@ The human-gated create-loop: open a draft rule for a stack gap, let an agent fil
 
 | Subcommand | Writes | Notes |
 | ---------- | ------ | ----- |
-| `draft brief <stack@version> [directory] [--json]` | nothing | Gap brief for an agent: gap reason, proposed range, npm package, nearest guidance, paths of files importing the package, citation contract. Exits 1 when the version is already covered |
-| `draft new <stack@version> [directory] --name <rule> [--scope <glob>] [--json]` | `.bluetemberg/drafts/<rule>.md` | Refuses a covered version, an existing draft or rule of that name, and a symlinked drafts dir |
+| `draft brief <stack@version> [directory] [--kind rule\|skill\|agent] [--json]` | nothing | Gap brief for an agent, naming the matching `create-*` authoring skill: gap reason, proposed range, npm package, nearest guidance, paths of files importing the package, citation contract. Exits 1 when the version is already covered |
+| `draft new <stack@version> [directory] --name <name> [--kind rule\|skill\|agent] [--scope <glob>] [--json]` | `.bluetemberg/drafts/<name>.md` | Default kind `rule`; `--scope` is for rules only. Refuses a covered version, an existing draft or rule/skill/agent of that name, and a symlinked drafts dir. An agent skeleton starts with `tools: [read, search]` |
 | `draft list [directory] [--json]` | nothing | Pending and promoted drafts |
-| `draft check <name> [directory] [--json]` | nothing | Strict frontmatter, a bounded range that covers the gap, at least one citation, no `TODO(draft)`, the security scan, and that the gap is still open. Exits 1 on errors |
-| `draft promote <name> [directory] --reviewed-by <who>` | `<source>/rules/<name>.md` | **Human only.** Needs an interactive terminal, and refuses inside an agent session (`CLAUDECODE`, `CURSOR_AGENT`, `GEMINI_CLI`, `CODEX_SANDBOX`). Shows the rule; you type its name to confirm; aborts if the draft changed during review; never overwrites |
+| `draft check <name> [directory] [--verify-citations] [--json]` | nothing | Strict frontmatter, a bounded range that covers the gap, at least one citation, no `TODO(draft)`, the security scan, and that the gap is still open. `--verify-citations` also fetches each cited page and requires its quote to be on it, and warns about citations from outside the package's own docs. Exits 1 on errors |
+| `draft promote <name> [directory] --reviewed-by <who> [--skip-citation-verification]` | `<source>/rules/<name>.md`, `<source>/skills/<name>/SKILL.md` or `<source>/agents/<name>.md` | **Human only.** Verifies every citation first (skip offline with `--skip-citation-verification`, recorded in the archive). Needs an interactive terminal, and refuses inside an agent session (`CLAUDECODE`, `CURSOR_AGENT`, `GEMINI_CLI`, `CODEX_SANDBOX`). Shows the rule; you type its name to confirm; aborts if the draft changed during review; never overwrites |
+| `draft pr <name> [directory] --packs-repo <dir> [--pack <name>] [--json]` | a new `feat/<kind>-<name>` branch in your packs checkout, with the file staged; `.bluetemberg/drafts/promoted/<name>.pr.md` | **Human only** (refuses inside an agent session). From a promoted draft: re-checks the file, picks the pack from `origin/main` by kind and gap stack, refuses a name taken in any pack. Never commits, pushes or runs the packs repo's scripts; prints `generate:catalog`, commit, push and `gh pr create --draft --label needs-review` |
 
 A file carrying a `draft:` frontmatter key is withheld by sync, guardrails, `why` and the marketplace, even inside `llm/rules/`.
 
@@ -406,8 +407,8 @@ Tools:
 | `bluetemberg_list_stacks` | — | The live stack registry (catalog ∪ detected) with covered ranges |
 | `bluetemberg_why` | `file` (source path, generated path or id), or `diff` (array of `stack@version`) | The [`why`](#bluetemberg-why-file-directory) report for one item, or the upgrade diff |
 | `bluetemberg_org_histogram` | `roots` (array of repo paths), `org`, `repos`, `since` — all optional; combine local roots with a remote org scan | **[maintainer]** `(stack, version)` usage histogram across the given repos vs catalog coverage, with a usage-ranked gap list |
-| `bluetemberg_draft_brief` | `stack`, `version` | The [`draft brief`](#bluetemberg-draft-subcommand) for a gap: grounding data for drafting a rule |
-| `bluetemberg_draft_check` | `name` | The [`draft check`](#bluetemberg-draft-subcommand) report for a draft in `.bluetemberg/drafts/` |
+| `bluetemberg_draft_brief` | `stack`, `version`, optional `kind` | The [`draft brief`](#bluetemberg-draft-subcommand) for a gap: grounding data for drafting a rule, skill or agent |
+| `bluetemberg_draft_check` | `name`, optional `verifyCitations` | The [`draft check`](#bluetemberg-draft-subcommand) report for a draft in `.bluetemberg/drafts/` |
 
 No tool writes or promotes a draft: drafts are opened with `bluetemberg draft new`, and only a human at a terminal runs `draft promote`.
 
