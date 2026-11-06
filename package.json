@@ -82,11 +82,11 @@
     "@types/semver": "^7.7.1",
     "@typescript/native": "npm:typescript@^7.0.2",
     "ajv": "^8.20.0",
-    "eslint": "^10.2.1",
+    "eslint": "^10.14.0",
     "prettier": "^3.8.4",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.61.0",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": ">=20.0.0"
