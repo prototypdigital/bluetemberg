@@ -68,7 +68,7 @@
   "dependencies": {
     "@inquirer/prompts": "^8.5.2",
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "commander": "^15.0.0",
+    "commander": "^15.1.0",
     "gray-matter": "^4.0.3",
     "semver": "^7.8.6",
     "smol-toml": "^1.9.1",
