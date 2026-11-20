@@ -72,7 +72,7 @@
     "gray-matter": "^4.0.3",
     "semver": "^7.8.6",
     "smol-toml": "^1.9.1",
-    "tar": "^7.5.13",
+    "tar": "^7.5.23",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
